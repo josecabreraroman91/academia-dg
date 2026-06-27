@@ -12,8 +12,8 @@
     --libre:#c0392b; --cell:#1d2129; --accent:#f4c430; --madre:#e0457b;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
-  header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 12px}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  header{position:relative;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 12px;flex-shrink:0}
   .title{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;margin-bottom:8px}
   .title small{color:var(--muted);font-weight:400;font-size:11px}
 
@@ -58,15 +58,15 @@
   .prof-add .field{margin:0}
   .prof-add .field.dim{max-width:90px}
 
-  main{padding:10px}
-  .grid-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+  main{padding:10px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  .grid-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;flex:1;min-height:0}
   body.modo-madre .grid-wrap{border-color:var(--madre)}
   table{border-collapse:collapse;width:100%;min-width:max-content}
   th,td{border:1px solid var(--line);vertical-align:top}
-  th.hcol{position:sticky;left:0;z-index:5;background:var(--panel);min-width:54px;width:54px;text-align:center;padding:6px 2px;font-size:12px}
+  th.hcol{position:sticky;left:0;top:0;z-index:8;background:var(--panel);min-width:54px;width:54px;text-align:center;padding:6px 2px;font-size:12px}
   td.hcell{position:sticky;left:0;z-index:4;background:var(--panel);text-align:center;font-weight:700;color:var(--accent);font-size:13px;padding:4px}
   body.modo-madre td.hcell{color:var(--madre)}
-  th.profhead{min-width:140px;background:var(--panel);padding:5px;text-align:center}
+  th.profhead{position:sticky;top:0;z-index:6;min-width:140px;background:var(--panel);padding:5px;text-align:center}
   th.profhead select{background:var(--cell);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:3px;font-size:12px;width:100%;font-weight:700}
   td.cell{min-width:140px;padding:0;background:var(--cell)}
   .slot{border-bottom:1px dashed #232833;padding:5px 6px;min-height:34px;cursor:pointer;position:relative}
@@ -90,7 +90,9 @@
   .check-btn:hover{border-color:#2fd071;color:#2fd071}
   .slot.confirmado .check-btn{background:#2fd071;color:#0c2a18;border-color:#2fd071}
   td.cell.libre{background:var(--libre)}
-  td.cell.libre .slot{cursor:default;color:#fff;text-align:center;display:flex;align-items:center;justify-content:center;min-height:140px;font-weight:700}
+  td.cell.libre .slot.libre-slot{cursor:pointer;color:#fff;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:140px;font-weight:800;font-size:14px}
+  td.cell.libre .slot.libre-slot:active{background:#0003}
+  .libre-hab{font-size:10px;font-weight:600;color:#fff;opacity:.8;background:#0003;border:1px dashed #fff7;border-radius:5px;padding:2px 6px}
   .libre-toggle{position:absolute;top:2px;right:2px;font-size:9px;background:#0006;border:none;color:#fff;border-radius:4px;padding:1px 4px;cursor:pointer;opacity:.6}
   .libre-toggle:hover{opacity:1}
 
@@ -107,7 +109,7 @@
   .sheet-actions .btn{flex:1;padding:11px}
   .btn.danger{background:#3a1f1f;border-color:#5a2a2a;color:#ff8a8a}
 
-  .resumen{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:12px;white-space:pre-wrap;font-size:13px;line-height:1.5}
+  .resumen{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:0;white-space:pre-wrap;font-size:13px;line-height:1.5;flex:1;min-height:0;overflow:auto}
   .hint{color:var(--muted);font-size:11px;margin-top:6px;text-align:center}
 
   /* ===== Vista de Envíos (pantalla completa) ===== */
@@ -532,9 +534,9 @@ function renderGrid(){
     sede.profes.forEach((p,pi)=>{
       const esLibre = B.libres[libreKey(pi,hi)];
       if(esLibre){
-        html+=`<td class="cell libre"><button class="libre-toggle" data-libre="${pi}|${hi}">activar</button><div class="slot">LIBRE</div></td>`;
+        html+=`<td class="cell libre"><div class="slot libre-slot" data-libreon="${pi}|${hi}">🔒 LIBRE<span class="libre-hab">tocá para habilitar</span></div></td>`;
       } else {
-        html+=`<td class="cell"><button class="libre-toggle" data-libre="${pi}|${hi}">libre</button>`;
+        html+=`<td class="cell"><button class="libre-toggle" data-libre="${pi}|${hi}">marcar libre</button>`;
         for(let si=0; si<SLOTS_POR_HORA; si++){
           const al=B.alumnos[cellKey(pi,hi,si)];
           if(al){
@@ -589,6 +591,17 @@ function renderGrid(){
       if(!al) return;
       al.confirmado = !al.confirmado;
       saveState(); renderGrid();
+    };
+  });
+  grid.querySelectorAll('.libre-slot[data-libreon]').forEach(s=>{
+    s.onclick=()=>{
+      if(!confirmarSiMadre()) return;
+      const k=`${state.dia}|${state.sedeActiva}|${s.dataset.libreon}`;
+      delete book().libres[k];
+      saveState(); renderGrid();
+      // abrir editor del primer slot para cargar el alumno enseguida
+      const [pi,hi]=s.dataset.libreon.split('|');
+      openEditor(`${pi}|${hi}|0`);
     };
   });
   grid.querySelectorAll('.libre-toggle').forEach(b=>{
@@ -767,17 +780,19 @@ function buildResumen(){
 
 function toggleResumen(){
   const el=document.getElementById('resumen');
+  const gw=document.querySelector('.grid-wrap');
   if(el.style.display==='none'){
     el.innerHTML = `<button class="btn primary" id="btnCopiarResumen" style="margin-bottom:10px">📋 Copiar resumen</button><div id="resumenTxt"></div>`;
     document.getElementById('resumenTxt').textContent = buildResumen();
     el.style.display='block';
+    if(gw) gw.style.display='none';
     document.getElementById('btnCopiarResumen').onclick=()=>{
       navigator.clipboard.writeText(buildResumen()).then(
         ()=>{ const b=document.getElementById('btnCopiarResumen'); b.textContent='✅ Copiado'; setTimeout(()=>b.textContent='📋 Copiar resumen',1500); },
         ()=> alert('No se pudo copiar automáticamente. Seleccioná el texto y copialo a mano.')
       );
     };
-  } else el.style.display='none';
+  } else { el.style.display='none'; if(gw) gw.style.display=''; }
 }
 
 // Resetear la SEMANA copiando la MADRE (limpia)
@@ -790,7 +805,7 @@ function resetSemana(){
   }
 }
 
-function renderAll(){ renderDayTabs(); renderSedeTabs(); renderGrid(); document.getElementById('resumen').style.display='none'; }
+function renderAll(){ renderDayTabs(); renderSedeTabs(); renderGrid(); document.getElementById('resumen').style.display='none'; const gw=document.querySelector('.grid-wrap'); if(gw) gw.style.display=''; }
 
 // ===== INTEGRACIÓN CON ENVÍOS (hoja ALUMNOS + CSV para recordatorios) =====
 
