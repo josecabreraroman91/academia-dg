@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Calendario Academia DG</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --txt:#e8eaed; --muted:#8b93a7;
+    --lomas:#3b6fd4; --elite:#1f9d57; --segurola:#e2691e; --adefinir:#7b3fe4;
+    --libre:#c0392b; --cell:#1d2129; --accent:#f4c430; --madre:#e0457b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);font-size:14px}
+  header{position:sticky;top:0;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 12px}
+  .title{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;margin-bottom:8px}
+  .title small{color:var(--muted);font-weight:400;font-size:11px}
+
+  /* Conmutador de modo */
+  .mode-switch{display:flex;gap:6px;background:var(--cell);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:8px}
+  .mode-btn{flex:1;padding:9px;border:none;border-radius:7px;background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
+  .mode-btn.active.semana{background:var(--accent);color:#1a1a1a}
+  .mode-btn.active.madre{background:var(--madre);color:#fff}
+
+  .madre-banner{display:none;background:var(--madre);color:#fff;font-size:12px;font-weight:600;padding:7px 10px;border-radius:8px;margin-bottom:8px;text-align:center}
+  body.modo-madre .madre-banner{display:block}
+
+  .day-tabs,.sede-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
+  .tab{padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer}
+  .tab.active{background:var(--accent);color:#1a1a1a;border-color:var(--accent)}
+  body.modo-madre .day-tabs .tab.active{background:var(--madre);color:#fff;border-color:var(--madre)}
+  .sede-tabs .tab.active.lomas{background:var(--lomas);color:#fff;border-color:var(--lomas)}
+  .sede-tabs .tab.active.elite{background:var(--elite);color:#fff;border-color:var(--elite)}
+  .sede-tabs .tab.active.segurola{background:var(--segurola);color:#fff;border-color:var(--segurola)}
+  .sede-tabs .tab.active.adefinir{background:var(--adefinir);color:#fff;border-color:var(--adefinir)}
+  .sub{margin-top:8px}
+  .toolbar{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .btn{padding:7px 11px;border-radius:8px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-size:12px;font-weight:600;cursor:pointer}
+  .btn.primary{background:var(--accent);color:#1a1a1a;border-color:var(--accent)}
+  .btn.reset{background:#2a1f30;border-color:#4a2a52;color:#e0b8ff}
+  .btn.profs{background:#1f2e2a;border-color:#2a4a42;color:#9fe8d0}
+  .btn.envios{background:#1f3a2e;border-color:#2a5a42;color:#7df0aa}
+
+  /* header de columna con quitar */
+  th.profhead .colhead{display:flex;align-items:center;gap:3px}
+  th.profhead select{flex:1}
+  .col-x{background:#3a1f1f;border:1px solid #5a2a2a;color:#ff8a8a;border-radius:5px;width:22px;height:26px;font-size:13px;cursor:pointer;flex-shrink:0;padding:0}
+  .col-x:hover{background:#5a2a2a}
+
+  /* lista de profesores en el modal */
+  .prof-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+  .prof-item{display:flex;align-items:center;gap:8px;background:var(--cell);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+  .prof-item .pdim{background:var(--accent);color:#1a1a1a;font-weight:700;border-radius:6px;padding:3px 8px;font-size:13px;min-width:42px;text-align:center}
+  .prof-item .pnom{flex:1;font-weight:600}
+  .prof-item .pdel{background:#3a1f1f;border:1px solid #5a2a2a;color:#ff8a8a;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:12px}
+  .prof-add{display:flex;gap:8px;align-items:flex-end;border-top:1px solid var(--line);padding-top:12px}
+  .prof-add .field{margin:0}
+  .prof-add .field.dim{max-width:90px}
+
+  main{padding:10px}
+  .grid-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+  body.modo-madre .grid-wrap{border-color:var(--madre)}
+  table{border-collapse:collapse;width:100%;min-width:max-content}
+  th,td{border:1px solid var(--line);vertical-align:top}
+  th.hcol{position:sticky;left:0;z-index:5;background:var(--panel);min-width:54px;width:54px;text-align:center;padding:6px 2px;font-size:12px}
+  td.hcell{position:sticky;left:0;z-index:4;background:var(--panel);text-align:center;font-weight:700;color:var(--accent);font-size:13px;padding:4px}
+  body.modo-madre td.hcell{color:var(--madre)}
+  th.profhead{min-width:140px;background:var(--panel);padding:5px;text-align:center}
+  th.profhead select{background:var(--cell);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:3px;font-size:12px;width:100%;font-weight:700}
+  td.cell{min-width:140px;padding:0;background:var(--cell)}
+  .slot{border-bottom:1px dashed #232833;padding:5px 6px;min-height:34px;cursor:pointer;position:relative}
+  .slot:last-child{border-bottom:none}
+  .slot:hover{background:#222734}
+  .slot.empty{color:#3a4150}
+  .slot .nm{font-weight:600;line-height:1.15}
+  .slot .tags{font-size:10px;color:var(--muted);margin-top:2px;display:flex;gap:4px;flex-wrap:wrap}
+  .slot .tag{background:#262b36;padding:1px 5px;border-radius:5px}
+  .slot .tag.mod{background:#33405a;color:#bcd0ff}
+  .slot .tag.nivel{background:#3a2f4d;color:#d6b8ff;font-weight:700}
+  .slot .nota{font-size:10px;color:#1a1a1a;background:var(--accent);border-radius:5px;padding:2px 5px;margin-top:3px;font-weight:600;display:flex;align-items:center;gap:3px}
+  .slot .nota::before{content:'💬'}
+  /* confirmación de asistencia (solo SEMANA) */
+  .slot.confirmado{background:#16432a !important;border-left:3px solid #2fd071}
+  .slot.confirmado .nm{color:#7df0aa}
+  .slot.confirmado .tag{background:#1d5a38;color:#bff4d2}
+  .slot.confirmado .tag.mod{background:#1d5a38;color:#bff4d2}
+  .slot.confirmado .tag.nivel{background:#1d5a38;color:#bff4d2}
+  .check-btn{position:absolute;bottom:3px;right:3px;width:24px;height:24px;border-radius:50%;border:1px solid #2a4a3a;background:#1c2a22;color:#5a7a68;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+  .check-btn:hover{border-color:#2fd071;color:#2fd071}
+  .slot.confirmado .check-btn{background:#2fd071;color:#0c2a18;border-color:#2fd071}
+  td.cell.libre{background:var(--libre)}
+  td.cell.libre .slot{cursor:default;color:#fff;text-align:center;display:flex;align-items:center;justify-content:center;min-height:140px;font-weight:700}
+  .libre-toggle{position:absolute;top:2px;right:2px;font-size:9px;background:#0006;border:none;color:#fff;border-radius:4px;padding:1px 4px;cursor:pointer;opacity:.6}
+  .libre-toggle:hover{opacity:1}
+
+  .overlay{position:fixed;inset:0;background:#000a;display:none;align-items:flex-end;z-index:50}
+  .overlay.show{display:flex}
+  .sheet{background:var(--panel);width:100%;border-radius:16px 16px 0 0;padding:16px;max-height:88vh;overflow:auto}
+  .sheet h3{margin-bottom:12px;font-size:15px}
+  .field{margin-bottom:10px}
+  .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
+  .field input,.field select,.field textarea{width:100%;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-size:14px;font-family:inherit}
+  .field-row{display:flex;gap:8px}
+  .field-row .field{flex:1}
+  .sheet-actions{display:flex;gap:8px;margin-top:8px}
+  .sheet-actions .btn{flex:1;padding:11px}
+  .btn.danger{background:#3a1f1f;border-color:#5a2a2a;color:#ff8a8a}
+
+  .resumen{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:12px;white-space:pre-wrap;font-size:13px;line-height:1.5}
+  .hint{color:var(--muted);font-size:11px;margin-top:6px;text-align:center}
+
+  /* ===== Vista de Envíos (pantalla completa) ===== */
+  .envios-screen{position:fixed;inset:0;background:var(--bg);z-index:60;display:none;flex-direction:column;overflow:auto}
+  .envios-screen.show{display:flex}
+  .ev-head{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);padding:12px;z-index:2}
+  .ev-top{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+  .ev-top h2{font-size:15px;flex:1}
+  .ev-counts{display:flex;gap:8px;font-size:12px;flex-wrap:wrap}
+  .ev-pill{background:var(--cell);border:1px solid var(--line);border-radius:20px;padding:3px 10px}
+  .ev-pill.sent{color:#7df0aa;border-color:#2a5a42}
+  .ev-pill.pend{color:var(--accent);border-color:#5a4a1a}
+  .ev-pill.warn{color:#ff8a8a;border-color:#5a2a2a}
+  .ev-bar{height:6px;background:var(--cell);border-radius:3px;overflow:hidden;margin-top:8px}
+  .ev-bar > div{height:100%;background:#2fd071;width:0%;transition:width .3s}
+  .ev-body{padding:12px;flex:1}
+  .ev-config{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:12px}
+  .ev-config summary{cursor:pointer;font-weight:600;font-size:13px}
+  .ev-config textarea{width:100%;min-height:80px;margin-top:10px;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-size:13px;font-family:inherit;resize:vertical}
+  .ev-ph{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .ev-ph .chip{background:var(--cell);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;font-family:monospace}
+  .ev-cc{display:flex;align-items:center;gap:8px;margin-top:10px}
+  .ev-cc input{width:90px;padding:7px;border-radius:8px;border:1px solid var(--line);background:var(--cell);color:var(--txt)}
+  .ticket{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .ticket.done{opacity:.55}
+  .ticket-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .t-name{font-size:18px;font-weight:700}
+  .t-pos{color:var(--muted);font-size:13px}
+  .t-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+  .t-tags .tag{background:var(--cell);border:1px solid var(--line);border-radius:6px;padding:3px 8px;font-size:11px}
+  .t-tags .tag .k{color:var(--muted);margin-right:3px}
+  .badge{border-radius:6px;padding:3px 8px;font-size:11px;font-weight:700}
+  .badge.sent{background:#16432a;color:#7df0aa}
+  .badge.pend{background:#5a4a1a;color:var(--accent)}
+  .preview{background:var(--cell);border:1px solid var(--line);border-radius:8px;padding:10px;font-size:13px;white-space:pre-wrap;line-height:1.45;margin-bottom:12px}
+  .ev-actions{display:flex;gap:8px;flex-wrap:wrap}
+  .ev-actions .btn{flex:1;min-width:120px;padding:12px}
+  .btn-wa{background:#25d366;color:#04220f;border-color:#25d366;font-weight:700}
+  .ev-nav{display:flex;gap:8px;margin-top:8px}
+  .ev-nav .btn{flex:1}
+  .ev-empty{text-align:center;color:var(--muted);padding:40px 16px}
+
+  /* lista completa de envíos */
+  .ev-listbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+  .ev-listbar .btn{flex:1;min-width:130px;padding:11px}
+  .ev-list{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .ev-hsep{background:#101319;color:var(--muted);font-size:12px;font-weight:700;padding:6px 10px;border-bottom:1px solid var(--line);position:sticky;top:0}
+  .ev-row{display:flex;align-items:center;gap:10px;padding:9px 10px;border-bottom:1px solid #1c2129;cursor:pointer}
+  .ev-row:last-child{border-bottom:none}
+  .ev-row.active{background:#1b2433;box-shadow:inset 3px 0 0 var(--accent)}
+  .ev-row.sent{opacity:.5}
+  .ev-chk{width:26px;height:26px;border-radius:50%;border:1px solid #2a4a3a;background:#1c2a22;color:#7df0aa;font-size:14px;cursor:pointer;flex-shrink:0;padding:0;display:flex;align-items:center;justify-content:center}
+  .ev-chk.on{background:#2fd071;color:#0c2a18;border-color:#2fd071}
+  .ev-info{flex:1;min-width:0}
+  .ev-nm{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ev-nm .mini.ok{color:#2fd071}
+  .ev-meta{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .ev-wa{width:38px;height:38px;border-radius:8px;border:1px solid #25d366;background:#16361f;color:#25d366;font-size:18px;cursor:pointer;flex-shrink:0}
+  .ev-wa:hover{background:#1d5a30}
+  .ev-adef-head{background:#2a1f30;color:#e0b8ff;font-size:12px;font-weight:700;padding:9px 11px;border:1px solid #4a2a52;border-radius:10px 10px 0 0;margin-top:16px}
+  .ev-list.adef{border-top:none;border-radius:0 0 10px 10px}
+  .ev-row.adef{background:#1a1420}
+</style>
+</head>
+<body class="modo-semana">
+
+<header>
+  <div class="title">🎾 Calendario Academia DG <small>v8</small></div>
+
+  <div class="mode-switch">
+    <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
+    <button class="mode-btn madre" data-mode="madre">🔒 MADRE (fijos)</button>
+  </div>
+  <div class="madre-banner">⚠️ Estás en la PLANILLA MADRE. Cada cambio te pedirá confirmación.</div>
+
+  <div class="day-tabs" id="dayTabs"></div>
+  <div class="sede-tabs sub" id="sedeTabs"></div>
+  <div class="toolbar">
+    <button class="btn profs" id="btnProfs">👥 Profesores</button>
+    <button class="btn" id="btnAddProf">+ Columna profe</button>
+    <button class="btn" id="btnResumen">📋 Resumen del día</button>
+    <button class="btn envios" id="btnEnvios">📩 Enviar mensajes</button>
+    <button class="btn" id="btnTelefonos">🔄 Sincronizar</button>
+    <button class="btn reset" id="btnReset">🔄 Resetear semana desde madre</button>
+  </div>
+</header>
+
+<main>
+  <div class="grid-wrap"><table id="grid"></table></div>
+  <div class="resumen" id="resumen" style="display:none"></div>
+  <p class="hint">Tocá una celda para cargar/editar un alumno. En modo SEMANA trabajás libre; en modo MADRE se protege la base.</p>
+</main>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <h3 id="sheetTitle">Alumno</h3>
+    <div class="field">
+      <label>Nombre del alumno <span id="fNombreHint" style="color:var(--muted);font-weight:400"></span></label>
+      <input id="fNombre" list="alumnosList" placeholder="Escribí para buscar o cargar nuevo…" autocomplete="off">
+      <datalist id="alumnosList"></datalist>
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Nivel / Cat.</label>
+        <input id="fNivel" placeholder="P, 1-8">
+      </div>
+      <div class="field">
+        <label>Lado</label>
+        <select id="fLado">
+          <option value="">—</option>
+          <option value="DRV">DRV (drive)</option>
+          <option value="REV">REV (revés)</option>
+          <option value="AMB">AMB (ambos)</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Tipo de clase</label>
+        <select id="fMod">
+          <option value="">—</option>
+          <option value="G">G (grupal)</option>
+          <option value="D">D (dual)</option>
+          <option value="IND">IND (individual)</option>
+        </select>
+      </div>
+    </div>
+    <p style="font-size:10px;color:var(--muted);margin:-4px 0 10px">P = principiante · 1-8 = categoría del jugador (define con quién entrena)</p>
+    <div class="field">
+      <label>💬 Comentario / detalle del alumno (opcional)</label>
+      <textarea id="fNota" rows="2" placeholder="Ej: ZURDA · No va a Elite · recupera el jueves · debe..."></textarea>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn danger" id="btnDelete">Vaciar</button>
+      <button class="btn" id="btnCancel">Cancelar</button>
+      <button class="btn primary" id="btnSave">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal gestión de profesores -->
+<div class="overlay" id="overlayProfs">
+  <div class="sheet">
+    <h3>👥 Profesores</h3>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:12px">El diminutivo (JM, VA...) es lo que se ve en la grilla y en los desplegables de columnas.</p>
+    <div class="prof-list" id="profList"></div>
+    <div class="prof-add">
+      <div class="field" style="flex:1">
+        <label>Nombre completo</label>
+        <input id="fProfNombre" placeholder="Ej: Juan Martinez">
+      </div>
+      <div class="field dim">
+        <label>Diminutivo</label>
+        <input id="fProfDim" placeholder="JM" maxlength="4">
+      </div>
+      <button class="btn primary" id="btnAddProfesor" style="padding:9px 14px">Agregar</button>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnCloseProfs">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal sincronización con hoja ALUMNOS -->
+<div class="overlay" id="overlayTel">
+  <div class="sheet">
+    <h3>🔄 Sincronizar con la nube</h3>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:12px">Lee la hoja <b>ALUMNOS</b> de tu Google Sheet y trae <b>toda la lista de alumnos + sus teléfonos</b>. Sirve para el buscador al cargar alumnos y para los envíos. <b>No modifica tu grilla</b>: vos seguís agregando a mano. El Sheet debe estar compartido como "cualquiera con el enlace".</p>
+    <div class="field">
+      <label>ID del Google Sheet</label>
+      <input id="fSheetId" placeholder="1T8Ru8L4SdhgY_...">
+    </div>
+    <div class="field">
+      <label>Nombre de la hoja</label>
+      <input id="fSheetTab" placeholder="ALUMNOS">
+    </div>
+    <div id="colPickers" style="display:none">
+      <div class="field-row">
+        <div class="field">
+          <label>Columna del nombre</label>
+          <select id="fColNombre"></select>
+        </div>
+        <div class="field">
+          <label>Columna del teléfono</label>
+          <select id="fColTel"></select>
+        </div>
+      </div>
+      <p style="font-size:10px;color:var(--muted);margin:-4px 0 8px">Si la app eligió mal las columnas, cambialas acá y se recalcula solo.</p>
+    </div>
+    <div class="sheet-actions">
+      <button class="btn primary" id="btnSync">🔄 Sincronizar ahora</button>
+    </div>
+    <p id="telStatus" style="font-size:12px;color:var(--muted);margin-top:10px;text-align:center"></p>
+    <div class="sheet-actions">
+      <button class="btn" id="btnCloseTel">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pantalla de ENVÍOS (integrada) -->
+<div class="envios-screen" id="enviosScreen">
+  <div class="ev-head">
+    <div class="ev-top">
+      <button class="btn" id="evBack">← Volver</button>
+      <h2 id="evTitle">Envíos</h2>
+    </div>
+    <div class="ev-counts">
+      <span class="ev-pill sent">Enviados: <b id="evSent">0</b></span>
+      <span class="ev-pill pend">Pendientes: <b id="evPend">0</b></span>
+      <span class="ev-pill">Total: <b id="evTotal">0</b></span>
+      <span class="ev-pill warn" id="evNoTel" style="display:none"></span>
+    </div>
+    <div class="ev-bar"><div id="evFill"></div></div>
+  </div>
+  <div class="ev-body">
+    <details class="ev-config" id="evConfig">
+      <summary>⚙️ Plantilla del mensaje y país</summary>
+      <textarea id="evTpl"></textarea>
+      <div class="ev-ph">
+        <span class="chip" data-ph="{nombre}">{nombre}</span>
+        <span class="chip" data-ph="{hora}">{hora}</span>
+        <span class="chip" data-ph="{club}">{club}</span>
+        <span class="chip" data-ph="{profesor}">{profesor}</span>
+      </div>
+      <div class="ev-cc">
+        <label style="font-size:12px;color:var(--muted)">Código de país</label>
+        <input id="evCC" placeholder="595">
+      </div>
+    </details>
+
+    <div style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn" id="evOpenWA">📲 Abrir WhatsApp Web</button>
+      <button class="btn" id="evCSV">⬇️ Descargar CSV</button>
+    </div>
+
+    <div id="evQueue"></div>
+  </div>
+</div>
+
+<script>
+const DAYS = ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
+const HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+const SLOTS_POR_HORA = 4;
+const DEFAULT_SHEET_ID = '1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';
+const DEFAULT_SHEET_TAB = 'ALUMNOS';
+// Diminutivos disponibles para los desplegables (derivados de la lista de profesores)
+function profesDisp(){ return state.profesores.map(p=>p.dim).concat(['—']); }
+
+// Profesores por defecto (nombre + diminutivo)
+function seedProfesores(){
+  return [
+    {nombre:'Juan Martinez', dim:'JM'},
+    {nombre:'Valeria Ávila', dim:'VA'},
+    {nombre:'Marina Pérez', dim:'MP'},
+    {nombre:'Florencia López', dim:'FL'},
+    {nombre:'Pablo Rojas', dim:'PR'},
+    {nombre:'Mauro Fernández', dim:'MF'},
+    {nombre:'Tomás Emilio', dim:'TE'},
+    {nombre:'Ramiro Acosta', dim:'RA'},
+    {nombre:'Oscar Benítez', dim:'OB'},
+    {nombre:'Rodrigo Sosa', dim:'RS'},
+    {nombre:'Carlos Giménez', dim:'ChG'},
+    {nombre:'Fabio Arce', dim:'FA'}
+  ];
+}
+
+function defaultSedes(){
+  const lomas = {key:'lomas', nombre:'LOMAS PADEL', emoji:'', profes:['JM','VA','MP','FL','PR','MF','TE','RA','OB']};
+  const elite = {key:'elite', nombre:'ELITE PADEL', emoji:'💎', profes:['RS','ChG']};
+  const seg   = {key:'segurola', nombre:'SEGUROLA Y HABANA PADEL', emoji:'🏝️', profes:['FL','PR','FA']};
+  const adef  = {key:'adefinir', nombre:'A DEFINIR', emoji:'🚨', profes:['X']};
+  return JSON.parse(JSON.stringify([lomas,elite,seg,adef]));
+}
+
+// Datos de ejemplo (LUNES) para la MADRE
+function seedAlumnos(){
+  const d = {};
+  const set = (dia,sede,pi,hi,si,al)=>{ d[`${dia}|${sede}|${pi}|${hi}|${si}`]=al; };
+  set('LUNES','lomas',0,0,0,{nombre:'Mathias Gonzalez Samaniego',nivel:'P',lado:'AMB',mod:'G',nota:'No Elite'});
+  set('LUNES','lomas',1,0,0,{nombre:'Paz Oviedo',nivel:'P',lado:'DRV',mod:'G',nota:''});
+  set('LUNES','lomas',1,0,1,{nombre:'Ivanna Battilana',nivel:'8',lado:'DRV',mod:'G',nota:'ZURDA'});
+  set('LUNES','lomas',2,0,0,{nombre:'Isaura Rivaldi',nivel:'7',lado:'REV',mod:'D',nota:''});
+  set('LUNES','lomas',2,0,1,{nombre:'Carlos Rodriguez',nivel:'8',lado:'DRV',mod:'',nota:'Isaura Rivaldi'});
+  set('LUNES','lomas',4,0,0,{nombre:'Lorena Lopez',nivel:'8',lado:'AMB',mod:'G',nota:''});
+  set('LUNES','lomas',0,1,0,{nombre:'Mani Robertti',nivel:'',lado:'',mod:'G',nota:''});
+  set('LUNES','lomas',1,1,0,{nombre:'Eduardo Masi',nivel:'8',lado:'',mod:'IND',nota:'Individual'});
+  set('LUNES','lomas',2,1,0,{nombre:'Ariel Triderman',nivel:'6',lado:'DRV',mod:'G',nota:''});
+  set('LUNES','lomas',2,1,1,{nombre:'Wilfried Ediger',nivel:'7',lado:'REV',mod:'D',nota:''});
+  set('LUNES','lomas',3,1,0,{nombre:'Veronica Mercado',nivel:'6',lado:'',mod:'G',nota:''});
+  set('LUNES','lomas',4,1,0,{nombre:'Rene Meza',nivel:'7',lado:'REV',mod:'G',nota:''});
+  set('LUNES','elite',0,0,0,{nombre:'Alejandra Arguello',nivel:'8',lado:'REV',mod:'D',nota:''});
+  set('LUNES','elite',0,1,0,{nombre:'Juan Da Silva',nivel:'6',lado:'REV',mod:'G',nota:''});
+  set('LUNES','adefinir',0,0,0,{nombre:'Paloma Alonso',nivel:'',lado:'',mod:'',nota:''});
+  set('LUNES','adefinir',0,0,1,{nombre:'Paola Espinola',nivel:'8',lado:'DRV',mod:'G',nota:'Lomas'});
+  set('LUNES','adefinir',0,0,2,{nombre:'Andres Delgado',nivel:'2',lado:'REV',mod:'G',nota:''});
+  return d;
+}
+
+let state = {
+  mode: 'semana',         // 'semana' | 'madre'
+  dia: 'LUNES',
+  sedeActiva: 'lomas',
+  profesores: [],         // [{nombre, dim}]
+  sedesPorDia: {},        // estructura de columnas (compartida)
+  madre:  { alumnos:{}, libres:{} },
+  semana: { alumnos:{}, libres:{} },
+  sheetId: DEFAULT_SHEET_ID,
+  sheetTab: DEFAULT_SHEET_TAB,
+  contactos: {},          // normName(nombre) -> {tel, apodo, nombre}
+  contactosInfo: '',      // texto de estado de la última sincronización
+  tplEnvio: 'Holaa {nombre}👋🏻, cómo estás??\n🎾 Entrenamos mañana a las *{hora}*?\n🏡 -> Tu entrenamiento será en *{club}*',
+  cc: '595',              // código de país
+  enviados: {},           // { 'dd/mm/yyyy': { sesion_id: true } }
+  colNombre: '',          // header elegido para nombre (resiliencia ante cambios)
+  colTel: ''              // header elegido para teléfono
+};
+
+function book(){ return state[state.mode]; }  // dataset activo según el modo
+
+function loadState(){
+  const saved = localStorage.getItem('cal_dg_unif');
+  if(saved){
+    try{
+      state = JSON.parse(saved);
+      // defaults para versiones guardadas previas
+      if(!state.sheetId) state.sheetId = DEFAULT_SHEET_ID;
+      if(!state.sheetTab) state.sheetTab = DEFAULT_SHEET_TAB;
+      if(!state.contactos) state.contactos = {};
+      if(state.contactosInfo===undefined) state.contactosInfo = '';
+      if(!state.tplEnvio) state.tplEnvio = 'Holaa {nombre}👋🏻, cómo estás??\n🎾 Entrenamos mañana a las *{hora}*?\n🏡 -> Tu entrenamiento será en *{club}*';
+      if(!state.cc) state.cc = '595';
+      if(!state.enviados) state.enviados = {};
+      if(state.colNombre===undefined) state.colNombre = '';
+      if(state.colTel===undefined) state.colTel = '';
+      // Migración: actualizar nombres de sede a los definitivos (por key)
+      const NOMBRES_SEDE={lomas:'LOMAS PADEL', elite:'ELITE PADEL', segurola:'SEGUROLA Y HABANA PADEL', adefinir:'A DEFINIR'};
+      let cambio=false;
+      Object.values(state.sedesPorDia||{}).forEach(arr=> arr.forEach(sd=>{
+        if(NOMBRES_SEDE[sd.key] && sd.nombre!==NOMBRES_SEDE[sd.key]){ sd.nombre=NOMBRES_SEDE[sd.key]; cambio=true; }
+      }));
+      if(cambio) saveState();
+      return;
+    }catch(e){}
+  }
+  state.profesores = seedProfesores();
+  DAYS.forEach(dia=> state.sedesPorDia[dia] = defaultSedes());
+  state.madre.alumnos = seedAlumnos();
+  state.madre.libres = {};
+  // la semana arranca como copia de la madre
+  state.semana = JSON.parse(JSON.stringify(state.madre));
+  saveState();
+}
+function saveState(){ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }
+
+function sedesDelDia(){ return state.sedesPorDia[state.dia]; }
+function sedeObj(){ return sedesDelDia().find(s=>s.key===state.sedeActiva); }
+
+// ¿Hace falta confirmar el cambio? (sólo en modo madre)
+function confirmarSiMadre(){
+  if(state.mode!=='madre') return true;
+  return confirm('⚠️ Vas a MODIFICAR la planilla MADRE (la base de todas las semanas).\n\n¿Confirmás el cambio?');
+}
+
+function setMode(m){
+  state.mode=m;
+  document.body.classList.toggle('modo-madre', m==='madre');
+  document.body.classList.toggle('modo-semana', m==='semana');
+  document.querySelectorAll('.mode-btn').forEach(b=> b.classList.toggle('active', b.dataset.mode===m));
+  saveState(); renderAll();
+}
+
+function renderDayTabs(){
+  const el=document.getElementById('dayTabs'); el.innerHTML='';
+  DAYS.forEach(dia=>{
+    const b=document.createElement('button');
+    b.className='tab'+(dia===state.dia?' active':'');
+    b.textContent=dia.charAt(0)+dia.slice(1).toLowerCase();
+    b.onclick=()=>{ state.dia=dia; if(!sedesDelDia().find(s=>s.key===state.sedeActiva)) state.sedeActiva=sedesDelDia()[0].key; saveState(); renderAll(); };
+    el.appendChild(b);
+  });
+}
+function renderSedeTabs(){
+  const el=document.getElementById('sedeTabs'); el.innerHTML='';
+  sedesDelDia().forEach(s=>{
+    const b=document.createElement('button');
+    b.className='tab '+s.key+(s.key===state.sedeActiva?' active':'');
+    b.textContent=(s.emoji?s.emoji+' ':'')+s.nombre;
+    b.onclick=()=>{ state.sedeActiva=s.key; saveState(); renderGrid(); };
+    el.appendChild(b);
+  });
+}
+
+function cellKey(pi,hi,si){ return `${state.dia}|${state.sedeActiva}|${pi}|${hi}|${si}`; }
+function libreKey(pi,hi){ return `${state.dia}|${state.sedeActiva}|${pi}|${hi}`; }
+
+function renderGrid(){
+  const sede=sedeObj();
+  const grid=document.getElementById('grid');
+  const B=book();
+  let html='<thead><tr><th class="hcol">Hora</th>';
+  sede.profes.forEach((p,pi)=>{
+    html+=`<th class="profhead"><div class="colhead"><select data-pi="${pi}">`;
+    profesDisp().forEach(op=>{ html+=`<option ${op===p?'selected':''}>${op}</option>`; });
+    html+=`</select><button class="col-x" data-colx="${pi}" title="Quitar columna">✕</button></div></th>`;
+  });
+  html+='</tr></thead><tbody>';
+
+  HORAS.forEach((hora,hi)=>{
+    html+=`<tr><td class="hcell">${hora}</td>`;
+    sede.profes.forEach((p,pi)=>{
+      const esLibre = B.libres[libreKey(pi,hi)];
+      if(esLibre){
+        html+=`<td class="cell libre"><button class="libre-toggle" data-libre="${pi}|${hi}">activar</button><div class="slot">LIBRE</div></td>`;
+      } else {
+        html+=`<td class="cell"><button class="libre-toggle" data-libre="${pi}|${hi}">libre</button>`;
+        for(let si=0; si<SLOTS_POR_HORA; si++){
+          const al=B.alumnos[cellKey(pi,hi,si)];
+          if(al){
+            const tags=[];
+            if(al.nivel) tags.push(`<span class="tag nivel">Cat ${al.nivel}</span>`);
+            if(al.lado) tags.push(`<span class="tag">${al.lado}</span>`);
+            if(al.mod) tags.push(`<span class="tag mod">${al.mod}</span>`);
+            const conf = state.mode==='semana' && al.confirmado;
+            const checkBtn = state.mode==='semana'
+              ? `<button class="check-btn" data-check="${pi}|${hi}|${si}" title="${conf?'Confirmado':'Marcar asistencia'}">✓</button>` : '';
+            html+=`<div class="slot${conf?' confirmado':''}" data-cell="${pi}|${hi}|${si}">
+              <div class="nm">${al.nombre}</div>
+              ${tags.length?`<div class="tags">${tags.join('')}</div>`:''}
+              ${al.nota?`<div class="nota">${al.nota}</div>`:''}
+              ${checkBtn}
+            </div>`;
+          } else {
+            html+=`<div class="slot empty" data-cell="${pi}|${hi}|${si}">+</div>`;
+          }
+        }
+        html+=`</td>`;
+      }
+    });
+    html+='</tr>';
+  });
+  html+='</tbody>';
+  grid.innerHTML=html;
+
+  grid.querySelectorAll('th.profhead select').forEach(sel=>{
+    sel.dataset.prev = sel.value;
+    sel.onchange=()=>{
+      if(!confirmarSiMadre()){ sel.value=sel.dataset.prev; return; }
+      const pi=+sel.dataset.pi; sedeObj().profes[pi]=sel.value; sel.dataset.prev=sel.value; saveState();
+    };
+  });
+  grid.querySelectorAll('.col-x').forEach(b=>{
+    b.onclick=()=>{
+      const pi=+b.dataset.colx;
+      const nom=sedeObj().profes[pi];
+      if(!confirm(`¿Quitar la columna "${nom}" de ${sedeObj().nombre} (${state.dia})?`)) return;
+      if(!confirmarSiMadre()) return;
+      sedeObj().profes.splice(pi,1);
+      saveState(); renderGrid();
+    };
+  });
+  grid.querySelectorAll('.slot[data-cell]').forEach(s=>{ s.onclick=()=> openEditor(s.dataset.cell); });
+  grid.querySelectorAll('.check-btn').forEach(b=>{
+    b.onclick=(e)=>{
+      e.stopPropagation();
+      const [pi,hi,si]=b.dataset.check.split('|');
+      const al=book().alumnos[cellKey(+pi,+hi,+si)];
+      if(!al) return;
+      al.confirmado = !al.confirmado;
+      saveState(); renderGrid();
+    };
+  });
+  grid.querySelectorAll('.libre-toggle').forEach(b=>{
+    b.onclick=(e)=>{ e.stopPropagation();
+      if(!confirmarSiMadre()) return;
+      const k=`${state.dia}|${state.sedeActiva}|${b.dataset.libre}`;
+      if(book().libres[k]) delete book().libres[k]; else book().libres[k]=true;
+      saveState(); renderGrid(); };
+  });
+}
+
+let editingCell=null;
+function openEditor(cellId){
+  editingCell=cellId;
+  fillAlumnosDatalist();
+  const [pi,hi,si]=cellId.split('|');
+  const al=book().alumnos[cellKey(+pi,+hi,+si)] || {};
+  document.getElementById('sheetTitle').textContent = `${sedeObj().profes[+pi]} · ${HORAS[+hi]}` + (state.mode==='madre'?' · 🔒 MADRE':'');
+  const inp=document.getElementById('fNombre');
+  inp.value=al.nombre||'';
+  document.getElementById('fNivel').value=al.nivel||'';
+  document.getElementById('fLado').value=al.lado||'';
+  document.getElementById('fMod').value=al.mod||'';
+  document.getElementById('fNota').value=al.nota||'';
+  actualizarHintTel();
+  inp.oninput=()=>{ actualizarHintTel(); autocompletarDesdeNube(); };
+  document.getElementById('overlay').classList.add('show');
+}
+// Muestra si el alumno escrito tiene teléfono en la base sincronizada
+function actualizarHintTel(){
+  const nombre=document.getElementById('fNombre').value.trim();
+  const hint=document.getElementById('fNombreHint');
+  if(!nombre){ hint.textContent=''; return; }
+  const c=state.contactos[normName(nombre)];
+  if(c && c.tel) hint.textContent='· 📞 con teléfono';
+  else if(c) hint.textContent='· ⚠️ sin teléfono en la hoja';
+  else hint.textContent='· nuevo (no está en la nube)';
+}
+// Si el nombre coincide exacto con un alumno de la nube, trae sus datos (categoría, lado, tipo)
+function autocompletarDesdeNube(){
+  const nombre=document.getElementById('fNombre').value.trim();
+  const c=state.contactos[normName(nombre)];
+  if(!c) return; // alumno nuevo: no toca nada
+  if(c.nivel!==undefined) document.getElementById('fNivel').value=c.nivel||'';
+  if(c.lado!==undefined)  document.getElementById('fLado').value=c.lado||'';
+  if(c.mod!==undefined)   document.getElementById('fMod').value=c.mod||'';
+}
+function closeEditor(){ document.getElementById('overlay').classList.remove('show'); editingCell=null; }
+function saveEditor(){
+  if(!editingCell) return;
+  if(!confirmarSiMadre()) return;
+  const [pi,hi,si]=editingCell.split('|');
+  const nombre=document.getElementById('fNombre').value.trim();
+  const k=cellKey(+pi,+hi,+si);
+  if(!nombre){ delete book().alumnos[k]; }
+  else{
+    book().alumnos[k]={
+      nombre,
+      nivel:document.getElementById('fNivel').value.trim(),
+      lado:document.getElementById('fLado').value,
+      mod:document.getElementById('fMod').value,
+      nota:document.getElementById('fNota').value.trim()
+    };
+  }
+  saveState(); closeEditor(); renderGrid();
+}
+function deleteEditor(){
+  if(!editingCell) return;
+  if(!confirmarSiMadre()) return;
+  const [pi,hi,si]=editingCell.split('|');
+  delete book().alumnos[cellKey(+pi,+hi,+si)];
+  saveState(); closeEditor(); renderGrid();
+}
+
+function addProf(){
+  if(!confirmarSiMadre()) return;
+  const primer = state.profesores[0] ? state.profesores[0].dim : '—';
+  sedeObj().profes.push(primer); saveState(); renderGrid();
+}
+
+// ---- Gestión de profesores ----
+function openProfs(){ renderProfList(); document.getElementById('overlayProfs').classList.add('show'); }
+function closeProfs(){ document.getElementById('overlayProfs').classList.remove('show'); }
+function renderProfList(){
+  const el=document.getElementById('profList');
+  if(!state.profesores.length){ el.innerHTML='<p style="color:var(--muted);font-size:12px">Sin profesores cargados.</p>'; return; }
+  el.innerHTML = state.profesores.map((p,i)=>`
+    <div class="prof-item">
+      <span class="pdim">${p.dim}</span>
+      <span class="pnom">${p.nombre}</span>
+      <button class="pdel" data-i="${i}">Borrar</button>
+    </div>`).join('');
+  el.querySelectorAll('.pdel').forEach(b=>{
+    b.onclick=()=>{
+      const i=+b.dataset.i; const p=state.profesores[i];
+      if(confirm(`¿Borrar al profesor "${p.nombre}" (${p.dim})?`)){
+        state.profesores.splice(i,1); saveState(); renderProfList(); renderGrid();
+      }
+    };
+  });
+}
+function addProfesor(){
+  const nombre=document.getElementById('fProfNombre').value.trim();
+  const dim=document.getElementById('fProfDim').value.trim();
+  if(!nombre||!dim){ alert('Completá nombre y diminutivo.'); return; }
+  if(state.profesores.some(p=>p.dim.toLowerCase()===dim.toLowerCase())){
+    alert(`Ya existe un profe con el diminutivo "${dim}".`); return;
+  }
+  state.profesores.push({nombre,dim});
+  document.getElementById('fProfNombre').value='';
+  document.getElementById('fProfDim').value='';
+  saveState(); renderProfList(); renderGrid();
+}
+
+// Claves genéricas (para recorrer cualquier sede, no solo la activa)
+function aKey(sedeKey,pi,hi,si){ return `${state.dia}|${sedeKey}|${pi}|${hi}|${si}`; }
+function lKey(sedeKey,pi,hi){ return `${state.dia}|${sedeKey}|${pi}|${hi}`; }
+
+function abrevNombre(n){
+  const parts=n.trim().split(/\s+/);
+  if(parts.length===1) return parts[0];
+  return parts[0]+' '+parts[1][0]+'.';
+}
+function sedeEmoji(key){ return key==='elite'?' 💎':key==='segurola'?' 🏝️':key==='adefinir'?' 🚨':''; }
+function fechaDelDia(){
+  const meses=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
+  const idx=DAYS.indexOf(state.dia); // 0=LUNES..5=SABADO
+  const hoy=new Date();
+  const dow=hoy.getDay(); // 0=dom..6=sab
+  const lunes=new Date(hoy);
+  lunes.setDate(hoy.getDate()+(dow===0?-6:1-dow));
+  const t=new Date(lunes); t.setDate(lunes.getDate()+idx);
+  return `${state.dia} ${t.getDate()} DE ${meses[t.getMonth()]}`;
+}
+
+function buildResumen(){
+  const sedes=sedesDelDia();
+  const B=book();
+  // CARGA SISTEMA: diminutivos únicos del día
+  const dims=[];
+  sedes.forEach(s=> s.profes.forEach(d=>{ if(d && d!=='—' && !dims.includes(d)) dims.push(d); }));
+
+  let out = fechaDelDia()+' \nCARGA SISTEMA \n';
+  out += dims.map(d=>'•  '+d).join('\n')+'\n';
+  out += '––––––––––––––––––––– \n';
+
+  HORAS.forEach((hora,hi)=>{
+    // ¿esta hora tiene al menos un alumno en alguna sede?
+    let hayAlgo=false;
+    sedes.forEach(s=> s.profes.forEach((d,pi)=>{
+      if(!d||d==='—') return;
+      for(let si=0;si<SLOTS_POR_HORA;si++){ if(B.alumnos[aKey(s.key,pi,hi,si)]) hayAlgo=true; }
+    }));
+    if(!hayAlgo) return;
+
+    sedes.forEach(s=>{
+      s.profes.forEach((d,pi)=>{
+        if(!d||d==='—') return;
+        if(B.libres[lKey(s.key,pi,hi)]) return; // profe libre esa hora → no aparece
+        const studs=[];
+        for(let si=0;si<SLOTS_POR_HORA;si++){
+          const al=B.alumnos[aKey(s.key,pi,hi,si)];
+          if(al && al.nombre){
+            let t=`${abrevNombre(al.nombre)} (${al.mod||''})`;
+            if(!al.confirmado) t+=' 👀';  // falta confirmar
+            studs.push(t);
+          }
+        }
+        out += `${hora} (${d}${sedeEmoji(s.key)}) ${studs.join(' - ')}\n`;
+      });
+    });
+    out += '\n'; // espacio entre bloques de horario
+  });
+  return out.trim();
+}
+
+function toggleResumen(){
+  const el=document.getElementById('resumen');
+  if(el.style.display==='none'){
+    el.innerHTML = `<button class="btn primary" id="btnCopiarResumen" style="margin-bottom:10px">📋 Copiar resumen</button><div id="resumenTxt"></div>`;
+    document.getElementById('resumenTxt').textContent = buildResumen();
+    el.style.display='block';
+    document.getElementById('btnCopiarResumen').onclick=()=>{
+      navigator.clipboard.writeText(buildResumen()).then(
+        ()=>{ const b=document.getElementById('btnCopiarResumen'); b.textContent='✅ Copiado'; setTimeout(()=>b.textContent='📋 Copiar resumen',1500); },
+        ()=> alert('No se pudo copiar automáticamente. Seleccioná el texto y copialo a mano.')
+      );
+    };
+  } else el.style.display='none';
+}
+
+// Resetear la SEMANA copiando la MADRE (limpia)
+function resetSemana(){
+  if(confirm('🔄 Esto reemplaza TODA la semana editable por una copia limpia de la planilla MADRE.\n\nSe pierden los cambios y agendados de la semana actual. La madre NO se toca.\n\n¿Continuar?')){
+    state.semana = JSON.parse(JSON.stringify(state.madre));
+    saveState();
+    if(state.mode!=='semana') setMode('semana'); else renderAll();
+    alert('✅ Semana reseteada desde la madre. Lista para arrancar de nuevo.');
+  }
+}
+
+function renderAll(){ renderDayTabs(); renderSedeTabs(); renderGrid(); document.getElementById('resumen').style.display='none'; }
+
+// ===== INTEGRACIÓN CON ENVÍOS (hoja ALUMNOS + CSV para recordatorios) =====
+
+// Normaliza nombre para cruzar (minúsculas, sin acentos, sin espacios extra)
+function normName(s){
+  return String(s==null?'':s).trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/\s+/g,' ');
+}
+
+// Parser CSV simple (maneja comillas y comas dentro de comillas)
+function parseCSV(text){
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<text.length;i++){
+    const ch=text[i];
+    if(q){
+      if(ch==='"'){ if(text[i+1]==='"'){ cur+='"'; i++; } else q=false; }
+      else cur+=ch;
+    } else {
+      if(ch==='"') q=true;
+      else if(ch===','){ row.push(cur); cur=''; }
+      else if(ch==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(ch==='\r'){ /* ignora */ }
+      else cur+=ch;
+    }
+  }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+
+function findCol(headers, opts){
+  const H=headers.map(h=>normName(h));
+  for(const o of opts){ const i=H.findIndex(h=>h.indexOf(o)>-1); if(i>-1) return i; }
+  return -1;
+}
+
+// Cache de la última lectura para poder recalcular al cambiar columnas
+let _syncRows=null, _syncHeaders=null;
+
+// Trae la hoja ALUMNOS por gviz CSV
+async function syncContactos(){
+  const status=document.getElementById('telStatus');
+  const id=document.getElementById('fSheetId').value.trim() || DEFAULT_SHEET_ID;
+  const tab=document.getElementById('fSheetTab').value.trim() || DEFAULT_SHEET_TAB;
+  state.sheetId=id; state.sheetTab=tab; saveState();
+  status.textContent='⏳ Leyendo hoja '+tab+'…';
+  const url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent(tab);
+  try{
+    const res=await fetch(url);
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const text=await res.text();
+    const rows=parseCSV(text);
+    if(rows.length<2) throw new Error('hoja vacía o sin datos');
+    // Detectar la FILA de encabezados (puede no ser la primera si hay filas vacías/título arriba)
+    let headRow=0;
+    for(let r=0;r<Math.min(rows.length,8);r++){
+      const hh=rows[r].map(x=>normName(x));
+      const tieneNombre=hh.some(h=>h.indexOf('alumno')>-1 || h.indexOf('nombre')>-1);
+      const tieneTel=hh.some(h=>h.indexOf('telefono')>-1 || h.indexOf('tel')>-1 || h.indexOf('celular')>-1);
+      if(tieneNombre && tieneTel){ headRow=r; break; }
+    }
+    _syncHeaders=rows[headRow];
+    _syncRows=rows.slice(headRow); // los datos arrancan en la fila de encabezados (índice 0 = headers)
+    // columnas: usar las guardadas si existen, si no autodetectar
+    let iNom = state.colNombre ? _syncHeaders.findIndex(h=>h===state.colNombre) : -1;
+    let iTel = state.colTel ? _syncHeaders.findIndex(h=>h===state.colTel) : -1;
+    if(iNom<0) iNom=findCol(_syncHeaders,['alumno','nombre']);
+    if(iTel<0) iTel=findCol(_syncHeaders,['telefono','celular','whatsapp','tel','numero','movil']);
+    if(iNom<0||iTel<0) throw new Error('no encontré columnas de nombre/teléfono');
+    poblarColPickers(iNom,iTel);
+    construirContactos(iNom,iTel);
+  }catch(err){
+    status.textContent='❌ No se pudo leer: '+err.message+'. Verificá el ID y que el Sheet esté compartido como "cualquiera con el enlace".';
+  }
+}
+
+// Llena los desplegables de columna con los encabezados leídos
+function poblarColPickers(iNom,iTel){
+  const selN=document.getElementById('fColNombre'), selT=document.getElementById('fColTel');
+  const opts=_syncHeaders.map((h,i)=>`<option value="${i}">${(h||'(col '+(i+1)+')').replace(/"/g,'&quot;')}</option>`).join('');
+  selN.innerHTML=opts; selT.innerHTML=opts;
+  selN.value=iNom; selT.value=iTel;
+  document.getElementById('colPickers').style.display='block';
+  selN.onchange=selT.onchange=()=>{
+    const n=+selN.value, t=+selT.value;
+    state.colNombre=_syncHeaders[n]; state.colTel=_syncHeaders[t]; saveState();
+    construirContactos(n,t);
+  };
+}
+
+// Arma el mapa de contactos desde el cache con las columnas elegidas
+function construirContactos(iNom,iTel){
+  const iApo=findCol(_syncHeaders,['apodo','nombre_wpp','alias']);
+  const iCat=findCol(_syncHeaders,['categor','ategor','nivel','cat']);
+  const iLado=findCol(_syncHeaders,['lado']);
+  const iTipo=findCol(_syncHeaders,['tipo de clase','tipo_clase','tipo de','modalidad','tipo']);
+  const iWpp=findCol(_syncHeaders,['nombre_calendario','nombre calendario','nombre p/ horario','nombre p horario','nombre p/horario','nombre wpp','nombre_wpp']);
+  state.colNombre=_syncHeaders[iNom]; state.colTel=_syncHeaders[iTel];
+  // normaliza el tipo de clase del Sheet a G/D/IND
+  const normTipo=(v)=>{
+    const s=normName(v);
+    if(!s) return '';
+    if(s.indexOf('ind')>-1) return 'IND';
+    if(s.charAt(0)==='d') return 'D';
+    if(s.charAt(0)==='g') return 'G';
+    return v.trim().toUpperCase();
+  };
+  const normLado=(v)=>{
+    const s=normName(v);
+    if(s.indexOf('amb')>-1) return 'AMB';
+    if(s.indexOf('rev')>-1) return 'REV';
+    if(s.indexOf('drv')>-1||s.indexOf('dri')>-1) return 'DRV';
+    return v.trim().toUpperCase();
+  };
+  const map={}; let n=0;
+  for(let r=1;r<_syncRows.length;r++){
+    const nombre=(_syncRows[r][iNom]||'').trim();
+    const tel=(_syncRows[r][iTel]||'').trim();
+    if(!nombre) continue;
+    map[normName(nombre)]={
+      tel, nombre,
+      apodo:(iApo>-1?(_syncRows[r][iApo]||'').trim():''),
+      nombreWpp:(iWpp>-1?(_syncRows[r][iWpp]||'').trim():''),
+      nivel:(iCat>-1?(_syncRows[r][iCat]||'').trim():''),
+      lado:(iLado>-1?normLado(_syncRows[r][iLado]||''):''),
+      mod:(iTipo>-1?normTipo(_syncRows[r][iTipo]||''):'')
+    };
+    if(tel) n++;
+  }
+  state.contactos=map;
+  const extra=[];
+  if(iCat>-1) extra.push('categoría'); if(iLado>-1) extra.push('lado'); if(iTipo>-1) extra.push('tipo');
+  state.contactosInfo='✅ '+Object.keys(map).length+' alumnos sincronizados · '+n+' con teléfono'+(extra.length?' · trae: '+extra.join(', '):'')+'. Ya disponibles en el buscador.';
+  saveState();
+  document.getElementById('telStatus').textContent=state.contactosInfo;
+  fillAlumnosDatalist();
+}
+
+// Llena el datalist del buscador de la ficha con la lista de alumnos sincronizada
+function fillAlumnosDatalist(){
+  const dl=document.getElementById('alumnosList');
+  if(!dl) return;
+  const nombres=Object.values(state.contactos).map(c=>c.nombre).filter(Boolean).sort((a,b)=>a.localeCompare(b));
+  dl.innerHTML=nombres.map(n=>`<option value="${n.replace(/"/g,'&quot;')}"></option>`).join('');
+}
+
+function telDeAlumno(nombre){
+  const c=state.contactos[normName(nombre)];
+  return c?c:null;
+}
+
+function csvCell(v){
+  v=String(v==null?'':v);
+  return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
+}
+
+function fechaCorta(){ // dd/mm/yyyy del día seleccionado en la semana actual
+  const idx=DAYS.indexOf(state.dia);
+  const hoy=new Date(); const dow=hoy.getDay();
+  const lunes=new Date(hoy); lunes.setDate(hoy.getDate()+(dow===0?-6:1-dow));
+  const t=new Date(lunes); t.setDate(lunes.getDate()+idx);
+  const dd=String(t.getDate()).padStart(2,'0'), mm=String(t.getMonth()+1).padStart(2,'0');
+  return dd+'/'+mm+'/'+t.getFullYear();
+}
+
+// Genera el CSV con el formato que lee recordatorios_rapido.html
+function exportEnvios(){
+  if(state.mode!=='semana'){ alert('Los envíos se exportan desde la SEMANA. Cambiando a modo SEMANA.'); setMode('semana'); }
+  const B=state.semana;
+  const sinTel=[];
+  const header=['sesion_id','fecha','dia','hora','sede','profesor','nombre_calendario','nombre_wpp','telefono','estado'];
+  const lines=[header.join(',')];
+  const sedes=state.sedesPorDia[state.dia];
+  const fecha=fechaCorta();
+
+  HORAS.forEach((hora,hi)=>{
+    const hhmm=hora.replace(':','');
+    sedes.forEach(s=>{
+      s.profes.forEach((dim,pi)=>{
+        if(!dim||dim==='—') return;
+        if(B.libres[`${state.dia}|${s.key}|${pi}|${hi}`]) return;
+        for(let si=0;si<SLOTS_POR_HORA;si++){
+          const al=B.alumnos[`${state.dia}|${s.key}|${pi}|${hi}|${si}`];
+          if(!al||!al.nombre) continue;
+          const c=telDeAlumno(al.nombre);
+          const tel=c?c.tel:'';
+          const apodo=(c&&c.apodo)?c.apodo:al.nombre.trim().split(/\s+/)[0];
+          const sesion_id=`S_${state.dia}_${hhmm}_${dim}_${si}`;
+          if(!tel) sinTel.push(al.nombre);
+          lines.push([
+            sesion_id, fecha, state.dia, hora, s.nombre, dim,
+            al.nombre, apodo, tel, (al.confirmado?'CONFIRMADO':'PENDIENTE')
+          ].map(csvCell).join(','));
+        }
+      });
+    });
+  });
+
+  if(lines.length===1){ alert('No hay alumnos cargados en '+state.dia+' para exportar.'); return; }
+
+  const blob=new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`envios_${state.dia}_${fecha.replace(/\//g,'-')}.csv`;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+
+  let msg=`✅ CSV generado: ${lines.length-1} alumnos de ${state.dia}.`;
+  if(sinTel.length) msg+=`\n\n⚠️ ${sinTel.length} sin teléfono (no se cruzaron con ALUMNOS):\n- `+sinTel.slice(0,12).join('\n- ')+(sinTel.length>12?'\n…':'');
+  if(!Object.keys(state.contactos).length) msg+='\n\n💡 Tip: sincronizá los teléfonos primero con el botón 📞 Teléfonos.';
+  alert(msg);
+}
+
+function openTel(){
+  document.getElementById('fSheetId').value=state.sheetId||DEFAULT_SHEET_ID;
+  document.getElementById('fSheetTab').value=state.sheetTab||DEFAULT_SHEET_TAB;
+  document.getElementById('telStatus').textContent=state.contactosInfo||'';
+  document.getElementById('overlayTel').classList.add('show');
+}
+function closeTel(){ document.getElementById('overlayTel').classList.remove('show'); }
+
+// ===== VISTA DE ENVÍOS INTEGRADA =====
+let evQueueIdx = 0;
+const WA_WIN_NAME = 'waSenderTab';
+
+function normPhone(raw){
+  let d=String(raw==null?'':raw).replace(/\D/g,'');
+  const cc=String(state.cc||'').replace(/\D/g,'');
+  if(!d) return '';
+  if(cc && d.indexOf(cc)===0) return d;
+  if(d.charAt(0)==='0') d=d.slice(1);
+  if(cc && d.length<=10) return cc+d;
+  return d;
+}
+function phoneOk(tel){ return tel && tel.length>=8 && tel.length<=15; }
+
+// Construye la lista de envío desde la SEMANA del día actual
+function buildEnvioList(){
+  const B=state.semana, sedes=state.sedesPorDia[state.dia], out=[];
+  HORAS.forEach((hora,hi)=>{
+    const hhmm=hora.replace(':','');
+    sedes.forEach(s=>{
+      s.profes.forEach((dim,pi)=>{
+        if(!dim||dim==='—') return;
+        if(B.libres[`${state.dia}|${s.key}|${pi}|${hi}`]) return;
+        for(let si=0;si<SLOTS_POR_HORA;si++){
+          const al=B.alumnos[`${state.dia}|${s.key}|${pi}|${hi}|${si}`];
+          if(!al||!al.nombre) continue;
+          const c=telDeAlumno(al.nombre);
+          out.push({
+            sesion_id:`S_${state.dia}_${hhmm}_${dim}_${si}`,
+            nombre:al.nombre,
+            nombreWpp: (c&&c.nombreWpp)?c.nombreWpp:'',
+            hora, sede:s.nombre, sedeKey:s.key, profesor:dim,
+            tel: c ? normPhone(c.tel) : '',
+            confirmado: !!al.confirmado
+          });
+        }
+      });
+    });
+  });
+  return out;
+}
+
+// Cola de envío masivo: con teléfono y que NO sean de "A definir"
+function sendQueue(){ return buildEnvioList().filter(c=>phoneOk(c.tel) && c.sedeKey!=='adefinir'); }
+// Alumnos de "A definir": van en sección aparte (mensaje personalizado, no envío masivo)
+function adefList(){ return buildEnvioList().filter(c=>c.sedeKey==='adefinir'); }
+
+function enviadosHoy(){
+  const f=fechaCorta();
+  if(!state.enviados[f]) state.enviados[f]={};
+  return state.enviados[f];
+}
+function isEnviado(c){ return !!enviadosHoy()[c.sesion_id]; }
+function markEnviado(c,val){ const e=enviadosHoy(); if(val) e[c.sesion_id]=true; else delete e[c.sesion_id]; saveState(); }
+
+function buildMsg(c){
+  const nombreMsg = (c.nombreWpp && c.nombreWpp.trim()) ? c.nombreWpp.trim() : (c.nombre||'').trim().split(/\s+/)[0];
+  return (state.tplEnvio||'')
+    .replace(/\{nombre\}/g, nombreMsg)
+    .replace(/\{hora\}/g, c.hora||'')
+    .replace(/\{club\}/g, c.sede||'')
+    .replace(/\{sede\}/g, c.sede||'')
+    .replace(/\{profesor\}/g, c.profesor||'');
+}
+function waUrl(c){ return 'https://web.whatsapp.com/send?phone='+c.tel+'&text='+encodeURIComponent(buildMsg(c)); }
+function openChat(c){
+  if(!phoneOk(c.tel)){ alert('Ese alumno no tiene teléfono válido.'); return; }
+  const w=window.open(waUrl(c), WA_WIN_NAME);
+  if(w){ try{ w.focus(); }catch(e){} } else alert('El navegador bloqueó la ventana. Permití pop-ups para este archivo.');
+}
+
+function openEnvios(){
+  if(state.mode!=='semana'){ alert('Los envíos salen de la SEMANA. Cambiando a modo SEMANA.'); setMode('semana'); }
+  document.getElementById('evTpl').value=state.tplEnvio||'';
+  document.getElementById('evCC').value=state.cc||'595';
+  document.getElementById('evTitle').textContent='Envíos · '+fechaDelDia();
+  evQueueIdx=0;
+  // arrancar en el primer pendiente
+  const s=sendQueue();
+  for(let i=0;i<s.length;i++){ if(!isEnviado(s[i])){ evQueueIdx=i; break; } }
+  document.getElementById('enviosScreen').classList.add('show');
+  renderEnvios();
+}
+function closeEnvios(){ document.getElementById('enviosScreen').classList.remove('show'); }
+
+function renderEnvios(){
+  const all=buildEnvioList();
+  const s=sendQueue();                 // cola masiva (sin A definir, con teléfono)
+  const adef=adefList();               // A definir (aparte)
+  const sinTel=all.filter(c=>c.sedeKey!=='adefinir' && !phoneOk(c.tel)).length;
+  let sent=0; s.forEach(c=>{ if(isEnviado(c)) sent++; });
+  document.getElementById('evSent').textContent=sent;
+  document.getElementById('evPend').textContent=s.length-sent;
+  document.getElementById('evTotal').textContent=s.length;
+  const noTelEl=document.getElementById('evNoTel');
+  if(sinTel){ noTelEl.style.display=''; noTelEl.textContent='⚠ Sin teléfono: '+sinTel; } else noTelEl.style.display='none';
+  document.getElementById('evFill').style.width=(s.length? (sent/s.length*100):0)+'%';
+
+  const body=document.getElementById('evQueue');
+  if(!all.length){ body.innerHTML='<div class="ev-empty"><h3>No hay alumnos en '+state.dia+'</h3><p>Cargá alumnos en el calendario primero.</p></div>'; return; }
+  if(evQueueIdx<0) evQueueIdx=0; if(evQueueIdx>=s.length) evQueueIdx=s.length-1;
+
+  let html=
+    '<div class="ev-listbar">'+
+      '<button class="btn btn-wa" id="evSendNext">📲 Mandar al siguiente pendiente</button>'+
+      '<button class="btn" id="evMarkAll">Marcar todos enviados</button>'+
+      '<button class="btn" id="evClear">Reiniciar enviados de hoy</button>'+
+    '</div>'+
+    '<div class="hint" style="text-align:left;margin:0 0 8px"><b>Espacio</b> = mandar al siguiente pendiente · <b>Enter</b> = abrir el chat de la fila marcada · <b>↑ ↓</b> moverse · tocá una fila para elegirla</div>';
+
+  if(!s.length){
+    html+='<div class="ev-empty" style="padding:20px"><p>No hay alumnos con teléfono para el envío masivo.<br>Sincronizá la hoja ALUMNOS o revisá los teléfonos.</p></div>';
+  } else {
+    html+='<div class="ev-list">';
+    let horaPrev=null;
+    s.forEach((c,i)=>{
+      if(c.hora!==horaPrev){ html+='<div class="ev-hsep">🕐 '+esc(c.hora)+'</div>'; horaPrev=c.hora; }
+      const en=isEnviado(c);
+      html+=
+        '<div class="ev-row'+(en?' sent':'')+(i===evQueueIdx?' active':'')+'" data-i="'+i+'">'+
+          '<button class="ev-chk'+(en?' on':'')+'" data-toggle="'+i+'" title="Marcar enviado">'+(en?'✓':'')+'</button>'+
+          '<div class="ev-info">'+
+            '<div class="ev-nm">'+esc(c.nombre)+(c.confirmado?' <span class="mini ok">✅</span>':'')+'</div>'+
+            '<div class="ev-meta">'+esc(c.profesor)+' · '+esc(c.sede)+' · +'+esc(c.tel)+'</div>'+
+          '</div>'+
+          '<button class="ev-wa" data-wa="'+i+'" title="Abrir chat">💬</button>'+
+        '</div>';
+    });
+    html+='</div>';
+  }
+
+  // Sección A DEFINIR (aparte, para mensaje personalizado)
+  if(adef.length){
+    html+='<div class="ev-adef-head">📌 A DEFINIR — '+adef.length+' alumno(s) · mensaje personalizado (no entran en el envío masivo)</div>';
+    html+='<div class="ev-list adef">';
+    adef.forEach((c,j)=>{
+      const tel=phoneOk(c.tel);
+      html+=
+        '<div class="ev-row adef">'+
+          '<div class="ev-info">'+
+            '<div class="ev-nm">'+esc(c.nombre)+(c.confirmado?' <span class="mini ok">✅</span>':'')+'</div>'+
+            '<div class="ev-meta">'+esc(c.hora)+' · '+(tel?('+'+esc(c.tel)):'⚠ sin teléfono')+'</div>'+
+          '</div>'+
+          (tel?'<button class="ev-wa" data-adef="'+j+'" title="Abrir chat">💬</button>':'')+
+        '</div>';
+    });
+    html+='</div>';
+  }
+
+  body.innerHTML=html;
+
+  // Listeners
+  document.getElementById('evSendNext').onclick=()=>{ gotoNextPending(true); };
+  document.getElementById('evMarkAll').onclick=()=>{ if(confirm('¿Marcar TODOS como enviados? (solo el envío masivo)')){ s.forEach(c=>markEnviado(c,true)); renderEnvios(); } };
+  document.getElementById('evClear').onclick=()=>{ if(confirm('¿Reiniciar los enviados de hoy? (no manda nada, solo limpia las marcas)')){ const e=enviadosHoy(); Object.keys(e).forEach(k=>delete e[k]); saveState(); renderEnvios(); } };
+  body.querySelectorAll('.ev-row[data-i]').forEach(r=>{
+    r.onclick=(e)=>{ if(e.target.closest('.ev-chk')||e.target.closest('.ev-wa')) return; evQueueIdx=+r.dataset.i; renderEnvios(); };
+  });
+  body.querySelectorAll('.ev-chk').forEach(b=>{
+    b.onclick=(e)=>{ e.stopPropagation(); const i=+b.dataset.toggle; markEnviado(s[i], !isEnviado(s[i])); renderEnvios(); };
+  });
+  body.querySelectorAll('.ev-wa[data-wa]').forEach(b=>{
+    b.onclick=(e)=>{ e.stopPropagation(); const i=+b.dataset.wa; evQueueIdx=i; openChat(s[i]); renderEnvios(); };
+  });
+  body.querySelectorAll('.ev-wa[data-adef]').forEach(b=>{
+    b.onclick=(e)=>{ e.stopPropagation(); const j=+b.dataset.adef; openChat(adef[j]); };
+  });
+  const act=body.querySelector('.ev-row.active'); if(act) act.scrollIntoView({block:'nearest'});
+}
+function gotoNextPending(openIt){
+  const s=sendQueue();
+  if(!s.length) return;
+  // buscar el primer pendiente desde la posición actual
+  let found=-1;
+  for(let step=0;step<s.length;step++){
+    const i=(evQueueIdx+step)%s.length;
+    if(!isEnviado(s[i])){ found=i; break; }
+  }
+  if(found<0){ alert('✅ Ya enviaste a todos los del día. ¡Listo!'); return; }
+  evQueueIdx=found;
+  const c=s[found];
+  if(openIt) openChat(c);
+  markEnviado(c,true);
+  // mover el cursor al próximo pendiente para el siguiente Espacio
+  for(let step=1;step<=s.length;step++){
+    const i=(found+step)%s.length;
+    if(!isEnviado(s[i])){ evQueueIdx=i; break; }
+  }
+  renderEnvios();
+}
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+document.querySelectorAll('.mode-btn').forEach(b=> b.onclick=()=> setMode(b.dataset.mode));
+document.getElementById('btnSave').onclick=saveEditor;
+document.getElementById('btnCancel').onclick=closeEditor;
+document.getElementById('btnDelete').onclick=deleteEditor;
+document.getElementById('btnAddProf').onclick=addProf;
+document.getElementById('btnProfs').onclick=openProfs;
+document.getElementById('btnCloseProfs').onclick=closeProfs;
+document.getElementById('btnAddProfesor').onclick=addProfesor;
+document.getElementById('overlayProfs').onclick=(e)=>{ if(e.target.id==='overlayProfs') closeProfs(); };
+document.getElementById('btnResumen').onclick=toggleResumen;
+document.getElementById('btnEnvios').onclick=openEnvios;
+document.getElementById('btnTelefonos').onclick=openTel;
+document.getElementById('btnCloseTel').onclick=closeTel;
+document.getElementById('btnSync').onclick=syncContactos;
+document.getElementById('overlayTel').onclick=(e)=>{ if(e.target.id==='overlayTel') closeTel(); };
+// Vista de envíos
+document.getElementById('evBack').onclick=closeEnvios;
+document.getElementById('evOpenWA').onclick=()=>{ const w=window.open('https://web.whatsapp.com', WA_WIN_NAME); if(w){ try{w.focus();}catch(e){} } };
+
+// Atajos de teclado de la cola de envíos (solo con la pantalla abierta y sin escribir en un campo)
+document.addEventListener('keydown', (e)=>{
+  const abierto = document.getElementById('enviosScreen').classList.contains('show');
+  if(!abierto) return;
+  const t = e.target.tagName;
+  if(t==='TEXTAREA' || t==='INPUT') return; // no interferir al editar la plantilla
+  const s = sendQueue();
+  if(!s.length) return;
+  const c = s[Math.max(0, Math.min(evQueueIdx, s.length-1))];
+  if(e.key==='Enter'){ e.preventDefault(); openChat(c); }
+  else if(e.key===' '){ e.preventDefault(); gotoNextPending(true); }
+  else if(e.key==='ArrowUp'){ e.preventDefault(); if(evQueueIdx>0){ evQueueIdx--; renderEnvios(); } }
+  else if(e.key==='ArrowDown'){ e.preventDefault(); if(evQueueIdx<s.length-1){ evQueueIdx++; renderEnvios(); } }
+  else if(e.key==='Escape'){ e.preventDefault(); closeEnvios(); }
+});
+document.getElementById('evCSV').onclick=exportEnvios;
+document.getElementById('evTpl').oninput=(e)=>{ state.tplEnvio=e.target.value; saveState(); renderEnvios(); };
+document.getElementById('evCC').oninput=(e)=>{ state.cc=e.target.value; saveState(); renderEnvios(); };
+document.querySelectorAll('.ev-ph .chip').forEach(ch=>{
+  ch.onclick=()=>{ const ta=document.getElementById('evTpl'); ta.value+=ch.dataset.ph; state.tplEnvio=ta.value; saveState(); renderEnvios(); };
+});
+document.getElementById('btnReset').onclick=resetSemana;
+document.getElementById('overlay').onclick=(e)=>{ if(e.target.id==='overlay') closeEditor(); };
+
+loadState();
+setMode(state.mode);
+fillAlumnosDatalist();
+</script>
+</body>
+</html>

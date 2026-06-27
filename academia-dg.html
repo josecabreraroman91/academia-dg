@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Academia DG</title>
+<style>
+  :root{
+    --bg:#13171c; --panel:#1b2128; --panel2:#222a33; --line:#2c3540; --txt:#e9edf2; --muted:#8b97a8;
+    --clay:#d97a4e; --court:#3fb27f; --gold:#e8b34a;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+
+  /* barra superior con pestañas */
+  #topbar{display:none;background:var(--panel);border-bottom:1px solid var(--line);padding:8px 10px;align-items:center;gap:8px;flex-shrink:0}
+  #topbar.show{display:flex}
+  #topbar .brand{font-weight:800;font-size:14px;letter-spacing:-.3px;display:flex;align-items:center;gap:6px;margin-right:4px}
+  #topbar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--clay)}
+  #topbar .tabsbar{display:flex;gap:6px;flex:1;overflow-x:auto}
+  .navtab{padding:7px 13px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+  .navtab.active{background:var(--panel2);color:var(--txt);border-color:var(--clay)}
+  .navtab.home{padding:7px 11px}
+
+  /* contenedor de iframes */
+  #stage{flex:1;position:relative;min-height:0}
+  #stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:var(--bg)}
+  #stage iframe.show{display:block}
+
+  /* menú de inicio */
+  #menu{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;gap:18px}
+  #menu.hide{display:none}
+  .mhead{text-align:center;margin-bottom:6px}
+  .mhead .logo{font-size:34px;font-weight:800;letter-spacing:-.5px;display:flex;align-items:center;gap:10px;justify-content:center}
+  .mhead .logo .dot{width:16px;height:16px;border-radius:50%;background:var(--clay)}
+  .mhead .sub{color:var(--muted);font-size:14px;margin-top:6px}
+  .mcards{display:flex;flex-direction:column;gap:14px;width:100%;max-width:420px}
+  .mcard{display:flex;align-items:center;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;cursor:pointer;transition:transform .12s,border-color .12s}
+  .mcard:hover{transform:translateY(-2px);border-color:var(--clay)}
+  .mcard .ico{font-size:32px;width:54px;height:54px;display:flex;align-items:center;justify-content:center;background:var(--panel2);border-radius:14px;flex-shrink:0}
+  .mcard .info .t{font-size:17px;font-weight:800}
+  .mcard .info .d{font-size:12px;color:var(--muted);margin-top:3px}
+  .mcard .arrow{margin-left:auto;color:var(--muted);font-size:22px}
+  .mfoot{color:var(--muted);font-size:11px;text-align:center;margin-top:8px}
+</style>
+</head>
+<body>
+
+<!-- Barra superior con pestañas (oculta en el menú) -->
+<div id="topbar">
+  <div class="brand"><span class="dot"></span> Academia DG</div>
+  <div class="tabsbar">
+    <button class="navtab home" data-go="menu">☰</button>
+    <button class="navtab" data-go="cal">🎾 Calendario</button>
+    <button class="navtab" data-go="cob">💰 Cobros</button>
+  </div>
+</div>
+
+<!-- Menú de inicio -->
+<div id="menu">
+  <div class="mhead">
+    <div class="logo"><span class="dot"></span> Academia DG</div>
+    <div class="sub">¿Qué querés abrir?</div>
+  </div>
+  <div class="mcards">
+    <div class="mcard" data-go="cal">
+      <div class="ico">🎾</div>
+      <div class="info"><div class="t">Calendario</div><div class="d">Horarios del día, envío de mensajes y reporte</div></div>
+      <div class="arrow">›</div>
+    </div>
+    <div class="mcard" data-go="cob">
+      <div class="ico">💰</div>
+      <div class="info"><div class="t">Cobros</div><div class="d">Cuentas del mes, morosos y horarios</div></div>
+      <div class="arrow">›</div>
+    </div>
+  </div>
+  <div class="mfoot">Sistema de gestión · Academia DG 🎾</div>
+</div>
+
+<!-- Escenario con las dos apps aisladas -->
+<div id="stage">
+  <iframe id="frCal" data-src="cal-unif.html" title="Calendario"></iframe>
+  <iframe id="frCob" data-src="cobros-unif.html" title="Cobros"></iframe>
+</div>
+
+<script>
+  const topbar=document.getElementById('topbar');
+  const menu=document.getElementById('menu');
+  const frCal=document.getElementById('frCal');
+  const frCob=document.getElementById('frCob');
+  const loaded={cal:false, cob:false};
+
+  function go(dest){
+    if(dest==='menu'){
+      menu.classList.remove('hide');
+      topbar.classList.remove('show');
+      frCal.classList.remove('show'); frCob.classList.remove('show');
+      document.querySelectorAll('.navtab').forEach(t=>t.classList.remove('active'));
+      return;
+    }
+    // mostrar app
+    menu.classList.add('hide');
+    topbar.classList.add('show');
+    // cargar el iframe la primera vez (lazy)
+    if(dest==='cal' && !loaded.cal){ frCal.src=frCal.dataset.src; loaded.cal=true; }
+    if(dest==='cob' && !loaded.cob){ frCob.src=frCob.dataset.src; loaded.cob=true; }
+    frCal.classList.toggle('show', dest==='cal');
+    frCob.classList.toggle('show', dest==='cob');
+    document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('active', t.dataset.go===dest));
+  }
+
+  document.querySelectorAll('[data-go]').forEach(b=> b.onclick=()=>go(b.dataset.go));
+</script>
+</body>
+</html>
