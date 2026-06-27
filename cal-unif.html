@@ -830,21 +830,26 @@ async function syncContactos(){
     const text=await res.text();
     const rows=parseCSV(text);
     if(rows.length<2) throw new Error('hoja vacía o sin datos');
-    // Detectar la FILA de encabezados (puede no ser la primera si hay filas vacías/título arriba)
-    let headRow=0;
-    for(let r=0;r<Math.min(rows.length,8);r++){
+    // Detectar la FILA de encabezados. No exigir teléfono (en la planilla su encabezado viene vacío);
+    // alcanza con "alumnos/nombre" + algún ancla estable (lado, lunes, comentarios, precio, categoría).
+    let headRow=-1;
+    for(let r=0;r<Math.min(rows.length,12);r++){
       const hh=rows[r].map(x=>normName(x));
-      const tieneNombre=hh.some(h=>h.indexOf('alumno')>-1 || h.indexOf('nombre')>-1);
-      const tieneTel=hh.some(h=>h.indexOf('telefono')>-1 || h.indexOf('tel')>-1 || h.indexOf('celular')>-1);
-      if(tieneNombre && tieneTel){ headRow=r; break; }
+      const tieneNombre=hh.some(h=>h==='alumnos'||h==='alumno'||h.indexOf('nombre')>-1);
+      const tieneAncla=hh.some(h=>h.indexOf('lado')>-1||h==='lunes'||h.indexOf('comentarios')>-1||h.indexOf('precio')>-1||h.indexOf('categor')>-1||h.indexOf('telefono')>-1);
+      if(tieneNombre && tieneAncla){ headRow=r; break; }
     }
+    if(headRow<0) for(let r=0;r<Math.min(rows.length,12);r++){ if(rows[r].map(x=>normName(x)).some(h=>h.indexOf('alumno')>-1)){ headRow=r; break; } }
+    if(headRow<0) headRow=0;
     _syncHeaders=rows[headRow];
     _syncRows=rows.slice(headRow); // los datos arrancan en la fila de encabezados (índice 0 = headers)
     // columnas: usar las guardadas si existen, si no autodetectar
     let iNom = state.colNombre ? _syncHeaders.findIndex(h=>h===state.colNombre) : -1;
     let iTel = state.colTel ? _syncHeaders.findIndex(h=>h===state.colTel) : -1;
-    if(iNom<0) iNom=findCol(_syncHeaders,['alumno','nombre']);
+    if(iNom<0) iNom=findCol(_syncHeaders,['alumnos','alumno','nombre']);
     if(iTel<0) iTel=findCol(_syncHeaders,['telefono','celular','whatsapp','tel','numero','movil']);
+    // Teléfono con encabezado vacío: ubicarlo por ancla (dos columnas antes de LUNES)
+    if(iTel<0){ const iLun=findCol(_syncHeaders,['lunes']); if(iLun>1) iTel=iLun-2; }
     if(iNom<0||iTel<0) throw new Error('no encontré columnas de nombre/teléfono');
     poblarColPickers(iNom,iTel);
     construirContactos(iNom,iTel);
@@ -856,7 +861,7 @@ async function syncContactos(){
 // Llena los desplegables de columna con los encabezados leídos
 function poblarColPickers(iNom,iTel){
   const selN=document.getElementById('fColNombre'), selT=document.getElementById('fColTel');
-  const opts=_syncHeaders.map((h,i)=>`<option value="${i}">${(h||'(col '+(i+1)+')').replace(/"/g,'&quot;')}</option>`).join('');
+  const opts=_syncHeaders.map((h,i)=>{ let lbl=(h&&h.trim())?h.trim():''; if(!lbl){ const ej=(_syncRows[1]&&_syncRows[1][i])?String(_syncRows[1][i]).slice(0,14):''; lbl=ej?('(col '+(i+1)+': '+ej+')'):('(columna '+(i+1)+')'); } return `<option value="${i}">${lbl.replace(/"/g,'&quot;')}</option>`; }).join('');
   selN.innerHTML=opts; selT.innerHTML=opts;
   selN.value=iNom; selT.value=iTel;
   document.getElementById('colPickers').style.display='block';
@@ -870,8 +875,10 @@ function poblarColPickers(iNom,iTel){
 // Arma el mapa de contactos desde el cache con las columnas elegidas
 function construirContactos(iNom,iTel){
   const iApo=findCol(_syncHeaders,['apodo','nombre_wpp','alias']);
-  const iCat=findCol(_syncHeaders,['categor','ategor','nivel','cat']);
+  let iCat=findCol(_syncHeaders,['categor','ategor','nivel','cat']);
   const iLado=findCol(_syncHeaders,['lado']);
+  // Categoría con encabezado vacío: va justo antes de "Lado"
+  if(iCat<0 && iLado>0) iCat=iLado-1;
   const iTipo=findCol(_syncHeaders,['tipo de clase','tipo_clase','tipo de','modalidad','tipo']);
   const iWpp=findCol(_syncHeaders,['nombre_calendario','nombre calendario','nombre p/ horario','nombre p horario','nombre p/horario','nombre wpp','nombre_wpp']);
   state.colNombre=_syncHeaders[iNom]; state.colTel=_syncHeaders[iTel];
