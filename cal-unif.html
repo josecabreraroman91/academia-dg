@@ -7,9 +7,9 @@
 <title>Calendario Academia DG</title>
 <style>
   :root{
-    --bg:#0f1115; --panel:#171a21; --line:#2a2f3a; --txt:#e8eaed; --muted:#8b93a7;
-    --lomas:#3b6fd4; --elite:#1f9d57; --segurola:#e2691e; --adefinir:#7b3fe4;
-    --libre:#c0392b; --cell:#1d2129; --accent:#f4c430; --madre:#e0457b;
+    --bg:#e9ebee; --panel:#ffffff; --line:#c9ced4; --txt:#1f2329; --muted:#6b7280;
+    --lomas:#FFD966; --elite:#93C47D; --segurola:#FF9900; --adefinir:#9F82BE;
+    --libre:#FF2D20; --cell:#ffffff; --accent:#1080A5; --madre:#c0398a;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
@@ -184,6 +184,72 @@
   .ev-adef-head{background:#2a1f30;color:#e0b8ff;font-size:12px;font-weight:700;padding:9px 11px;border:1px solid #4a2a52;border-radius:10px 10px 0 0;margin-top:16px}
   .ev-list.adef{border-top:none;border-radius:0 0 10px 10px}
   .ev-row.adef{background:#1a1420}
+  /* ===== Réplica de la planilla CALENDARIO ===== */
+  body{background:#e9ebee;color:#1f2329}
+  .btn{background:#fff;color:#1f2329;border-color:#c9ced4}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn.reset{background:#f3e8f7;border-color:#e2cdee;color:#8a3fb0}
+  .btn.profs{background:#e7f3ec;border-color:#c5e2d0;color:#1d7a45}
+  .btn.envios{background:#e7f3ec;border-color:#c5e2d0;color:#1d7a45}
+  .btn.danger{background:#fde7e6;border-color:#f3c5c2;color:#cc4b42}
+  .btn-wa{background:#25d366;color:#fff;border-color:#25d366}
+  .zoomctl{background:#fff;border-color:#c9ced4}
+  .zoomctl button{color:#1f2329}
+  .mode-switch{background:#fff;border-color:#c9ced4}
+  .mode-btn{color:#6b7280}
+  .mode-btn.active.semana{background:var(--accent);color:#fff}
+  .mode-btn.active.madre{background:var(--madre);color:#fff}
+  .tab{background:#fff;border-color:#c9ced4;color:#1f2329}
+  .tab.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  body.modo-madre .day-tabs .tab.active{background:var(--madre);color:#fff;border-color:var(--madre)}
+  /* esquina + columna de horas: magenta como la planilla */
+  thead .row-sede th.hcol{background:#FF00FF;color:#1a001a}
+  td.hcell{background:#FF00FF;color:#1a001a;font-weight:800}
+  body.modo-madre td.hcell{color:#1a001a}
+  /* encabezados de sede: banda llena */
+  thead .row-sede th.sedehead{background:#dfe3e7;color:#1f2329;border-bottom:none}
+  thead .row-sede th.sedehead.sede-lomas{background:#FFD966;color:#5a4500}
+  thead .row-sede th.sedehead.sede-elite{background:#93C47D;color:#214a21}
+  thead .row-sede th.sedehead.sede-segurola{background:#FF9900;color:#5a3300}
+  thead .row-sede th.sedehead.sede-adefinir{background:#9F82BE;color:#ffffff}
+  /* fila de profesores: banda más clara por sede */
+  th.profhead{background:#eef0f2}
+  th.profhead.sede-col-lomas{background:#FFE599}
+  th.profhead.sede-col-elite{background:#C6E0B4}
+  th.profhead.sede-col-segurola{background:#FCD5A5}
+  th.profhead.sede-col-adefinir{background:#C9BEE0}
+  th.profhead select{background:#ffffffd9;color:#1f2329;border-color:#0000001f;font-weight:700}
+  .sede-addcol{background:#00000014;border-color:#00000026;color:inherit}
+  .sede-addcol:hover{background:#00000022}
+  .sede-start{border-left:2px solid #b9c0c7}
+  /* celdas por sede (tinte de la planilla) */
+  td.cell.sede-col-lomas{background:#FFF2CC}
+  td.cell.sede-col-elite{background:#D9EAD3}
+  td.cell.sede-col-segurola{background:#FCE5CD}
+  td.cell.sede-col-adefinir{background:#E2DCEF}
+  /* celda libre: roja */
+  td.cell.libre{background:#FF2D20}
+  td.cell.libre .slot.libre-slot{color:#fff;font-weight:700}
+  /* contenido de las celdas */
+  .slot{border-bottom-color:#00000012}
+  .slot:hover{filter:brightness(.96)}
+  .slot .nm{color:#1f2329}
+  .slot.empty{color:#9aa0a6}
+  .slot .tags{color:#5a6168}
+  .slot .tag{background:#ffffffb3;color:#3a4148}
+  .slot .tag.mod{background:#ffffffcc;color:#1f6fb2}
+  .slot .tag.nivel{background:#ffffffcc;color:#6d34cf}
+  .slot .nota{background:#ffffffcc;color:#3a4148}
+  /* confirmado: marca verde fuerte */
+  .slot.confirmado{background:#b9e3c6 !important;border-left:3px solid #2f9e57}
+  .slot.confirmado .nm{color:#1d5a34}
+  .slot.confirmado .tag,.slot.confirmado .tag.mod,.slot.confirmado .tag.nivel{background:#a6dab8;color:#1d5a34}
+  .check-btn{background:#ffffffcc;border-color:#00000026;color:#7a848c}
+  .check-btn:hover{border-color:#2f9e57;color:#2f9e57}
+  .slot.confirmado .check-btn{background:#2f9e57;color:#fff;border-color:#2f9e57}
+  .col-x{background:#fde7e6;border-color:#f3c5c2;color:#cc4b42}
+  .libre-toggle{background:#ffffffcc;color:#9aa0a6;opacity:.5}
+  .libre-toggle:hover{opacity:1}
 </style>
 </head>
 <body class="modo-semana">

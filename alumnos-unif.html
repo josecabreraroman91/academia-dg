@@ -7,9 +7,9 @@
 <title>Alumnos · Academia DG</title>
 <style>
   :root{
-    --bg:#13171c; --panel:#1b2128; --panel2:#222a33; --line:#2c3540; --txt:#e9edf2; --muted:#8b97a8;
-    --clay:#d97a4e; --court:#3fb27f; --gold:#e8b34a; --red:#e0574b;
-    --lomas:#3b6fd4; --elite:#1f9d57; --segurola:#e2691e; --adefinir:#7b3fe4;
+    --bg:#e9ebee; --panel:#ffffff; --panel2:#f1f3f5; --line:#c9ced4; --txt:#1f2329; --muted:#6b7280;
+    --clay:#1080A5; --court:#2f9e57; --gold:#c08a00; --red:#cc4b42; --accent:#1080A5;
+    --lomas:#FFD966; --elite:#93C47D; --segurola:#FF9900; --adefinir:#9F82BE;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
@@ -84,6 +84,21 @@
 
   .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--court);color:#0c2a18;font-weight:700;padding:10px 18px;border-radius:10px;font-size:13px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none}
   .toast.show{opacity:1}
+  /* ===== Réplica de la planilla (colores Academia DG) ===== */
+  .btn.primary{color:#fff}
+  .btn.court{color:#fff}
+  .btn.danger{background:#F4CCCC;border-color:#e6a3a3;color:#a83232}
+  .chip.cat{background:#E2DCEF;color:#5a3a8a}
+  .chip.lado{background:#cfe2f3;color:#1f6fb2}
+  .chip.tipo{background:#FFF2CC;color:#7a5c00}
+  .chip.profe{background:#D9EAD3;color:#1d5a34}
+  .chip.tel{background:#cce8e2;color:#1d6a5a}
+  .chip.notel{background:#F4CCCC;color:#a83232}
+  .dchip{background:var(--panel2);color:#9aa0a6}
+  .dchip.on{background:var(--clay);color:#fff}
+  .die .toggle{background:#c9ced4}
+  .acard:active{border-color:var(--clay)}
+  .die input.hora{background:#f1f3f5}
 </style>
 </head>
 <body>
