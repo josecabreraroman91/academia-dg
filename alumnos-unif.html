@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>Alumnos · Academia DG</title>
+<style>
+  :root{
+    --bg:#13171c; --panel:#1b2128; --panel2:#222a33; --line:#2c3540; --txt:#e9edf2; --muted:#8b97a8;
+    --clay:#d97a4e; --court:#3fb27f; --gold:#e8b34a; --red:#e0574b;
+    --lomas:#3b6fd4; --elite:#1f9d57; --segurola:#e2691e; --adefinir:#7b3fe4;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+
+  header{background:var(--panel);border-bottom:1px solid var(--line);padding:10px 12px;flex-shrink:0}
+  .title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;margin-bottom:8px}
+  .title .dot{width:9px;height:9px;border-radius:50%;background:var(--clay)}
+  .searchbar{display:flex;gap:7px;align-items:center}
+  .searchbar input{flex:1;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-size:14px}
+  .btn{padding:8px 12px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap}
+  .btn.primary{background:var(--clay);border-color:var(--clay);color:#1a1a1a}
+  .btn.court{background:var(--court);border-color:var(--court);color:#0c2a18}
+  .btn.ghost{background:transparent}
+  .btn.danger{background:#3a1f1f;border-color:#5a2a2a;color:#ff8a8a}
+  .toolbar{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .toolbar .btn{font-size:12px;padding:6px 10px}
+
+  main{flex:1;min-height:0;overflow:auto;padding:10px}
+  .stats{display:flex;gap:8px;margin-bottom:10px}
+  .stat{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:9px 12px;text-align:center}
+  .stat .k{font-size:11px;color:var(--muted)}
+  .stat .v{font-size:18px;font-weight:800;margin-top:2px}
+
+  .acard{background:var(--panel);border:1px solid var(--line);border-radius:13px;padding:12px 13px;margin-bottom:9px;cursor:pointer}
+  .acard:active{border-color:var(--clay)}
+  .arow{display:flex;align-items:flex-start;gap:8px}
+  .aname{font-weight:800;font-size:15px}
+  .achips{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+  .chip{font-size:10.5px;font-weight:700;padding:2px 7px;border-radius:6px;background:var(--panel2);color:var(--muted)}
+  .chip.cat{background:#3a2f4d;color:#d6b8ff}
+  .chip.lado{background:#26313e;color:#bcd6ff}
+  .chip.tipo{background:#33405a;color:#bcd0ff}
+  .chip.profe{background:#1f2e2a;color:#9fe8d0}
+  .chip.tel{background:#1d3a2c;color:#7df0aa}
+  .chip.notel{background:#3a2626;color:#ff9a9a}
+  .adias{display:flex;gap:4px;margin-top:8px}
+  .dchip{flex:1;text-align:center;font-size:10px;font-weight:700;padding:3px 0;border-radius:6px;background:var(--panel2);color:#41506180}
+  .dchip.on{background:var(--clay);color:#1a1a1a}
+  .dchip .hh{display:block;font-size:9px;font-weight:600;margin-top:1px;opacity:.85}
+  .aprecio{margin-left:auto;text-align:right;font-weight:800;color:var(--court);white-space:nowrap;font-size:14px}
+  .aprecio small{display:block;font-size:10px;color:var(--muted);font-weight:600}
+
+  .empty{text-align:center;color:var(--muted);padding:50px 20px}
+  .empty h3{margin-bottom:6px;color:var(--txt)}
+
+  /* overlay editor */
+  .overlay{position:fixed;inset:0;background:#000b;display:none;align-items:flex-end;z-index:50}
+  .overlay.show{display:flex}
+  .sheet{background:var(--panel);width:100%;border-radius:18px 18px 0 0;padding:16px;max-height:92vh;overflow:auto}
+  .sheet h3{margin-bottom:4px;font-size:16px}
+  .sheet .sub{color:var(--muted);font-size:12px;margin-bottom:12px}
+  .field{margin-bottom:11px}
+  .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;font-weight:600}
+  .field input,.field select,.field textarea{width:100%;padding:10px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);color:var(--txt);font-size:14px;font-family:inherit}
+  .field textarea{min-height:54px;resize:vertical}
+  .field-row{display:flex;gap:9px}
+  .field-row .field{flex:1}
+  .hint{font-size:11px;color:var(--muted);margin-top:3px}
+
+  .dias-edit{display:flex;flex-direction:column;gap:6px}
+  .die{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 10px}
+  .die .dn{font-weight:800;width:46px;font-size:13px}
+  .die .toggle{width:42px;height:24px;border-radius:13px;background:#39414f;position:relative;cursor:pointer;flex-shrink:0;transition:background .15s}
+  .die .toggle::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s}
+  .die.on .toggle{background:var(--court)}
+  .die.on .toggle::after{left:20px}
+  .die input.hora{flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-size:13px}
+  .die.off input.hora{opacity:.4;pointer-events:none}
+
+  .sheet-actions{display:flex;gap:9px;margin-top:8px}
+  .sheet-actions .btn{flex:1;padding:12px}
+
+  .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--court);color:#0c2a18;font-weight:700;padding:10px 18px;border-radius:10px;font-size:13px;z-index:99;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title"><span class="dot"></span> Alumnos</div>
+  <div class="searchbar">
+    <input id="search" placeholder="Buscar alumno…" autocomplete="off">
+    <button class="btn primary" id="btnNuevo">+ Nuevo</button>
+  </div>
+  <div class="toolbar">
+    <button class="btn ghost" id="btnImport">⬇️ Importar de planilla</button>
+    <button class="btn ghost" id="btnExport">💾 Backup</button>
+    <button class="btn ghost" id="btnRestore">📂 Restaurar</button>
+    <input type="file" id="fileRestore" accept="application/json" style="display:none">
+  </div>
+</header>
+
+<main>
+  <div class="stats">
+    <div class="stat"><div class="k">Alumnos</div><div class="v" id="stTotal">0</div></div>
+    <div class="stat"><div class="k">Con teléfono</div><div class="v" id="stTel">0</div></div>
+    <div class="stat"><div class="k">Con horario</div><div class="v" id="stHor">0</div></div>
+  </div>
+  <div id="list"></div>
+</main>
+
+<!-- Editor -->
+<div class="overlay" id="ov">
+  <div class="sheet">
+    <h3 id="ovTitle">Nuevo alumno</h3>
+    <div class="sub">Completá los datos. Solo el nombre es obligatorio.</div>
+
+    <div class="field">
+      <label>Nombre completo *</label>
+      <input id="fNombre" placeholder="Ej: Adrian Aguero" autocomplete="off">
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>Categoría / Nivel</label><input id="fCat" placeholder="Ej: 7" autocomplete="off"></div>
+      <div class="field"><label>Lado</label><select id="fLado">
+        <option value="">—</option><option>DRV</option><option>REV</option><option>AMB</option>
+      </select></div>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>Profesor</label><input id="fProfe" placeholder="Ej: VA" autocomplete="off"></div>
+      <div class="field"><label>Tipo de clase</label><select id="fTipo">
+        <option value="">—</option><option value="G">G (grupal)</option><option value="D">D (dúo)</option><option value="IND">IND (individual)</option>
+      </select></div>
+    </div>
+
+    <div class="field">
+      <label>Precio por clase (Gs.)</label>
+      <input id="fPrecio" type="text" inputmode="numeric" placeholder="Ej: 110.000" autocomplete="off">
+    </div>
+
+    <div class="field">
+      <label>Teléfono (WhatsApp)</label>
+      <input id="fTel" type="text" inputmode="tel" placeholder="Ej: 0981 234 567" autocomplete="off">
+      <div class="hint">Se guarda con código de país para WhatsApp.</div>
+    </div>
+
+    <div class="field-row">
+      <div class="field"><label>Nombre p/ horario</label><input id="fNomHor" placeholder="Corto" autocomplete="off"></div>
+      <div class="field"><label>Nombre p/ WhatsApp</label><input id="fNomWpp" placeholder="Diminutivo" autocomplete="off"></div>
+    </div>
+
+    <div class="field">
+      <label>Días y horarios</label>
+      <div class="dias-edit" id="diasEdit"></div>
+    </div>
+
+    <div class="field">
+      <label>Comentarios</label>
+      <textarea id="fComent" placeholder="Ej: ZURDO, viene con…"></textarea>
+    </div>
+
+    <div class="sheet-actions">
+      <button class="btn danger" id="btnDelete" style="display:none">Borrar</button>
+      <button class="btn ghost" id="btnCancel">Cancelar</button>
+      <button class="btn primary" id="btnSave">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== Config =====
+const SHEET_ID='1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';
+const STORE_KEY='alumnos_dg';
+const DIAS=[['LUNES','LUN'],['MARTES','MAR'],['MIERCOLES','MIÉ'],['JUEVES','JUE'],['VIERNES','VIE'],['SABADO','SÁB']];
+
+// ===== Estado =====
+let alumnos=[];      // array de objetos
+let editId=null;
+
+// ===== Utils =====
+function uid(){ return 'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function gs(n){ n=Math.round(Number(n)||0); return n.toLocaleString('es-PY').replace(/,/g,'.'); }
+function parseNum(v){ let s=String(v==null?'':v).replace(/[^\d]/g,''); const n=parseInt(s,10); return isNaN(n)?0:n; }
+function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function normName(s){ return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' '); }
+function normPhone(t){ let d=String(t==null?'':t).replace(/\D/g,''); if(!d) return ''; if(d.startsWith('595')) return d; if(d.startsWith('0')) d=d.slice(1); return '595'+d; }
+function attachMiles(inp){ if(!inp||inp._m) return; inp._m=true; inp.addEventListener('input',()=>{ const d=inp.value.replace(/\D/g,''); inp.value=d?Number(d).toLocaleString('es-PY').replace(/,/g,'.'):''; }); }
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
+
+function load(){ try{ alumnos=JSON.parse(localStorage.getItem(STORE_KEY)||'[]'); }catch(e){ alumnos=[]; } if(!Array.isArray(alumnos)) alumnos=[]; }
+function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(alumnos)); }
+
+// ===== Render lista =====
+function diasResumen(a){
+  return DIAS.map(([full,ab])=>{
+    const h=(a.horarios||[]).find(x=>x.dia===full);
+    return `<div class="dchip ${h?'on':''}">${ab}${h&&h.hora?`<span class="hh">${esc(h.hora)}</span>`:''}</div>`;
+  }).join('');
+}
+function render(){
+  const q=normName(document.getElementById('search').value);
+  let arr=alumnos.slice().sort((a,b)=>a.nombre.localeCompare(b.nombre,'es'));
+  if(q) arr=arr.filter(a=>normName(a.nombre).includes(q)||normName(a.nomWpp||'').includes(q));
+  // stats (sobre todos)
+  document.getElementById('stTotal').textContent=alumnos.length;
+  document.getElementById('stTel').textContent=alumnos.filter(a=>a.tel).length;
+  document.getElementById('stHor').textContent=alumnos.filter(a=>(a.horarios||[]).length).length;
+
+  const el=document.getElementById('list');
+  if(!alumnos.length){ el.innerHTML='<div class="empty"><h3>Sin alumnos todavía</h3><p>Tocá “+ Nuevo” para crear uno, o “Importar de planilla” para traer los que ya tenés.</p></div>'; return; }
+  if(!arr.length){ el.innerHTML='<div class="empty"><h3>Sin resultados</h3><p>No encontré ningún alumno con ese nombre.</p></div>'; return; }
+  el.innerHTML=arr.map(a=>{
+    const chips=[];
+    if(a.cat) chips.push(`<span class="chip cat">Cat ${esc(a.cat)}</span>`);
+    if(a.lado) chips.push(`<span class="chip lado">${esc(a.lado)}</span>`);
+    if(a.tipo) chips.push(`<span class="chip tipo">${esc(a.tipo)}</span>`);
+    if(a.profe) chips.push(`<span class="chip profe">Profe ${esc(a.profe)}</span>`);
+    chips.push(a.tel?`<span class="chip tel">📞</span>`:`<span class="chip notel">sin tel</span>`);
+    return `<div class="acard" data-edit="${a.id}">
+      <div class="arow">
+        <div>
+          <div class="aname">${esc(a.nombre)}</div>
+          <div class="achips">${chips.join('')}</div>
+        </div>
+        ${a.precio?`<div class="aprecio">${gs(a.precio)}<small>x clase</small></div>`:''}
+      </div>
+      <div class="adias">${diasResumen(a)}</div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('[data-edit]').forEach(c=>c.onclick=()=>openEditor(c.dataset.edit));
+}
+
+// ===== Editor =====
+function renderDiasEdit(horarios){
+  const el=document.getElementById('diasEdit');
+  el.innerHTML=DIAS.map(([full,ab])=>{
+    const h=(horarios||[]).find(x=>x.dia===full);
+    const on=!!h;
+    return `<div class="die ${on?'on':'off'}" data-die="${full}">
+      <span class="dn">${ab}</span>
+      <div class="toggle" data-toggle="${full}"></div>
+      <input class="hora" type="text" inputmode="numeric" placeholder="hora (ej: 14:00)" value="${h&&h.hora?esc(h.hora):''}" data-hora="${full}">
+    </div>`;
+  }).join('');
+  el.querySelectorAll('[data-toggle]').forEach(t=>t.onclick=()=>{
+    const row=t.closest('.die'); const on=row.classList.contains('on');
+    row.classList.toggle('on',!on); row.classList.toggle('off',on);
+  });
+  el.querySelectorAll('input.hora').forEach(inp=>inp.onfocus=()=>{ const row=inp.closest('.die'); if(row.classList.contains('off')){ row.classList.remove('off'); row.classList.add('on'); } });
+}
+function openEditor(id){
+  editId=id||null;
+  const a = id ? alumnos.find(x=>x.id===id) : null;
+  document.getElementById('ovTitle').textContent = a ? 'Editar alumno' : 'Nuevo alumno';
+  document.getElementById('fNombre').value = a?a.nombre:'';
+  document.getElementById('fCat').value = a?(a.cat||''):'';
+  document.getElementById('fLado').value = a?(a.lado||''):'';
+  document.getElementById('fProfe').value = a?(a.profe||''):'';
+  document.getElementById('fTipo').value = a?(a.tipo||''):'';
+  document.getElementById('fPrecio').value = a&&a.precio?gs(a.precio):'';
+  document.getElementById('fTel').value = a?(a.telRaw||a.tel||''):'';
+  document.getElementById('fNomHor').value = a?(a.nomHor||''):'';
+  document.getElementById('fNomWpp').value = a?(a.nomWpp||''):'';
+  document.getElementById('fComent').value = a?(a.comentarios||''):'';
+  renderDiasEdit(a?a.horarios:[]);
+  attachMiles(document.getElementById('fPrecio'));
+  document.getElementById('btnDelete').style.display = a?'block':'none';
+  document.getElementById('ov').classList.add('show');
+}
+function closeEditor(){ document.getElementById('ov').classList.remove('show'); editId=null; }
+function recogerHorarios(){
+  const out=[];
+  document.querySelectorAll('#diasEdit .die').forEach(row=>{
+    if(row.classList.contains('on')){
+      const dia=row.dataset.die;
+      const hora=(row.querySelector('input.hora').value||'').trim();
+      out.push({dia,hora});
+    }
+  });
+  return out;
+}
+function saveEditor(){
+  const nombre=document.getElementById('fNombre').value.trim();
+  if(!nombre){ toast('Falta el nombre'); return; }
+  const telRaw=document.getElementById('fTel').value.trim();
+  const obj={
+    id: editId || uid(),
+    nombre,
+    cat: document.getElementById('fCat').value.trim(),
+    lado: document.getElementById('fLado').value,
+    profe: document.getElementById('fProfe').value.trim(),
+    tipo: document.getElementById('fTipo').value,
+    precio: parseNum(document.getElementById('fPrecio').value),
+    telRaw,
+    tel: normPhone(telRaw),
+    nomHor: document.getElementById('fNomHor').value.trim(),
+    nomWpp: document.getElementById('fNomWpp').value.trim(),
+    comentarios: document.getElementById('fComent').value.trim(),
+    horarios: recogerHorarios()
+  };
+  if(editId){ const i=alumnos.findIndex(x=>x.id===editId); if(i>=0) alumnos[i]=obj; }
+  else alumnos.push(obj);
+  save(); closeEditor(); render(); toast(editId?'Alumno actualizado':'Alumno creado');
+}
+function deleteEditor(){
+  if(!editId) return;
+  const a=alumnos.find(x=>x.id===editId);
+  if(!confirm(`¿Borrar a ${a?a.nombre:'este alumno'}? No se puede deshacer.`)) return;
+  alumnos=alumnos.filter(x=>x.id!==editId);
+  save(); closeEditor(); render(); toast('Alumno borrado');
+}
+
+// ===== Importar de la planilla (gviz ALUMNOS) =====
+function detectarCols(rows){
+  // buscar fila de encabezados con "alumnos"
+  let hr=-1, idx={};
+  for(let r=0;r<Math.min(6,rows.length);r++){
+    const low=rows[r].map(c=>normName(c));
+    const iAl=low.findIndex(c=>c==='alumnos');
+    if(iAl>=0){ hr=r; break; }
+  }
+  if(hr<0) return null;
+  const low=rows[hr].map(c=>normName(c));
+  const find=(name)=>low.findIndex(c=>c===name);
+  const findc=(part)=>low.findIndex(c=>c.includes(part));
+  idx.nombre=find('alumnos');
+  idx.lado=find('lado');           idx.cat=idx.lado>0?idx.lado-1:-1;
+  idx.profe=find('profesor');
+  idx.tipo=findc('tipo de clase');
+  idx.coment=find('comentarios');  idx.precio=idx.coment>0?idx.coment-1:-1;
+  idx.nomHor=findc('horario');
+  idx.nomCal=findc('calendario');
+  const iLun=find('lunes');
+  idx.tel=iLun>1?iLun-2:-1;
+  idx.dias={};
+  [['LUNES','lunes'],['MARTES','martes'],['MIERCOLES','miercoles'],['JUEVES','jueves'],['VIERNES','viernes'],['SABADO','sabado']].forEach(([full,key])=>{ idx.dias[full]=find(key); });
+  return {hr,idx};
+}
+async function importarPlanilla(){
+  if(!confirm('Voy a traer los alumnos de la planilla (hoja ALUMNOS). Los que ya tengas con el mismo nombre NO se duplican: se actualizan los datos vacíos.\n\n¿Continuar?')) return;
+  toast('Trayendo de la planilla…');
+  try{
+    const url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ALUMNOS`;
+    const res=await fetch(url); const txt=await res.text();
+    const rows=parseCSV(txt);
+    const det=detectarCols(rows);
+    if(!det){ alert('No pude encontrar las columnas en la planilla.'); return; }
+    const {hr,idx}=det;
+    let nuevos=0, actualizados=0;
+    for(let r=hr+1;r<rows.length;r++){
+      const row=rows[r];
+      const nombre=(row[idx.nombre]||'').trim();
+      if(!nombre) continue;
+      const horarios=[];
+      Object.entries(idx.dias).forEach(([full,ci])=>{
+        if(ci<0) return; const v=(row[ci]||'').trim();
+        if(v && !['-','n/a','0',''].includes(v.toLowerCase())) horarios.push({dia:full,hora:v});
+      });
+      const telRaw = idx.tel>=0 ? (row[idx.tel]||'').trim() : '';
+      const datos={
+        nombre,
+        cat: idx.cat>=0?(row[idx.cat]||'').trim():'',
+        lado: idx.lado>=0?(row[idx.lado]||'').trim():'',
+        profe: idx.profe>=0?(row[idx.profe]||'').trim():'',
+        tipo: idx.tipo>=0?(row[idx.tipo]||'').trim():'',
+        precio: idx.precio>=0?parseNum(row[idx.precio]):0,
+        telRaw, tel: normPhone(telRaw),
+        nomHor: idx.nomHor>=0?(row[idx.nomHor]||'').trim():'',
+        nomWpp: idx.nomCal>=0?(row[idx.nomCal]||'').trim():'',
+        comentarios: '',
+        horarios
+      };
+      const exist=alumnos.find(a=>normName(a.nombre)===normName(nombre));
+      if(exist){
+        // completar solo lo que esté vacío (no piso ediciones manuales)
+        ['cat','lado','profe','tipo','nomHor','nomWpp'].forEach(k=>{ if(!exist[k]&&datos[k]) exist[k]=datos[k]; });
+        if(!exist.precio&&datos.precio) exist.precio=datos.precio;
+        if(!exist.tel&&datos.tel){ exist.tel=datos.tel; exist.telRaw=datos.telRaw; }
+        if((!exist.horarios||!exist.horarios.length)&&horarios.length) exist.horarios=horarios;
+        actualizados++;
+      } else {
+        alumnos.push(Object.assign({id:uid()},datos)); nuevos++;
+      }
+    }
+    save(); render();
+    alert(`✅ Importación lista.\n\nNuevos: ${nuevos}\nActualizados: ${actualizados}\nTotal: ${alumnos.length}`);
+  }catch(e){
+    alert('No pude traer de la planilla. Asegurate de abrir la app desde GitHub Pages (https), no como archivo local.\n\nDetalle: '+e.message);
+  }
+}
+// CSV parser simple (maneja comillas)
+function parseCSV(txt){
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<txt.length;i++){
+    const c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"') q=true; else if(c===','){ row.push(cur); cur=''; } else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; } else if(c==='\r'){} else cur+=c; }
+  }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+
+// ===== Backup / Restaurar =====
+function exportar(){
+  const blob=new Blob([JSON.stringify(alumnos,null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='alumnos-dg-'+new Date().toISOString().slice(0,10)+'.json'; a.click();
+  toast('Backup descargado');
+}
+function restaurar(file){
+  const rd=new FileReader();
+  rd.onload=()=>{ try{ const data=JSON.parse(rd.result); if(!Array.isArray(data)) throw 0;
+    if(confirm(`El backup tiene ${data.length} alumnos. ¿Reemplazar TODO lo actual por este backup?`)){ alumnos=data; save(); render(); toast('Restaurado'); }
+  }catch(e){ alert('El archivo no es un backup válido.'); } };
+  rd.readAsText(file);
+}
+
+// ===== Wire =====
+document.getElementById('btnNuevo').onclick=()=>openEditor(null);
+document.getElementById('btnSave').onclick=saveEditor;
+document.getElementById('btnCancel').onclick=closeEditor;
+document.getElementById('btnDelete').onclick=deleteEditor;
+document.getElementById('search').oninput=render;
+document.getElementById('btnImport').onclick=importarPlanilla;
+document.getElementById('btnExport').onclick=exportar;
+document.getElementById('btnRestore').onclick=()=>document.getElementById('fileRestore').click();
+document.getElementById('fileRestore').onchange=(e)=>{ if(e.target.files[0]) restaurar(e.target.files[0]); e.target.value=''; };
+document.getElementById('ov').onclick=(e)=>{ if(e.target.id==='ov') closeEditor(); };
+
+load(); render();
+</script>
+</body>
+</html>

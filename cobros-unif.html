@@ -72,7 +72,9 @@
   .dateshdr .lbl{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
   .fechas{display:flex;flex-wrap:wrap;gap:6px}
   .fecha{display:inline-flex;align-items:center;gap:5px;padding:5px 8px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);font-size:12px;font-weight:600;cursor:pointer;font-variant-numeric:tabular-nums}
-  .fecha.fue{background:#16432a;border-color:#2a6e48;color:#8df0b4}
+  .fecha.e-asis{background:#16432a;border-color:#2a6e48;color:#8df0b4}
+  .fecha.e-reag{background:#3a3417;border-color:#6e5f2a;color:#f0dc8d}
+  .fecha.e-norea{background:#3a1f1f;border-color:#6e2a2a;color:#f0a08d}
   .fecha .x{color:var(--red);font-weight:800;opacity:.7;padding-left:2px}
   .fecha .x:hover{opacity:1}
   .fecha .hplus{color:var(--gold);font-weight:700;font-size:10px;opacity:.8;padding-left:3px;border-left:1px solid var(--line);margin-left:2px}
@@ -135,6 +137,7 @@
     </div>
     <div class="toolbar">
       <div class="search"><input id="search" placeholder="Buscar alumno…"></div>
+      <button class="btn" id="btnFaltas">📋 Resumen del día</button>
       <button class="btn" id="btnSync">🔄 Sincronizar</button>
     </div>
     <div class="filters">
@@ -211,12 +214,27 @@
   <div class="sheet">
     <h3>Agregar a morosos</h3>
     <div class="field"><label>Buscar alumno</label><input id="addMorSearch" list="alumnosDL" placeholder="Escribí el nombre…"><datalist id="alumnosDL"></datalist></div>
-    <div class="field"><label>Monto de deuda Gs.</label><input id="addMorMonto" type="number" inputmode="numeric" placeholder="0"></div>
+    <div class="field"><label>Monto de deuda Gs.</label><input id="addMorMonto" type="text" inputmode="numeric" class="miles" placeholder="0"></div>
     <div class="sheet-actions"><button class="btn primary" id="addMorOk">Agregar</button><button class="btn" id="addMorCancel">Cancelar</button></div>
   </div>
 </div>
 
+<!-- Modal resumen del día (faltas) -->
+<div class="overlay" id="ovFaltas">
+  <div class="sheet">
+    <h3>📋 Resumen del día</h3>
+    <div class="sub" style="color:var(--muted);font-size:12px;margin-bottom:10px">Pegá la lista de los profes. Marco las faltas en esa fecha; los demás de ese día quedan ✅ asistió.</div>
+    <div class="field"><label>Fecha del día</label><input id="faltasFecha" type="date"></div>
+    <div class="field"><label>Lista de ausentes</label>
+      <textarea id="faltasTexto" rows="7" placeholder="Un alumno por línea. Ejemplos:&#10;Juan Perez - reagenda&#10;Maria Lopez - no reagenda&#10;Pedro Gomez (avisó, recupera)&#10;&#10;Si no ponés motivo, queda como falta que se cobra (no reagenda)."></textarea>
+    </div>
+    <div class="hint" style="font-size:11px;color:var(--muted);margin-bottom:10px">Palabras que detecto para <b>reagenda</b>: reagenda, recupera, avisó, justificado, accidente, enfermo, no cobra. El resto = no reagenda (se cobra).</div>
+    <div class="sheet-actions"><button class="btn primary" id="faltasOk">Aplicar</button><button class="btn" id="faltasCancel">Cancelar</button></div>
+  </div>
+</div>
+
 <script>
+const _endmarker=1;
 const DEFAULT_SHEET_ID='1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';
 const DEFAULT_SHEET_TAB='ALUMNOS';
 const MESES=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
@@ -234,6 +252,14 @@ function load(){
 function normName(s){ return String(s==null?'':s).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' '); }
 function gs(n){ n=Math.round(Number(n)||0); return n.toLocaleString('es-PY').replace(/,/g,'.'); }
 function parseNum(v){ let s=String(v==null?'':v).replace(/[^\d,.\-]/g,'').replace(/[,.]/g,''); const n=parseInt(s,10); return isNaN(n)?0:n; }
+// Formatea un input en vivo con separador de miles (es-PY: puntos)
+function attachMiles(inp){
+  if(!inp || inp._miles) return; inp._miles=true;
+  inp.addEventListener('input',()=>{
+    const d=inp.value.replace(/\D/g,'');
+    inp.value = d ? Number(d).toLocaleString('es-PY').replace(/,/g,'.') : '';
+  });
+}
 function periodoKey(y,m){ return y+'-'+m; }
 function curKey(){ return periodoKey(curY,curM); }
 
@@ -248,14 +274,27 @@ function fmtFecha(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart
 function fechaCorta(iso){ const p=iso.split('-'); return parseInt(p[2])+'/'+parseInt(p[1]); }
 function hoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 
+// ===== Estados de asistencia (control, NO afectan el monto) =====
+// pend=pendiente · asis=asistió · reag=faltó/puede reagendar · norea=faltó/no reagenda
+const EST_ORDEN=['pend','asis','reag','norea'];
+const EST_INFO={
+  pend:{ico:'',  lbl:'',          cls:''},
+  asis:{ico:'✅',lbl:'asistió',    cls:'e-asis'},
+  reag:{ico:'🔄',lbl:'reagenda',   cls:'e-reag'},
+  norea:{ico:'❌',lbl:'no reagenda',cls:'e-norea'}
+};
+function estadoDe(md,f){ if(md.estado && md.estado[f]) return md.estado[f]; if(md.fue && md.fue[f]) return 'asis'; return 'pend'; }
+function setEstado(md,f,e){ if(!md.estado) md.estado={}; if(e==='pend') delete md.estado[f]; else md.estado[f]=e; }
+function ciclarEstado(md,f){ const cur=estadoDe(md,f); const i=EST_ORDEN.indexOf(cur); setEstado(md,f,EST_ORDEN[(i+1)%EST_ORDEN.length]); }
+
 function mesData(a, y, m){
   const k=periodoKey(y,m), n=normName(a.nombre);
   if(!state.meses[k]) state.meses[k]={};
   if(!state.meses[k][n]){
-    state.meses[k][n]={ fechas:generarFechas(a,y,m), fue:{}, horas:{}, precio:null, pagos:[], gen:true };
+    state.meses[k][n]={ fechas:generarFechas(a,y,m), estado:{}, horas:{}, precio:null, pagos:[], gen:true };
   }
   const md=state.meses[k][n];
-  if(!md.fechas) md.fechas=[]; if(!md.fue) md.fue={}; if(!md.horas) md.horas={}; if(!md.pagos) md.pagos=[];
+  if(!md.fechas) md.fechas=[]; if(!md.estado) md.estado={}; if(!md.horas) md.horas={}; if(!md.pagos) md.pagos=[];
   return md;
 }
 // horas de una fecha (default 1)
@@ -405,7 +444,7 @@ function render(){
 
   el.innerHTML=lista.map(({a,c})=>{
     const idx=state.alumnos.indexOf(a);
-    const fechasH=c.md.fechas.map((f,fi)=>{ const hrs=horasDe(c.md,f); return `<span class="fecha ${c.md.fue[f]?'fue':''}" data-f="${idx}|${fi}">${fechaCorta(f)}${hrs>1?` · ${hrs}h`:''}<span class="hplus" data-addh="${idx}|${fi}" title="sumar hora">+h</span><span class="x" data-rmf="${idx}|${fi}">✕</span></span>`; }).join('');
+    const fechasH=c.md.fechas.map((f,fi)=>{ const hrs=horasDe(c.md,f); const e=estadoDe(c.md,f); const inf=EST_INFO[e]; return `<span class="fecha ${inf.cls}" data-f="${idx}|${fi}" title="${inf.lbl||'pendiente'}">${inf.ico?inf.ico+' ':''}${fechaCorta(f)}${hrs>1?` · ${hrs}h`:''}<span class="hplus" data-addh="${idx}|${fi}" title="sumar hora">+h</span><span class="x" data-rmf="${idx}|${fi}">✕</span></span>`; }).join('');
     const gen=cuentaGenerada(a);
     return `<div class="acard ${gen?'aldia':''}${focoIdx===idx?' foco open':''}" data-card="${idx}">
       <div class="arow1"><div><span class="aname" data-foco="${idx}">${esc(a.nombre)}</span>${a.cat?`<span class="acat">Cat ${esc(a.cat)}</span>`:''}${gen?`<span class="acat" style="background:#1d3a2c;color:#7df0aa">✓ generada</span>`:''}</div></div>
@@ -416,10 +455,10 @@ function render(){
       </div>
       <span class="expand" data-exp="${idx}">⚙️ Fechas y precio ▾</span>
       <div class="adetail">
-        <div class="dateshdr"><span class="lbl">Fechas (tocá = marca 🟢 que vino · +h suma hora · ✕ saca el día)</span></div>
-        <div class="fechas">${fechasH}<button class="addfecha" data-addf="${idx}">+ fecha</button></div>
+        <div class="dateshdr"><span class="lbl">Clases del mes (tocá para marcar: ✅ asistió · 🔄 reagenda · ❌ no reagenda · +h hora · ✕ saca)</span></div>
+        <div class="fechas">${fechasH}<button class="addfecha" data-addf="${idx}">+ clase</button></div>
         <div class="field-row" style="margin-top:10px">
-          <div class="field"><label>Precio por clase</label><input type="number" inputmode="numeric" value="${c.precio||''}" placeholder="${gs(a.precio)}" data-precio="${idx}"></div>
+          <div class="field"><label>Precio por clase</label><input type="text" inputmode="numeric" class="miles" value="${c.precio?gs(c.precio):''}" placeholder="${gs(a.precio)}" data-precio="${idx}"></div>
           <div class="field"><label>Monto del mes</label><input class="mono" value="${gs(c.monto)}" disabled></div>
         </div>
         <div class="aactions">
@@ -438,11 +477,11 @@ function render(){
 function wireCobros(el){
   el.querySelectorAll('[data-foco]').forEach(s=>s.onclick=(e)=>{ e.stopPropagation(); const i=+s.dataset.foco; focoIdx=(focoIdx===i?null:i); render(); if(focoIdx!=null){ const c=document.querySelector('.acard.foco'); if(c){ c.classList.add('open'); c.scrollIntoView({block:'center',behavior:'smooth'}); } } });
   el.querySelectorAll('[data-exp]').forEach(s=>s.onclick=()=>el.querySelector(`[data-card="${s.dataset.exp}"]`).classList.toggle('open'));
-  el.querySelectorAll('[data-f]').forEach(s=>s.onclick=(e)=>{ if(e.target.dataset.rmf!==undefined||e.target.dataset.addh!==undefined) return; const [i,fi]=s.dataset.f.split('|').map(Number); const a=state.alumnos[i]; const md=mesData(a,curY,curM); const f=md.fechas[fi]; md.fue[f]=!md.fue[f]; save(); render(); reopen(i); });
+  el.querySelectorAll('[data-f]').forEach(s=>s.onclick=(e)=>{ if(e.target.dataset.rmf!==undefined||e.target.dataset.addh!==undefined) return; const [i,fi]=s.dataset.f.split('|').map(Number); const a=state.alumnos[i]; const md=mesData(a,curY,curM); const f=md.fechas[fi]; ciclarEstado(md,f); save(); render(); reopen(i); });
   el.querySelectorAll('[data-addh]').forEach(s=>s.onclick=(e)=>{ e.stopPropagation(); const [i,fi]=s.dataset.addh.split('|').map(Number); const a=state.alumnos[i]; const md=mesData(a,curY,curM); const f=md.fechas[fi]; const cur=horasDe(md,f); md.horas[f]= cur>=3 ? 1 : cur+1; save(); render(); reopen(i); });
   el.querySelectorAll('[data-rmf]').forEach(s=>s.onclick=(e)=>{ e.stopPropagation(); const [i,fi]=s.dataset.rmf.split('|').map(Number); const a=state.alumnos[i]; const md=mesData(a,curY,curM); const f=md.fechas[fi]; md.fechas.splice(fi,1); delete md.fue[f]; delete md.horas[f]; save(); render(); reopen(i); });
   el.querySelectorAll('[data-addf]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.addf; const a=state.alumnos[i]; const dia=prompt('¿Qué día agregar? (número del día del mes, ej: 15)'); const d=parseInt(dia); if(!d||d<1||d>31) return; const iso=periodoKey(curY,curM).split('-')[0]+'-'+String(curM+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'); const md=mesData(a,curY,curM); if(!md.fechas.includes(iso)){ md.fechas.push(iso); md.fechas.sort(); } save(); render(); reopen(i); });
-  el.querySelectorAll('[data-precio]').forEach(inp=>inp.onchange=()=>{ const i=+inp.dataset.precio; const md=mesData(state.alumnos[i],curY,curM); md.precio=inp.value===''?null:parseNum(inp.value); save(); render(); reopen(i); });
+  el.querySelectorAll('[data-precio]').forEach(inp=>{ attachMiles(inp); inp.onchange=()=>{ const i=+inp.dataset.precio; const md=mesData(state.alumnos[i],curY,curM); md.precio=inp.value===''?null:parseNum(inp.value); save(); render(); reopen(i); }; });
   el.querySelectorAll('[data-comp]').forEach(b=>b.onclick=()=>openComp(+b.dataset.comp));
   el.querySelectorAll('[data-wa]').forEach(b=>b.onclick=()=>enviarWA(+b.dataset.wa));
   el.querySelectorAll('[data-gencuenta]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.gencuenta; generarCuenta(i); });
@@ -506,9 +545,9 @@ function renderMorosos(){
         </div>
         <span class="expand" data-mexp="${n}">⚙️ Cargar pago / historial ▾</span>
         <div class="adetail">
-          ${cargos.length?`<div class="ajustes" style="margin-bottom:6px"><b style="color:var(--clay)">Cargos:</b> ${cargos.map(c=>`<div style="margin-top:2px">📌 ${c.fecha?fechaCorta(c.fecha):'-'} · Gs.${gs(c.monto)} · ${esc(c.concepto||'')}</div>`).join('')}</div>`:`<div class="field" style="margin-bottom:6px"><label>Deuda total Gs.</label><input type="number" inputmode="numeric" value="${m.monto||''}" data-mor="${n}"></div>`}
+          ${cargos.length?`<div class="ajustes" style="margin-bottom:6px"><b style="color:var(--clay)">Cargos:</b> ${cargos.map(c=>`<div style="margin-top:2px">📌 ${c.fecha?fechaCorta(c.fecha):'-'} · Gs.${gs(c.monto)} · ${esc(c.concepto||'')}</div>`).join('')}</div>`:`<div class="field" style="margin-bottom:6px"><label>Deuda total Gs.</label><input type="text" inputmode="numeric" class="miles" value="${m.monto?gs(m.monto):''}" data-mor="${n}"></div>`}
           <div class="field-row">
-            <div class="field"><label>Pago Gs.</label><input type="number" inputmode="numeric" placeholder="0" data-mpago="${n}"></div>
+            <div class="field"><label>Pago Gs.</label><input type="text" inputmode="numeric" class="miles" placeholder="0" data-mpago="${n}"></div>
             <div class="field"><label>Fecha</label><input type="date" value="${hoyISO()}" data-mfecha="${n}"></div>
           </div>
           <div class="field-row">
@@ -525,9 +564,10 @@ function renderMorosos(){
       </div>`;
     }).join('') : '<div class="empty"><h3>Sin morosos</h3><p>Importá las deudas de la planilla, generá cuentas desde Cobros, o agregá manualmente.</p></div>');
 
-  document.getElementById('btnAddMor').onclick=()=>{ document.getElementById('addMorSearch').value=''; document.getElementById('addMorMonto').value=''; document.getElementById('ovAddMor').classList.add('show'); };
+  document.getElementById('btnAddMor').onclick=()=>{ document.getElementById('addMorSearch').value=''; document.getElementById('addMorMonto').value=''; attachMiles(document.getElementById('addMorMonto')); document.getElementById('ovAddMor').classList.add('show'); };
   el.querySelectorAll('[data-mexp]').forEach(s=>s.onclick=()=>el.querySelector(`[data-mcard="${s.dataset.mexp}"]`).classList.toggle('open'));
-  el.querySelectorAll('[data-mor]').forEach(inp=>inp.onchange=()=>{ state.morosos[inp.dataset.mor].monto=parseNum(inp.value); save(); renderMorososKeep(inp.dataset.mor); });
+  el.querySelectorAll('[data-mor]').forEach(inp=>{ attachMiles(inp); inp.onchange=()=>{ state.morosos[inp.dataset.mor].monto=parseNum(inp.value); save(); renderMorososKeep(inp.dataset.mor); }; });
+  el.querySelectorAll('[data-mpago]').forEach(inp=>attachMiles(inp));
   el.querySelectorAll('[data-maddpago]').forEach(b=>b.onclick=()=>{ const n=b.dataset.maddpago; const monto=parseNum(el.querySelector(`[data-mpago="${n}"]`).value); if(monto<=0) return; const fecha=el.querySelector(`[data-mfecha="${n}"]`).value||hoyISO(); const metodo=el.querySelector(`[data-mmetodo="${n}"]`).value; const nota=(el.querySelector(`[data-mnota="${n}"]`).value||'').trim(); if(!state.morosos[n].pagos) state.morosos[n].pagos=[]; state.morosos[n].pagos.push({monto,fecha,metodo,nota}); 
     // si quedó saldado, avisar
     const sal=morSaldo(state.morosos[n]); save(); if(sal<=0){ if(confirm('🎉 '+(state.alumnos.find(x=>normName(x.nombre)===n)?.nombre||n)+' saldó su deuda. ¿Quitarlo de morosos?')){ delete state.morosos[n]; save(); renderMorosos(); return; } } renderMorososKeep(n); });
@@ -575,7 +615,7 @@ function enviarWA(idx){
   const a=state.alumnos[idx]; const tel=normPhone(a.tel); if(!tel){ alert('Sin teléfono en la hoja.'); return; }
   const c=calc(a);
   const primerNombre=a.nombre.trim().split(/\s+/)[0];
-  const fue=c.md.fechas.filter(f=>c.md.fue[f]);
+  const fue=c.md.fechas.filter(f=>estadoDe(c.md,f)==='asis');
   const fueHoras=fue.reduce((s,f)=>s+horasDe(c.md,f),0);
   let lineas=[];
   lineas.push(`Hola ${primerNombre}! 👋`);
@@ -598,6 +638,78 @@ function enviarWAMoroso(a, monto){
   window.open('https://web.whatsapp.com/send?phone='+tel+'&text='+encodeURIComponent(msg),'waCobros');
 }
 
+// ===== Resumen del día (faltas pegadas de los profes) =====
+function abrirFaltas(){
+  document.getElementById('faltasFecha').value=hoyISO();
+  document.getElementById('faltasTexto').value='';
+  document.getElementById('ovFaltas').classList.add('show');
+}
+function parseFechaTxt(s){
+  const m=String(s).match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+  if(!m) return null;
+  let d=+m[1], mo=+m[2], y=m[3]?+m[3]:curY; if(y<100) y+=2000;
+  if(d<1||d>31||mo<1||mo>12) return null;
+  return y+'-'+String(mo).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function estadoDesdeTexto(linea){
+  const l=normName(linea);
+  if(/no\s*reagenda|no\s*recupera/.test(l)) return 'norea';
+  if(/no\s*cobra/.test(l)) return 'reag';
+  if(/reagenda|recupera|avis|justif|accident|enferm/.test(l)) return 'reag';
+  return 'norea';
+}
+function buscarAlumno(nombre){
+  const t=normName(nombre); if(t.length<2) return {err:'corto'};
+  let c=state.alumnos.filter(x=>normName(x.nombre)===t);
+  if(!c.length) c=state.alumnos.filter(x=>normName(x.nombre).startsWith(t));
+  if(!c.length) c=state.alumnos.filter(x=>normName(x.nombre).includes(t));
+  if(c.length===1) return {a:c[0]};
+  if(c.length>1) return {err:'varios'};
+  return {err:'no'};
+}
+function aplicarFaltas(){
+  const txt=document.getElementById('faltasTexto').value;
+  const fechaBase=document.getElementById('faltasFecha').value || hoyISO();
+  const lines=txt.split('\n').map(s=>s.trim()).filter(Boolean);
+  if(!lines.length){ alert('Pegá la lista de ausentes primero.'); return; }
+  let curFecha=fechaBase;
+  const ausentes=[];
+  lines.forEach(line=>{
+    const fEmb=parseFechaTxt(line);
+    const sinFecha=line.replace(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/,'').trim();
+    // línea que es SOLO una fecha => encabezado de día
+    if(fEmb && sinFecha.replace(/[^a-zA-ZÀ-ÿ]/g,'').length<2){ curFecha=fEmb; return; }
+    let nombre=(sinFecha||line).split(/[-:–(]/)[0].trim();
+    if(!nombre) return;
+    ausentes.push({ fecha: fEmb||curFecha, nombre, estado: estadoDesdeTexto(line) });
+  });
+  const cubiertas=new Set();
+  let marcadas=0; const noEnc=[];
+  ausentes.forEach(au=>{
+    cubiertas.add(au.fecha);
+    const r=buscarAlumno(au.nombre);
+    if(r.err){ noEnc.push(au.nombre+(r.err==='varios'?' (varios)':'')); return; }
+    const [yy,mm]=au.fecha.split('-').map(Number);
+    const md=mesData(r.a, yy, mm-1);
+    if(!md.fechas.includes(au.fecha)){ md.fechas.push(au.fecha); md.fechas.sort(); }
+    setEstado(md, au.fecha, au.estado); marcadas++;
+  });
+  // los demás alumnos con clase en las fechas cubiertas => asistió (si estaban pendientes)
+  let asis=0;
+  state.alumnos.forEach(a=>{
+    cubiertas.forEach(f=>{
+      const [yy,mm]=f.split('-').map(Number);
+      const md=mesData(a, yy, mm-1);
+      if(md.fechas.includes(f) && estadoDe(md,f)==='pend'){ setEstado(md,f,'asis'); asis++; }
+    });
+  });
+  save(); render();
+  document.getElementById('ovFaltas').classList.remove('show');
+  let msg='✅ Resumen aplicado.\n\n❌🔄 Faltas marcadas: '+marcadas+'\n✅ Asistencias marcadas: '+asis;
+  if(noEnc.length) msg+='\n\n⚠️ No pude identificar: '+noEnc.join(', ')+'\n(revisá el nombre o marcalos a mano)';
+  alert(msg);
+}
+
 // ===== comprobante =====
 let compIdx=null;
 function openComp(idx){ compIdx=idx; drawComp(idx); document.getElementById('ovComp').classList.add('show'); }
@@ -615,11 +727,12 @@ function drawComp(idx){
   x.fillStyle='#8b97a8'; x.font='600 22px -apple-system,Segoe UI,sans-serif'; x.fillText('CLASES ('+c.clases+')',50,265);
   let fx=50, fy=300;
   c.md.fechas.forEach(f=>{
-    const fue=c.md.fue[f];
-    x.fillStyle= fue?'#16432a':'#222a33'; rr(x,fx,fy-26,120,40,8); x.fill();
-    if(fue){ x.strokeStyle='#3fb27f'; x.lineWidth=2; rr(x,fx,fy-26,120,40,8); x.stroke(); }
-    x.fillStyle= fue?'#8df0b4':'#c8d2de'; x.font='700 22px -apple-system,Segoe UI,sans-serif'; x.textAlign='center';
-    x.fillText((fue?'✓ ':'')+fechaCorta(f), fx+60, fy); 
+    const e=estadoDe(c.md,f);
+    const col = e==='asis'?{bg:'#16432a',br:'#3fb27f',tx:'#8df0b4',mk:'✓ '} : e==='reag'?{bg:'#3a3417',br:'#c9a83a',tx:'#f0dc8d',mk:'🔄 '} : e==='norea'?{bg:'#3a1f1f',br:'#d9574b',tx:'#f0a08d',mk:'✕ '} : {bg:'#222a33',br:'',tx:'#c8d2de',mk:''};
+    x.fillStyle=col.bg; rr(x,fx,fy-26,120,40,8); x.fill();
+    if(col.br){ x.strokeStyle=col.br; x.lineWidth=2; rr(x,fx,fy-26,120,40,8); x.stroke(); }
+    x.fillStyle=col.tx; x.font='700 22px -apple-system,Segoe UI,sans-serif'; x.textAlign='center';
+    x.fillText(col.mk+fechaCorta(f), fx+60, fy); 
     fx+=135; if(fx>W-120){ fx=50; fy+=52; }
   });
   let y=fy+60; x.textAlign='left';
@@ -647,6 +760,9 @@ function setTab(t){ tab=t; focoIdx=null; document.querySelectorAll('.tab').forEa
   render();
 }
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
+document.getElementById('btnFaltas').onclick=abrirFaltas;
+document.getElementById('faltasOk').onclick=aplicarFaltas;
+document.getElementById('faltasCancel').onclick=()=>document.getElementById('ovFaltas').classList.remove('show');
 document.getElementById('prevMonth').onclick=()=>{ curM--; if(curM<0){curM=11;curY--;} focoIdx=null; render(); };
 document.getElementById('nextMonth').onclick=()=>{ curM++; if(curM>11){curM=0;curY++;} focoIdx=null; render(); };
 document.getElementById('search').oninput=(e)=>{ query=e.target.value; focoIdx=null; render(); };
@@ -665,7 +781,7 @@ const sH=document.getElementById('searchH');
 document.getElementById('btnAddHor').onclick=()=>{ const v=sH.value.trim(); if(v){ addHorario(v); sH.value=''; } };
 sH.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=sH.value.trim(); if(v){ addHorario(v); sH.value=''; } } });
 document.getElementById('btnClearHor').onclick=()=>{ horComparar=[]; renderHorarios(); };
-['ovSync','ovComp','ovAddMor'].forEach(id=>document.getElementById(id).onclick=(e)=>{ if(e.target.id===id) document.getElementById(id).classList.remove('show'); });
+['ovSync','ovComp','ovAddMor','ovFaltas'].forEach(id=>document.getElementById(id).onclick=(e)=>{ if(e.target.id===id) document.getElementById(id).classList.remove('show'); });
 
 load(); fillDatalist(); render();
 </script>

@@ -61,39 +61,47 @@
   main{padding:10px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   .grid-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;flex:1;min-height:0}
   body.modo-madre .grid-wrap{border-color:var(--madre)}
-  table{border-collapse:collapse;width:100%;min-width:max-content}
-  th,td{border:1px solid var(--line);vertical-align:top}
-  th.hcol{position:sticky;left:0;top:0;z-index:8;background:var(--panel);min-width:54px;width:54px;text-align:center;padding:6px 2px;font-size:12px}
-  td.hcell{position:sticky;left:0;z-index:4;background:var(--panel);text-align:center;font-weight:700;color:var(--accent);font-size:13px;padding:4px}
+  table{border-collapse:separate;border-spacing:0;width:100%;min-width:max-content}
+  th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:top}
+  th.hcol{position:sticky;left:0;top:0;z-index:9;background:var(--panel);min-width:46px;width:46px;text-align:center;padding:4px 2px;font-size:11px;font-weight:700}
+  td.hcell{position:sticky;left:0;z-index:4;background:var(--panel);text-align:center;font-weight:700;color:var(--accent);font-size:12px;padding:3px}
   body.modo-madre td.hcell{color:var(--madre)}
-  th.profhead{position:sticky;top:0;z-index:6;min-width:140px;background:var(--panel);padding:5px;text-align:center}
+  /* fila de sedes (agrupador) */
+  thead .row-sede th.sedehead{position:sticky;top:0;z-index:7;background:#10131a;font-size:11.5px;font-weight:800;text-align:center;padding:5px 6px;white-space:nowrap;letter-spacing:.2px}
+  .sedehead.sede-lomas{color:#8fb6ff;border-bottom:2px solid var(--lomas)}
+  .sedehead.sede-elite{color:#6fe0a0;border-bottom:2px solid var(--elite)}
+  .sedehead.sede-segurola{color:#ffb27a;border-bottom:2px solid var(--segurola)}
+  .sedehead.sede-adefinir{color:#c9a8ff;border-bottom:2px solid var(--adefinir)}
+  .sede-addcol{margin-left:5px;background:#ffffff14;border:1px solid #ffffff2a;color:inherit;border-radius:5px;width:18px;height:18px;font-size:12px;line-height:1;cursor:pointer;padding:0;vertical-align:middle}
+  .sede-addcol:hover{background:#ffffff28}
+  /* fila de profes */
+  th.profhead{position:sticky;top:28px;z-index:6;min-width:112px;background:var(--panel);padding:4px}
   th.profhead select{background:var(--cell);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:3px;font-size:12px;width:100%;font-weight:700}
-  td.cell{min-width:140px;padding:0;background:var(--cell)}
-  .slot{border-bottom:1px dashed #232833;padding:5px 6px;min-height:34px;cursor:pointer;position:relative}
+  .col-x{margin-top:3px;background:#3a1f1f;border:1px solid #5a2a2a;color:#ff8a8a;border-radius:5px;width:100%;height:18px;font-size:10px;cursor:pointer;padding:0}
+  /* separador entre sedes */
+  .sede-start{border-left:2px solid #38414f}
+  td.cell{min-width:112px;padding:0;background:var(--cell)}
+  .slot{border-bottom:1px dashed #232833;padding:4px 5px;min-height:30px;cursor:pointer;position:relative;font-size:12px}
   .slot:last-child{border-bottom:none}
   .slot:hover{background:#222734}
-  .slot.empty{color:#3a4150}
-  .slot .nm{font-weight:600;line-height:1.15}
-  .slot .tags{font-size:10px;color:var(--muted);margin-top:2px;display:flex;gap:4px;flex-wrap:wrap}
-  .slot .tag{background:#262b36;padding:1px 5px;border-radius:5px}
+  .slot.empty{color:#39414f;min-height:24px;text-align:center}
+  .slot .nm{font-weight:600;line-height:1.12;font-size:12px}
+  .slot .tags{font-size:9.5px;color:var(--muted);margin-top:2px;display:flex;gap:3px;flex-wrap:wrap}
+  .slot .tag{background:#262b36;padding:0 4px;border-radius:4px}
   .slot .tag.mod{background:#33405a;color:#bcd0ff}
   .slot .tag.nivel{background:#3a2f4d;color:#d6b8ff;font-weight:700}
-  .slot .nota{font-size:10px;color:#1a1a1a;background:var(--accent);border-radius:5px;padding:2px 5px;margin-top:3px;font-weight:600;display:flex;align-items:center;gap:3px}
+  .slot .nota{font-size:9.5px;color:#1a1a1a;background:var(--accent);border-radius:4px;padding:1px 4px;margin-top:2px;font-weight:600;display:flex;align-items:center;gap:3px}
   .slot .nota::before{content:'💬'}
-  /* confirmación de asistencia (solo SEMANA) */
   .slot.confirmado{background:#16432a !important;border-left:3px solid #2fd071}
   .slot.confirmado .nm{color:#7df0aa}
-  .slot.confirmado .tag{background:#1d5a38;color:#bff4d2}
-  .slot.confirmado .tag.mod{background:#1d5a38;color:#bff4d2}
-  .slot.confirmado .tag.nivel{background:#1d5a38;color:#bff4d2}
-  .check-btn{position:absolute;bottom:3px;right:3px;width:24px;height:24px;border-radius:50%;border:1px solid #2a4a3a;background:#1c2a22;color:#5a7a68;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+  .slot.confirmado .tag,.slot.confirmado .tag.mod,.slot.confirmado .tag.nivel{background:#1d5a38;color:#bff4d2}
+  .check-btn{position:absolute;bottom:2px;right:2px;width:20px;height:20px;border-radius:50%;border:1px solid #2a4a3a;background:#1c2a22;color:#5a7a68;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
   .check-btn:hover{border-color:#2fd071;color:#2fd071}
   .slot.confirmado .check-btn{background:#2fd071;color:#0c2a18;border-color:#2fd071}
   td.cell.libre{background:var(--libre)}
-  td.cell.libre .slot.libre-slot{cursor:pointer;color:#fff;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:140px;font-weight:800;font-size:14px}
+  td.cell.libre .slot.libre-slot{cursor:pointer;color:#fff;text-align:center;display:flex;align-items:center;justify-content:center;height:100%;min-height:30px;font-weight:800;font-size:15px;opacity:.92}
   td.cell.libre .slot.libre-slot:active{background:#0003}
-  .libre-hab{font-size:10px;font-weight:600;color:#fff;opacity:.8;background:#0003;border:1px dashed #fff7;border-radius:5px;padding:2px 6px}
-  .libre-toggle{position:absolute;top:2px;right:2px;font-size:9px;background:#0006;border:none;color:#fff;border-radius:4px;padding:1px 4px;cursor:pointer;opacity:.6}
+  .libre-toggle{position:absolute;top:1px;right:1px;font-size:10px;background:#0005;border:none;color:#fff;border-radius:4px;width:16px;height:16px;cursor:pointer;opacity:.35;padding:0;line-height:1}
   .libre-toggle:hover{opacity:1}
 
   .overlay{position:fixed;inset:0;background:#000a;display:none;align-items:flex-end;z-index:50}
@@ -189,7 +197,7 @@
   <div class="sede-tabs sub" id="sedeTabs"></div>
   <div class="toolbar">
     <button class="btn profs" id="btnProfs">👥 Profesores</button>
-    <button class="btn" id="btnAddProf">+ Columna profe</button>
+    <button class="btn" id="btnAddProf" style="display:none">+ Columna profe</button>
     <button class="btn" id="btnResumen">📋 Resumen del día</button>
     <button class="btn envios" id="btnEnvios">📩 Enviar mensajes</button>
     <button class="btn" id="btnTelefonos">🔄 Sincronizar</button>
@@ -241,7 +249,7 @@
       <textarea id="fNota" rows="2" placeholder="Ej: ZURDA · No va a Elite · recupera el jueves · debe..."></textarea>
     </div>
     <div class="sheet-actions">
-      <button class="btn danger" id="btnDelete">Vaciar</button>
+      <button class="btn danger" id="btnDelete">Borrar</button>
       <button class="btn" id="btnCancel">Cancelar</button>
       <button class="btn primary" id="btnSave">Guardar</button>
     </div>
@@ -504,57 +512,65 @@ function renderDayTabs(){
   });
 }
 function renderSedeTabs(){
-  const el=document.getElementById('sedeTabs'); el.innerHTML='';
-  sedesDelDia().forEach(s=>{
-    const b=document.createElement('button');
-    b.className='tab '+s.key+(s.key===state.sedeActiva?' active':'');
-    b.textContent=(s.emoji?s.emoji+' ':'')+s.nombre;
-    b.onclick=()=>{ state.sedeActiva=s.key; saveState(); renderGrid(); };
-    el.appendChild(b);
-  });
+  // Vista unificada: ya no se usan pestañas de sede (todas las sedes se ven juntas en la grilla)
+  const el=document.getElementById('sedeTabs'); el.style.display='none'; el.innerHTML='';
 }
 
-function cellKey(pi,hi,si){ return `${state.dia}|${state.sedeActiva}|${pi}|${hi}|${si}`; }
-function libreKey(pi,hi){ return `${state.dia}|${state.sedeActiva}|${pi}|${hi}`; }
+function sedeByKey(sk){ return sedesDelDia().find(s=>s.key===sk); }
+function cellKey(sk,pi,hi,si){ return `${state.dia}|${sk}|${pi}|${hi}|${si}`; }
+function libreKey(sk,pi,hi){ return `${state.dia}|${sk}|${pi}|${hi}`; }
 
 function renderGrid(){
-  const sede=sedeObj();
+  const sedes=sedesDelDia();
   const grid=document.getElementById('grid');
   const B=book();
-  let html='<thead><tr><th class="hcol">Hora</th>';
-  sede.profes.forEach((p,pi)=>{
-    html+=`<th class="profhead"><div class="colhead"><select data-pi="${pi}">`;
-    profesDisp().forEach(op=>{ html+=`<option ${op===p?'selected':''}>${op}</option>`; });
-    html+=`</select><button class="col-x" data-colx="${pi}" title="Quitar columna">✕</button></div></th>`;
+  // columnas planas: [{sk, nombre, emoji, pi, prof}]
+  const cols=[];
+  sedes.forEach(s=> s.profes.forEach((p,pi)=> cols.push({sk:s.key, pi, prof:p})) );
+
+  // --- encabezado: fila de sedes (agrupadas) + fila de profesores ---
+  let html='<thead><tr class="row-sede"><th class="hcol" rowspan="2">Hora</th>';
+  sedes.forEach(s=>{
+    if(!s.profes.length) return;
+    html+=`<th class="sedehead sede-${s.key}" colspan="${s.profes.length}">${s.emoji?s.emoji+' ':''}${esc(s.nombre)} <button class="sede-addcol" data-addcol="${s.key}" title="Agregar columna profe">+</button></th>`;
+  });
+  html+='</tr><tr class="row-prof">';
+  cols.forEach((c,ci)=>{
+    const first = ci===0 || cols[ci-1].sk!==c.sk;
+    html+=`<th class="profhead sede-col-${c.sk}${first?' sede-start':''}"><select data-pi="${c.pi}" data-sk="${c.sk}">`;
+    profesDisp().forEach(op=>{ html+=`<option ${op===c.prof?'selected':''}>${op}</option>`; });
+    html+=`</select><button class="col-x" data-colx="${c.pi}" data-sk="${c.sk}" title="Quitar columna">✕</button></th>`;
   });
   html+='</tr></thead><tbody>';
 
   HORAS.forEach((hora,hi)=>{
     html+=`<tr><td class="hcell">${hora}</td>`;
-    sede.profes.forEach((p,pi)=>{
-      const esLibre = B.libres[libreKey(pi,hi)];
+    cols.forEach((c,ci)=>{
+      const first = ci===0 || cols[ci-1].sk!==c.sk;
+      const sc = `sede-col-${c.sk}${first?' sede-start':''}`;
+      const esLibre = B.libres[libreKey(c.sk,c.pi,hi)];
       if(esLibre){
-        html+=`<td class="cell libre"><div class="slot libre-slot" data-libreon="${pi}|${hi}">🔒 LIBRE<span class="libre-hab">tocá para habilitar</span></div></td>`;
+        html+=`<td class="cell libre ${sc}"><div class="slot libre-slot" data-libreon="${c.sk}|${c.pi}|${hi}" title="Tocá para habilitar">🔒</div></td>`;
       } else {
-        html+=`<td class="cell"><button class="libre-toggle" data-libre="${pi}|${hi}">marcar libre</button>`;
+        html+=`<td class="cell ${sc}"><button class="libre-toggle" data-libre="${c.sk}|${c.pi}|${hi}" title="Marcar como libre (profe no disponible)">∅</button>`;
         for(let si=0; si<SLOTS_POR_HORA; si++){
-          const al=B.alumnos[cellKey(pi,hi,si)];
+          const al=B.alumnos[cellKey(c.sk,c.pi,hi,si)];
           if(al){
             const tags=[];
-            if(al.nivel) tags.push(`<span class="tag nivel">Cat ${al.nivel}</span>`);
+            if(al.nivel) tags.push(`<span class="tag nivel">${al.nivel}</span>`);
             if(al.lado) tags.push(`<span class="tag">${al.lado}</span>`);
             if(al.mod) tags.push(`<span class="tag mod">${al.mod}</span>`);
             const conf = state.mode==='semana' && al.confirmado;
             const checkBtn = state.mode==='semana'
-              ? `<button class="check-btn" data-check="${pi}|${hi}|${si}" title="${conf?'Confirmado':'Marcar asistencia'}">✓</button>` : '';
-            html+=`<div class="slot${conf?' confirmado':''}" data-cell="${pi}|${hi}|${si}">
-              <div class="nm">${al.nombre}</div>
+              ? `<button class="check-btn" data-check="${c.sk}|${c.pi}|${hi}|${si}" title="${conf?'Confirmado':'Marcar asistencia'}">✓</button>` : '';
+            html+=`<div class="slot${conf?' confirmado':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
+              <div class="nm">${esc(al.nombre)}</div>
               ${tags.length?`<div class="tags">${tags.join('')}</div>`:''}
-              ${al.nota?`<div class="nota">${al.nota}</div>`:''}
+              ${al.nota?`<div class="nota">${esc(al.nota)}</div>`:''}
               ${checkBtn}
             </div>`;
           } else {
-            html+=`<div class="slot empty" data-cell="${pi}|${hi}|${si}">+</div>`;
+            html+=`<div class="slot empty" data-cell="${c.sk}|${c.pi}|${hi}|${si}">+</div>`;
           }
         }
         html+=`</td>`;
@@ -569,25 +585,33 @@ function renderGrid(){
     sel.dataset.prev = sel.value;
     sel.onchange=()=>{
       if(!confirmarSiMadre()){ sel.value=sel.dataset.prev; return; }
-      const pi=+sel.dataset.pi; sedeObj().profes[pi]=sel.value; sel.dataset.prev=sel.value; saveState();
+      const pi=+sel.dataset.pi; const s=sedeByKey(sel.dataset.sk); s.profes[pi]=sel.value; sel.dataset.prev=sel.value; saveState();
     };
   });
   grid.querySelectorAll('.col-x').forEach(b=>{
     b.onclick=()=>{
-      const pi=+b.dataset.colx;
-      const nom=sedeObj().profes[pi];
-      if(!confirm(`¿Quitar la columna "${nom}" de ${sedeObj().nombre} (${state.dia})?`)) return;
+      const pi=+b.dataset.colx; const s=sedeByKey(b.dataset.sk);
+      const nom=s.profes[pi];
+      if(!confirm(`¿Quitar la columna "${nom}" de ${s.nombre} (${state.dia})?`)) return;
       if(!confirmarSiMadre()) return;
-      sedeObj().profes.splice(pi,1);
+      s.profes.splice(pi,1);
       saveState(); renderGrid();
+    };
+  });
+  grid.querySelectorAll('.sede-addcol').forEach(b=>{
+    b.onclick=()=>{
+      if(!confirmarSiMadre()) return;
+      const s=sedeByKey(b.dataset.addcol);
+      const primer = state.profesores[0] ? state.profesores[0].dim : '—';
+      s.profes.push(primer); saveState(); renderGrid();
     };
   });
   grid.querySelectorAll('.slot[data-cell]').forEach(s=>{ s.onclick=()=> openEditor(s.dataset.cell); });
   grid.querySelectorAll('.check-btn').forEach(b=>{
     b.onclick=(e)=>{
       e.stopPropagation();
-      const [pi,hi,si]=b.dataset.check.split('|');
-      const al=book().alumnos[cellKey(+pi,+hi,+si)];
+      const [sk,pi,hi,si]=b.dataset.check.split('|');
+      const al=book().alumnos[cellKey(sk,+pi,+hi,+si)];
       if(!al) return;
       al.confirmado = !al.confirmado;
       saveState(); renderGrid();
@@ -596,18 +620,17 @@ function renderGrid(){
   grid.querySelectorAll('.libre-slot[data-libreon]').forEach(s=>{
     s.onclick=()=>{
       if(!confirmarSiMadre()) return;
-      const k=`${state.dia}|${state.sedeActiva}|${s.dataset.libreon}`;
-      delete book().libres[k];
+      const [sk,pi,hi]=s.dataset.libreon.split('|');
+      delete book().libres[libreKey(sk,+pi,+hi)];
       saveState(); renderGrid();
-      // abrir editor del primer slot para cargar el alumno enseguida
-      const [pi,hi]=s.dataset.libreon.split('|');
-      openEditor(`${pi}|${hi}|0`);
+      openEditor(`${sk}|${pi}|${hi}|0`);
     };
   });
   grid.querySelectorAll('.libre-toggle').forEach(b=>{
     b.onclick=(e)=>{ e.stopPropagation();
       if(!confirmarSiMadre()) return;
-      const k=`${state.dia}|${state.sedeActiva}|${b.dataset.libre}`;
+      const [sk,pi,hi]=b.dataset.libre.split('|');
+      const k=libreKey(sk,+pi,+hi);
       if(book().libres[k]) delete book().libres[k]; else book().libres[k]=true;
       saveState(); renderGrid(); };
   });
@@ -617,9 +640,10 @@ let editingCell=null;
 function openEditor(cellId){
   editingCell=cellId;
   fillAlumnosDatalist();
-  const [pi,hi,si]=cellId.split('|');
-  const al=book().alumnos[cellKey(+pi,+hi,+si)] || {};
-  document.getElementById('sheetTitle').textContent = `${sedeObj().profes[+pi]} · ${HORAS[+hi]}` + (state.mode==='madre'?' · 🔒 MADRE':'');
+  const [sk,pi,hi,si]=cellId.split('|');
+  const al=book().alumnos[cellKey(sk,+pi,+hi,+si)] || {};
+  const s=sedeByKey(sk);
+  document.getElementById('sheetTitle').textContent = `${s?(s.emoji?s.emoji+' ':'')+s.nombre+' · ':''}${s?s.profes[+pi]:''} · ${HORAS[+hi]}` + (state.mode==='madre'?' · 🔒 MADRE':'');
   const inp=document.getElementById('fNombre');
   inp.value=al.nombre||'';
   document.getElementById('fNivel').value=al.nivel||'';
@@ -653,9 +677,9 @@ function closeEditor(){ document.getElementById('overlay').classList.remove('sho
 function saveEditor(){
   if(!editingCell) return;
   if(!confirmarSiMadre()) return;
-  const [pi,hi,si]=editingCell.split('|');
+  const [sk,pi,hi,si]=editingCell.split('|');
   const nombre=document.getElementById('fNombre').value.trim();
-  const k=cellKey(+pi,+hi,+si);
+  const k=cellKey(sk,+pi,+hi,+si);
   if(!nombre){ delete book().alumnos[k]; }
   else{
     book().alumnos[k]={
@@ -671,8 +695,8 @@ function saveEditor(){
 function deleteEditor(){
   if(!editingCell) return;
   if(!confirmarSiMadre()) return;
-  const [pi,hi,si]=editingCell.split('|');
-  delete book().alumnos[cellKey(+pi,+hi,+si)];
+  const [sk,pi,hi,si]=editingCell.split('|');
+  delete book().alumnos[cellKey(sk,+pi,+hi,+si)];
   saveState(); closeEditor(); renderGrid();
 }
 
