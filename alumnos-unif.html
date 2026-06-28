@@ -70,14 +70,21 @@
   .hint{font-size:11px;color:var(--muted);margin-top:3px}
 
   .dias-edit{display:flex;flex-direction:column;gap:6px}
-  .die{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:7px 10px}
-  .die .dn{font-weight:800;width:46px;font-size:13px}
-  .die .toggle{width:42px;height:24px;border-radius:13px;background:#39414f;position:relative;cursor:pointer;flex-shrink:0;transition:background .15s}
+  .die{display:flex;align-items:flex-start;gap:9px;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+  .die .dn{font-weight:800;width:40px;font-size:13px;padding-top:5px;flex-shrink:0}
+  .die .toggle{width:42px;height:24px;border-radius:13px;background:#39414f;position:relative;cursor:pointer;flex-shrink:0;transition:background .15s;margin-top:3px}
   .die .toggle::after{content:'';position:absolute;top:2px;left:2px;width:20px;height:20px;border-radius:50%;background:#fff;transition:left .15s}
   .die.on .toggle{background:var(--court)}
   .die.on .toggle::after{left:20px}
-  .die input.hora{flex:1;padding:7px 9px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--txt);font-size:13px}
-  .die.off input.hora{opacity:.4;pointer-events:none}
+  .die .horas{flex:1;display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+  .die.off .horas{display:none}
+  .die.off{opacity:.6}
+  .horacell{display:inline-flex;align-items:center;gap:2px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:2px 2px 2px 7px}
+  .horacell input.hora{width:74px;border:none;background:transparent;color:var(--txt);font-size:13px;padding:5px 0}
+  .horacell input.hora:focus{outline:none}
+  .horacell .rmhora{background:transparent;border:none;color:var(--red);font-weight:800;cursor:pointer;font-size:14px;padding:0 5px;line-height:1}
+  .addhora{background:transparent;border:1px dashed var(--line);color:var(--muted);border-radius:8px;padding:6px 9px;font-size:12px;font-weight:700;cursor:pointer}
+  .addhora:hover{border-color:var(--accent);color:var(--accent)}
 
   .sheet-actions{display:flex;gap:9px;margin-top:8px}
   .sheet-actions .btn{flex:1;padding:12px}
@@ -98,7 +105,7 @@
   .dchip.on{background:var(--clay);color:#fff}
   .die .toggle{background:#c9ced4}
   .acard:active{border-color:var(--clay)}
-  .die input.hora{background:#f1f3f5}
+  .horacell{background:#f1f3f5}
 </style>
 </head>
 <body>
@@ -111,6 +118,7 @@
   </div>
   <div class="toolbar">
     <button class="btn ghost" id="btnImport">⬇️ Importar de planilla</button>
+    <button class="btn ghost" id="btnPush">☁️ Guardar en planilla</button>
     <button class="btn ghost" id="btnExport">💾 Backup</button>
     <button class="btn ghost" id="btnRestore">📂 Restaurar</button>
     <input type="file" id="fileRestore" accept="application/json" style="display:none">
@@ -121,7 +129,7 @@
   <div class="stats">
     <div class="stat"><div class="k">Alumnos</div><div class="v" id="stTotal">0</div></div>
     <div class="stat"><div class="k">Con teléfono</div><div class="v" id="stTel">0</div></div>
-    <div class="stat"><div class="k">Con horario</div><div class="v" id="stHor">0</div></div>
+    <div class="stat"><div class="k">Con precio</div><div class="v" id="stHor">0</div></div>
   </div>
   <div id="list"></div>
 </main>
@@ -144,11 +152,11 @@
       </select></div>
     </div>
 
-    <div class="field-row">
-      <div class="field"><label>Profesor</label><input id="fProfe" placeholder="Ej: VA" autocomplete="off"></div>
-      <div class="field"><label>Tipo de clase</label><select id="fTipo">
+    <div class="field">
+      <label>Tipo de clase</label>
+      <select id="fTipo">
         <option value="">—</option><option value="G">G (grupal)</option><option value="D">D (dúo)</option><option value="IND">IND (individual)</option>
-      </select></div>
+      </select>
     </div>
 
     <div class="field">
@@ -165,11 +173,6 @@
     <div class="field-row">
       <div class="field"><label>Nombre p/ horario</label><input id="fNomHor" placeholder="Corto" autocomplete="off"></div>
       <div class="field"><label>Nombre p/ WhatsApp</label><input id="fNomWpp" placeholder="Diminutivo" autocomplete="off"></div>
-    </div>
-
-    <div class="field">
-      <label>Días y horarios</label>
-      <div class="dias-edit" id="diasEdit"></div>
     </div>
 
     <div class="field">
@@ -213,8 +216,10 @@ function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(alumnos)); }
 // ===== Render lista =====
 function diasResumen(a){
   return DIAS.map(([full,ab])=>{
-    const h=(a.horarios||[]).find(x=>x.dia===full);
-    return `<div class="dchip ${h?'on':''}">${ab}${h&&h.hora?`<span class="hh">${esc(h.hora)}</span>`:''}</div>`;
+    const hs=(a.horarios||[]).filter(x=>x.dia===full);
+    const on=hs.length>0;
+    const horas=hs.map(x=>x.hora).filter(Boolean).join(' · ');
+    return `<div class="dchip ${on?'on':''}">${ab}${horas?`<span class="hh">${esc(horas)}</span>`:''}</div>`;
   }).join('');
 }
 function render(){
@@ -224,7 +229,7 @@ function render(){
   // stats (sobre todos)
   document.getElementById('stTotal').textContent=alumnos.length;
   document.getElementById('stTel').textContent=alumnos.filter(a=>a.tel).length;
-  document.getElementById('stHor').textContent=alumnos.filter(a=>(a.horarios||[]).length).length;
+  document.getElementById('stHor').textContent=alumnos.filter(a=>a.precio>0).length;
 
   const el=document.getElementById('list');
   if(!alumnos.length){ el.innerHTML='<div class="empty"><h3>Sin alumnos todavía</h3><p>Tocá “+ Nuevo” para crear uno, o “Importar de planilla” para traer los que ya tenés.</p></div>'; return; }
@@ -234,7 +239,6 @@ function render(){
     if(a.cat) chips.push(`<span class="chip cat">Cat ${esc(a.cat)}</span>`);
     if(a.lado) chips.push(`<span class="chip lado">${esc(a.lado)}</span>`);
     if(a.tipo) chips.push(`<span class="chip tipo">${esc(a.tipo)}</span>`);
-    if(a.profe) chips.push(`<span class="chip profe">Profe ${esc(a.profe)}</span>`);
     chips.push(a.tel?`<span class="chip tel">📞</span>`:`<span class="chip notel">sin tel</span>`);
     return `<div class="acard" data-edit="${a.id}">
       <div class="arow">
@@ -244,29 +248,57 @@ function render(){
         </div>
         ${a.precio?`<div class="aprecio">${gs(a.precio)}<small>x clase</small></div>`:''}
       </div>
-      <div class="adias">${diasResumen(a)}</div>
     </div>`;
   }).join('');
   el.querySelectorAll('[data-edit]').forEach(c=>c.onclick=()=>openEditor(c.dataset.edit));
 }
 
 // ===== Editor =====
+function horaCellHTML(full,hh){
+  return `<span class="horacell"><input class="hora" type="text" inputmode="numeric" placeholder="ej: 14:00" value="${esc(hh||'')}" data-hora="${full}"><button type="button" class="rmhora" title="Quitar hora">✕</button></span>`;
+}
 function renderDiasEdit(horarios){
   const el=document.getElementById('diasEdit');
+  const map={};
+  (horarios||[]).forEach(h=>{ if(!map[h.dia]) map[h.dia]=[]; map[h.dia].push(h.hora||''); });
   el.innerHTML=DIAS.map(([full,ab])=>{
-    const h=(horarios||[]).find(x=>x.dia===full);
-    const on=!!h;
+    const horas=map[full]||[];
+    const on=horas.length>0;
+    const cells=(on?horas:[]).map(hh=>horaCellHTML(full,hh)).join('');
     return `<div class="die ${on?'on':'off'}" data-die="${full}">
       <span class="dn">${ab}</span>
       <div class="toggle" data-toggle="${full}"></div>
-      <input class="hora" type="text" inputmode="numeric" placeholder="hora (ej: 14:00)" value="${h&&h.hora?esc(h.hora):''}" data-hora="${full}">
+      <div class="horas" data-horas="${full}">${cells}<button type="button" class="addhora" data-addhora="${full}">+ hora</button></div>
     </div>`;
   }).join('');
+  wireDiasEdit();
+}
+function wireDiasEdit(){
+  const el=document.getElementById('diasEdit');
   el.querySelectorAll('[data-toggle]').forEach(t=>t.onclick=()=>{
     const row=t.closest('.die'); const on=row.classList.contains('on');
-    row.classList.toggle('on',!on); row.classList.toggle('off',on);
+    if(on){ row.classList.remove('on'); row.classList.add('off'); }
+    else{
+      row.classList.remove('off'); row.classList.add('on');
+      const wrap=row.querySelector('.horas');
+      if(!wrap.querySelector('.horacell')){ wrap.insertAdjacentHTML('afterbegin', horaCellHTML(row.dataset.die,'')); wireHoraBtns(); const i=wrap.querySelector('input.hora'); if(i) i.focus(); }
+    }
   });
-  el.querySelectorAll('input.hora').forEach(inp=>inp.onfocus=()=>{ const row=inp.closest('.die'); if(row.classList.contains('off')){ row.classList.remove('off'); row.classList.add('on'); } });
+  wireHoraBtns();
+}
+function wireHoraBtns(){
+  const el=document.getElementById('diasEdit');
+  el.querySelectorAll('[data-addhora]').forEach(b=>b.onclick=()=>{
+    const full=b.dataset.addhora; const row=el.querySelector(`.die[data-die="${full}"]`); const wrap=row.querySelector('.horas');
+    row.classList.remove('off'); row.classList.add('on');
+    b.insertAdjacentHTML('beforebegin', horaCellHTML(full,'')); wireHoraBtns();
+    const inputs=wrap.querySelectorAll('input.hora'); if(inputs.length) inputs[inputs.length-1].focus();
+  });
+  el.querySelectorAll('.rmhora').forEach(b=>b.onclick=()=>{
+    const cell=b.closest('.horacell'); const row=b.closest('.die'); const wrap=row.querySelector('.horas');
+    cell.remove();
+    if(!wrap.querySelector('.horacell')){ row.classList.remove('on'); row.classList.add('off'); }
+  });
 }
 function openEditor(id){
   editId=id||null;
@@ -275,14 +307,12 @@ function openEditor(id){
   document.getElementById('fNombre').value = a?a.nombre:'';
   document.getElementById('fCat').value = a?(a.cat||''):'';
   document.getElementById('fLado').value = a?(a.lado||''):'';
-  document.getElementById('fProfe').value = a?(a.profe||''):'';
   document.getElementById('fTipo').value = a?(a.tipo||''):'';
   document.getElementById('fPrecio').value = a&&a.precio?gs(a.precio):'';
   document.getElementById('fTel').value = a?(a.telRaw||a.tel||''):'';
   document.getElementById('fNomHor').value = a?(a.nomHor||''):'';
   document.getElementById('fNomWpp').value = a?(a.nomWpp||''):'';
   document.getElementById('fComent').value = a?(a.comentarios||''):'';
-  renderDiasEdit(a?a.horarios:[]);
   attachMiles(document.getElementById('fPrecio'));
   document.getElementById('btnDelete').style.display = a?'block':'none';
   document.getElementById('ov').classList.add('show');
@@ -290,12 +320,11 @@ function openEditor(id){
 function closeEditor(){ document.getElementById('ov').classList.remove('show'); editId=null; }
 function recogerHorarios(){
   const out=[];
-  document.querySelectorAll('#diasEdit .die').forEach(row=>{
-    if(row.classList.contains('on')){
-      const dia=row.dataset.die;
-      const hora=(row.querySelector('input.hora').value||'').trim();
-      out.push({dia,hora});
-    }
+  document.querySelectorAll('#diasEdit .die.on').forEach(row=>{
+    const dia=row.dataset.die;
+    let any=false;
+    row.querySelectorAll('input.hora').forEach(inp=>{ const hora=(inp.value||'').trim(); if(hora){ out.push({dia,hora}); any=true; } });
+    if(!any) out.push({dia,hora:''});
   });
   return out;
 }
@@ -303,12 +332,12 @@ function saveEditor(){
   const nombre=document.getElementById('fNombre').value.trim();
   if(!nombre){ toast('Falta el nombre'); return; }
   const telRaw=document.getElementById('fTel').value.trim();
+  const prev = editId ? alumnos.find(x=>x.id===editId) : null;
   const obj={
     id: editId || uid(),
     nombre,
     cat: document.getElementById('fCat').value.trim(),
     lado: document.getElementById('fLado').value,
-    profe: document.getElementById('fProfe').value.trim(),
     tipo: document.getElementById('fTipo').value,
     precio: parseNum(document.getElementById('fPrecio').value),
     telRaw,
@@ -316,7 +345,8 @@ function saveEditor(){
     nomHor: document.getElementById('fNomHor').value.trim(),
     nomWpp: document.getElementById('fNomWpp').value.trim(),
     comentarios: document.getElementById('fComent').value.trim(),
-    horarios: recogerHorarios()
+    horarios: prev?(prev.horarios||[]):[],
+    _dirty: true
   };
   if(editId){ const i=alumnos.findIndex(x=>x.id===editId); if(i>=0) alumnos[i]=obj; }
   else alumnos.push(obj);
@@ -399,7 +429,7 @@ async function importarPlanilla(){
         if((!exist.horarios||!exist.horarios.length)&&horarios.length) exist.horarios=horarios;
         actualizados++;
       } else {
-        alumnos.push(Object.assign({id:uid()},datos)); nuevos++;
+        alumnos.push(Object.assign({id:uid(),_dirty:false},datos)); nuevos++;
       }
     }
     save(); render();
@@ -441,7 +471,82 @@ document.getElementById('btnSave').onclick=saveEditor;
 document.getElementById('btnCancel').onclick=closeEditor;
 document.getElementById('btnDelete').onclick=deleteEditor;
 document.getElementById('search').oninput=render;
+
+// ===== Guardar en la planilla (Sheets API v4 + OAuth) =====
+const GOOGLE_CLIENT_ID='992149858690-ieom1l1hc5fie8c283t81kv6ggvlkaj8.apps.googleusercontent.com';
+const SHEET_TAB='ALUMNOS';
+let _gtoken=null, _tokenClient=null;
+function cargarGIS(){
+  return new Promise((res,rej)=>{
+    if(window.google&&google.accounts&&google.accounts.oauth2) return res();
+    const s=document.createElement('script'); s.src='https://accounts.google.com/gsi/client';
+    s.onload=()=>res(); s.onerror=()=>rej(new Error('No pude cargar Google Sign-In (revisá tu conexión).'));
+    document.head.appendChild(s);
+  });
+}
+function pedirToken(){
+  return new Promise(async(res,rej)=>{
+    try{ await cargarGIS(); }catch(e){ return rej(e); }
+    try{
+      _tokenClient=google.accounts.oauth2.initTokenClient({
+        client_id:GOOGLE_CLIENT_ID,
+        scope:'https://www.googleapis.com/auth/spreadsheets',
+        callback:(r)=>{ if(r&&r.access_token){ _gtoken=r.access_token; res(r.access_token);} else rej(new Error('No autorizaste el acceso.')); }
+      });
+      _tokenClient.requestAccessToken({prompt:_gtoken?'':'consent'});
+    }catch(e){ rej(e); }
+  });
+}
+async function sheetsGet(range){
+  const u=`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(range)}`;
+  const r=await fetch(u,{headers:{Authorization:'Bearer '+_gtoken}});
+  if(!r.ok) throw new Error('Lectura falló ('+r.status+')'); return r.json();
+}
+async function sheetsBatchUpdate(data){
+  const u=`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values:batchUpdate`;
+  const r=await fetch(u,{method:'POST',headers:{Authorization:'Bearer '+_gtoken,'Content-Type':'application/json'},body:JSON.stringify({valueInputOption:'USER_ENTERED',data})});
+  if(!r.ok) throw new Error('Guardado falló ('+r.status+')'); return r.json();
+}
+async function sheetsAppend(values){
+  const u=`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${encodeURIComponent(SHEET_TAB+'!A:A')}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
+  const r=await fetch(u,{method:'POST',headers:{Authorization:'Bearer '+_gtoken,'Content-Type':'application/json'},body:JSON.stringify({values})});
+  if(!r.ok) throw new Error('Agregado falló ('+r.status+')'); return r.json();
+}
+async function guardarEnPlanilla(){
+  const dirty=alumnos.filter(a=>a._dirty);
+  if(!dirty.length){ alert('No hay cambios para guardar.\n\nEditá o creá un alumno y volvé a tocar este botón.'); return; }
+  if(!confirm('Voy a guardar '+dirty.length+' alumno(s) en la planilla (hoja ALUMNOS).\n\nSolo escribo las columnas de datos (categoría, lado, tipo, precio, comentarios, nombres, teléfono). NO toco el horario semanal ni los meses de cobro.\n\n¿Continuar?')) return;
+  const gsTxt=(n)=>(Number(n)||0).toLocaleString('en-US')+'Gs.';   // 120000 -> "120,000Gs." (igual que la planilla)
+  try{
+    toast('Conectando con Google…');
+    await pedirToken();
+    toast('Buscando posiciones…');
+    const got=await sheetsGet(SHEET_TAB+'!B1:B6000');
+    const rowDe={}; (got.values||[]).forEach((r,i)=>{ const n=(r[0]||'').trim(); if(n) rowDe[normName(n)]=i+1; });
+    const updates=[], appends=[]; let upd=0;
+    dirty.forEach(a=>{
+      const cat=a.cat||'', lado=a.lado||'', tipo=a.tipo||'', precio=gsTxt(a.precio),
+            coment=a.comentarios||'', nomHor=a.nomHor||'', nomWpp=a.nomWpp||'', tel=a.telRaw||a.tel||'';
+      const row=rowDe[normName(a.nombre)];
+      if(row){
+        updates.push({range:SHEET_TAB+'!C'+row+':D'+row, values:[[cat,lado]]});
+        updates.push({range:SHEET_TAB+'!F'+row+':K'+row, values:[[tipo,precio,coment,nomHor,nomWpp,tel]]});
+        upd++;
+      } else {
+        appends.push(['',a.nombre,cat,lado,'',tipo,precio,coment,nomHor,nomWpp,tel]);
+      }
+    });
+    if(updates.length){ toast('Guardando cambios…'); await sheetsBatchUpdate(updates); }
+    if(appends.length){ toast('Agregando nuevos…'); await sheetsAppend(appends); }
+    dirty.forEach(a=>a._dirty=false); save(); render();
+    alert('✅ Guardado en la planilla.\n\nActualizados: '+upd+'\nNuevos agregados: '+appends.length);
+  }catch(e){
+    alert('No pude guardar.\n\n'+e.message+'\n\nRevisá: abrí la app desde GitHub Pages (https), autorizá con tu cuenta de Google, y que esa cuenta tenga permiso de edición en la planilla.');
+  }
+}
+
 document.getElementById('btnImport').onclick=importarPlanilla;
+document.getElementById('btnPush').onclick=guardarEnPlanilla;
 document.getElementById('btnExport').onclick=exportar;
 document.getElementById('btnRestore').onclick=()=>document.getElementById('fileRestore').click();
 document.getElementById('fileRestore').onchange=(e)=>{ if(e.target.files[0]) restaurar(e.target.files[0]); e.target.value=''; };

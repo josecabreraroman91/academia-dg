@@ -153,6 +153,7 @@
     <div class="toolbar">
       <div class="search"><input id="search" placeholder="Buscar alumno…"></div>
       <button class="btn" id="btnFaltas">📋 Resumen del día</button>
+      <button class="btn" id="btnCal">📅 Desde calendario</button>
       <button class="btn" id="btnSync">🔄 Sincronizar</button>
     </div>
     <div class="filters">
@@ -302,11 +303,118 @@ function estadoDe(md,f){ if(md.estado && md.estado[f]) return md.estado[f]; if(m
 function setEstado(md,f,e){ if(!md.estado) md.estado={}; if(e==='pend') delete md.estado[f]; else md.estado[f]=e; }
 function ciclarEstado(md,f){ const cur=estadoDe(md,f); const i=EST_ORDEN.indexOf(cur); setEstado(md,f,EST_ORDEN[(i+1)%EST_ORDEN.length]); }
 
+// ===== Lectura del CALENDARIO MADRE (fuente de verdad del horario) =====
+const DIA_WD={LUNES:1,MARTES:2,MIERCOLES:3,JUEVES:4,VIERNES:5,SABADO:6};
+const HORAS_CAL=['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+const SEDE_NOM={lomas:'Lomas',elite:'Elite',segurola:'Segurola',adefinir:'A definir'};
+// Respeta el nombre COMPLETO (incluido INDIVIDUAL/GRUPAL/DUAL): cada tipo de clase
+// es un cobro aparte con su propio precio. Solo normaliza acentos/mayúsculas/espacios.
+function normNameCal(s){ return normName(s); }
+function leerMadreCalendario(){
+  let raw=null; try{ raw=localStorage.getItem('cal_dg_unif'); }catch(e){ return null; }
+  if(!raw) return null;
+  let st; try{ st=JSON.parse(raw); }catch(e){ return null; }
+  const madre = st&&st.madre&&st.madre.alumnos ? st.madre.alumnos : null;
+  if(!madre) return null;
+  const map={};
+  Object.keys(madre).forEach(key=>{
+    const al=madre[key]; if(!al||!al.nombre) return;
+    if(al.mod==='BLOQUE') return;            // ALTO RENDIMIENTO / ALMUERZO no se cobran
+    const p=key.split('|');                   // DIA|sede|profe|hora|slot
+    const wd=DIA_WD[p[0]]; if(!wd) return;
+    const n=normNameCal(al.nombre);
+    if(!map[n]) map[n]={ nombre:al.nombre, wd:{}, detalle:[] };
+    map[n].wd[wd]=(map[n].wd[wd]||0)+1;
+    map[n].detalle.push({ dia:p[0], sede:p[1], hora:HORAS_CAL[+p[3]]||('h'+p[3]) });
+  });
+  return map;
+}
+// vuelca el horario de la madre sobre cada alumno (dias + conteo por día)
+function aplicarCalendario(){
+  const map=leerMadreCalendario();
+  if(!map) return {ok:false,n:0,total:state.alumnos.length};
+  let n=0;
+  state.alumnos.forEach(a=>{
+    const info=map[normNameCal(a.nombre)];
+    if(info){ a.calWd=info.wd; a.calDetalle=info.detalle; a.dias=Object.keys(info.wd).map(Number).sort(); a.desdeCal=true; n++; }
+    else { a.desdeCal=false; }
+  });
+  return {ok:true,n,total:state.alumnos.length};
+}
+// cuántas clases tiene esa fecha según el calendario (varias clases el mismo día = varias horas)
+function horasCalDeFecha(a,iso){ if(!a.calWd) return 1; const wd=new Date(iso+'T00:00:00').getDay(); return a.calWd[wd]||1; }
+
+// ===== Precio desde la app ALUMNOS (fuente de verdad del precio) =====
+function leerAlumnosApp(){
+  let raw=null; try{ raw=localStorage.getItem('alumnos_dg'); }catch(e){ return null; }
+  if(!raw) return null;
+  let arr; try{ arr=JSON.parse(raw); }catch(e){ return null; }
+  if(!Array.isArray(arr)) return null;
+  const map={};
+  arr.forEach(a=>{ if(a&&a.nombre) map[normName(a.nombre)]={ precio:+a.precio||0, tel:a.tel||a.telRaw||'', nomWpp:a.nomWpp||'', nomHor:a.nomHor||'' }; });
+  return map;
+}
+// vuelca precio (y datos de contacto) de la app Alumnos sobre cada alumno del cobro
+function aplicarAlumnosApp(){
+  const map=leerAlumnosApp();
+  if(!map) return {ok:false,n:0,total:state.alumnos.length};
+  let n=0;
+  state.alumnos.forEach(a=>{
+    const info=map[normName(a.nombre)];
+    if(info){
+      if(info.precio>0) a.precio=info.precio;     // el precio manda desde Alumnos
+      if(info.tel) a.tel=info.tel;
+      if(info.nomWpp) a.nomWpp=info.nomWpp;
+      a.desdeAlumnosApp=true; n++;
+    } else { a.desdeAlumnosApp=false; }
+  });
+  return {ok:true,n,total:state.alumnos.length};
+}
+// arma la LISTA de a quién cobrar desde el calendario madre (todos los que tienen clases),
+// conservando precio/tel/pendiente previos, y completando precio desde la app Alumnos
+function construirDesdeCalendario(silent){
+  const map=leerMadreCalendario();
+  if(!map){ if(!silent) alert('No encontré el calendario en este navegador.\n\nAbrí la pestaña ☰ Calendario una vez (en el mismo equipo) y volvé a intentar.'); return false; }
+  const prev={}; (state.alumnos||[]).forEach(a=>{ prev[normName(a.nombre)]=a; });
+  state.alumnos=Object.keys(map).map(n=>{
+    const info=map[n], old=prev[n]||{};
+    return { nombre:info.nombre, precio:old.precio||0, tel:old.tel||'', nomWpp:old.nomWpp||'',
+             dias:Object.keys(info.wd).map(Number).sort(), calWd:info.wd, calDetalle:info.detalle,
+             desdeCal:true, pendiente:old.pendiente||0 };
+  });
+  aplicarAlumnosApp();            // precio + tel desde la app Alumnos
+  return true;
+}
+
+// arma la lista desde el calendario y recalcula el mes actual, preservando los estados ya marcados
+function recalcMesDesdeCal(){
+  if(!construirDesdeCalendario(false)) return;
+  const k=periodoKey(curY,curM);
+  if(!state.meses[k]) state.meses[k]={};
+  state.alumnos.forEach(a=>{
+    const n=normName(a.nombre);
+    const fechas=generarFechas(a,curY,curM);
+    const horas={}; fechas.forEach(f=>{ const c=horasCalDeFecha(a,f); if(c>1) horas[f]=c; });
+    if(!state.meses[k][n]){
+      state.meses[k][n]={ fechas, estado:{}, horas, precio:null, pagos:[], gen:true };
+    }else{
+      const md=state.meses[k][n], estOld=md.estado||{}, estNew={};
+      fechas.forEach(f=>{ if(estOld[f]) estNew[f]=estOld[f]; });
+      md.fechas=fechas; md.estado=estNew; md.horas=horas;
+    }
+  });
+  const conPrecio=state.alumnos.filter(a=>a.precio>0).length;
+  save(); render();
+  alert('📅 Lista armada desde el calendario madre.\n\n'+state.alumnos.length+' alumnos con clases · '+conPrecio+' con precio cargado en Alumnos.');
+}
+
 function mesData(a, y, m){
   const k=periodoKey(y,m), n=normName(a.nombre);
   if(!state.meses[k]) state.meses[k]={};
   if(!state.meses[k][n]){
-    state.meses[k][n]={ fechas:generarFechas(a,y,m), estado:{}, horas:{}, precio:null, pagos:[], gen:true };
+    const fechas=generarFechas(a,y,m);
+    const horas={}; fechas.forEach(f=>{ const c=horasCalDeFecha(a,f); if(c>1) horas[f]=c; });
+    state.meses[k][n]={ fechas, estado:{}, horas, precio:null, pagos:[], gen:true };
   }
   const md=state.meses[k][n];
   if(!md.fechas) md.fechas=[]; if(!md.estado) md.estado={}; if(!md.horas) md.horas={}; if(!md.pagos) md.pagos=[];
@@ -426,6 +534,7 @@ function construir(iNom,iCat,iPre,iTel,iPen,iLun){
       profe:(iProf>-1?(rows[r][iProf]||'').trim():''), dias, horarios });
   }
   state.alumnos=out; state.cols={nom:iNom,pre:iPre,tel:iTel,pen:iPen};
+  aplicarCalendario(); aplicarAlumnosApp();
   // seed morosos la primera vez
   if(!state.morososInit){ out.forEach(a=>{ if(a.pendiente>0){ const n=normName(a.nombre); if(!state.morosos[n]) state.morosos[n]={monto:a.pendiente,nota:''}; } }); state.morososInit=true; }
   const conDias=out.filter(a=>a.dias.length>0).length;
@@ -454,7 +563,7 @@ function render(){
   document.getElementById('tSaldo').textContent=(nTot-nGen);
 
   const el=document.getElementById('list');
-  if(!state.alumnos.length){ el.innerHTML='<div class="empty"><h3>Sin datos todavía</h3><p>Tocá 🔄 Sincronizar para traer los alumnos.</p></div>'; return; }
+  if(!state.alumnos.length){ el.innerHTML='<div class="empty"><h3>Sin datos todavía</h3><p>Abrí una vez la pestaña ☰ Calendario y después tocá 📅 Desde calendario.</p></div>'; return; }
   if(!lista.length){ el.innerHTML='<div class="empty"><h3>Nada para mostrar</h3><p>No hay alumnos con clases en '+MESES[curM]+' o el filtro no encontró nada.</p></div>'; return; }
 
   el.innerHTML=lista.map(({a,c})=>{
@@ -596,7 +705,7 @@ function renderMorososKeep(n){ renderMorosos(); const c=document.querySelector(`
 const ORDEN_DIAS=['LUN','MAR','MIÉ','JUE','VIE','SÁB'];
 function renderHorarios(){
   const el=document.getElementById('list');
-  if(!state.alumnos.length){ el.innerHTML='<div class="empty"><h3>Sin datos todavía</h3><p>Tocá 🔄 Sincronizar para traer los alumnos.</p></div>'; return; }
+  if(!state.alumnos.length){ el.innerHTML='<div class="empty"><h3>Sin datos todavía</h3><p>Abrí una vez la pestaña ☰ Calendario y después tocá 📅 Desde calendario.</p></div>'; return; }
   if(!horComparar.length){ el.innerHTML='<div class="empty"><h3>Consultá horarios</h3><p>Buscá un alumno arriba y agregalo. Podés sumar varios para comparar sus días y horarios.</p></div>'; return; }
   el.innerHTML=horComparar.map((nombreN,pos)=>{
     const a=state.alumnos.find(x=>normName(x.nombre)===nombreN);
@@ -776,6 +885,7 @@ function setTab(t){ tab=t; focoIdx=null; document.querySelectorAll('.tab').forEa
 }
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 document.getElementById('btnFaltas').onclick=abrirFaltas;
+document.getElementById('btnCal').onclick=recalcMesDesdeCal;
 document.getElementById('faltasOk').onclick=aplicarFaltas;
 document.getElementById('faltasCancel').onclick=()=>document.getElementById('ovFaltas').classList.remove('show');
 document.getElementById('prevMonth').onclick=()=>{ curM--; if(curM<0){curM=11;curY--;} focoIdx=null; render(); };
@@ -798,7 +908,9 @@ sH.addEventListener('keydown',(e)=>{ if(e.key==='Enter'){ const v=sH.value.trim(
 document.getElementById('btnClearHor').onclick=()=>{ horComparar=[]; renderHorarios(); };
 ['ovSync','ovComp','ovAddMor','ovFaltas'].forEach(id=>document.getElementById(id).onclick=(e)=>{ if(e.target.id===id) document.getElementById(id).classList.remove('show'); });
 
-load(); fillDatalist(); render();
+load();
+if(!construirDesdeCalendario(true)){ aplicarCalendario(); aplicarAlumnosApp(); }
+fillDatalist(); render();
 </script>
 </body>
 </html>
