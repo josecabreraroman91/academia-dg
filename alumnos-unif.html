@@ -351,6 +351,7 @@ function saveEditor(){
   if(editId){ const i=alumnos.findIndex(x=>x.id===editId); if(i>=0) alumnos[i]=obj; }
   else alumnos.push(obj);
   save(); closeEditor(); render(); toast(editId?'Alumno actualizado':'Alumno creado');
+  guardarEnPlanilla(true).catch(()=>{});   // autoguardado a la planilla si ya estás logueado
 }
 function deleteEditor(){
   if(!editId) return;
@@ -512,15 +513,16 @@ async function sheetsAppend(values){
   const r=await fetch(u,{method:'POST',headers:{Authorization:'Bearer '+_gtoken,'Content-Type':'application/json'},body:JSON.stringify({values})});
   if(!r.ok) throw new Error('Agregado falló ('+r.status+')'); return r.json();
 }
-async function guardarEnPlanilla(){
+async function guardarEnPlanilla(silent){
   const dirty=alumnos.filter(a=>a._dirty);
-  if(!dirty.length){ alert('No hay cambios para guardar.\n\nEditá o creá un alumno y volvé a tocar este botón.'); return; }
-  if(!confirm('Voy a guardar '+dirty.length+' alumno(s) en la planilla (hoja ALUMNOS).\n\nSolo escribo las columnas de datos (categoría, lado, tipo, precio, comentarios, nombres, teléfono). NO toco el horario semanal ni los meses de cobro.\n\n¿Continuar?')) return;
+  if(!dirty.length){ if(!silent) alert('No hay cambios para guardar.\n\nEditá o creá un alumno y volvé a tocar este botón.'); return; }
+  if(silent && !_gtoken) return;   // autoguardado solo si ya estás logueado; si no, queda el botón
+  if(!silent && !confirm('Voy a guardar '+dirty.length+' alumno(s) en la planilla (hoja ALUMNOS).\n\nSolo escribo las columnas de datos (categoría, lado, tipo, precio, comentarios, nombres, teléfono). NO toco el horario semanal ni los meses de cobro.\n\n¿Continuar?')) return;
   const gsTxt=(n)=>(Number(n)||0).toLocaleString('en-US')+'Gs.';   // 120000 -> "120,000Gs." (igual que la planilla)
   try{
-    toast('Conectando con Google…');
-    await pedirToken();
-    toast('Buscando posiciones…');
+    if(!silent) toast('Conectando con Google…');
+    if(!_gtoken) await pedirToken();
+    if(!silent) toast('Buscando posiciones…');
     const got=await sheetsGet(SHEET_TAB+'!B1:B6000');
     const names=got.values||[];
     const rowDe={}; names.forEach((r,i)=>{ const n=(r[0]||'').trim(); if(n) rowDe[normName(n)]=i+1; });
@@ -540,16 +542,16 @@ async function guardarEnPlanilla(){
       }
       updates.push({range:SHEET_TAB+'!F'+row+':K'+row, values:[[tipo,precio,coment,nomHor,nomWpp,tel]]}); // deja E (profesor) intacto
     });
-    if(updates.length){ toast('Guardando…'); await sheetsBatchUpdate(updates); }
+    if(updates.length){ if(!silent) toast('Guardando…'); await sheetsBatchUpdate(updates); }
     dirty.forEach(a=>a._dirty=false); save(); render();
-    alert('✅ Guardado en la planilla.\n\nActualizados: '+upd+'\nNuevos agregados (al final): '+nuevos);
+    if(silent) toast('☁️ Guardado en la planilla'); else alert('✅ Guardado en la planilla.\n\nActualizados: '+upd+'\nNuevos agregados (al final): '+nuevos);
   }catch(e){
-    alert('No pude guardar.\n\n'+e.message+'\n\nRevisá: abrí la app desde GitHub Pages (https), autorizá con tu cuenta de Google, y que esa cuenta tenga permiso de edición en la planilla.');
+    if(silent) toast('⚠️ Quedó sin guardar en la nube — tocá ☁️ Guardar'); else alert('No pude guardar.\n\n'+e.message+'\n\nRevisá: abrí la app desde GitHub Pages (https), autorizá con tu cuenta de Google, y que esa cuenta tenga permiso de edición en la planilla.');
   }
 }
 
 document.getElementById('btnImport').onclick=importarPlanilla;
-document.getElementById('btnPush').onclick=guardarEnPlanilla;
+document.getElementById('btnPush').onclick=()=>guardarEnPlanilla(false);
 document.getElementById('btnExport').onclick=exportar;
 document.getElementById('btnRestore').onclick=()=>document.getElementById('fileRestore').click();
 document.getElementById('fileRestore').onchange=(e)=>{ if(e.target.files[0]) restaurar(e.target.files[0]); e.target.value=''; };
