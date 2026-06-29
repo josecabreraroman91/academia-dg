@@ -276,6 +276,7 @@
     <button class="btn" id="btnResumen">📋 Resumen del día</button>
     <button class="btn envios" id="btnEnvios">📩 Enviar mensajes</button>
     <button class="btn" id="btnTelefonos">🔄 Sincronizar</button>
+    <button class="btn" id="btnHorariosPlan">☁️ Guardar horarios en planilla</button>
     <button class="btn reset" id="btnReset">🔄 Resetear semana desde madre</button>
   </div>
 </header>
@@ -1356,6 +1357,7 @@ document.getElementById('btnEnvios').onclick=openEnvios;
 document.getElementById('btnTelefonos').onclick=openTel;
 document.getElementById('btnCloseTel').onclick=closeTel;
 document.getElementById('btnSync').onclick=syncContactos;
+document.getElementById('btnHorariosPlan').onclick=guardarHorariosEnPlanilla;
 document.getElementById('overlayTel').onclick=(e)=>{ if(e.target.id==='overlayTel') closeTel(); };
 // Vista de envíos
 document.getElementById('evBack').onclick=closeEnvios;
@@ -1384,6 +1386,58 @@ document.querySelectorAll('.ev-ph .chip').forEach(ch=>{
 });
 document.getElementById('btnReset').onclick=resetSemana;
 document.getElementById('overlay').onclick=(e)=>{ if(e.target.id==='overlay') closeEditor(); };
+
+// ===== Guardar HORARIOS del calendario en la planilla (sección SEMANA) =====
+const GOOGLE_CLIENT_ID='992149858690-ieom1l1hc5fie8c283t81kv6ggvlkaj8.apps.googleusercontent.com';
+let _gtoken=null,_tokenClient=null;
+function cargarGIS(){ return new Promise((res,rej)=>{ if(window.google&&google.accounts&&google.accounts.oauth2) return res(); const s=document.createElement('script'); s.src='https://accounts.google.com/gsi/client'; s.onload=()=>res(); s.onerror=()=>rej(new Error('No pude cargar Google Sign-In.')); document.head.appendChild(s); }); }
+function pedirToken(){ return new Promise(async(res,rej)=>{ try{ await cargarGIS(); }catch(e){ return rej(e);} try{ _tokenClient=google.accounts.oauth2.initTokenClient({ client_id:GOOGLE_CLIENT_ID, scope:'https://www.googleapis.com/auth/spreadsheets', callback:(r)=>{ if(r&&r.access_token){ _gtoken=r.access_token; res(r.access_token);} else rej(new Error('No autorizaste el acceso.')); } }); _tokenClient.requestAccessToken({prompt:_gtoken?'':'consent'}); }catch(e){ rej(e);} }); }
+async function sheetsGet(range){ const id=state.sheetId||DEFAULT_SHEET_ID; const u='https://sheets.googleapis.com/v4/spreadsheets/'+id+'/values/'+encodeURIComponent(range); const r=await fetch(u,{headers:{Authorization:'Bearer '+_gtoken}}); if(!r.ok) throw new Error('Lectura falló ('+r.status+')'); return r.json(); }
+async function sheetsBatchUpdate(data){ const id=state.sheetId||DEFAULT_SHEET_ID; const u='https://sheets.googleapis.com/v4/spreadsheets/'+id+'/values:batchUpdate'; const r=await fetch(u,{method:'POST',headers:{Authorization:'Bearer '+_gtoken,'Content-Type':'application/json'},body:JSON.stringify({valueInputOption:'USER_ENTERED',data})}); if(!r.ok) throw new Error('Guardado falló ('+r.status+')'); return r.json(); }
+
+// deriva de la MADRE el horario semanal de cada alumno: { normName: {nombre, dias:{LUNES:Set,...}} }
+function horariosDesdeMadre(){
+  const DIAS_SEM=['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
+  const map={};
+  const madre=(state.madre&&state.madre.alumnos)?state.madre.alumnos:{};
+  Object.keys(madre).forEach(key=>{
+    const al=madre[key]; if(!al||!al.nombre||al.mod==='BLOQUE') return;
+    const p=key.split('|'); const dia=p[0], hi=+p[3];
+    if(DIAS_SEM.indexOf(dia)<0) return;
+    const hora=HORAS[hi]; if(!hora) return;
+    const n=normName(al.nombre);
+    if(!map[n]){ map[n]={nombre:al.nombre, dias:{}}; DIAS_SEM.forEach(d=>map[n].dias[d]=new Set()); }
+    map[n].dias[dia].add(hora);
+  });
+  return map;
+}
+function celdaHoras(set){ if(!set||!set.size) return '-'; return [...set].sort((a,b)=>parseInt(a)-parseInt(b)).join(', '); }
+
+async function guardarHorariosEnPlanilla(){
+  const map=horariosDesdeMadre();
+  const total=Object.keys(map).length;
+  if(!total){ alert('No hay alumnos con horario en la madre del calendario.'); return; }
+  if(!confirm('Voy a escribir los horarios de '+total+' alumnos en la planilla (hoja ALUMNOS, columnas LUNES a SÁBADO).\n\nReemplaza la sección SEMANA con lo que está en el calendario. NO toca datos, precios ni cobros.\n\n¿Continuar?')) return;
+  try{
+    if(!_gtoken) await pedirToken();
+    const got=await sheetsGet('ALUMNOS!B1:B6000');
+    const rowDe={}; (got.values||[]).forEach((r,i)=>{ const n=(r[0]||'').trim(); if(n) rowDe[normName(n)]=i+1; });
+    const DIAS_SEM=['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
+    const updates=[]; let ok=0, sinFila=0;
+    Object.keys(map).forEach(n=>{
+      const row=rowDe[n];
+      if(!row){ sinFila++; return; }
+      const d=map[n].dias;
+      const fila=DIAS_SEM.map(dd=>celdaHoras(d[dd]));   // L..S -> columnas M:R
+      updates.push({range:'ALUMNOS!M'+row+':R'+row, values:[fila]});
+      ok++;
+    });
+    if(updates.length){ await sheetsBatchUpdate(updates); }
+    alert('☁️ Horarios guardados en la planilla.\n\nEscritos: '+ok+' alumnos\nSin fila en ALUMNOS (no se escribió): '+sinFila+'\n\nAhí ya podés ver la frecuencia de clases de cada uno.');
+  }catch(e){
+    alert('No pude guardar los horarios.\n\n'+e.message+'\n\nRevisá: abrí desde GitHub Pages (https), autorizá con tu cuenta de Google y que tenga permiso de edición.');
+  }
+}
 
 loadState();
 setMode(state.mode);
