@@ -865,7 +865,7 @@ function buscarAlumno(nombre){
   if(!c.length) c=state.alumnos.filter(x=>normName(x.nombre).startsWith(t));
   if(!c.length) c=state.alumnos.filter(x=>normName(x.nombre).includes(t));
   if(c.length===1) return {a:c[0]};
-  if(c.length>1) return {err:'varios'};
+  if(c.length>1) return {err:'varios', opciones:c.map(x=>x.nombre), cands:c};
   return {err:'no'};
 }
 function aplicarFaltas(){
@@ -873,9 +873,13 @@ function aplicarFaltas(){
   const fechaBase=document.getElementById('faltasFecha').value || hoyISO();
   const lines=txt.split('\n').map(s=>s.trim()).filter(Boolean);
   if(!lines.length){ alert('Pegá la lista de ausentes primero.'); return; }
+  // Si pegaste el resumen entero, me quedo solo desde "AUSENTES" / "Se cobra" hacia abajo (ignora la grilla)
+  const hdrRe=/^(ausentes|se\s*cobra|a\s*cobrar)\b/i;
+  const iHdr=lines.findIndex(l=>hdrRe.test(l));
+  const lineas = iHdr>=0 ? lines.slice(iHdr) : lines;
   let curFecha=fechaBase;
   const ausentes=[];
-  lines.forEach(line=>{
+  lineas.forEach(line=>{
     if(/^\s*(ausentes|se\s*cobra|a\s*cobrar|carga\s*sistema|presentes|resumen)\b/i.test(line)) return; // encabezados
     const fEmb=parseFechaTxt(line);
     const sinFecha=line.replace(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/,'').trim();
@@ -890,9 +894,13 @@ function aplicarFaltas(){
   let marcadas=0, acoples=0; const noEnc=[], listaAcoples=[];
   ausentes.forEach(au=>{
     cubiertas.add(au.fecha);
-    const r=buscarAlumno(au.nombre);
-    if(r.err){ noEnc.push(au.nombre+(r.err==='varios'?' (varios)':'')); return; }
     const [yy,mm]=au.fecha.split('-').map(Number);
+    let r=buscarAlumno(au.nombre);
+    if(r.err==='varios'){
+      const conClase=r.cands.filter(a=>mesData(a,yy,mm-1).fechas.includes(au.fecha));
+      if(conClase.length===1) r={a:conClase[0]};   // la fecha desambigua: solo uno tenía clase ese día
+    }
+    if(r.err){ noEnc.push(au.nombre + (r.err==='varios' ? (' → ¿'+r.opciones.slice(0,4).join(' / ')+'?') : '')); return; }
     const md=mesData(r.a, yy, mm-1);
     if(md.fechas.includes(au.fecha)){
       setEstado(md, au.fecha, au.estado); marcadas++;            // tenía clase ese día => AUSENTE (🔄/❌)
