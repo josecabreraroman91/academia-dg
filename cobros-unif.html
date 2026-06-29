@@ -240,10 +240,10 @@
 <div class="overlay" id="ovFaltas">
   <div class="sheet">
     <h3>📋 Resumen del día</h3>
-    <div class="sub" style="color:var(--muted);font-size:12px;margin-bottom:10px">Pegá la lista de los profes. Marco las faltas en esa fecha; los demás de ese día quedan ✅ asistió.</div>
+    <div class="sub" style="color:var(--muted);font-size:12px;margin-bottom:10px">Pegá tu lista unificada del día (ausentes + a cobrar). Marco como <b>ausente</b> al que tenía clase y no vino, <b>sumo como acople</b> al que no tenía clase ese día, y al resto del día lo dejo ✅ asistió.</div>
     <div class="field"><label>Fecha del día</label><input id="faltasFecha" type="date"></div>
-    <div class="field"><label>Lista de ausentes</label>
-      <textarea id="faltasTexto" rows="7" placeholder="Un alumno por línea. Ejemplos:&#10;Juan Perez - reagenda&#10;Maria Lopez - no reagenda&#10;Pedro Gomez (avisó, recupera)&#10;&#10;Si no ponés motivo, queda como falta que se cobra (no reagenda)."></textarea>
+    <div class="field"><label>Lista del día (ausentes + a cobrar)</label>
+      <textarea id="faltasTexto" rows="8" placeholder="Pegá tal cual, una línea por alumno. Ej:&#10;Ausentes:&#10;11:00 Víctor Hugo C ()&#10;12:00 Eleonora S. (G)&#10;Se cobra?&#10;- Cesare O. 14hs&#10;- Adrian B. 17hs&#10;&#10;Si la línea dice 'recupera/avisó' = no se cobra (🔄). Si no, se cobra (❌)."></textarea>
     </div>
     <div class="hint" style="font-size:11px;color:var(--muted);margin-bottom:10px">Palabras que detecto para <b>reagenda</b>: reagenda, recupera, avisó, justificado, accidente, enfermo, no cobra. El resto = no reagenda (se cobra).</div>
     <div class="sheet-actions"><button class="btn primary" id="faltasOk">Aplicar</button><button class="btn" id="faltasCancel">Cancelar</button></div>
@@ -679,7 +679,7 @@ function wireCobros(el){
   el.querySelectorAll('[data-foco]').forEach(s=>s.onclick=(e)=>{ e.stopPropagation(); const i=+s.dataset.foco; focoIdx=(focoIdx===i?null:i); render(); if(focoIdx!=null){ const c=document.querySelector('.acard.foco'); if(c){ c.classList.add('open'); c.scrollIntoView({block:'center',behavior:'smooth'}); } } });
   el.querySelectorAll('[data-exp]').forEach(s=>s.onclick=()=>el.querySelector(`[data-card="${s.dataset.exp}"]`).classList.toggle('open'));
   el.querySelectorAll('[data-f]').forEach(s=>s.onclick=(e)=>{ if(e.target.dataset.rmf!==undefined||e.target.dataset.addh!==undefined) return; const [i,fi]=s.dataset.f.split('|').map(Number); const a=state.alumnos[i]; const md=mesData(a,curY,curM); const f=md.fechas[fi]; ciclarEstado(md,f); save(); render(); reopen(i); });
-  el.querySelectorAll('[data-addh]').forEach(s=>s.onclick=(e)=>{ e.stopPropagation(); const [i,fi]=s.dataset.addh.split('|').map(Number); const a=state.alumnos[i]; const md=mesData(a,curY,curM); const f=md.fechas[fi]; const cur=horasDe(md,f); md.horas[f]= cur>=3 ? 1 : cur+1; save(); render(); reopen(i); });
+  el.querySelectorAll('[data-addh]').forEach(s=>s.onclick=(e)=>{ e.stopPropagation(); const [i,fi]=s.dataset.addh.split('|').map(Number); const a=state.alumnos[i]; const md=mesData(a,curY,curM); const f=md.fechas[fi]; const cur=horasDe(md,f); const next= cur>=3 ? 1 : cur+1; const msg = next>cur ? ('¿Sumar 1 hora a esta clase?\n\nQueda en '+next+'h y consume '+next+' del paquete.') : ('¿Volver esta clase a 1 hora?\n\nConsume 1 del paquete.'); if(!confirm(msg)) return; md.horas[f]=next; save(); render(); reopen(i); });
   el.querySelectorAll('[data-rmf]').forEach(s=>s.onclick=(e)=>{ e.stopPropagation(); const [i,fi]=s.dataset.rmf.split('|').map(Number); const a=state.alumnos[i]; const md=mesData(a,curY,curM); const f=md.fechas[fi]; md.fechas.splice(fi,1); delete md.fue[f]; delete md.horas[f]; save(); render(); reopen(i); });
   el.querySelectorAll('[data-addf]').forEach(b=>b.onclick=()=>{ const i=+b.dataset.addf; const a=state.alumnos[i]; const dia=prompt('¿Qué día agregar? (número del día del mes, ej: 15)'); const d=parseInt(dia); if(!d||d<1||d>31) return; const iso=periodoKey(curY,curM).split('-')[0]+'-'+String(curM+1).padStart(2,'0')+'-'+String(d).padStart(2,'0'); const md=mesData(a,curY,curM); if(!md.fechas.includes(iso)){ md.fechas.push(iso); md.fechas.sort(); } save(); render(); reopen(i); });
   el.querySelectorAll('[data-precio]').forEach(inp=>{ attachMiles(inp); inp.onchange=()=>{ const i=+inp.dataset.precio; const md=mesData(state.alumnos[i],curY,curM); md.precio=inp.value===''?null:parseNum(inp.value); save(); render(); reopen(i); }; });
@@ -876,24 +876,31 @@ function aplicarFaltas(){
   let curFecha=fechaBase;
   const ausentes=[];
   lines.forEach(line=>{
+    if(/^\s*(ausentes|se\s*cobra|a\s*cobrar|carga\s*sistema|presentes|resumen)\b/i.test(line)) return; // encabezados
     const fEmb=parseFechaTxt(line);
     const sinFecha=line.replace(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/,'').trim();
-    // línea que es SOLO una fecha => encabezado de día
-    if(fEmb && sinFecha.replace(/[^a-zA-ZÀ-ÿ]/g,'').length<2){ curFecha=fEmb; return; }
-    let nombre=(sinFecha||line).split(/[-:–(]/)[0].trim();
-    if(!nombre) return;
+    if(fEmb && sinFecha.replace(/[^a-zA-ZÀ-ÿ]/g,'').length<2){ curFecha=fEmb; return; } // línea que es solo fecha
+    // limpiar: viñetas iniciales, horas (11:00 / 14hs), y cortar en guión/paréntesis (motivo/modalidad)
+    let work=line.replace(/^[\s•·\-–]+/,'').replace(/\b\d{1,2}:\d{2}\b/g,' ').replace(/\b\d{1,2}\s*hs?\b/gi,' ');
+    let nombre=work.split(/[-–(]/)[0].replace(/[💎🏝️🏋️👀.]/g,' ').replace(/\s+/g,' ').trim();
+    if(nombre.replace(/[^a-zA-ZÀ-ÿ]/g,'').length<2) return; // sin nombre real
     ausentes.push({ fecha: fEmb||curFecha, nombre, estado: estadoDesdeTexto(line) });
   });
   const cubiertas=new Set();
-  let marcadas=0; const noEnc=[];
+  let marcadas=0, acoples=0; const noEnc=[], listaAcoples=[];
   ausentes.forEach(au=>{
     cubiertas.add(au.fecha);
     const r=buscarAlumno(au.nombre);
     if(r.err){ noEnc.push(au.nombre+(r.err==='varios'?' (varios)':'')); return; }
     const [yy,mm]=au.fecha.split('-').map(Number);
     const md=mesData(r.a, yy, mm-1);
-    if(!md.fechas.includes(au.fecha)){ md.fechas.push(au.fecha); md.fechas.sort(); }
-    setEstado(md, au.fecha, au.estado); marcadas++;
+    if(md.fechas.includes(au.fecha)){
+      setEstado(md, au.fecha, au.estado); marcadas++;            // tenía clase ese día => AUSENTE (🔄/❌)
+    } else {
+      md.fechas.push(au.fecha); md.fechas.sort();
+      setEstado(md, au.fecha, 'asis'); acoples++;                // no tenía clase => ACOPLE (vino de más)
+      listaAcoples.push(r.a.nombre);
+    }
   });
   // los demás alumnos con clase en las fechas cubiertas => asistió (si estaban pendientes)
   let asis=0;
@@ -906,7 +913,8 @@ function aplicarFaltas(){
   });
   save(); render();
   document.getElementById('ovFaltas').classList.remove('show');
-  let msg='✅ Resumen aplicado.\n\n❌🔄 Faltas marcadas: '+marcadas+'\n✅ Asistencias marcadas: '+asis;
+  let msg='✅ Resumen del día aplicado.\n\n❌🔄 Ausentes marcados: '+marcadas+'\n➕ Acoples agregados (se computó la clase): '+acoples+'\n✅ Asistencias del resto: '+asis;
+  if(listaAcoples.length) msg+='\n\n➕ Acoples: '+listaAcoples.join(', ');
   if(noEnc.length) msg+='\n\n⚠️ No pude identificar: '+noEnc.join(', ')+'\n(revisá el nombre o marcalos a mano)';
   alert(msg);
 }
