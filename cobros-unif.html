@@ -411,6 +411,14 @@ async function aplicarCobrosPlanilla(){
   }catch(e){ alert('No pude leer los cobros.\n\n'+e.message+'\n\nVerificá que la planilla esté compartida ("cualquiera con el enlace puede ver").'); }
 }
 
+function lineaPaquete(c){
+  const p=c.pq; if(!p) return '';
+  if(p.esEsporadico) return `<div class="deudaprev" style="color:#caa45a">🎟️ Esporádico · ${p.consumidas} clase(s) a cobrar${p.consumidas?' ('+gs(c.monto)+')':''}</div>`;
+  if(!p.paquete) return '';
+  const alerta = p.saldo<=1 && p.exceso<=0;
+  const exc = p.exceso>0;
+  return `<div class="deudaprev" style="color:${(alerta||exc)?'#e0a800':'#7a8089'}">🎟️ Paquete ${p.consumidas}/${p.paquete} · saldo ${p.saldo<0?0:p.saldo}${alerta?' 🔔 por agotarse':''}${exc?' 🚩 '+p.exceso+' de más':''}</div>`;
+}
 // arma la LISTA de a quién cobrar desde el calendario madre (todos los que tienen clases),
 // conservando precio/tel/pendiente previos, y completando precio desde la app Alumnos
 function construirDesdeCalendario(silent){
@@ -480,18 +488,41 @@ function deudaPrevia(a){
   });
   return deuda;
 }
+// ===== PAQUETE consumible =====
+// Consumen clase: asistió (✅) y no-reagenda (❌, la pierde). Reagenda (🔄) y pendiente NO consumen.
+function consumidasDelMes(md){
+  return md.fechas.reduce((s,f)=>{ const e=estadoDe(md,f); return (e==='asis'||e==='norea')? s+horasDe(md,f) : s; },0);
+}
+function paqueteInfo(a,md){
+  const consumidas=consumidasDelMes(md);
+  const esEsporadico = (md.montoPlanilla!=null && md.montoPlanilla===0);  // leyó planilla y no tiene mensual
+  let paquete;
+  if(esEsporadico) paquete=0;
+  else paquete = (md.nClasePlanilla>0 ? md.nClasePlanilla : totalHoras(md));  // fijo: N CLASE de planilla, o las agendadas
+  const saldo = paquete - consumidas;
+  const exceso = Math.max(0, consumidas - paquete);
+  return {paquete, consumidas, saldo, exceso, esEsporadico};
+}
 function calc(a){
   const md=mesData(a,curY,curM);
   const horas=totalHoras(md);
   const montoCal=horas*precioEf(a,md);
+  const pq=paqueteInfo(a,md);
   const tienePlan = md.montoPlanilla!=null;
-  const monto = tienePlan ? md.montoPlanilla : montoCal;
-  const discrepancia = tienePlan && md.montoPlanilla>0 && montoCal>0 && montoCal!==md.montoPlanilla;
+  let monto, discrepancia=false;
+  if(pq.esEsporadico){
+    monto = pq.consumidas*precioEf(a,md);                 // esporádico: cobra por clase consumida
+  } else if(tienePlan){
+    monto = md.montoPlanilla;                              // fijo con planilla: mensual oficial
+    discrepancia = md.montoPlanilla>0 && montoCal>0 && montoCal!==md.montoPlanilla;
+  } else {
+    monto = montoCal;                                     // fijo sin planilla: cálculo del calendario
+  }
   const pagado=md.pagos.reduce((s,p)=>s+(p.monto||0),0);
   const previa=deudaPrevia(a);
   const aCobrar=monto+previa;
   const saldo=aCobrar-pagado;
-  return {md, monto, montoCal, tienePlan, discrepancia, pagado, previa, aCobrar, saldo, clases:horas, fechasCount:md.fechas.length, precio:precioEf(a,md), tieneSaldo:saldo>0};
+  return {md, monto, montoCal, tienePlan, discrepancia, pagado, previa, aCobrar, saldo, clases:horas, fechasCount:md.fechas.length, precio:precioEf(a,md), tieneSaldo:saldo>0, pq};
 }
 
 // ===== sincronización =====
@@ -622,6 +653,7 @@ function render(){
         <div class="stat"><div class="k">Monto mes${c.tienePlan?' 📋':''}</div><div class="v mono" style="color:var(--court)">${gs(c.monto)}${c.discrepancia?` <span title="El calendario calcula ${gs(c.montoCal)}" style="color:#e0a800;cursor:help">🚩</span>`:''}</div></div>
       </div>
       ${c.tienePlan?`<div class="deudaprev" style="color:#7a8089">📋 Planilla: ${c.md.fechaInicio?'inicio '+esc(c.md.fechaInicio)+' · ':''}${c.md.nClasePlanilla||0} clases · cobrado ${gs(c.md.cobradoPlanilla||0)}${c.discrepancia?` · 🚩 calendario: ${gs(c.montoCal)}`:''}</div>`:''}
+      ${lineaPaquete(c)}
       <span class="expand" data-exp="${idx}">⚙️ Fechas y precio ▾</span>
       <div class="adetail">
         <div class="dateshdr"><span class="lbl">Clases del mes (tocá para marcar: ✅ asistió · 🔄 reagenda · ❌ no reagenda · +h hora · ✕ saca)</span></div>
