@@ -522,24 +522,27 @@ async function guardarEnPlanilla(){
     await pedirToken();
     toast('Buscando posiciones…');
     const got=await sheetsGet(SHEET_TAB+'!B1:B6000');
-    const rowDe={}; (got.values||[]).forEach((r,i)=>{ const n=(r[0]||'').trim(); if(n) rowDe[normName(n)]=i+1; });
-    const updates=[], appends=[]; let upd=0;
+    const names=got.values||[];
+    const rowDe={}; names.forEach((r,i)=>{ const n=(r[0]||'').trim(); if(n) rowDe[normName(n)]=i+1; });
+    let nextRow=names.length+1;        // primera fila REALMENTE libre (después del último nombre)
+    const updates=[]; let upd=0, nuevos=0;
     dirty.forEach(a=>{
       const cat=a.cat||'', lado=a.lado||'', tipo=a.tipo||'', precio=gsTxt(a.precio),
-            coment=a.comentarios||'', nomHor=a.nomHor||'', nomWpp=a.nomWpp||'', tel=a.telRaw||a.tel||'';
-      const row=rowDe[normName(a.nombre)];
+            coment=a.comentarios||'', nomHor=a.nomHor||'', nomWpp=a.nomWpp||'', tel=a.tel||normPhone(a.telRaw)||'';
+      let row=rowDe[normName(a.nombre)];
       if(row){
-        updates.push({range:SHEET_TAB+'!C'+row+':D'+row, values:[[cat,lado]]});
-        updates.push({range:SHEET_TAB+'!F'+row+':K'+row, values:[[tipo,precio,coment,nomHor,nomWpp,tel]]});
+        updates.push({range:SHEET_TAB+'!C'+row+':D'+row, values:[[cat,lado]]});      // no toca el nombre (B)
         upd++;
       } else {
-        appends.push(['',a.nombre,cat,lado,'',tipo,precio,coment,nomHor,nomWpp,tel]);
+        row=nextRow++;                                                                // fila nueva al final
+        updates.push({range:SHEET_TAB+'!B'+row+':D'+row, values:[[a.nombre,cat,lado]]}); // nuevo: sí escribe nombre
+        nuevos++;
       }
+      updates.push({range:SHEET_TAB+'!F'+row+':K'+row, values:[[tipo,precio,coment,nomHor,nomWpp,tel]]}); // deja E (profesor) intacto
     });
-    if(updates.length){ toast('Guardando cambios…'); await sheetsBatchUpdate(updates); }
-    if(appends.length){ toast('Agregando nuevos…'); await sheetsAppend(appends); }
+    if(updates.length){ toast('Guardando…'); await sheetsBatchUpdate(updates); }
     dirty.forEach(a=>a._dirty=false); save(); render();
-    alert('✅ Guardado en la planilla.\n\nActualizados: '+upd+'\nNuevos agregados: '+appends.length);
+    alert('✅ Guardado en la planilla.\n\nActualizados: '+upd+'\nNuevos agregados (al final): '+nuevos);
   }catch(e){
     alert('No pude guardar.\n\n'+e.message+'\n\nRevisá: abrí la app desde GitHub Pages (https), autorizá con tu cuenta de Google, y que esa cuenta tenga permiso de edición en la planilla.');
   }
