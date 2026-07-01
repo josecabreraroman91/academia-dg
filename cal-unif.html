@@ -29,6 +29,9 @@
   .day-tabs,.sede-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
   .tab{padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer}
   .tab.active{background:var(--accent);color:#1a1a1a;border-color:var(--accent)}
+  .tab.prox{border-style:dashed;opacity:.9}
+  .tab.prox.active{background:var(--accent);opacity:1}
+  .wk-sep{display:inline-flex;align-items:center;padding:0 4px;color:var(--accent);font-weight:800;font-size:15px;align-self:center}
   body.modo-madre .day-tabs .tab.active{background:var(--madre);color:#fff;border-color:var(--madre)}
   .sede-tabs .tab.active.lomas{background:var(--lomas);color:#fff;border-color:var(--lomas)}
   .sede-tabs .tab.active.elite{background:var(--elite);color:#fff;border-color:var(--elite)}
@@ -278,6 +281,7 @@
     <button class="btn" id="btnTelefonos">🔄 Sincronizar</button>
     <button class="btn" id="btnHorariosPlan">☁️ Guardar horarios en planilla</button>
     <button class="btn reset" id="btnReset">🔄 Resetear semana desde madre</button>
+    <button class="btn" id="btnAvanzar">▸ Avanzar semana</button>
   </div>
 </header>
 
@@ -511,7 +515,31 @@ let state = {
   colTel: ''              // header elegido para teléfono
 };
 
-function book(){ return state[state.mode]; }  // dataset activo según el modo
+function book(){
+  if(state.mode==='madre') return state.madre;
+  return state.semActiva==='proxima' ? state.semanaProxima : state.semana;
+}
+// ===== Dos semanas editables (esta + la que viene), con fechas =====
+function isoDe(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function lunesDeHoy(){ const d=new Date(); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return isoDe(d); }
+function isoMas(iso,n){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d; }
+function ddmm(d){ return d.getDate()+'/'+(d.getMonth()+1); }
+function asegurarSemanas(){
+  const vacia={alumnos:{},libres:{}};
+  if(!state.lunesActual) state.lunesActual=lunesDeHoy();
+  if(!state.semana) state.semana=JSON.parse(JSON.stringify(state.madre||vacia));
+  if(!state.semanaProxima) state.semanaProxima=JSON.parse(JSON.stringify(state.madre||vacia));
+  if(!state.semActiva) state.semActiva='actual';
+}
+function avanzarSemana(){
+  if(!confirm('▸ Avanzar de semana.\n\n"La que viene" pasa a ser "ESTA semana", se genera una nueva próxima desde la MADRE, y la semana que pasó se descarta.\n\n¿Confirmás?')) return;
+  state.semana = state.semanaProxima;
+  state.semanaProxima = JSON.parse(JSON.stringify(state.madre));
+  state.lunesActual = isoDe(isoMas(state.lunesActual,7));
+  state.semActiva='actual';
+  saveState(); renderAll();
+  alert('✅ Semana avanzada. Ahora "esta semana" arranca el lunes '+ddmm(isoMas(state.lunesActual,0))+'.');
+}
 
 function loadState(){
   const saved = localStorage.getItem('cal_dg_unif');
@@ -542,9 +570,11 @@ function loadState(){
         state.sedesPorDia = JSON.parse(JSON.stringify(SEED_CAL.sedesPorDia));
         state.madre = { alumnos: JSON.parse(JSON.stringify(SEED_CAL.alumnos)), libres: JSON.parse(JSON.stringify(SEED_CAL.libres)) };
         state.semana = JSON.parse(JSON.stringify(state.madre));
+        state.semanaProxima = JSON.parse(JSON.stringify(state.madre));
         state.seedVersion = SEED_VERSION;
         saveState();
       }
+      asegurarSemanas();
       return;
     }catch(e){}
   }
@@ -556,6 +586,8 @@ function loadState(){
   state.madre.libres = JSON.parse(JSON.stringify(SEED_CAL.libres));
   // la semana arranca como copia de la madre
   state.semana = JSON.parse(JSON.stringify(state.madre));
+  state.semanaProxima = JSON.parse(JSON.stringify(state.madre));
+  asegurarSemanas();
   saveState();
 }
 function saveState(){ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }
@@ -579,13 +611,31 @@ function setMode(m){
 
 function renderDayTabs(){
   const el=document.getElementById('dayTabs'); el.innerHTML='';
-  DAYS.forEach(dia=>{
+  const cap=s=>s.charAt(0)+s.slice(1).toLowerCase();
+  const ajustarSede=()=>{ if(!sedesDelDia().find(s=>s.key===state.sedeActiva)) state.sedeActiva=sedesDelDia()[0].key; };
+  if(state.mode==='madre'){
+    DAYS.forEach(dia=>{
+      const b=document.createElement('button');
+      b.className='tab'+(dia===state.dia?' active':'');
+      b.textContent=cap(dia);
+      b.onclick=()=>{ state.dia=dia; ajustarSede(); saveState(); renderAll(); };
+      el.appendChild(b);
+    });
+    return;
+  }
+  asegurarSemanas();
+  const mk=(dia,i,week)=>{
+    const f=isoMas(state.lunesActual, (week==='proxima'?7:0)+i);
     const b=document.createElement('button');
-    b.className='tab'+(dia===state.dia?' active':'');
-    b.textContent=dia.charAt(0)+dia.slice(1).toLowerCase();
-    b.onclick=()=>{ state.dia=dia; if(!sedesDelDia().find(s=>s.key===state.sedeActiva)) state.sedeActiva=sedesDelDia()[0].key; saveState(); renderAll(); };
-    el.appendChild(b);
-  });
+    const activo = dia===state.dia && (state.semActiva||'actual')===week;
+    b.className='tab'+(activo?' active':'')+(week==='proxima'?' prox':'');
+    b.innerHTML=cap(dia).slice(0,3)+' <b>'+ddmm(f)+'</b>';
+    b.onclick=()=>{ state.dia=dia; state.semActiva=week; ajustarSede(); saveState(); renderAll(); };
+    return b;
+  };
+  DAYS.forEach((d,i)=>el.appendChild(mk(d,i,'actual')));
+  const sep=document.createElement('span'); sep.className='wk-sep'; sep.title='la que viene'; sep.textContent='▸'; el.appendChild(sep);
+  DAYS.forEach((d,i)=>el.appendChild(mk(d,i,'proxima')));
 }
 function renderSedeTabs(){
   // Vista unificada: ya no se usan pestañas de sede (todas las sedes se ven juntas en la grilla)
@@ -897,11 +947,14 @@ function toggleResumen(){
 
 // Resetear la SEMANA copiando la MADRE (limpia)
 function resetSemana(){
-  if(confirm('🔄 Esto reemplaza TODA la semana editable por una copia limpia de la planilla MADRE.\n\nSe pierden los cambios y agendados de la semana actual. La madre NO se toca.\n\n¿Continuar?')){
-    state.semana = JSON.parse(JSON.stringify(state.madre));
+  const prox = state.semActiva==='proxima';
+  const cual = prox ? 'LA QUE VIENE' : 'ESTA SEMANA';
+  if(confirm('🔄 Esto reemplaza '+cual+' por una copia limpia de la planilla MADRE.\n\nSe pierden los cambios y agendados de esa semana. La madre NO se toca.\n\n¿Continuar?')){
+    const copia = JSON.parse(JSON.stringify(state.madre));
+    if(prox) state.semanaProxima=copia; else state.semana=copia;
     saveState();
     if(state.mode!=='semana') setMode('semana'); else renderAll();
-    alert('✅ Semana reseteada desde la madre. Lista para arrancar de nuevo.');
+    alert('✅ '+cual+' reseteada desde la madre.');
   }
 }
 
@@ -1058,7 +1111,7 @@ function fillAlumnosDatalist(){
   if(!dl) return;
   const set=new Set();
   Object.values(state.contactos||{}).forEach(c=>{ if(c&&c.nombre) set.add(c.nombre); });
-  [state.madre,state.semana].forEach(b=>{ if(b&&b.alumnos) Object.values(b.alumnos).forEach(al=>{ if(al&&al.nombre&&al.mod!=='BLOQUE') set.add(al.nombre); }); });
+  [state.madre,state.semana,state.semanaProxima].forEach(b=>{ if(b&&b.alumnos) Object.values(b.alumnos).forEach(al=>{ if(al&&al.nombre&&al.mod!=='BLOQUE') set.add(al.nombre); }); });
   try{ const arr=JSON.parse(localStorage.getItem('alumnos_dg')||'[]'); if(Array.isArray(arr)) arr.forEach(a=>{ if(a&&a.nombre) set.add(a.nombre); }); }catch(e){}
   const nombres=[...set].sort((a,b)=>a.localeCompare(b));
   dl.innerHTML=nombres.map(n=>`<option value="${n.replace(/"/g,'&quot;')}"></option>`).join('');
@@ -1086,7 +1139,7 @@ function fechaCorta(){ // dd/mm/yyyy del día seleccionado en la semana actual
 // Genera el CSV con el formato que lee recordatorios_rapido.html
 function exportEnvios(){
   if(state.mode!=='semana'){ alert('Los envíos se exportan desde la SEMANA. Cambiando a modo SEMANA.'); setMode('semana'); }
-  const B=state.semana;
+  const B=book();
   const sinTel=[];
   const header=['sesion_id','fecha','dia','hora','sede','profesor','nombre_calendario','nombre_wpp','telefono','estado'];
   const lines=[header.join(',')];
@@ -1156,7 +1209,7 @@ function phoneOk(tel){ return tel && tel.length>=8 && tel.length<=15; }
 
 // Construye la lista de envío desde la SEMANA del día actual
 function buildEnvioList(){
-  const B=state.semana, sedes=state.sedesPorDia[state.dia], out=[];
+  const B=book(), sedes=state.sedesPorDia[state.dia], out=[];
   HORAS.forEach((hora,hi)=>{
     const hhmm=hora.replace(':','');
     sedes.forEach(s=>{
@@ -1385,6 +1438,7 @@ document.querySelectorAll('.ev-ph .chip').forEach(ch=>{
   ch.onclick=()=>{ const ta=document.getElementById('evTpl'); ta.value+=ch.dataset.ph; state.tplEnvio=ta.value; saveState(); renderEnvios(); };
 });
 document.getElementById('btnReset').onclick=resetSemana;
+document.getElementById('btnAvanzar').onclick=avanzarSemana;
 document.getElementById('overlay').onclick=(e)=>{ if(e.target.id==='overlay') closeEditor(); };
 
 // ===== Guardar HORARIOS del calendario en la planilla (sección SEMANA) =====
