@@ -138,7 +138,6 @@
     <div class="fld"><label>Nombre</label><input id="acNom" placeholder="Nombre y apellido"></div>
     <div class="fld"><label>Hora</label><select id="acHora"></select></div>
     <div class="fld"><label>Profe</label><select id="acProfe"></select></div>
-    <div class="fld"><label>¿Cuántas horas entrenó?</label><select id="acHoras"><option value="1">1 hora</option><option value="2">2 horas</option><option value="3">3 horas</option></select></div>
     <div class="acts">
       <button class="btn" id="acCancel">Cancelar</button>
       <button class="btn court" id="acGuardar">Agregar presente</button>
@@ -215,12 +214,11 @@ function render(){
     lista.forEach(a=>{
       const est=a.asis||'sin';
       const conf=a.confirmado?'✅':'👀';
-      const horasTxt=(a.horas&&a.horas>1)?` · ${a.horas}h`:'';
       html+=`<div class="al ${est}${a.acople?' acople':''}" data-id="${a.id}">
         <div class="estado">${EST_ICO[est]}</div>
         <div class="info">
           <div class="nom">${escapeHtml(a.nombre)}</div>
-          <div class="meta"><span class="tag">${escapeHtml(a.profe||'—')}</span><span class="conf">${conf}</span>${a.acople?'<span class="tag">acople</span>':''}${horasTxt}</div>
+          <div class="meta"><span class="tag">${escapeHtml(a.profe||'—')}</span><span class="conf">${conf}</span>${a.acople?'<span class="tag">acople</span>':''}</div>
         </div>
         ${a.acople?`<div class="del" data-del="${a.id}">✕</div>`:''}
       </div>`;
@@ -252,8 +250,7 @@ document.getElementById('acGuardar').onclick=()=>{
   const nom=document.getElementById('acNom').value.trim(); if(!nom){ toast('Poné un nombre'); return; }
   const horaIdx=+document.getElementById('acHora').value;
   const profe=document.getElementById('acProfe').value;
-  const horas=+document.getElementById('acHoras').value;
-  refDia.push({ nombre:nom, horaIdx, profe, mod:'', confirmado:false, asis:'presente', horas, acople:true });
+  refDia.push({ nombre:nom, horaIdx, profe, mod:'', confirmado:false, asis:'presente', acople:true });
   mAc.classList.remove('show'); toast('✅ Agregado presente');
 };
 
