@@ -71,7 +71,6 @@
   <div class="tabsbar">
     <button class="navtab home" data-go="menu">☰</button>
     <button class="navtab" data-go="cal">🎾 Calendario</button>
-    <button class="navtab" data-go="cob">💰 Cobros</button>
     <button class="navtab" data-go="alu">👥 Alumnos</button>
   </div>
 </div>
@@ -88,11 +87,6 @@
       <div class="info"><div class="t">Calendario</div><div class="d">Horarios del día, envío de mensajes y reporte</div></div>
       <div class="arrow">›</div>
     </div>
-    <div class="mcard" data-go="cob">
-      <div class="ico">💰</div>
-      <div class="info"><div class="t">Cobros</div><div class="d">Cuentas del mes, morosos y horarios</div></div>
-      <div class="arrow">›</div>
-    </div>
     <div class="mcard" data-go="alu">
       <div class="ico">👥</div>
       <div class="info"><div class="t">Alumnos</div><div class="d">Crear, editar y administrar la base de alumnos</div></div>
@@ -105,7 +99,6 @@
 <!-- Escenario con las dos apps aisladas -->
 <div id="stage">
   <iframe id="frCal" data-src="cal-unif.html" title="Calendario" referrerpolicy="no-referrer"></iframe>
-  <iframe id="frCob" data-src="cobros-unif.html" title="Cobros" referrerpolicy="no-referrer"></iframe>
   <iframe id="frAlu" data-src="alumnos-unif.html" title="Alumnos" referrerpolicy="no-referrer"></iframe>
 </div>
 
@@ -113,15 +106,14 @@
   const topbar=document.getElementById('topbar');
   const menu=document.getElementById('menu');
   const frCal=document.getElementById('frCal');
-  const frCob=document.getElementById('frCob');
   const frAlu=document.getElementById('frAlu');
-  const loaded={cal:false, cob:false, alu:false};
+  const loaded={cal:false, alu:false};
 
   function go(dest){
     if(dest==='menu'){
       menu.classList.remove('hide');
       topbar.classList.remove('show');
-      frCal.classList.remove('show'); frCob.classList.remove('show'); frAlu.classList.remove('show');
+      frCal.classList.remove('show'); frAlu.classList.remove('show');
       document.querySelectorAll('.navtab').forEach(t=>t.classList.remove('active'));
       return;
     }
@@ -130,10 +122,8 @@
     topbar.classList.add('show');
     // cargar el iframe la primera vez (lazy)
     if(dest==='cal' && !loaded.cal){ frCal.src=frCal.dataset.src; loaded.cal=true; }
-    if(dest==='cob' && !loaded.cob){ frCob.src=frCob.dataset.src; loaded.cob=true; }
     if(dest==='alu' && !loaded.alu){ frAlu.src=frAlu.dataset.src; loaded.alu=true; }
     frCal.classList.toggle('show', dest==='cal');
-    frCob.classList.toggle('show', dest==='cob');
     frAlu.classList.toggle('show', dest==='alu');
     document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('active', t.dataset.go===dest));
   }
