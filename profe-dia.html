@@ -47,13 +47,23 @@
   .pill.sin{background:var(--sin)} .pill.pres{background:var(--pres)} .pill.aus{background:var(--aus)}
 
   .wrap{flex:1;padding:12px;padding-bottom:96px}
-  .hora-block{margin-bottom:16px}
-  .hora-h{font-size:15px;font-weight:800;color:var(--court);margin:0 2px 8px;display:flex;align-items:center;gap:8px}
+  .hora-block{margin-bottom:18px}
+  .hora-h{font-size:16px;font-weight:800;color:var(--court);margin:0 2px 10px;display:flex;align-items:center;gap:8px}
   .hora-h .ln{flex:1;height:1px;background:var(--line)}
 
-  .cards{display:grid;grid-template-columns:1fr;gap:8px}
-  @media(min-width:640px){ .cards{grid-template-columns:1fr 1fr} }
-  @media(min-width:980px){ .cards{grid-template-columns:1fr 1fr 1fr} }
+  /* header de profe: iniciales GRANDES con color */
+  .profe-h{display:flex;align-items:center;gap:10px;margin:10px 2px 7px}
+  .profe-badge{min-width:46px;height:38px;padding:0 10px;border-radius:10px;display:flex;align-items:center;justify-content:center;
+    font-size:19px;font-weight:900;color:#0c1020;letter-spacing:.5px;box-shadow:0 2px 8px rgba(0,0,0,.35)}
+  .profe-nom{font-size:13px;color:var(--muted);font-weight:700}
+  .profe-cnt{margin-left:auto;font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-weight:700}
+
+  .bloque{display:flex;align-items:center;gap:10px;background:#20233a;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin:6px 0;color:#c9cff0;font-weight:700;font-size:14px}
+  .bloque .bem{font-size:20px}
+
+  .cards{display:grid;grid-template-columns:1fr;gap:8px;margin-left:6px;border-left:2px solid var(--line);padding-left:10px}
+  @media(min-width:700px){ .cards{grid-template-columns:1fr 1fr} }
+  @media(min-width:1050px){ .cards{grid-template-columns:1fr 1fr 1fr} }
 
   .al{display:flex;align-items:center;gap:11px;background:var(--panel);border:1px solid var(--line);border-left-width:6px;
     border-radius:12px;padding:12px 13px;cursor:pointer;user-select:none;min-height:60px}
@@ -198,38 +208,58 @@ function iniciarApp(){
   const selP=document.getElementById('acProfe'); selP.innerHTML=PROFES.map(p=>`<option value="${p.dim}">${p.dim} · ${p.nombre}</option>`).join('');
 }
 
-// ---- Render del día, agrupado por hora ----
+// ---- Helpers de presentación (estilo resumen) ----
+const PROFE_COLORS=['#E8B84B','#7EC8E3','#F09A3E','#B79CED','#78C2AD','#F2777A','#8FD14F','#E58FB5','#5BC0EB','#F6C177','#9AD1D4','#C3A6F0'];
+function profeColor(dim){ let s=0; const d=dim||'—'; for(let i=0;i<d.length;i++) s+=d.charCodeAt(i); return PROFE_COLORS[s%PROFE_COLORS.length]; }
+const PROFE_NOM={}; PROFES.forEach(p=>PROFE_NOM[p.dim]=p.nombre);
+function profeNombre(dim){ return PROFE_NOM[dim]||''; }
+function esBloque(a){ return a.mod==='BLOQUE' || /ALTO RENDIMIENTO|ALMUERZO/i.test(a.nombre||''); }
+function bloqueEmoji(a){ if(/ALMUERZO/i.test(a.nombre||'')) return '🍽️'; return '🏋️'; }
+function modTxt(m){ return m ? '('+m+')' : ''; }
+
+// ---- Render del día: HORA -> PROFE (destacado) -> alumnos ----
 function render(){
   const wrap=document.getElementById('wrap');
   const items=Object.entries(cacheDia).map(([id,a])=>({id,...a})).filter(a=>a && a.nombre);
   if(!items.length){ wrap.innerHTML='<div class="empty">No hay clases cargadas para hoy todavía.<br>Podés tocar <b>🧪 Día de prueba</b> para ver cómo funciona.</div>'; return; }
-  // agrupar por horaIdx
   const porHora={};
   items.forEach(a=>{ const h=a.horaIdx!=null?a.horaIdx:0; (porHora[h]=porHora[h]||[]).push(a); });
   const horas=Object.keys(porHora).map(Number).sort((x,y)=>x-y);
   let html='';
   horas.forEach(h=>{
-    const lista=porHora[h].sort((a,b)=> (a.profe||'').localeCompare(b.profe||'') || (a.nombre||'').localeCompare(b.nombre||''));
-    html+=`<div class="hora-block"><div class="hora-h">${HORAS[h]||('h'+h)} <span class="ln"></span></div><div class="cards">`;
-    lista.forEach(a=>{
-      const est=a.asis||'sin';
-      const conf=a.confirmado?'✅':'👀';
-      html+=`<div class="al ${est}${a.acople?' acople':''}" data-id="${a.id}">
-        <div class="estado">${EST_ICO[est]}</div>
-        <div class="info">
-          <div class="nom">${escapeHtml(a.nombre)}</div>
-          <div class="meta"><span class="tag">${escapeHtml(a.profe||'—')}</span><span class="conf">${conf}</span>${a.acople?'<span class="tag">acople</span>':''}</div>
-        </div>
-        ${a.acople?`<div class="del" data-del="${a.id}">✕</div>`:''}
-      </div>`;
+    const lista=porHora[h];
+    const bloques=lista.filter(esBloque);
+    const alumnos=lista.filter(a=>!esBloque(a));
+    html+=`<div class="hora-block"><div class="hora-h">${HORAS[h]||('h'+h)} <span class="ln"></span></div>`;
+    // bloques (ALTO RENDIMIENTO / ALMUERZO) — informativos, no se marcan
+    bloques.forEach(b=>{ html+=`<div class="bloque"><span class="bem">${bloqueEmoji(b)}</span> ${escapeHtml(b.nombre)} <span class="tag" style="margin-left:auto">${escapeHtml(b.profe||'—')}</span></div>`; });
+    // agrupar alumnos por profe
+    const porProfe={};
+    alumnos.forEach(a=>{ const p=a.profe||'—'; (porProfe[p]=porProfe[p]||[]).push(a); });
+    Object.keys(porProfe).sort().forEach(p=>{
+      const col=profeColor(p);
+      html+=`<div class="profe-h"><span class="profe-badge" style="background:${col}">${escapeHtml(p)}</span><span class="profe-nom">${escapeHtml(profeNombre(p))}</span><span class="profe-cnt">${porProfe[p].length}</span></div>`;
+      html+='<div class="cards">';
+      porProfe[p].sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).forEach(a=>{
+        const est=a.asis||'sin';
+        const conf=a.confirmado?'✅':'👀';
+        html+=`<div class="al ${est}${a.acople?' acople':''}" data-id="${a.id}">
+          <div class="estado">${EST_ICO[est]}</div>
+          <div class="info">
+            <div class="nom">${escapeHtml(a.nombre)} <span style="color:var(--muted);font-weight:600;font-size:13px">${modTxt(a.mod)}</span></div>
+            <div class="meta"><span class="conf">${conf}</span>${a.acople?'<span class="tag">acople</span>':''}</div>
+          </div>
+          ${a.acople?`<div class="del" data-del="${a.id}">✕</div>`:''}
+        </div>`;
+      });
+      html+='</div>';
     });
-    html+='</div></div>';
+    html+='</div>';
   });
   wrap.innerHTML=html;
-  // eventos: tocar rota estado
   wrap.querySelectorAll('.al').forEach(el=>{
     el.onclick=(ev)=>{
-      if(ev.target.dataset.del!==undefined) return; // el ✕ se maneja aparte
+      if(ev.target.dataset.del!==undefined) return;
       const id=el.dataset.id; const cur=(cacheDia[id]&&cacheDia[id].asis)||'sin';
       refDia.child(id+'/asis').set(EST_NEXT[cur]);
     };
@@ -261,6 +291,7 @@ document.getElementById('btnSeed').onclick=()=>{
     a1:{nombre:'Juan Pérez', horaIdx:2, profe:'JM', mod:'G', confirmado:true,  asis:'presente'},
     a2:{nombre:'María López', horaIdx:2, profe:'JM', mod:'G', confirmado:false, asis:'sin'},
     a3:{nombre:'Pedro Gómez', horaIdx:2, profe:'VA', mod:'IND',confirmado:true,  asis:'presente'},
+    ar:{nombre:'ALTO RENDIMIENTO', horaIdx:2, profe:'MP', mod:'BLOQUE', confirmado:true, asis:'sin'},
     a4:{nombre:'Ana Díaz', horaIdx:3, profe:'VA', mod:'G', confirmado:false, asis:'sin'},
     a5:{nombre:'Luis Fernández', horaIdx:3, profe:'MP', mod:'D', confirmado:true, asis:'presente'},
     a6:{nombre:'Carla Ruiz', horaIdx:8, profe:'JM', mod:'G', confirmado:false, asis:'sin'}
