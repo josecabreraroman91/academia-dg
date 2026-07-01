@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Asistencia · Academia DG</title>
+<style>
+  :root{
+    --azul:#22307A; --azul-d:#161f52; --court:#1EA67A; --court-d:#178a66;
+    --bg:#0f1320; --panel:#171d30; --panel2:#1e2540; --line:#2b3454; --txt:#eef1f8; --muted:#98a2c4;
+    --sin:#6b7394; --pres:#1EA67A; --aus:#e0483d; --amar:#e0a800;
+    --lomas:#E8B84B; --elite:#7EC8E3; --segurola:#F09A3E;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+
+  /* ===== LANDING: elegir sede ===== */
+  #landing{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center}
+  #landing h1{font-size:22px;font-weight:800}
+  #landing p{color:var(--muted);font-size:14px;max-width:340px}
+  .sedes{display:flex;flex-direction:column;gap:12px;width:100%;max-width:360px;margin-top:8px}
+  .sede-btn{padding:22px;border-radius:16px;border:2px solid var(--line);background:var(--panel);color:var(--txt);
+    font-size:20px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px}
+  .sede-btn:active{transform:scale(.98)}
+  .sede-btn .em{width:14px;height:14px;border-radius:50%}
+  .sede-btn.lomas .em{background:var(--lomas)} .sede-btn.elite .em{background:var(--elite)} .sede-btn.segurola .em{background:var(--segurola)}
+
+  /* ===== APP ===== */
+  #app{display:none;min-height:100vh;flex-direction:column}
+  .top{position:sticky;top:0;z-index:20;background:var(--azul-d);padding:10px 14px;display:flex;align-items:center;gap:10px;
+    box-shadow:0 2px 10px rgba(0,0,0,.3)}
+  .top .sede{font-weight:800;font-size:16px;display:flex;align-items:center;gap:7px}
+  .top .sede .em{width:11px;height:11px;border-radius:50%}
+  .top .fecha{color:#c7cef0;font-size:12px}
+  .top .sp{flex:1}
+  .conn{display:flex;align-items:center;gap:6px;font-size:11px;color:#c7cef0;font-weight:700}
+  .conn .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
+  .conn .dot.ok{background:var(--court);box-shadow:0 0 0 3px rgba(30,166,122,.25)}
+  .conn .dot.wait{background:var(--amar);box-shadow:0 0 0 3px rgba(224,168,0,.25)}
+  .chgSede{background:#ffffff1a;border:1px solid #ffffff33;color:#fff;border-radius:8px;padding:6px 9px;font-size:11px;font-weight:700;cursor:pointer}
+
+  .leyenda{display:flex;gap:12px;flex-wrap:wrap;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .leyenda span{display:inline-flex;align-items:center;gap:5px}
+  .pill{width:12px;height:12px;border-radius:50%;display:inline-block}
+  .pill.sin{background:var(--sin)} .pill.pres{background:var(--pres)} .pill.aus{background:var(--aus)}
+
+  .wrap{flex:1;padding:12px;padding-bottom:96px}
+  .hora-block{margin-bottom:16px}
+  .hora-h{font-size:15px;font-weight:800;color:var(--court);margin:0 2px 8px;display:flex;align-items:center;gap:8px}
+  .hora-h .ln{flex:1;height:1px;background:var(--line)}
+
+  .cards{display:grid;grid-template-columns:1fr;gap:8px}
+  @media(min-width:640px){ .cards{grid-template-columns:1fr 1fr} }
+  @media(min-width:980px){ .cards{grid-template-columns:1fr 1fr 1fr} }
+
+  .al{display:flex;align-items:center;gap:11px;background:var(--panel);border:1px solid var(--line);border-left-width:6px;
+    border-radius:12px;padding:12px 13px;cursor:pointer;user-select:none;min-height:60px}
+  .al:active{transform:scale(.995)}
+  .al.sin{border-left-color:var(--sin)} .al.presente{border-left-color:var(--pres)} .al.ausente{border-left-color:var(--aus)}
+  .al .estado{font-size:24px;line-height:1;flex:0 0 auto;width:30px;text-align:center}
+  .al .info{flex:1;min-width:0}
+  .al .nom{font-weight:700;font-size:15.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .al .meta{font-size:12px;color:var(--muted);margin-top:2px;display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .tag{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-weight:700;font-size:11px}
+  .conf{font-size:14px}
+  .al.acople{border-style:dashed}
+  .al .del{flex:0 0 auto;color:var(--muted);font-size:18px;padding:4px 6px;border-radius:8px;background:#ffffff08}
+
+  .empty{color:var(--muted);text-align:center;padding:40px 20px;font-size:14px}
+
+  /* barra inferior */
+  .bottom{position:fixed;left:0;right:0;bottom:0;z-index:20;background:var(--panel);border-top:1px solid var(--line);
+    padding:10px 12px calc(10px + env(safe-area-inset-bottom));display:flex;gap:10px}
+  .btn{flex:1;padding:15px;border:0;border-radius:12px;font-size:15px;font-weight:800;cursor:pointer;background:var(--panel2);color:var(--txt);border:1px solid var(--line)}
+  .btn.court{background:var(--court);color:#04150f;border-color:var(--court)}
+  .btn:active{transform:scale(.99)}
+
+  /* modal acople */
+  .modal{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.6);display:none;align-items:flex-end;justify-content:center}
+  .modal.show{display:flex}
+  .sheet{background:var(--panel);width:100%;max-width:480px;border-radius:16px 16px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));border:1px solid var(--line)}
+  .sheet h3{font-size:17px;font-weight:800;margin-bottom:14px}
+  .fld{margin-bottom:12px}
+  .fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px;font-weight:700}
+  .fld input,.fld select{width:100%;padding:13px;border-radius:10px;border:1px solid var(--line);background:#0f1424;color:var(--txt);font-size:15px}
+  .sheet .acts{display:flex;gap:10px;margin-top:6px}
+
+  .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#000d;color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<!-- LANDING -->
+<div id="landing">
+  <h1>🎾 Asistencia · Academia DG</h1>
+  <p>Elegí la sede de este dispositivo. Queda guardada; podés cambiarla cuando quieras.</p>
+  <div class="sedes">
+    <button class="sede-btn lomas"    data-sede="lomas"><span class="em"></span> LOMAS</button>
+    <button class="sede-btn elite"    data-sede="elite"><span class="em"></span> ELITE</button>
+    <button class="sede-btn segurola" data-sede="segurola"><span class="em"></span> SEGUROLA</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="top">
+    <div>
+      <div class="sede"><span class="em" id="topEm"></span><span id="topSede">—</span></div>
+      <div class="fecha" id="topFecha">—</div>
+    </div>
+    <div class="sp"></div>
+    <div class="conn"><span class="dot" id="cdot"></span><span id="ctxt">…</span></div>
+    <button class="chgSede" id="btnChg">Cambiar</button>
+  </div>
+
+  <div class="leyenda">
+    <span><i class="pill pres"></i> Presente</span>
+    <span><i class="pill sin"></i> Sin marcar</span>
+    <span><i class="pill aus"></i> Ausente</span>
+    <span>✅ confirmado · 👀 sin confirmar</span>
+  </div>
+
+  <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
+
+  <div class="bottom">
+    <button class="btn" id="btnSeed">🧪 Día de prueba</button>
+    <button class="btn court" id="btnAcople">➕ Agregar acople</button>
+  </div>
+</div>
+
+<!-- MODAL ACOPLE -->
+<div class="modal" id="mAcople">
+  <div class="sheet">
+    <h3>➕ Agregar alumno (acople)</h3>
+    <div class="fld"><label>Nombre</label><input id="acNom" placeholder="Nombre y apellido"></div>
+    <div class="fld"><label>Hora</label><select id="acHora"></select></div>
+    <div class="fld"><label>Profe</label><select id="acProfe"></select></div>
+    <div class="fld"><label>¿Cuántas horas entrenó?</label><select id="acHoras"><option value="1">1 hora</option><option value="2">2 horas</option><option value="3">3 horas</option></select></div>
+    <div class="acts">
+      <button class="btn" id="acCancel">Cancelar</button>
+      <button class="btn court" id="acGuardar">Agregar presente</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+const firebaseConfig = {
+  apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain: "academia-dg.firebaseapp.com",
+  databaseURL: "https://academia-dg-default-rtdb.firebaseio.com",
+  projectId: "academia-dg",
+  storageBucket: "academia-dg.firebasestorage.app",
+  messagingSenderId: "623967243039",
+  appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
+};
+
+const HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+const PROFES = [{"nombre":"Juan Martinez","dim":"JM"},{"nombre":"Valeria Ávila","dim":"VA"},{"nombre":"Marina Pérez","dim":"MP"},{"nombre":"Florencia López","dim":"FL"},{"nombre":"Pablo Rojas","dim":"PR"},{"nombre":"Mauro Fernández","dim":"MF"},{"nombre":"Tomás Emilio","dim":"TE"},{"nombre":"Ramiro Acosta","dim":"RA"},{"nombre":"Oscar Benítez","dim":"OB"},{"nombre":"Rodrigo Sosa","dim":"RS"},{"nombre":"Carlos Giménez","dim":"ChG"},{"nombre":"Fabio Arce","dim":"FA"},{"nombre":"Profe HR","dim":"HR"},{"nombre":"Sin profe","dim":"SP"}];
+const SEDE_NOM={lomas:'LOMAS',elite:'ELITE',segurola:'SEGUROLA'};
+const EST_ICO={sin:'⚪',presente:'🟢',ausente:'🔴'};
+const EST_NEXT={sin:'presente',presente:'ausente',ausente:'sin'};
+
+function hoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function fechaLarga(){ const d=new Date(); const D=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']; return D[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1); }
+function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1600); }
+
+let db=null, sede=null, fecha=hoyISO(), refDia=null, cacheDia={};
+try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }catch(e){ alert('Error al iniciar Firebase: '+e.message); }
+
+// ---- Sede: elegir / recordar ----
+function elegirSede(s){ sede=s; try{localStorage.setItem('profe_sede',s);}catch(e){} iniciarApp(); }
+document.querySelectorAll('.sede-btn').forEach(b=> b.onclick=()=>elegirSede(b.dataset.sede));
+document.getElementById('btnChg').onclick=()=>{ if(confirm('¿Cambiar de sede? Vas a volver a la pantalla de selección.')){ try{localStorage.removeItem('profe_sede');}catch(e){} location.reload(); } };
+
+function iniciarApp(){
+  document.getElementById('landing').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('topSede').textContent=SEDE_NOM[sede]||sede;
+  document.getElementById('topEm').style.background='var(--'+sede+')';
+  document.getElementById('topFecha').textContent=fechaLarga();
+  // estado de conexión
+  db.ref('.info/connected').on('value',(s)=>{
+    const ok=s.val()===true;
+    document.getElementById('cdot').className='dot '+(ok?'ok':'wait');
+    document.getElementById('ctxt').textContent=ok?'En vivo':'Reconectando…';
+  });
+  // escuchar el día de esta sede en tiempo real
+  refDia=db.ref('dia/'+fecha+'/'+sede);
+  refDia.on('value',(snap)=>{ cacheDia=snap.val()||{}; render(); });
+  // selects del modal
+  const selH=document.getElementById('acHora'); selH.innerHTML=HORAS.map((h,i)=>`<option value="${i}">${h}</option>`).join('');
+  const selP=document.getElementById('acProfe'); selP.innerHTML=PROFES.map(p=>`<option value="${p.dim}">${p.dim} · ${p.nombre}</option>`).join('');
+}
+
+// ---- Render del día, agrupado por hora ----
+function render(){
+  const wrap=document.getElementById('wrap');
+  const items=Object.entries(cacheDia).map(([id,a])=>({id,...a})).filter(a=>a && a.nombre);
+  if(!items.length){ wrap.innerHTML='<div class="empty">No hay clases cargadas para hoy todavía.<br>Podés tocar <b>🧪 Día de prueba</b> para ver cómo funciona.</div>'; return; }
+  // agrupar por horaIdx
+  const porHora={};
+  items.forEach(a=>{ const h=a.horaIdx!=null?a.horaIdx:0; (porHora[h]=porHora[h]||[]).push(a); });
+  const horas=Object.keys(porHora).map(Number).sort((x,y)=>x-y);
+  let html='';
+  horas.forEach(h=>{
+    const lista=porHora[h].sort((a,b)=> (a.profe||'').localeCompare(b.profe||'') || (a.nombre||'').localeCompare(b.nombre||''));
+    html+=`<div class="hora-block"><div class="hora-h">${HORAS[h]||('h'+h)} <span class="ln"></span></div><div class="cards">`;
+    lista.forEach(a=>{
+      const est=a.asis||'sin';
+      const conf=a.confirmado?'✅':'👀';
+      const horasTxt=(a.horas&&a.horas>1)?` · ${a.horas}h`:'';
+      html+=`<div class="al ${est}${a.acople?' acople':''}" data-id="${a.id}">
+        <div class="estado">${EST_ICO[est]}</div>
+        <div class="info">
+          <div class="nom">${escapeHtml(a.nombre)}</div>
+          <div class="meta"><span class="tag">${escapeHtml(a.profe||'—')}</span><span class="conf">${conf}</span>${a.acople?'<span class="tag">acople</span>':''}${horasTxt}</div>
+        </div>
+        ${a.acople?`<div class="del" data-del="${a.id}">✕</div>`:''}
+      </div>`;
+    });
+    html+='</div></div>';
+  });
+  wrap.innerHTML=html;
+  // eventos: tocar rota estado
+  wrap.querySelectorAll('.al').forEach(el=>{
+    el.onclick=(ev)=>{
+      if(ev.target.dataset.del!==undefined) return; // el ✕ se maneja aparte
+      const id=el.dataset.id; const cur=(cacheDia[id]&&cacheDia[id].asis)||'sin';
+      refDia.child(id+'/asis').set(EST_NEXT[cur]);
+    };
+  });
+  wrap.querySelectorAll('[data-del]').forEach(x=>{
+    x.onclick=(ev)=>{ ev.stopPropagation(); const id=x.dataset.del;
+      if(confirm('¿Quitar este acople?')) refDia.child(id).remove(); };
+  });
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ---- Acople ----
+const mAc=document.getElementById('mAcople');
+document.getElementById('btnAcople').onclick=()=>{ document.getElementById('acNom').value=''; mAc.classList.add('show'); };
+document.getElementById('acCancel').onclick=()=>mAc.classList.remove('show');
+mAc.onclick=(e)=>{ if(e.target===mAc) mAc.classList.remove('show'); };
+document.getElementById('acGuardar').onclick=()=>{
+  const nom=document.getElementById('acNom').value.trim(); if(!nom){ toast('Poné un nombre'); return; }
+  const horaIdx=+document.getElementById('acHora').value;
+  const profe=document.getElementById('acProfe').value;
+  const horas=+document.getElementById('acHoras').value;
+  refDia.push({ nombre:nom, horaIdx, profe, mod:'', confirmado:false, asis:'presente', horas, acople:true });
+  mAc.classList.remove('show'); toast('✅ Agregado presente');
+};
+
+// ---- Día de prueba (scaffolding etapa 1) ----
+document.getElementById('btnSeed').onclick=()=>{
+  if(!confirm('Cargar un día de PRUEBA en esta sede (reemplaza lo que haya hoy). Solo para probar.')) return;
+  const demo={
+    a1:{nombre:'Juan Pérez', horaIdx:2, profe:'JM', mod:'G', confirmado:true,  asis:'presente'},
+    a2:{nombre:'María López', horaIdx:2, profe:'JM', mod:'G', confirmado:false, asis:'sin'},
+    a3:{nombre:'Pedro Gómez', horaIdx:2, profe:'VA', mod:'IND',confirmado:true,  asis:'presente'},
+    a4:{nombre:'Ana Díaz', horaIdx:3, profe:'VA', mod:'G', confirmado:false, asis:'sin'},
+    a5:{nombre:'Luis Fernández', horaIdx:3, profe:'MP', mod:'D', confirmado:true, asis:'presente'},
+    a6:{nombre:'Carla Ruiz', horaIdx:8, profe:'JM', mod:'G', confirmado:false, asis:'sin'}
+  };
+  refDia.set(demo); toast('🧪 Día de prueba cargado');
+};
+
+// ---- Arranque: si ya hay sede guardada, entra directo ----
+(function(){ let s=null; try{s=localStorage.getItem('profe_sede');}catch(e){} if(s){ sede=s; iniciarApp(); } })();
+</script>
+</body>
+</html>
