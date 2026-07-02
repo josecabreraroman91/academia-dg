@@ -653,8 +653,15 @@ function armarDiaHoy(){
   return porSede;
 }
 
+function publicarProfes(){
+  if(!_fbdb) return;
+  const map={};
+  (state.profesores||[]).forEach(p=>{ if(p&&p.dim) map[p.dim]=p.nombre||''; });
+  _fbdb.ref('dia/_profes').set(map).catch(()=>{});  // dentro de dia/ para no tocar las reglas
+}
 function publicarDiaHoy(silencioso){
   if(!_fbdb){ if(!silencioso) alert('Firebase no está disponible en este momento.'); return; }
+  publicarProfes();  // nombres de profes al día en las tablets
   const porSede=armarDiaHoy();
   if(!porSede){ if(!silencioso) alert('Hoy es domingo (o no hay día configurado): no hay nada para publicar.'); return; }
   const fecha=isoDe(new Date());

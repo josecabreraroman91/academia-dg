@@ -161,17 +161,21 @@ function profesDelCalendario(){
     if(st&&Array.isArray(st.profesores)) return st.profesores; }catch(e){}
   return [];
 }
-function sincronizarPerfiles(){
+function aplicarProfesCalendario(silencioso){
   const lista=profesDelCalendario();
-  if(!lista.length){ toast('No encontré profes del calendario en este dispositivo'); renderPerfiles(); return; }
-  let nuevos=0;
+  if(!lista.length){ if(!silencioso) toast('No encontré profes del calendario en este dispositivo'); renderPerfiles(); return; }
+  let nuevos=0, cambiados=0;
   lista.forEach(p=>{
     if(!perfiles[p.dim]){ perfiles[p.dim]={nombre:p.nombre,...tarifas,desde:'',hasta:''}; nuevos++; }
-    else perfiles[p.dim].nombre=p.nombre; // nombre siempre al día
+    else if(perfiles[p.dim].nombre!==p.nombre){ perfiles[p.dim].nombre=p.nombre; cambiados++; } // nombre siempre al día
   });
   guardarPerfiles(); renderPerfiles(); render();
-  toast(nuevos? ('🔄 '+nuevos+' perfil(es) nuevo(s) creado(s)') : '🔄 Perfiles al día');
+  if(!silencioso) toast(nuevos? ('🔄 '+nuevos+' perfil(es) nuevo(s)') : (cambiados? ('🔄 '+cambiados+' nombre(s) actualizado(s)') : '🔄 Perfiles al día'));
+  else if(nuevos||cambiados) toast('🔄 Profes actualizados');
 }
+function sincronizarPerfiles(){ aplicarProfesCalendario(false); }
+// Se actualiza solo cuando cambian los profes en el calendario (mismo navegador)
+window.addEventListener('storage', e=>{ if(e.key==='cal_dg_unif') aplicarProfesCalendario(true); });
 function renderPerfiles(){
   const cont=$('perfiles'); const dims=Object.keys(perfiles).sort();
   if(!dims.length){ cont.innerHTML='<div class="hint" style="margin-top:10px">Sin perfiles todavía. Tocá <b>Sincronizar</b> para traer tus profes del calendario.</div>'; return; }
@@ -212,6 +216,7 @@ function renderPerfiles(){
 }
 $('btnSync').onclick=sincronizarPerfiles;
 renderPerfiles();
+aplicarProfesCalendario(true);   // al abrir, toma los nombres actuales del calendario
 
 // ---- Decisiones y descuentos (persisten) ----
 let casos=JSON.parse(localStorage.getItem('pagos_dg_casos')||'{}');       // clave fila -> true/false (¿se paga?)
