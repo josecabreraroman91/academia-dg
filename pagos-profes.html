@@ -65,6 +65,20 @@
   .perf .del-perf{background:#fbe9e8;border:1px solid #e8b5b1;color:var(--bad);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer;width:100%;margin-top:8px}
   .perf.huerfano .perf-h{background:#fdf3e6}
   .tagh{font-size:10px;background:var(--warn);color:#fff;border-radius:6px;padding:2px 6px;font-weight:800}
+  .cbtn{background:var(--brand);color:#fff;border:0;border-radius:9px;padding:9px 12px;font-size:13px;font-weight:800;cursor:pointer;width:100%;margin-top:10px}
+  .ov{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
+  .ov.show{display:flex}
+  .recibo{background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+  .recibo .rtit{font-size:13px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+  .recibo .rprofe{font-size:22px;font-weight:900;margin:2px 0 2px}
+  .recibo .rrango{font-size:14px;color:var(--brand-d);font-weight:700;margin-bottom:16px}
+  .recibo .rline{display:flex;justify-content:space-between;padding:7px 0;font-size:14px;border-bottom:1px solid var(--line)}
+  .recibo .rtotal{display:flex;justify-content:space-between;align-items:baseline;margin-top:14px;padding-top:12px;border-top:3px solid var(--brand)}
+  .recibo .rtotal .lb{font-size:14px;font-weight:800;color:var(--muted)}
+  .recibo .rtotal .vl{font-size:30px;font-weight:900;color:var(--brand-d)}
+  .recibo .rfoot{font-size:11px;color:var(--muted);text-align:center;margin-top:16px}
+  .recibo .rclose{margin-top:16px;display:flex;gap:8px}
+  .recibo .rclose button{flex:1;padding:11px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);font-weight:800;font-size:13px;cursor:pointer}
   .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#000d;color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
   .toast.show{opacity:1}
 </style>
@@ -106,6 +120,7 @@
 
   <button class="btn sec" id="btnCopiar" style="display:none">📋 Copiar resumen de pagos</button>
 </div>
+<div class="ov" id="ovRecibo"><div class="recibo" id="reciboBox"></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -276,6 +291,7 @@ function render(){
         <div class="tot-line"><span>Clases</span><span>${gs(subAuto+subCasos)}</span></div>
         <div class="tot-line"><span>Descuentos</span><span>− ${gs(totDesc)}</span></div>
         <div class="tot-line total"><span>TOTAL A PAGAR</span><span>${gs(total)}</span></div>
+        <button class="cbtn" data-recibo="${p}">📄 Ver comprobante para el profe</button>
       </div>
     </div>`;
   });
@@ -284,8 +300,43 @@ function render(){
   cont.querySelectorAll('[data-toggle]').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
   cont.querySelectorAll('[data-caso]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); const k=b.dataset.caso; casos[k]=!casos[k]; localStorage.setItem('pagos_dg_casos',JSON.stringify(casos)); renderKeepOpen(); });
   cont.querySelectorAll('input[data-d]').forEach(inp=>{ inp.onchange=()=>{ const p=inp.dataset.p; const d=descDe(p); d[inp.dataset.d]= inp.dataset.d==='nota'? inp.value : (+inp.value||0); setDesc(p,d); renderKeepOpen(); }; });
+  cont.querySelectorAll('[data-recibo]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); abrirComprobante(b.dataset.recibo); });
 }
 function renderKeepOpen(){ const abiertos=[...document.querySelectorAll('.pcard.open')].map(c=>c.dataset.p); render(); abiertos.forEach(p=>{ const c=document.querySelector('.pcard[data-p="'+p+'"]'); if(c)c.classList.add('open'); }); }
+
+// ---- Cálculo del total de un profe (para tarjeta y comprobante) ----
+function calcularProfe(p){
+  const pf=perfilDe(p); const rg=rangoDe(pf);
+  const fs=(filas.filter(f=>f.profe===p && f.fecha>=rg.ini && f.fecha<=rg.fin));
+  const cnt={IND:0,D:0,G:0,AR:0}; let clases=0, sub=0;
+  fs.filter(esPagableAuto).forEach(f=>{ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; clases++; sub+=tarifaDe(pf,t); });
+  fs.filter(esCaso).forEach(f=>{ if(casos[claveFila(f)]){ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; clases++; sub+=tarifaDe(pf,t); } });
+  const d=descDe(p); const totDesc=(+d.multas||0)*(pf.MULTA||0)+(+d.productos||0)+(+d.otros||0);
+  return {pf,rg,cnt,clases,sub,totDesc,total:sub-totDesc,nota:d.nota||''};
+}
+// ---- Comprobante (vista aparte para captura) ----
+function abrirComprobante(p){
+  const c=calcularProfe(p);
+  const box=$('reciboBox');
+  const f=s=>{const[y,m,d]=s.split('-');return d+'/'+m+'/'+y;};
+  box.innerHTML=`
+    <div class="rtit">Pago a profesor</div>
+    <div class="rprofe">${nombreDe(p)||p}</div>
+    <div class="rrango">📅 ${f(c.rg.ini)} → ${f(c.rg.fin)}</div>
+    <div class="rline"><span>Clases pagadas</span><span>${c.clases}</span></div>
+    <div class="rline"><span>Subtotal clases</span><span>${gs(c.sub)}</span></div>
+    ${c.totDesc?`<div class="rline"><span>Descuentos${c.nota?' ('+c.nota+')':''}</span><span>− ${gs(c.totDesc)}</span></div>`:''}
+    <div class="rtotal"><span class="lb">TOTAL A PAGAR</span><span class="vl">${gs(c.total)}</span></div>
+    <div class="rfoot">Academia DG · generado el ${f(isoDe(new Date()))}</div>
+    <div class="rclose">
+      <button id="rCopiar">📋 Copiar texto</button>
+      <button id="rCerrar">Cerrar</button>
+    </div>`;
+  $('ovRecibo').classList.add('show');
+  $('rCerrar').onclick=()=>$('ovRecibo').classList.remove('show');
+  $('rCopiar').onclick=()=>{ const txt='Pago a '+(nombreDe(p)||p)+'\n'+f(c.rg.ini)+' → '+f(c.rg.fin)+'\nClases: '+c.clases+'\nSubtotal: '+gs(c.sub)+(c.totDesc?('\nDescuentos: -'+gs(c.totDesc)):'')+'\nTOTAL: '+gs(c.total); navigator.clipboard.writeText(txt).then(()=>toast('📋 Copiado'),()=>toast('No pude copiar')); };
+}
+$('ovRecibo').onclick=(e)=>{ if(e.target===$('ovRecibo')) $('ovRecibo').classList.remove('show'); };
 
 // ---- Copiar resumen ----
 $('btnCopiar').onclick=()=>{
