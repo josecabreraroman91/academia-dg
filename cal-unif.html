@@ -880,11 +880,12 @@ function actualizarHintTel(){
 // Si el nombre coincide exacto con un alumno de la nube, trae sus datos (categoría, lado, tipo)
 function autocompletarDesdeNube(){
   const nombre=document.getElementById('fNombre').value.trim();
-  const c=state.contactos[normName(nombre)];
+  const k=normName(nombre);
+  const c=state.contactos[k] || contactosLocal[k];   // sincronizado o local (app Alumnos, mismo navegador)
   if(!c) return; // alumno nuevo: no toca nada
-  if(c.nivel!==undefined) document.getElementById('fNivel').value=c.nivel||'';
-  if(c.lado!==undefined)  document.getElementById('fLado').value=c.lado||'';
-  if(c.mod!==undefined)   document.getElementById('fMod').value=c.mod||'';
+  if(c.nivel) document.getElementById('fNivel').value=c.nivel;
+  if(c.lado)  document.getElementById('fLado').value=c.lado;
+  if(c.mod)   document.getElementById('fMod').value=c.mod;
 }
 function closeEditor(){ document.getElementById('overlay').classList.remove('show'); editingCell=null; }
 function saveEditor(){
@@ -1229,7 +1230,7 @@ let contactosLocal={};
 function rebuildLocalContacts(){
   contactosLocal={};
   try{ const arr=JSON.parse(localStorage.getItem('alumnos_dg')||'[]');
-    if(Array.isArray(arr)) arr.forEach(a=>{ if(a&&a.nombre) contactosLocal[normName(a.nombre)]={nombre:a.nombre, tel:a.tel||normPhone(a.telRaw||'')||'', nombreWpp:a.nomWpp||''}; });
+    if(Array.isArray(arr)) arr.forEach(a=>{ if(a&&a.nombre) contactosLocal[normName(a.nombre)]={nombre:a.nombre, tel:a.tel||normPhone(a.telRaw||'')||'', nombreWpp:a.nomWpp||'', nivel:a.cat||'', lado:a.lado||'', mod:a.tipo||''}; });
   }catch(e){}
 }
 // Llena el datalist del buscador con TODOS los nombres disponibles localmente (sin sincronizar):
