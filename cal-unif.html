@@ -1224,22 +1224,31 @@ function construirContactos(iNom,iTel){
   fillAlumnosDatalist();
 }
 
+// Contactos LOCALES: leídos de la app Alumnos (mismo navegador) SIN sincronizar
+let contactosLocal={};
+function rebuildLocalContacts(){
+  contactosLocal={};
+  try{ const arr=JSON.parse(localStorage.getItem('alumnos_dg')||'[]');
+    if(Array.isArray(arr)) arr.forEach(a=>{ if(a&&a.nombre) contactosLocal[normName(a.nombre)]={nombre:a.nombre, tel:a.tel||normPhone(a.telRaw||'')||'', nombreWpp:a.nomWpp||''}; });
+  }catch(e){}
+}
 // Llena el datalist del buscador con TODOS los nombres disponibles localmente (sin sincronizar):
 // contactos sincronizados + alumnos ya cargados en el calendario + la app Alumnos (mismo navegador)
 function fillAlumnosDatalist(){
+  rebuildLocalContacts();
   const dl=document.getElementById('alumnosList');
   if(!dl) return;
   const set=new Set();
   Object.values(state.contactos||{}).forEach(c=>{ if(c&&c.nombre) set.add(c.nombre); });
   [state.madre,state.semana,state.semanaProxima].forEach(b=>{ if(b&&b.alumnos) Object.values(b.alumnos).forEach(al=>{ if(al&&al.nombre&&al.mod!=='BLOQUE') set.add(al.nombre); }); });
-  try{ const arr=JSON.parse(localStorage.getItem('alumnos_dg')||'[]'); if(Array.isArray(arr)) arr.forEach(a=>{ if(a&&a.nombre) set.add(a.nombre); }); }catch(e){}
+  Object.values(contactosLocal).forEach(c=>set.add(c.nombre));
   const nombres=[...set].sort((a,b)=>a.localeCompare(b));
   dl.innerHTML=nombres.map(n=>`<option value="${n.replace(/"/g,'&quot;')}"></option>`).join('');
 }
 
 function telDeAlumno(nombre){
-  const c=state.contactos[normName(nombre)];
-  return c?c:null;
+  const k=normName(nombre);
+  return state.contactos[k] || contactosLocal[k] || null;   // primero lo sincronizado, si no lo local
 }
 
 function csvCell(v){
@@ -1329,6 +1338,7 @@ function phoneOk(tel){ return tel && tel.length>=8 && tel.length<=15; }
 
 // Construye la lista de envío desde la SEMANA del día actual
 function buildEnvioList(){
+  rebuildLocalContacts();
   const B=book(), sedes=state.sedesPorDia[state.dia], out=[];
   HORAS.forEach((hora,hi)=>{
     const hhmm=hora.replace(':','');
