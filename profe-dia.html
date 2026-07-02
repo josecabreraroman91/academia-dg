@@ -78,6 +78,8 @@
   .tag{background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-weight:700;font-size:11px}
   .conf{font-size:14px}
   .al.acople{border-style:dashed}
+  .al.bloqueal{cursor:default;border-left-color:var(--brand);background:#eef6f8}
+  .al.bloqueal .nom{color:#155e73}
   .al .del{flex:0 0 auto;color:var(--muted);font-size:18px;padding:4px 6px;border-radius:8px;background:#ffffff08}
 
   .empty{color:var(--muted);text-align:center;padding:40px 20px;font-size:14px}
@@ -262,19 +264,26 @@ function render(){
   let html='';
   horas.forEach(h=>{
     const lista=porHora[h];
-    const bloques=lista.filter(esBloque);
-    const alumnos=lista.filter(a=>!esBloque(a));
     html+=`<div class="hora-block"><div class="hora-h">${HORAS[h]||('h'+h)} <span class="ln"></span></div>`;
-    // bloques (ALTO RENDIMIENTO / ALMUERZO) — informativos, no se marcan
-    bloques.forEach(b=>{ html+=`<div class="bloque"><span class="bem">${bloqueEmoji(b)}</span> ${escapeHtml(b.nombre)} <span class="tag" style="margin-left:auto">${escapeHtml(b.profe||'—')}</span></div>`; });
-    // agrupar alumnos por profe
+    // agrupar TODO por profe (alumnos y bloques juntos)
     const porProfe={};
-    alumnos.forEach(a=>{ const p=a.profe||'—'; (porProfe[p]=porProfe[p]||[]).push(a); });
+    lista.forEach(a=>{ const p=a.profe||'—'; (porProfe[p]=porProfe[p]||[]).push(a); });
     Object.keys(porProfe).sort().forEach(p=>{
       const col=profeColor(p);
       html+=`<div class="profe-h"><span class="profe-badge" style="background:${col}">${escapeHtml(p)}</span><span class="profe-nom">${escapeHtml(profeNombre(p))}</span><span class="profe-cnt">${porProfe[p].length}</span></div>`;
       html+='<div class="cards">';
       porProfe[p].sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).forEach(a=>{
+        if(esBloque(a)){
+          // ALTO RENDIMIENTO / ALMUERZO: misma tarjeta, pero fija (no se marca)
+          html+=`<div class="al bloqueal">
+            <div class="estado">${bloqueEmoji(a)}</div>
+            <div class="info">
+              <div class="nom">${escapeHtml(a.nombre)}</div>
+              <div class="meta"><span class="tag">fijo</span></div>
+            </div>
+          </div>`;
+          return;
+        }
         const est=a.asis||'sin';
         const conf=a.confirmado?'✅':'👀';
         html+=`<div class="al ${est}${a.acople?' acople':''}" data-id="${a.id}">
@@ -291,7 +300,7 @@ function render(){
     html+='</div>';
   });
   wrap.innerHTML=html;
-  wrap.querySelectorAll('.al').forEach(el=>{
+  wrap.querySelectorAll('.al[data-id]').forEach(el=>{
     el.onclick=(ev)=>{
       if(ev.target.dataset.del!==undefined) return;
       const id=el.dataset.id; const cur=(cacheDia[id]&&cacheDia[id].asis)||'sin';
