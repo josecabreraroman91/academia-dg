@@ -101,6 +101,22 @@
   .fld input,.fld select{width:100%;padding:13px;border-radius:10px;border:1px solid var(--line);background:#f7fafb;color:var(--txt);font-size:15px}
   .sheet .acts{display:flex;gap:10px;margin-top:6px}
 
+  /* menú de estado: centrado y con botones grandes */
+  #ovEstado{align-items:center}
+  .estado-sheet{max-width:360px;border-radius:18px;text-align:center}
+  .me-top{margin-bottom:4px}
+  .me-nom{font-size:20px;font-weight:900;color:var(--txt)}
+  .me-hora{font-size:13px;color:var(--muted);font-weight:700;margin-top:2px}
+  .me-q{font-size:13px;color:var(--muted);margin:12px 0 14px}
+  .me-opt{width:100%;padding:18px;border-radius:13px;border:2px solid var(--line);background:#f7fafb;font-size:19px;font-weight:900;cursor:pointer;margin-bottom:11px;color:var(--txt);display:flex;align-items:center;justify-content:center;gap:8px}
+  .me-opt.pres{border-color:#8fd0a8}
+  .me-opt.aus{border-color:#e8a49d}
+  .me-opt.sinm{border-color:#cfd8de}
+  .me-opt.actual{box-shadow:0 0 0 3px rgba(17,129,164,.25);position:relative}
+  .me-opt.actual::after{content:'actual';position:absolute;right:14px;font-size:10px;font-weight:800;color:var(--brand);background:#e2f1f7;padding:2px 7px;border-radius:8px}
+  .me-opt:active{transform:scale(.99)}
+  .me-cancel{width:100%;background:var(--panel2,#eef2f4);color:var(--muted);border:1px solid var(--line);font-weight:800;padding:13px;margin-top:2px}
+
   .toast{position:fixed;left:50%;bottom:96px;transform:translateX(-50%);background:#000d;color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
   .toast.show{opacity:1}
 </style>
@@ -112,6 +128,7 @@
   <img id="logoLand" class="logo-land" alt="Academia Diego González">
   <h1>Asistencia · Academia DG</h1>
   <p>Elegí la sede de este dispositivo. Queda guardada; podés cambiarla cuando quieras.</p>
+  <div style="font-size:11px;color:var(--muted);margin:-6px 0 14px;font-weight:700">Versión 2 · con confirmación de estado ✔️</div>
   <div class="sedes">
     <button class="sede-btn lomas"    data-sede="lomas"><span class="em"></span> LOMAS</button>
     <button class="sede-btn elite"    data-sede="elite"><span class="em"></span> ELITE</button>
@@ -158,6 +175,18 @@
       <button class="btn" id="acCancel">Cancelar</button>
       <button class="btn court" id="acGuardar">Agregar presente</button>
     </div>
+  </div>
+</div>
+
+<!-- MENÚ DE ESTADO (evita toques accidentales) -->
+<div class="modal" id="ovEstado">
+  <div class="sheet estado-sheet">
+    <div class="me-top"><div class="me-nom" id="meNom">Alumno</div><div class="me-hora" id="meHora"></div></div>
+    <div class="me-q">¿A qué estado querés cambiar?</div>
+    <button class="me-opt pres" data-est="presente">🟢 Presente</button>
+    <button class="me-opt aus"  data-est="ausente">🔴 Ausente</button>
+    <button class="me-opt sinm" data-est="sin">⚪ Sin marcar</button>
+    <button class="btn me-cancel" id="meCancel">Cancelar</button>
   </div>
 </div>
 
@@ -305,8 +334,7 @@ function render(){
   wrap.querySelectorAll('.al[data-id]').forEach(el=>{
     el.onclick=(ev)=>{
       if(ev.target.dataset.del!==undefined) return;
-      const id=el.dataset.id; const cur=(cacheDia[id]&&cacheDia[id].asis)||'sin';
-      refDia.child(id+'/asis').set(EST_NEXT[cur]);
+      abrirMenuEstado(el.dataset.id);
     };
   });
   wrap.querySelectorAll('[data-del]').forEach(x=>{
@@ -314,12 +342,29 @@ function render(){
       if(confirm('¿Quitar este acople?')) refDia.child(id).remove(); };
   });
 }
+
+// ---- Menú de estado (cartel centrado, para evitar toques accidentales) ----
+function abrirMenuEstado(id){
+  const rec=cacheDia[id]||{};
+  const cur=rec.asis||'sin';
+  const ov=document.getElementById('ovEstado');
+  document.getElementById('meNom').textContent=rec.nombre||'Alumno';
+  document.getElementById('meHora').textContent=(HORAS[rec.horaIdx]||'')+(rec.profe?(' · '+rec.profe):'');
+  ov.querySelectorAll('.me-opt').forEach(b=>{
+    b.classList.toggle('actual', b.dataset.est===cur);
+    b.onclick=()=>{ refDia.child(id+'/asis').set(b.dataset.est); cerrarMenuEstado(); };
+  });
+  ov.classList.add('show');
+}
+function cerrarMenuEstado(){ document.getElementById('ovEstado').classList.remove('show'); }
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 // ---- Acople ----
 const mAc=document.getElementById('mAcople');
 document.getElementById('btnAcople').onclick=()=>{ document.getElementById('acNom').value=''; mAc.classList.add('show'); };
 document.getElementById('acCancel').onclick=()=>mAc.classList.remove('show');
+document.getElementById('meCancel').onclick=cerrarMenuEstado;
+document.getElementById('ovEstado').onclick=(e)=>{ if(e.target.id==='ovEstado') cerrarMenuEstado(); };
 mAc.onclick=(e)=>{ if(e.target===mAc) mAc.classList.remove('show'); };
 document.getElementById('acGuardar').onclick=()=>{
   const nom=document.getElementById('acNom').value.trim(); if(!nom){ toast('Poné un nombre'); return; }
