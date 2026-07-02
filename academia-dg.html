@@ -72,6 +72,7 @@
     <button class="navtab home" data-go="menu">☰</button>
     <button class="navtab" data-go="cal">🎾 Calendario</button>
     <button class="navtab" data-go="alu">👥 Alumnos</button>
+    <button class="navtab" data-go="pag">💵 Pagos Profes</button>
   </div>
 </div>
 
@@ -92,6 +93,11 @@
       <div class="info"><div class="t">Alumnos</div><div class="d">Crear, editar y administrar la base de alumnos</div></div>
       <div class="arrow">›</div>
     </div>
+    <div class="mcard" data-go="pag">
+      <div class="ico">💵</div>
+      <div class="info"><div class="t">Pagos a Profesores</div><div class="d">Liquidación semanal: clases, casos a revisar y descuentos</div></div>
+      <div class="arrow">›</div>
+    </div>
   </div>
   <div class="mfoot">Sistema de gestión · Academia DG 🎾</div>
 </div>
@@ -100,6 +106,7 @@
 <div id="stage">
   <iframe id="frCal" data-src="cal-unif.html" title="Calendario" referrerpolicy="no-referrer"></iframe>
   <iframe id="frAlu" data-src="alumnos-unif.html" title="Alumnos" referrerpolicy="no-referrer"></iframe>
+  <iframe id="frPag" data-src="pagos-profes.html" title="Pagos a Profesores" referrerpolicy="no-referrer"></iframe>
 </div>
 
 <script>
@@ -107,13 +114,14 @@
   const menu=document.getElementById('menu');
   const frCal=document.getElementById('frCal');
   const frAlu=document.getElementById('frAlu');
-  const loaded={cal:false, alu:false};
+  const frPag=document.getElementById('frPag');
+  const loaded={cal:false, alu:false, pag:false};
 
   function go(dest){
     if(dest==='menu'){
       menu.classList.remove('hide');
       topbar.classList.remove('show');
-      frCal.classList.remove('show'); frAlu.classList.remove('show');
+      frCal.classList.remove('show'); frAlu.classList.remove('show'); frPag.classList.remove('show');
       document.querySelectorAll('.navtab').forEach(t=>t.classList.remove('active'));
       return;
     }
@@ -123,8 +131,10 @@
     // cargar el iframe la primera vez (lazy)
     if(dest==='cal' && !loaded.cal){ frCal.src=frCal.dataset.src; loaded.cal=true; }
     if(dest==='alu' && !loaded.alu){ frAlu.src=frAlu.dataset.src; loaded.alu=true; }
+    if(dest==='pag' && !loaded.pag){ frPag.src=frPag.dataset.src; loaded.pag=true; }
     frCal.classList.toggle('show', dest==='cal');
     frAlu.classList.toggle('show', dest==='alu');
+    frPag.classList.toggle('show', dest==='pag');
     document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('active', t.dataset.go===dest));
   }
 
