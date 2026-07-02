@@ -1618,6 +1618,21 @@ async function asegurarHistorial(){
   const existe=(meta.sheets||[]).some(s=>s.properties && s.properties.title===HIST_TAB);
   if(!existe){ await sheetsAddTab(HIST_TAB); await sheetsAppend(HIST_TAB+'!A1',[HIST_HEADER]); }
 }
+// Limpia de Firebase los días anteriores (mantiene hoy + 2 previos). El historial ya quedó en la planilla.
+async function limpiarDiasViejos(){
+  if(!_fbdb) return;
+  try{
+    const res=await fetch('https://academia-dg-default-rtdb.firebaseio.com/dia.json?shallow=true');
+    if(!res.ok) return;
+    const obj=await res.json(); if(!obj) return;
+    const fechas=Object.keys(obj).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k));
+    const corte=new Date(); corte.setHours(0,0,0,0); corte.setDate(corte.getDate()-2); // mantener hoy y 2 anteriores
+    const corteISO=isoDe(corte);
+    const viejos=fechas.filter(f=>f<corteISO);
+    for(const f of viejos){ await _fbdb.ref('dia/'+f).remove(); }
+    if(viejos.length) console.log('🧹 Firebase: '+viejos.length+' día(s) viejo(s) borrado(s): '+viejos.join(', '));
+  }catch(e){ console.warn('No pude limpiar días viejos de Firebase:', e.message); }
+}
 async function cerrarYGuardarDia(){
   if(!_fbdb){ alert('Firebase no está disponible en este momento.'); return; }
   const fecha=isoDe(new Date());
@@ -1662,6 +1677,7 @@ async function cerrarYGuardarDia(){
     // 5) guardar: actualizar lo que cambió y agregar solo lo nuevo
     if(updates.length) await sheetsBatchUpdate(updates);
     if(nuevas.length)  await sheetsAppend(HIST_TAB+'!A1', nuevas);
+    limpiarDiasViejos();   // limpia Firebase (mantiene últimos 3 días) — el historial ya quedó guardado
     if(!nuevas.length && !updates.length){ alert('✅ Día '+fecha+' ya estaba guardado y sin cambios.\n\nNo se duplicó nada.'); return; }
     alert('✅ Día '+fecha+' guardado.\n\n➕ Nuevas: '+nuevas.length+'\n♻️ Actualizadas: '+updates.length+'\n✓ Sin cambios: '+iguales);
   }catch(e){ alert('No pude guardar el día:\n\n'+e.message+'\n\nSi pide permisos de Google, aceptá y volvé a intentar.'); }
