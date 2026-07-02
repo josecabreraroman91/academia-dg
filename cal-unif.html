@@ -127,6 +127,15 @@
   .field-row .field{flex:1}
   .sheet-actions{position:sticky;bottom:0;display:flex;gap:10px;margin:14px -16px -16px;padding:15px 16px;padding-bottom:max(15px,env(safe-area-inset-bottom));background:var(--panel);border-top:2px solid var(--accent);box-shadow:0 -8px 18px rgba(0,0,0,.3)}
   .sheet-actions .btn{flex:1;padding:16px;font-size:16px;font-weight:800}
+  /* clasificar ausentes */
+  .aus-row{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px}
+  .aus-info b{font-size:14px}
+  .aus-sub{font-size:11px;color:var(--muted);margin-top:1px}
+  .aus-ms{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+  .aus-m{text-align:left;padding:10px 11px;border-radius:8px;border:1.5px solid var(--line);background:var(--cell);color:var(--txt);font-size:13px;font-weight:700;cursor:pointer}
+  .aus-m.on.noaviso{background:#fdecea;border-color:#e0483d;color:#a5271c}
+  .aus-m.on.aviso{background:#fff6df;border-color:#e0a800;color:#7a5c00}
+  .aus-m.on.fuerza{background:#e8f7ef;border-color:#1EA67A;color:#0f6b4a}
   .btn.danger{background:#3a1f1f;border-color:#5a2a2a;color:#ff8a8a}
 
   .resumen{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:0;white-space:pre-wrap;font-size:13px;line-height:1.5;flex:1;min-height:0;overflow:auto}
@@ -411,6 +420,19 @@
   </div>
 </div>
 
+<!-- MODAL: clasificar ausentes al cerrar el día -->
+<div class="overlay" id="ovAusentes">
+  <div class="sheet">
+    <h3>⚠️ Clasificar ausentes · <span id="ausFecha"></span></h3>
+    <p style="font-size:11.5px;color:var(--muted);margin-bottom:12px">Elegí el motivo de cada ausencia. Define si se le cobra al alumno. Después guarda el día.</p>
+    <div id="ausLista"></div>
+    <div class="sheet-actions">
+      <button class="btn" id="ausCancel">Cancelar</button>
+      <button class="btn primary" id="ausGuardar">💾 Guardar día</button>
+    </div>
+  </div>
+</div>
+
 <!-- Pantalla de ENVÍOS (integrada) -->
 <div class="envios-screen" id="enviosScreen">
   <div class="ev-head">
@@ -675,7 +697,7 @@ function publicarDiaHoy(silencioso){
       // 2) clases del calendario: preservar asistencia ya marcada; si es nueva, default por confirmación
       Object.entries(porSede[sk]).forEach(([k,rec])=>{
         const asisPrev = prev[k] && prev[k].asis;
-        nuevo[k]={ ...rec, asis: asisPrev || (rec.confirmado?'presente':'sin') };
+        nuevo[k]={ ...rec, asis: asisPrev || 'presente' };   // por defecto PRESENTE (el profe solo marca ausentes)
       });
       return ref.set(nuevo);
     }).then(()=>{ if(--pend===0 && !silencioso) alert('📲 Día de hoy publicado a las tablets ('+claves.length+' sede(s)).'); })
@@ -1595,6 +1617,8 @@ document.getElementById('btnReset').onclick=resetSemana;
 document.getElementById('btnAvanzar').onclick=avanzarSemana;
 document.getElementById('btnPublicar').onclick=()=>publicarDiaHoy(false);
 document.getElementById('btnCerrarDia').onclick=cerrarYGuardarDia;
+document.getElementById('ausGuardar').onclick=guardarHistorialFinal;
+document.getElementById('ausCancel').onclick=()=>{ cerrarClasificarAusentes(); _cierrePend=null; };
 document.getElementById('overlay').onclick=(e)=>{ if(e.target.id==='overlay') closeEditor(); };
 
 // ===== Guardar HORARIOS del calendario en la planilla (sección SEMANA) =====
@@ -1608,7 +1632,12 @@ async function sheetsBatchUpdate(data){ const id=state.sheetId||DEFAULT_SHEET_ID
 // ===== ETAPA 3: cerrar el día y guardar el HISTORIAL (una fila por alumno) =====
 const SEDE_NICE={lomas:'LOMAS',elite:'ELITE',segurola:'SEGUROLA',adefinir:'A DEFINIR'};
 const HIST_TAB='HISTORIAL';
-const HIST_HEADER=['Fecha','Alumno','Hora','Sede','Profe','Tipo','Estado','Cobro'];
+const HIST_HEADER=['Fecha','Alumno','Hora','Sede','Profe','Tipo','Estado','Cobro','Motivo'];
+const MOTIVOS={
+  noaviso:{label:'No avisó',      estado:'Ausente (no avisó)',     cobro:'Sí'},
+  aviso:  {label:'Avisó',         estado:'Ausente (avisó)',        cobro:'No'},
+  fuerza: {label:'Fuerza mayor',  estado:'Ausente (fuerza mayor)', cobro:'No'}
+};
 // Resuelve el estado final y si se cobra, según la regla acordada
 function resolverEstado(rec){
   const asis=rec.asis||'sin';
@@ -1640,35 +1669,68 @@ async function limpiarDiasViejos(){
     if(viejos.length) console.log('🧹 Firebase: '+viejos.length+' día(s) viejo(s) borrado(s): '+viejos.join(', '));
   }catch(e){ console.warn('No pude limpiar días viejos de Firebase:', e.message); }
 }
+let _cierrePend=null;
 async function cerrarYGuardarDia(){
   if(!_fbdb){ alert('Firebase no está disponible en este momento.'); return; }
   const fecha=isoDe(new Date());
-  if(!confirm('💾 Cerrar y guardar el día '+fecha+' en el HISTORIAL.\n\nSe guarda una fila por alumno con su estado (presente / ausente / reagendable). ¿Continuar?')) return;
   try{
-    // 1) leer todas las sedes del día desde Firebase
+    // 1) leer todas las sedes del día desde Firebase; separar presentes (auto) y ausentes (a clasificar)
     const sedes=['lomas','elite','segurola','adefinir'];
-    const filas=[];
+    const filasAuto=[]; const ausentes=[];
     for(const sk of sedes){
       const snap=await _fbdb.ref('dia/'+fecha+'/'+sk).once('value');
       const data=snap.val()||{};
       Object.values(data).forEach(rec=>{
         if(!rec||!rec.nombre) return;
         if(/ALMUERZO/i.test(rec.nombre)) return;                       // almuerzo no va
-        if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO/i.test(rec.nombre)){ // AR sí: se paga al profe
-          filas.push([fecha, 'ALTO RENDIMIENTO', HORAS[rec.horaIdx]||'', SEDE_NICE[sk]||sk, rec.profe||'', 'AR', 'Bloque', '—']);
+        if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO/i.test(rec.nombre)){ // AR: se paga al profe
+          filasAuto.push([fecha,'ALTO RENDIMIENTO',HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'','AR','Bloque','—','']);
           return;
         }
-        const {estado,cobro}=resolverEstado(rec);
-        filas.push([fecha, rec.nombre, HORAS[rec.horaIdx]||'', SEDE_NICE[sk]||sk, rec.profe||'', rec.mod||'', estado, cobro]);
+        if(rec.asis==='ausente'){
+          ausentes.push({rec, sede:SEDE_NICE[sk]||sk, motivo:'noaviso'}); // por defecto: no avisó (se cobra)
+        }else{
+          const estado=rec.acople?'Presente (acople)':'Presente';
+          filasAuto.push([fecha,rec.nombre,HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'',rec.mod||'',estado,'Sí','']);
+        }
       });
     }
-    if(!filas.length){ alert('No hay asistencia registrada hoy para guardar.'); return; }
-    // 2) login (una vez por sesión)
+    if(!filasAuto.length && !ausentes.length){ alert('No hay asistencia registrada hoy para guardar.'); return; }
+    _cierrePend={fecha, filasAuto, ausentes};
+    // 2) si hay ausentes, clasificarlos; si no, guardar directo
+    if(ausentes.length){ abrirClasificarAusentes(); }
+    else { if(confirm('💾 Cerrar y guardar el día '+fecha+'?\n\n'+filasAuto.length+' clases, sin ausentes.')) await guardarHistorialFinal(); else _cierrePend=null; }
+  }catch(e){ alert('No pude leer el día:\n\n'+e.message); }
+}
+function abrirClasificarAusentes(){
+  if(!_cierrePend) return;
+  document.getElementById('ausFecha').textContent=_cierrePend.fecha;
+  const cont=document.getElementById('ausLista');
+  cont.innerHTML=_cierrePend.ausentes.map((a,i)=>{
+    const rec=a.rec;
+    return `<div class="aus-row">
+      <div class="aus-info"><b>${esc(rec.nombre)}</b><div class="aus-sub">${HORAS[rec.horaIdx]||''} · ${esc(a.sede)} · ${esc(rec.profe||'')}${rec.mod?(' ('+esc(rec.mod)+')'):''}</div></div>
+      <div class="aus-ms">
+        <button class="aus-m noaviso${a.motivo==='noaviso'?' on':''}" data-i="${i}" data-m="noaviso">🔴 No avisó · se cobra</button>
+        <button class="aus-m aviso${a.motivo==='aviso'?' on':''}" data-i="${i}" data-m="aviso">🟡 Avisó · no se cobra</button>
+        <button class="aus-m fuerza${a.motivo==='fuerza'?' on':''}" data-i="${i}" data-m="fuerza">🟢 Fuerza mayor · no se cobra</button>
+      </div>
+    </div>`;
+  }).join('');
+  cont.querySelectorAll('.aus-m').forEach(b=>{ b.onclick=()=>{ _cierrePend.ausentes[+b.dataset.i].motivo=b.dataset.m; abrirClasificarAusentes(); }; });
+  document.getElementById('ovAusentes').classList.add('show');
+}
+function cerrarClasificarAusentes(){ document.getElementById('ovAusentes').classList.remove('show'); }
+async function guardarHistorialFinal(){
+  if(!_cierrePend) return;
+  const {fecha, filasAuto, ausentes}=_cierrePend;
+  const filas=filasAuto.slice();
+  ausentes.forEach(a=>{ const m=MOTIVOS[a.motivo]||MOTIVOS.noaviso; const rec=a.rec;
+    filas.push([fecha, rec.nombre, HORAS[rec.horaIdx]||'', a.sede, rec.profe||'', rec.mod||'', m.estado, m.cobro, m.label]); });
+  try{
     if(!_gtoken) await pedirToken();
-    // 3) asegurar la hoja HISTORIAL
     await asegurarHistorial();
-    // 4) leer lo que ya hay del HISTORIAL y comparar (huella: fecha|alumno|hora|sede)
-    let prev={values:[]}; try{ prev=await sheetsGet(HIST_TAB+'!A2:H'); }catch(e){}
+    let prev={values:[]}; try{ prev=await sheetsGet(HIST_TAB+'!A2:I'); }catch(e){}
     const existentes={};
     (prev.values||[]).forEach((r,i)=>{ const k=[r[0],(r[1]||'').trim(),r[2],r[3]].join('||'); existentes[k]={row:i+2, vals:r}; });
     const nuevas=[], updates=[]; let iguales=0;
@@ -1676,16 +1738,15 @@ async function cerrarYGuardarDia(){
       const k=[f[0],(f[1]||'').trim(),f[2],f[3]].join('||');
       const ex=existentes[k];
       if(!ex){ nuevas.push(f); return; }
-      // ¿cambió algo? comparar profe(4), tipo(5), estado(6), cobro(7)
-      const cambio=[4,5,6,7].some(i=>String(ex.vals[i]||'')!==String(f[i]||''));
-      if(cambio) updates.push({range:HIST_TAB+'!A'+ex.row+':H'+ex.row, values:[f]});
+      const cambio=[4,5,6,7,8].some(i=>String(ex.vals[i]||'')!==String(f[i]||''));  // profe,tipo,estado,cobro,motivo
+      if(cambio) updates.push({range:HIST_TAB+'!A'+ex.row+':I'+ex.row, values:[f]});
       else iguales++;
     });
-    // 5) guardar: actualizar lo que cambió y agregar solo lo nuevo
     if(updates.length) await sheetsBatchUpdate(updates);
     if(nuevas.length)  await sheetsAppend(HIST_TAB+'!A1', nuevas);
-    limpiarDiasViejos();   // limpia Firebase (mantiene últimos 3 días) — el historial ya quedó guardado
-    if(!nuevas.length && !updates.length){ alert('✅ Día '+fecha+' ya estaba guardado y sin cambios.\n\nNo se duplicó nada.'); return; }
+    limpiarDiasViejos();
+    cerrarClasificarAusentes(); _cierrePend=null;
+    if(!nuevas.length && !updates.length){ alert('✅ Día '+fecha+' ya estaba guardado y sin cambios.'); return; }
     alert('✅ Día '+fecha+' guardado.\n\n➕ Nuevas: '+nuevas.length+'\n♻️ Actualizadas: '+updates.length+'\n✓ Sin cambios: '+iguales);
   }catch(e){ alert('No pude guardar el día:\n\n'+e.message+'\n\nSi pide permisos de Google, aceptá y volvé a intentar.'); }
 }
