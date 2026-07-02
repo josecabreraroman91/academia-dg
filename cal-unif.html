@@ -334,6 +334,13 @@
       <label>💬 Comentario / detalle del alumno (opcional)</label>
       <textarea id="fNota" rows="2" placeholder="Ej: ZURDA · No va a Elite · recupera el jueves · debe..."></textarea>
     </div>
+    <div class="field">
+      <label>Bloques fijos (no son alumnos)</label>
+      <div style="display:flex;gap:8px">
+        <button class="btn" id="btnAltoRend" style="flex:1">🏋️ Alto rendimiento</button>
+        <button class="btn" id="btnAlmuerzo" style="flex:1">🍽️ Almuerzo</button>
+      </div>
+    </div>
     <div class="sheet-actions">
       <button class="btn danger" id="btnDelete">Borrar</button>
       <button class="btn" id="btnCancel">Cancelar</button>
@@ -893,6 +900,13 @@ function saveEditor(){
       nota:document.getElementById('fNota').value.trim()
     };
   }
+  saveState(); closeEditor(); renderGrid();
+}
+function guardarBloque(nombre){
+  if(!editingCell) return;
+  if(!confirmarSiMadre()) return;
+  const [sk,pi,hi,si]=editingCell.split('|');
+  book().alumnos[cellKey(sk,+pi,+hi,+si)]={ nombre, nivel:'', lado:'', mod:'BLOQUE', nota:'' };
   saveState(); closeEditor(); renderGrid();
 }
 function deleteEditor(){
@@ -1490,6 +1504,8 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 
 document.querySelectorAll('.mode-btn').forEach(b=> b.onclick=()=> setMode(b.dataset.mode));
 document.getElementById('btnSave').onclick=saveEditor;
+document.getElementById('btnAltoRend').onclick=()=>guardarBloque('ALTO RENDIMIENTO');
+document.getElementById('btnAlmuerzo').onclick=()=>guardarBloque('ALMUERZO');
 document.getElementById('btnCancel').onclick=closeEditor;
 document.getElementById('btnDelete').onclick=deleteEditor;
 // ===== Zoom de la grilla (botones, arranca siempre en 100%) =====
