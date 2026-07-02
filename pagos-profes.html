@@ -65,7 +65,8 @@
   .perf .del-perf{background:#fbe9e8;border:1px solid #e8b5b1;color:var(--bad);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer;width:100%;margin-top:8px}
   .perf.huerfano .perf-h{background:#fdf3e6}
   .tagh{font-size:10px;background:var(--warn);color:#fff;border-radius:6px;padding:2px 6px;font-weight:800}
-  .cbtn{background:var(--brand);color:#fff;border:0;border-radius:9px;padding:9px 12px;font-size:13px;font-weight:800;cursor:pointer;width:100%;margin-top:10px}
+  .cbtn{background:var(--brand);color:#fff;border:0;border-radius:11px;padding:15px 12px;font-size:15px;font-weight:900;cursor:pointer;width:100%;box-shadow:0 3px 10px rgba(17,129,164,.35)}
+  .cbtn:active{transform:scale(.99)}
   .ov{position:fixed;inset:0;background:#0008;display:none;align-items:center;justify-content:center;z-index:60;padding:16px}
   .ov.show{display:flex}
   .recibo{background:#fff;border-radius:16px;max-width:380px;width:100%;padding:22px;box-shadow:0 20px 60px rgba(0,0,0,.4)}
@@ -276,7 +277,8 @@ function render(){
         <span class="ptotal">${gs(total)}</span>
       </div>
       <div class="pbody">
-        <table><tr><th>Clases pagables</th><th class="num">Cant.</th><th class="num">Tarifa</th><th class="num">Subtotal</th></tr>
+        <button class="cbtn" data-recibo="${p}">📄 Ver comprobante para mandar al profe</button>
+        <table style="margin-top:12px"><tr><th>Clases pagables</th><th class="num">Cant.</th><th class="num">Tarifa</th><th class="num">Subtotal</th></tr>
           ${['IND','D','G','AR'].filter(t=>cnt[t]>0).map(t=>`<tr><td>${t}</td><td class="num">${cnt[t]}</td><td class="num">${gs(tarifaDe(pf,t))}</td><td class="num">${gs(cnt[t]*tarifaDe(pf,t))}</td></tr>`).join('')||'<tr><td colspan="4" style="color:var(--muted)">Sin clases pagables automáticas</td></tr>'}
         </table>
         ${listaCasos.length?`<div style="margin-top:10px;font-size:12px;font-weight:800;color:var(--warn)">⚠️ Casos a revisar (decidís vos si se paga):</div>`:''}
@@ -291,7 +293,6 @@ function render(){
         <div class="tot-line"><span>Clases</span><span>${gs(subAuto+subCasos)}</span></div>
         <div class="tot-line"><span>Descuentos</span><span>− ${gs(totDesc)}</span></div>
         <div class="tot-line total"><span>TOTAL A PAGAR</span><span>${gs(total)}</span></div>
-        <button class="cbtn" data-recibo="${p}">📄 Ver comprobante para el profe</button>
       </div>
     </div>`;
   });
