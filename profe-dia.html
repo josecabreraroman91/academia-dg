@@ -9,7 +9,7 @@
     --brand:#1181A4; --brand-d:#0d6a88; --lima:#CADB36; --lima-d:#a9ba1f;
     --bg:#eef2f4; --panel:#ffffff; --panel2:#f1f5f7; --line:#dde3e7; --txt:#16232c; --muted:#69788a;
     --sin:#9aa6b4; --pres:#1EA67A; --aus:#e0483d; --amar:#e0a800;
-    --lomas:#E8B84B; --elite:#7EC8E3; --segurola:#F09A3E;
+    --lomas:#E8B84B; --elite:#7EC8E3; --segurola:#F09A3E; --adefinir:#e0483d;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
@@ -25,7 +25,7 @@
     font-size:20px;font-weight:800;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:10px}
   .sede-btn:active{transform:scale(.98)}
   .sede-btn .em{width:14px;height:14px;border-radius:50%}
-  .sede-btn.lomas .em{background:var(--lomas)} .sede-btn.elite .em{background:var(--elite)} .sede-btn.segurola .em{background:var(--segurola)}
+  .sede-btn.lomas .em{background:var(--lomas)} .sede-btn.elite .em{background:var(--elite)} .sede-btn.segurola .em{background:var(--segurola)} .sede-btn.adefinir .em{background:var(--adefinir)}
 
   /* ===== APP ===== */
   #app{display:none;min-height:100vh;flex-direction:column}
@@ -116,6 +116,7 @@
     <button class="sede-btn lomas"    data-sede="lomas"><span class="em"></span> LOMAS</button>
     <button class="sede-btn elite"    data-sede="elite"><span class="em"></span> ELITE</button>
     <button class="sede-btn segurola" data-sede="segurola"><span class="em"></span> SEGUROLA</button>
+    <button class="sede-btn adefinir" data-sede="adefinir"><span class="em"></span> 🚨 A DEFINIR</button>
   </div>
 </div>
 
@@ -179,7 +180,7 @@ const LOGO="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAcwAAADaCAIAAACkQeXjAA
 try{document.getElementById("logoLand").src=LOGO;document.getElementById("logoTop").src=LOGO;}catch(e){}
 const HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
 const PROFES = [{"nombre":"Juan Martinez","dim":"JM"},{"nombre":"Valeria Ávila","dim":"VA"},{"nombre":"Marina Pérez","dim":"MP"},{"nombre":"Florencia López","dim":"FL"},{"nombre":"Pablo Rojas","dim":"PR"},{"nombre":"Mauro Fernández","dim":"MF"},{"nombre":"Tomás Emilio","dim":"TE"},{"nombre":"Ramiro Acosta","dim":"RA"},{"nombre":"Oscar Benítez","dim":"OB"},{"nombre":"Rodrigo Sosa","dim":"RS"},{"nombre":"Carlos Giménez","dim":"ChG"},{"nombre":"Fabio Arce","dim":"FA"},{"nombre":"Profe HR","dim":"HR"},{"nombre":"Sin profe","dim":"SP"}];
-const SEDE_NOM={lomas:'LOMAS',elite:'ELITE',segurola:'SEGUROLA'};
+const SEDE_NOM={lomas:'LOMAS',elite:'ELITE',segurola:'SEGUROLA',adefinir:'A DEFINIR'};
 const SHEET_ID='1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';  // planilla (hoja ALUMNOS)
 
 // ---- Autocompletado de alumnos desde la planilla (gviz, sin login) ----
@@ -236,6 +237,8 @@ function iniciarApp(){
   // escuchar el día de esta sede en tiempo real
   refDia=db.ref('dia/'+fecha+'/'+sede);
   refDia.on('value',(snap)=>{ cacheDia=snap.val()||{}; render(); });
+  // Si la tablet queda prendida hasta el día siguiente, rota sola al día nuevo
+  setInterval(()=>{ if(hoyISO()!==fecha) location.reload(); }, 60000);
   // selects del modal
   const selH=document.getElementById('acHora'); selH.innerHTML=HORAS.map((h,i)=>`<option value="${i}">${h}</option>`).join('');
   const selP=document.getElementById('acProfe'); selP.innerHTML=PROFES.map(p=>`<option value="${p.dim}">${p.dim} · ${p.nombre}</option>`).join('');

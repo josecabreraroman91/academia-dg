@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Pagos a Profesores · Academia DG</title>
+<style>
+  :root{ --brand:#1181A4; --brand-d:#0d6a88; --lima:#CADB36; --lima-d:#a9ba1f;
+    --bg:#eef2f4; --panel:#fff; --panel2:#f1f5f7; --line:#dde3e7; --txt:#16232c; --muted:#69788a;
+    --ok:#1EA67A; --warn:#e0a800; --bad:#e0483d; }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--txt);padding-bottom:40px}
+  .top{position:sticky;top:0;z-index:20;background:var(--brand);color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+  .top h1{font-size:16px;font-weight:800}
+  .top .sp{flex:1}
+  .wrap{max-width:760px;margin:0 auto;padding:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  .card h2{font-size:14px;font-weight:800;margin-bottom:10px;color:var(--brand-d)}
+  .week{display:flex;align-items:center;gap:8px;justify-content:center}
+  .week .rng{font-weight:800;font-size:15px;text-align:center;min-width:190px}
+  .wbtn{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 14px;font-size:16px;font-weight:800;cursor:pointer;color:var(--txt)}
+  .btn{width:100%;padding:14px;border:0;border-radius:12px;background:var(--lima);color:#20320a;font-size:15px;font-weight:900;cursor:pointer;margin-top:10px;border:1px solid var(--lima-d)}
+  .btn.sec{background:var(--panel2);color:var(--txt);border:1px solid var(--line);font-weight:700}
+  .btn:active{transform:scale(.99)}
+  .tarifas{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  @media(min-width:520px){ .tarifas{grid-template-columns:1fr 1fr 1fr 1fr} }
+  .tf label{display:block;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:3px}
+  .tf input{width:100%;padding:10px;border-radius:9px;border:1px solid var(--line);background:#f7fafb;font-size:15px;font-weight:700;color:var(--txt)}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:8px;line-height:1.5}
+  .status{font-size:12.5px;color:var(--muted);text-align:center;margin-top:8px}
+
+  /* profe card */
+  .pcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;margin-bottom:12px;overflow:hidden}
+  .phead{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--panel2);border-bottom:1px solid var(--line);cursor:pointer}
+  .pbadge{min-width:44px;height:34px;padding:0 8px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:900;color:#0c1020}
+  .pname{font-weight:800;font-size:14px}
+  .ptotal{margin-left:auto;font-weight:900;font-size:15px;color:var(--brand-d);white-space:nowrap}
+  .pbody{padding:12px 14px;display:none}
+  .pcard.open .pbody{display:block}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  td,th{padding:6px 4px;text-align:left;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-size:11px;font-weight:700}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .sub{font-weight:800}
+  .caso{display:flex;align-items:center;gap:8px;padding:8px;border:1px dashed var(--line);border-radius:9px;margin-top:6px;font-size:13px}
+  .caso .info{flex:1;min-width:0}
+  .caso .est{font-size:11px;color:var(--muted)}
+  .tgl{border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:12.5px;font-weight:800;cursor:pointer;background:#f7fafb;color:var(--muted);white-space:nowrap}
+  .tgl.si{background:var(--ok);border-color:var(--ok);color:#fff}
+  .desc-row{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .desc-row label{font-size:12px;font-weight:700;color:var(--muted);min-width:82px}
+  .desc-row input{flex:1;padding:9px;border-radius:8px;border:1px solid var(--line);background:#f7fafb;font-size:14px;min-width:0}
+  .desc-row input.qty{max-width:70px;flex:0 0 auto}
+  .tot-line{display:flex;justify-content:space-between;padding:6px 0;font-size:13.5px}
+  .tot-line.total{font-weight:900;font-size:16px;border-top:2px solid var(--brand);margin-top:6px;padding-top:9px;color:var(--brand-d)}
+  .empty{color:var(--muted);text-align:center;padding:30px 16px;font-size:14px}
+  .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#000d;color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
+  .toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div class="top"><h1>💵 Pagos a Profesores</h1><span class="sp"></span><span style="font-size:11px;opacity:.85">Academia DG</span></div>
+<div class="wrap">
+
+  <div class="card">
+    <h2>Semana a liquidar</h2>
+    <div class="week">
+      <button class="wbtn" id="wPrev">◀</button>
+      <div class="rng" id="wRng">—</div>
+      <button class="wbtn" id="wNext">▶</button>
+    </div>
+    <button class="btn" id="btnCargar">☁️ Cargar historial de la semana</button>
+    <div class="status" id="status">Elegí la semana y cargá el historial.</div>
+  </div>
+
+  <div class="card">
+    <h2>Tarifas por clase (lo que gana el profe)</h2>
+    <div class="tarifas">
+      <div class="tf"><label>IND (individual)</label><input id="tIND" inputmode="numeric"></div>
+      <div class="tf"><label>D (dual)</label><input id="tD" inputmode="numeric"></div>
+      <div class="tf"><label>G (grupal, por alumno)</label><input id="tG" inputmode="numeric"></div>
+      <div class="tf"><label>AR (alto rendimiento)</label><input id="tAR" inputmode="numeric"></div>
+    </div>
+    <div class="desc-row" style="margin-top:10px"><label>Multa (c/u)</label><input id="tMulta" inputmode="numeric"></div>
+    <div class="hint">Se guardan en este dispositivo. G se paga <b>por alumno presente</b>. Clases sin tipo cargado se pagan como G.</div>
+  </div>
+
+  <div id="lista"><div class="empty">Todavía no cargaste la semana.</div></div>
+
+  <button class="btn sec" id="btnCopiar" style="display:none">📋 Copiar resumen de pagos</button>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const SHEET_ID='1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';
+const HIST_TAB='HISTORIAL';
+const PROFES={"JM":"Juan Martinez","VA":"Valeria Ávila","MP":"Marina Pérez","FL":"Florencia López","PR":"Pablo Rojas","MF":"Mauro Fernández","TE":"Tomás Emilio","RA":"Ramiro Acosta","OB":"Oscar Benítez","RS":"Rodrigo Sosa","ChG":"Carlos Giménez","FA":"Fabio Arce","HR":"Profe HR","SP":"Sin profe"};
+const COLORS=['#E8B84B','#7EC8E3','#F09A3E','#B79CED','#78C2AD','#F2777A','#8FD14F','#E58FB5','#5BC0EB','#F6C177','#9AD1D4','#C3A6F0'];
+const color=d=>{let s=0;for(const c of d)s+=c.charCodeAt(0);return COLORS[s%COLORS.length];};
+const $=id=>document.getElementById(id);
+const gs=n=>Math.round(n).toLocaleString('es-PY')+' Gs';
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1600); }
+
+// ---- Tarifas (persisten en el dispositivo) ----
+const TARIFAS_DEF={IND:50000,D:40000,G:25000,AR:60000,MULTA:20000};
+let tarifas=JSON.parse(localStorage.getItem('pagos_dg_tarifas')||'null')||{...TARIFAS_DEF};
+function pintarTarifas(){ $('tIND').value=tarifas.IND; $('tD').value=tarifas.D; $('tG').value=tarifas.G; $('tAR').value=tarifas.AR; $('tMulta').value=tarifas.MULTA; }
+['tIND','tD','tG','tAR','tMulta'].forEach(id=>{ $(id).onchange=()=>{ tarifas={IND:+$('tIND').value||0,D:+$('tD').value||0,G:+$('tG').value||0,AR:+$('tAR').value||0,MULTA:+$('tMulta').value||0}; localStorage.setItem('pagos_dg_tarifas',JSON.stringify(tarifas)); render(); }; });
+pintarTarifas();
+
+// ---- Semana ----
+function isoDe(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function lunesDe(d){ const x=new Date(d); x.setDate(x.getDate()-((x.getDay()+6)%7)); return x; }
+let lunes=lunesDe(new Date());
+function rangoSemana(){ const a=new Date(lunes), b=new Date(lunes); b.setDate(b.getDate()+5); return {ini:isoDe(a), fin:isoDe(b)}; }
+function pintarSemana(){ const r=rangoSemana(); const f=s=>{const[,m,d]=s.split('-');return d+'/'+ +m;}; $('wRng').textContent='Lun '+f(r.ini)+' → Sáb '+f(r.fin); }
+$('wPrev').onclick=()=>{ lunes.setDate(lunes.getDate()-7); pintarSemana(); filas=[]; render(); $('status').textContent='Semana cambiada. Volvé a cargar el historial.'; };
+$('wNext').onclick=()=>{ lunes.setDate(lunes.getDate()+7); pintarSemana(); filas=[]; render(); $('status').textContent='Semana cambiada. Volvé a cargar el historial.'; };
+pintarSemana();
+
+// ---- Decisiones y descuentos (persisten) ----
+let casos=JSON.parse(localStorage.getItem('pagos_dg_casos')||'{}');       // clave fila -> true/false (¿se paga?)
+let descs=JSON.parse(localStorage.getItem('pagos_dg_desc')||'{}');       // clave semana|profe -> {multas,productos,otros,nota}
+const claveFila=f=>[f.fecha,f.alumno,f.hora,f.sede].join('||');
+const claveDesc=p=>rangoSemana().ini+'|'+p;
+function descDe(p){ return descs[claveDesc(p)]||{multas:0,productos:0,otros:0,nota:''}; }
+function setDesc(p,obj){ descs[claveDesc(p)]=obj; localStorage.setItem('pagos_dg_desc',JSON.stringify(descs)); }
+
+// ---- Cargar HISTORIAL (gviz, sin login) ----
+let filas=[];
+function parseCSV(txt){ const rows=[]; let row=[],cur='',q=false;
+  for(let i=0;i<txt.length;i++){ const c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"')q=true; else if(c===','){row.push(cur);cur='';} else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur='';} else if(c!=='\r')cur+=c; } }
+  if(cur.length||row.length){row.push(cur);rows.push(row);} return rows; }
+$('btnCargar').onclick=async()=>{
+  $('status').textContent='Cargando…';
+  try{
+    const url='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet='+HIST_TAB;
+    const res=await fetch(url); if(!res.ok) throw new Error('HTTP '+res.status);
+    const rows=parseCSV(await res.text());
+    const r=rangoSemana();
+    filas=[];
+    rows.forEach(x=>{
+      const fecha=(x[0]||'').trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return;
+      if(fecha<r.ini||fecha>r.fin) return;
+      filas.push({fecha, alumno:(x[1]||'').trim(), hora:(x[2]||'').trim(), sede:(x[3]||'').trim(), profe:(x[4]||'').trim()||'—', tipo:((x[5]||'').trim()||'G').toUpperCase(), estado:(x[6]||'').trim(), cobro:(x[7]||'').trim()});
+    });
+    $('status').textContent=filas.length? (filas.length+' clases encontradas en la semana.') : 'No hay registros del HISTORIAL en esta semana.';
+    render();
+  }catch(e){ $('status').textContent='No pude leer el HISTORIAL: '+e.message+'. Verificá que la planilla esté compartida y que exista la hoja HISTORIAL.'; }
+};
+
+// ---- Cálculo y render ----
+function tarifaDe(tipo){ if(tipo==='IND')return tarifas.IND; if(tipo==='D')return tarifas.D; if(tipo==='AR')return tarifas.AR; return tarifas.G; }
+function esPagableAuto(f){ return f.estado==='Presente'||f.estado==='Presente (acople)'||f.estado==='Bloque'; }
+function esCaso(f){ return f.estado==='Ausente sin aviso'||f.estado==='Reagendable'; }
+function render(){
+  const cont=$('lista');
+  if(!filas.length){ cont.innerHTML='<div class="empty">Todavía no cargaste la semana.</div>'; $('btnCopiar').style.display='none'; return; }
+  const porProfe={};
+  filas.forEach(f=>{ (porProfe[f.profe]=porProfe[f.profe]||[]).push(f); });
+  let html='';
+  Object.keys(porProfe).sort().forEach(p=>{
+    const fs=porProfe[p];
+    const cnt={IND:0,D:0,G:0,AR:0};
+    let subAuto=0;
+    fs.filter(esPagableAuto).forEach(f=>{ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; subAuto+=tarifaDe(t); });
+    // casos a revisar
+    const listaCasos=fs.filter(esCaso);
+    let subCasos=0;
+    listaCasos.forEach(f=>{ if(casos[claveFila(f)]) subCasos+=tarifaDe((f.tipo in cnt)?f.tipo:'G'); });
+    const d=descDe(p);
+    const totDesc=(+d.multas||0)*tarifas.MULTA+(+d.productos||0)+(+d.otros||0);
+    const total=subAuto+subCasos-totDesc;
+    html+=`<div class="pcard" data-p="${p}">
+      <div class="phead" data-toggle="${p}">
+        <span class="pbadge" style="background:${color(p)}">${p}</span>
+        <span class="pname">${PROFES[p]||''}</span>
+        <span class="ptotal">${gs(total)}</span>
+      </div>
+      <div class="pbody">
+        <table><tr><th>Clases pagables</th><th class="num">Cant.</th><th class="num">Tarifa</th><th class="num">Subtotal</th></tr>
+          ${['IND','D','G','AR'].filter(t=>cnt[t]>0).map(t=>`<tr><td>${t}</td><td class="num">${cnt[t]}</td><td class="num">${gs(tarifaDe(t))}</td><td class="num">${gs(cnt[t]*tarifaDe(t))}</td></tr>`).join('')||'<tr><td colspan="4" style="color:var(--muted)">Sin clases pagables automáticas</td></tr>'}
+        </table>
+        ${listaCasos.length?`<div style="margin-top:10px;font-size:12px;font-weight:800;color:var(--warn)">⚠️ Casos a revisar (decidís vos si se paga):</div>`:''}
+        ${listaCasos.map(f=>{ const k=claveFila(f); const si=!!casos[k];
+          return `<div class="caso"><div class="info"><b>${f.alumno}</b> · ${f.fecha.slice(5)} ${f.hora} (${f.tipo})<div class="est">${f.estado}${f.cobro==='Sí'?' · se cobra al alumno':f.cobro==='No'?' · no se cobra':''}</div></div>
+            <button class="tgl${si?' si':''}" data-caso="${k}" data-t="${f.tipo}">${si?'✓ Se paga':'No se paga'}</button></div>`; }).join('')}
+        <div style="margin-top:12px;font-size:12px;font-weight:800;color:var(--brand-d)">Descuentos</div>
+        <div class="desc-row"><label>Multas (cant.)</label><input class="qty" inputmode="numeric" data-d="multas" data-p="${p}" value="${d.multas||''}" placeholder="0"><span style="font-size:12px;color:var(--muted)">× ${gs(tarifas.MULTA)}</span></div>
+        <div class="desc-row"><label>Productos Gs</label><input inputmode="numeric" data-d="productos" data-p="${p}" value="${d.productos||''}" placeholder="0"></div>
+        <div class="desc-row"><label>Otros Gs</label><input inputmode="numeric" data-d="otros" data-p="${p}" value="${d.otros||''}" placeholder="0"></div>
+        <div class="desc-row"><label>Nota</label><input data-d="nota" data-p="${p}" value="${(d.nota||'').replace(/"/g,'&quot;')}" placeholder="Motivo del descuento…"></div>
+        <div class="tot-line"><span>Clases</span><span>${gs(subAuto+subCasos)}</span></div>
+        <div class="tot-line"><span>Descuentos</span><span>− ${gs(totDesc)}</span></div>
+        <div class="tot-line total"><span>TOTAL A PAGAR</span><span>${gs(total)}</span></div>
+      </div>
+    </div>`;
+  });
+  cont.innerHTML=html;
+  $('btnCopiar').style.display='block';
+  cont.querySelectorAll('[data-toggle]').forEach(h=>h.onclick=()=>h.parentElement.classList.toggle('open'));
+  cont.querySelectorAll('[data-caso]').forEach(b=>b.onclick=(e)=>{ e.stopPropagation(); const k=b.dataset.caso; casos[k]=!casos[k]; localStorage.setItem('pagos_dg_casos',JSON.stringify(casos)); renderKeepOpen(); });
+  cont.querySelectorAll('input[data-d]').forEach(inp=>{ inp.onchange=()=>{ const p=inp.dataset.p; const d=descDe(p); d[inp.dataset.d]= inp.dataset.d==='nota'? inp.value : (+inp.value||0); setDesc(p,d); renderKeepOpen(); }; });
+}
+function renderKeepOpen(){ const abiertos=[...document.querySelectorAll('.pcard.open')].map(c=>c.dataset.p); render(); abiertos.forEach(p=>{ const c=document.querySelector('.pcard[data-p="'+p+'"]'); if(c)c.classList.add('open'); }); }
+
+// ---- Copiar resumen ----
+$('btnCopiar').onclick=()=>{
+  const r=rangoSemana();
+  let out='💵 PAGOS PROFES · Semana '+r.ini+' → '+r.fin+'\n\n';
+  const porProfe={}; filas.forEach(f=>{ (porProfe[f.profe]=porProfe[f.profe]||[]).push(f); });
+  Object.keys(porProfe).sort().forEach(p=>{
+    const fs=porProfe[p]; const cnt={IND:0,D:0,G:0,AR:0}; let sub=0;
+    fs.filter(esPagableAuto).forEach(f=>{ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; sub+=tarifaDe(t); });
+    fs.filter(esCaso).forEach(f=>{ if(casos[claveFila(f)]){ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; sub+=tarifaDe(t); } });
+    const d=descDe(p); const totDesc=(+d.multas||0)*tarifas.MULTA+(+d.productos||0)+(+d.otros||0);
+    out+=p+' ('+(PROFES[p]||'')+')\n';
+    ['IND','D','G','AR'].forEach(t=>{ if(cnt[t]) out+='  '+t+': '+cnt[t]+' × '+gs(tarifaDe(t))+'\n'; });
+    if(totDesc) out+='  Descuentos: −'+gs(totDesc)+(d.nota?' ('+d.nota+')':'')+'\n';
+    out+='  TOTAL: '+gs(sub-totDesc)+'\n\n';
+  });
+  navigator.clipboard.writeText(out).then(()=>toast('📋 Resumen copiado'),()=>toast('No pude copiar'));
+};
+</script>
+</body>
+</html>

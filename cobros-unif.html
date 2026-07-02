@@ -153,8 +153,7 @@
     <div class="toolbar">
       <div class="search"><input id="search" placeholder="Buscar alumno…"></div>
       <button class="btn" id="btnFaltas">📋 Resumen del día</button>
-      <button class="btn" id="btnCal">📅 Desde calendario</button>
-      <button class="btn" id="btnCobPlan">☁️ Leer cobros de planilla</button>
+      <button class="btn primary" id="btnCargarPlan">☁️ Cargar desde planilla</button>
       <button class="btn" id="btnSync">🔄 Sincronizar</button>
     </div>
     <div class="filters">
@@ -421,6 +420,46 @@ function lineaPaquete(c){
 }
 // arma la LISTA de a quién cobrar desde el calendario madre (todos los que tienen clases),
 // conservando precio/tel/pendiente previos, y completando precio desde la app Alumnos
+// ===== ROSTER 100% desde la PLANILLA (Cobros aislado, no depende del calendario) =====
+// Lee hoja ALUMNOS: nombre (B), precio (G), horario semanal (M:R) y el bloque del mes.
+async function construirDesdePlanilla(){
+  try{
+    const id=state.sheetId||DEFAULT_SHEET_ID;
+    const url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet=ALUMNOS';
+    const res=await fetch(url); if(!res.ok) throw new Error('HTTP '+res.status);
+    const rows=parseCSV(await res.text());
+    let h=-1; for(let i=0;i<Math.min(rows.length,12);i++){ if(rows[i].some(c=>normName(c)==='alumnos')){h=i;break;} } if(h<0) h=1;
+    const bs=blockStartCol(curM);                 // bloque del mes actual (-1 si el mes no está en la planilla)
+    const prev={}; (state.alumnos||[]).forEach(a=>{ prev[normName(a.nombre)]=a; });
+    const roster=[], index={};
+    for(let i=h+1;i<rows.length;i++){
+      const r=rows[i]; const nom=(r[1]||'').trim(); if(!nom) continue;
+      const n=normName(nom);
+      const precio=numGs(r[6]);                   // G = Precio de Clase
+      const calWd={};                             // {weekday: nº de clases ese día}
+      for(let c=12;c<=17;c++){ const cell=(r[c]||'').trim(); if(!cell||cell==='-') continue;
+        const horas=cell.split(/[,;]/).map(s=>s.trim()).filter(s=>/\d/.test(s));
+        if(horas.length) calWd[c-11]=horas.length; // 12->wd1(LUNES) ... 17->wd6(SABADO)
+      }
+      const dias=Object.keys(calWd).map(Number).sort();
+      let montoP=null,cobradoP=0,nClaseP=0,fIni='';
+      if(bs>=0){ fIni=(r[bs]||'').trim(); nClaseP=numGs(r[bs+1]); montoP=numGs(r[bs+2]); cobradoP=numGs(r[bs+3]); }
+      index[n]={nombre:nom, precio, row:i+1};      // TODOS (para encontrar acoples/esporádicos después)
+      if(dias.length || (montoP&&montoP>0)){       // roster = con horario o con monto este mes
+        const old=prev[n]||{};
+        roster.push({ nombre:nom, precio, tel:old.tel||'', nomWpp:old.nomWpp||'', dias, calWd, desdePlanilla:true,
+          _row:i+1, _montoP:montoP, _cobradoP:cobradoP, _nClaseP:nClaseP, _fIni:fIni });
+      }
+    }
+    state.alumnos=roster; state.planillaIndex=index;
+    roster.forEach(a=>{ const md=mesData(a,curY,curM);
+      if(a._montoP!=null){ md.montoPlanilla=a._montoP; md.cobradoPlanilla=a._cobradoP; md.nClasePlanilla=a._nClaseP; md.fechaInicio=a._fIni; md._row=a._row; }
+    });
+    save(); render();
+    alert('☁️ Cargado desde la planilla ('+MESES[curM]+' '+curY+').\n\nAlumnos con actividad este mes: '+roster.length+'\n(precio, horario y monto salen todos de la planilla)');
+  }catch(e){ alert('No pude cargar desde la planilla.\n\n'+e.message+'\n\nVerificá que la planilla esté compartida ("cualquiera con el enlace puede ver").'); }
+}
+
 function construirDesdeCalendario(silent){
   const map=leerMadreCalendario();
   if(!map){ if(!silent) alert('No encontré el calendario en este navegador.\n\nAbrí la pestaña ☰ Calendario una vez (en el mismo equipo) y volvé a intentar.'); return false; }
@@ -495,10 +534,11 @@ function consumidasDelMes(md){
 }
 function paqueteInfo(a,md){
   const consumidas=consumidasDelMes(md);
-  const esEsporadico = (md.montoPlanilla!=null && md.montoPlanilla===0);  // leyó planilla y no tiene mensual
+  const tieneHorario = !!(a.dias && a.dias.length);
+  const esEsporadico = !tieneHorario && !(md.montoPlanilla>0);   // sin horario fijo Y sin mensual = esporádico
   let paquete;
   if(esEsporadico) paquete=0;
-  else paquete = (md.nClasePlanilla>0 ? md.nClasePlanilla : totalHoras(md));  // fijo: N CLASE de planilla, o las agendadas
+  else paquete = (md.nClasePlanilla>0 ? md.nClasePlanilla : totalHoras(md));  // fijo: N CLASE, o las clases agendadas
   const saldo = paquete - consumidas;
   const exceso = Math.max(0, consumidas - paquete);
   return {paquete, consumidas, saldo, exceso, esEsporadico};
@@ -508,15 +548,15 @@ function calc(a){
   const horas=totalHoras(md);
   const montoCal=horas*precioEf(a,md);
   const pq=paqueteInfo(a,md);
-  const tienePlan = md.montoPlanilla!=null;
+  const tienePlan = md.montoPlanilla>0;
   let monto, discrepancia=false;
   if(pq.esEsporadico){
     monto = pq.consumidas*precioEf(a,md);                 // esporádico: cobra por clase consumida
   } else if(tienePlan){
-    monto = md.montoPlanilla;                              // fijo con planilla: mensual oficial
-    discrepancia = md.montoPlanilla>0 && montoCal>0 && montoCal!==md.montoPlanilla;
+    monto = md.montoPlanilla;                              // fijo con monto en planilla: mensual oficial
+    discrepancia = montoCal>0 && montoCal!==md.montoPlanilla;
   } else {
-    monto = montoCal;                                     // fijo sin planilla: cálculo del calendario
+    monto = montoCal;                                     // fijo sin monto cargado aún: cálculo por clases
   }
   const pagado=md.pagos.reduce((s,p)=>s+(p.monto||0),0);
   const previa=deudaPrevia(a);
@@ -609,7 +649,7 @@ function construir(iNom,iCat,iPre,iTel,iPen,iLun){
       profe:(iProf>-1?(rows[r][iProf]||'').trim():''), dias, horarios });
   }
   state.alumnos=out; state.cols={nom:iNom,pre:iPre,tel:iTel,pen:iPen};
-  aplicarCalendario(); aplicarAlumnosApp();
+  // (aislado: precio y horario ya salen de la planilla, no del calendario ni de la app Alumnos)
   // seed morosos la primera vez
   if(!state.morososInit){ out.forEach(a=>{ if(a.pendiente>0){ const n=normName(a.nombre); if(!state.morosos[n]) state.morosos[n]={monto:a.pendiente,nota:''}; } }); state.morososInit=true; }
   const conDias=out.filter(a=>a.dias.length>0).length;
@@ -866,6 +906,16 @@ function buscarAlumno(nombre){
   if(!c.length) c=state.alumnos.filter(x=>normName(x.nombre).includes(t));
   if(c.length===1) return {a:c[0]};
   if(c.length>1) return {err:'varios', opciones:c.map(x=>x.nombre), cands:c};
+  // no está en el roster -> buscar en TODA la planilla (esporádicos que se acoplan)
+  const idx=state.planillaIndex||{};
+  let ks=Object.keys(idx).filter(k=>k===t);
+  if(!ks.length) ks=Object.keys(idx).filter(k=>k.startsWith(t));
+  if(!ks.length) ks=Object.keys(idx).filter(k=>k.includes(t));
+  if(ks.length===1){ const info=idx[ks[0]]; const nn=normName(info.nombre);
+    let a=state.alumnos.find(x=>normName(x.nombre)===nn);
+    if(!a){ a={nombre:info.nombre, precio:info.precio||0, tel:'', nomWpp:'', dias:[], calWd:{}, desdePlanilla:true, _row:info.row}; state.alumnos.push(a); }
+    return {a}; }
+  if(ks.length>1) return {err:'varios', opciones:ks.map(k=>idx[k].nombre), cands:ks.map(k=>idx[k])};
   return {err:'no'};
 }
 function aplicarFaltas(){
@@ -978,8 +1028,7 @@ function setTab(t){ tab=t; focoIdx=null; document.querySelectorAll('.tab').forEa
 }
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>setTab(b.dataset.tab));
 document.getElementById('btnFaltas').onclick=abrirFaltas;
-document.getElementById('btnCal').onclick=recalcMesDesdeCal;
-document.getElementById('btnCobPlan').onclick=aplicarCobrosPlanilla;
+document.getElementById('btnCargarPlan').onclick=construirDesdePlanilla;
 document.getElementById('faltasOk').onclick=aplicarFaltas;
 document.getElementById('faltasCancel').onclick=()=>document.getElementById('ovFaltas').classList.remove('show');
 document.getElementById('prevMonth').onclick=()=>{ curM--; if(curM<0){curM=11;curY--;} focoIdx=null; render(); };
@@ -1003,7 +1052,6 @@ document.getElementById('btnClearHor').onclick=()=>{ horComparar=[]; renderHorar
 ['ovSync','ovComp','ovAddMor','ovFaltas'].forEach(id=>document.getElementById(id).onclick=(e)=>{ if(e.target.id===id) document.getElementById(id).classList.remove('show'); });
 
 load();
-if(!construirDesdeCalendario(true)){ aplicarCalendario(); aplicarAlumnosApp(); }
 fillDatalist(); render();
 </script>
 </body>

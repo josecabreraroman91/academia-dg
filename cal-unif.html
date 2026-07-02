@@ -1604,7 +1604,11 @@ async function cerrarYGuardarDia(){
       const data=snap.val()||{};
       Object.values(data).forEach(rec=>{
         if(!rec||!rec.nombre) return;
-        if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO|ALMUERZO/i.test(rec.nombre)) return; // bloques no van al historial
+        if(/ALMUERZO/i.test(rec.nombre)) return;                       // almuerzo no va
+        if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO/i.test(rec.nombre)){ // AR sí: se paga al profe
+          filas.push([fecha, 'ALTO RENDIMIENTO', HORAS[rec.horaIdx]||'', SEDE_NICE[sk]||sk, rec.profe||'', 'AR', 'Bloque', '—']);
+          return;
+        }
         const {estado,cobro}=resolverEstado(rec);
         filas.push([fecha, rec.nombre, HORAS[rec.horaIdx]||'', SEDE_NICE[sk]||sk, rec.profe||'', rec.mod||'', estado, cobro]);
       });
