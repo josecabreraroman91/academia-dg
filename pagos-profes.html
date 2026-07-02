@@ -124,6 +124,8 @@
 <div class="ov" id="ovRecibo"><div class="recibo" id="reciboBox"></div></div>
 <div class="toast" id="toast"></div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 const SHEET_ID='1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';
 const HIST_TAB='HISTORIAL';
@@ -161,19 +163,38 @@ function profesDelCalendario(){
     if(st&&Array.isArray(st.profesores)) return st.profesores; }catch(e){}
   return [];
 }
-function aplicarProfesCalendario(silencioso){
-  const lista=profesDelCalendario();
-  if(!lista.length){ if(!silencioso) toast('No encontré profes del calendario en este dispositivo'); renderPerfiles(); return; }
+// Aplica un mapa {dim:nombre} a los perfiles (crea/actualiza). Fuente: calendario local o Firebase.
+function aplicarMapaProfes(map, silencioso){
+  if(!map) return {nuevos:0,cambiados:0};
   let nuevos=0, cambiados=0;
-  lista.forEach(p=>{
-    if(!perfiles[p.dim]){ perfiles[p.dim]={nombre:p.nombre,...tarifas,desde:'',hasta:''}; nuevos++; }
-    else if(perfiles[p.dim].nombre!==p.nombre){ perfiles[p.dim].nombre=p.nombre; cambiados++; } // nombre siempre al día
+  Object.entries(map).forEach(([dim,nombre])=>{
+    if(!dim || dim==='_profes') return;
+    nombre=nombre||'';
+    if(!perfiles[dim]){ perfiles[dim]={nombre,...tarifas,desde:'',hasta:''}; nuevos++; }
+    else if(perfiles[dim].nombre!==nombre){ perfiles[dim].nombre=nombre; cambiados++; }
   });
-  guardarPerfiles(); renderPerfiles(); render();
-  if(!silencioso) toast(nuevos? ('🔄 '+nuevos+' perfil(es) nuevo(s)') : (cambiados? ('🔄 '+cambiados+' nombre(s) actualizado(s)') : '🔄 Perfiles al día'));
-  else if(nuevos||cambiados) toast('🔄 Profes actualizados');
+  if(nuevos||cambiados){ guardarPerfiles(); renderPerfiles(); render(); if(!silencioso) toast(nuevos?('🔄 '+nuevos+' perfil(es) nuevo(s)'):('🔄 '+cambiados+' nombre(s) actualizado(s)')); }
+  else if(!silencioso) toast('🔄 Perfiles al día');
+  return {nuevos,cambiados};
+}
+function mapaDesdeCalendario(){
+  const lista=profesDelCalendario(); const m={};
+  lista.forEach(p=>{ if(p&&p.dim) m[p.dim]=p.nombre||''; });
+  return m;
+}
+function aplicarProfesCalendario(silencioso){
+  const m=mapaDesdeCalendario();
+  if(!Object.keys(m).length){ if(!silencioso) toast('No encontré profes del calendario en este dispositivo'); renderPerfiles(); return; }
+  aplicarMapaProfes(m, silencioso);
 }
 function sincronizarPerfiles(){ aplicarProfesCalendario(false); }
+
+// Firebase: leer los nombres que publica el calendario (funciona en CUALQUIER dispositivo)
+try{
+  firebase.initializeApp({ apiKey:"AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc", authDomain:"academia-dg.firebaseapp.com", databaseURL:"https://academia-dg-default-rtdb.firebaseio.com", projectId:"academia-dg", storageBucket:"academia-dg.firebasestorage.app", messagingSenderId:"623967243039", appId:"1:623967243039:web:e22397b466b63aefdf3e2a" });
+  firebase.database().ref('dia/_profes').on('value', snap=>{ aplicarMapaProfes(snap.val()||{}, true); });
+}catch(e){ console.warn('Firebase no disponible en Pagos:', e.message); }
+
 // Se actualiza solo cuando cambian los profes en el calendario (mismo navegador)
 window.addEventListener('storage', e=>{ if(e.key==='cal_dg_unif') aplicarProfesCalendario(true); });
 // Red de seguridad: revisa cambios cada 3s (sin interrumpir si estás editando un campo)
