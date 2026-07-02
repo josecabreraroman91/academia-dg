@@ -176,6 +176,11 @@ function aplicarProfesCalendario(silencioso){
 function sincronizarPerfiles(){ aplicarProfesCalendario(false); }
 // Se actualiza solo cuando cambian los profes en el calendario (mismo navegador)
 window.addEventListener('storage', e=>{ if(e.key==='cal_dg_unif') aplicarProfesCalendario(true); });
+// Red de seguridad: revisa cambios cada 3s (sin interrumpir si estás editando un campo)
+let _profesSig='';
+function firmaProfes(){ try{ const st=JSON.parse(localStorage.getItem('cal_dg_unif')||'null'); return st&&st.profesores? st.profesores.map(p=>p.dim+':'+p.nombre).join('|') : ''; }catch(e){ return ''; } }
+_profesSig=firmaProfes();
+setInterval(()=>{ const s=firmaProfes(); if(s!==_profesSig){ _profesSig=s; if(!document.querySelector('input:focus')) aplicarProfesCalendario(true); } }, 3000);
 function renderPerfiles(){
   const cont=$('perfiles'); const dims=Object.keys(perfiles).sort();
   if(!dims.length){ cont.innerHTML='<div class="hint" style="margin-top:10px">Sin perfiles todavía. Tocá <b>Sincronizar</b> para traer tus profes del calendario.</div>'; return; }
