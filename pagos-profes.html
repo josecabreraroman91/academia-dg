@@ -54,6 +54,17 @@
   .tot-line{display:flex;justify-content:space-between;padding:6px 0;font-size:13.5px}
   .tot-line.total{font-weight:900;font-size:16px;border-top:2px solid var(--brand);margin-top:6px;padding-top:9px;color:var(--brand-d)}
   .empty{color:var(--muted);text-align:center;padding:30px 16px;font-size:14px}
+  .perf{border:1px solid var(--line);border-radius:11px;margin-top:10px;overflow:hidden}
+  .perf-h{display:flex;align-items:center;gap:9px;padding:10px 12px;background:var(--panel2);cursor:pointer}
+  .perf-h .pbadge{min-width:40px;height:30px;font-size:15px}
+  .perf-h .nm{font-weight:800;font-size:13.5px;flex:1}
+  .perf-h .rng2{font-size:11px;color:var(--muted)}
+  .perf-b{padding:10px 12px;display:none}
+  .perf.open .perf-b{display:block}
+  .perf .tarifas .tf input{padding:8px;font-size:14px}
+  .perf .del-perf{background:#fbe9e8;border:1px solid #e8b5b1;color:var(--bad);border-radius:8px;padding:7px 10px;font-size:12px;font-weight:800;cursor:pointer;width:100%;margin-top:8px}
+  .perf.huerfano .perf-h{background:#fdf3e6}
+  .tagh{font-size:10px;background:var(--warn);color:#fff;border-radius:6px;padding:2px 6px;font-weight:800}
   .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:#000d;color:#fff;padding:10px 16px;border-radius:20px;font-size:13px;z-index:50;opacity:0;transition:opacity .2s;pointer-events:none}
   .toast.show{opacity:1}
 </style>
@@ -74,7 +85,14 @@
   </div>
 
   <div class="card">
-    <h2>Tarifas por clase (lo que gana el profe)</h2>
+    <h2>👤 Perfiles de profesores</h2>
+    <button class="btn sec" id="btnSync" style="margin-top:0">🔄 Sincronizar profes desde el calendario</button>
+    <div id="perfiles"></div>
+    <div class="hint">Cada profe tiene <b>sus propias tarifas</b> y, si querés, <b>su rango de fechas</b> de liquidación (si lo dejás vacío, usa la semana de arriba). G se paga <b>por alumno presente</b>. Todo se guarda en este dispositivo.</div>
+  </div>
+
+  <div class="card">
+    <h2>Tarifas por defecto (para perfiles nuevos)</h2>
     <div class="tarifas">
       <div class="tf"><label>IND (individual)</label><input id="tIND" inputmode="numeric"></div>
       <div class="tf"><label>D (dual)</label><input id="tD" inputmode="numeric"></div>
@@ -82,7 +100,6 @@
       <div class="tf"><label>AR (alto rendimiento)</label><input id="tAR" inputmode="numeric"></div>
     </div>
     <div class="desc-row" style="margin-top:10px"><label>Multa (c/u)</label><input id="tMulta" inputmode="numeric"></div>
-    <div class="hint">Se guardan en este dispositivo. G se paga <b>por alumno presente</b>. Clases sin tipo cargado se pagan como G.</div>
   </div>
 
   <div id="lista"><div class="empty">Todavía no cargaste la semana.</div></div>
@@ -94,7 +111,8 @@
 <script>
 const SHEET_ID='1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';
 const HIST_TAB='HISTORIAL';
-const PROFES={"JM":"Juan Martinez","VA":"Valeria Ávila","MP":"Marina Pérez","FL":"Florencia López","PR":"Pablo Rojas","MF":"Mauro Fernández","TE":"Tomás Emilio","RA":"Ramiro Acosta","OB":"Oscar Benítez","RS":"Rodrigo Sosa","ChG":"Carlos Giménez","FA":"Fabio Arce","HR":"Profe HR","SP":"Sin profe"};
+// Nombres: se toman de los perfiles (sincronizados desde el calendario)
+function nombreDe(dim){ return (perfiles[dim]&&perfiles[dim].nombre)||''; }
 const COLORS=['#E8B84B','#7EC8E3','#F09A3E','#B79CED','#78C2AD','#F2777A','#8FD14F','#E58FB5','#5BC0EB','#F6C177','#9AD1D4','#C3A6F0'];
 const color=d=>{let s=0;for(const c of d)s+=c.charCodeAt(0);return COLORS[s%COLORS.length];};
 const $=id=>document.getElementById(id);
@@ -118,6 +136,67 @@ $('wPrev').onclick=()=>{ lunes.setDate(lunes.getDate()-7); pintarSemana(); filas
 $('wNext').onclick=()=>{ lunes.setDate(lunes.getDate()+7); pintarSemana(); filas=[]; render(); $('status').textContent='Semana cambiada. Volvé a cargar el historial.'; };
 pintarSemana();
 
+// ---- Perfiles de profesores (tarifas propias + rango de fechas) ----
+let perfiles=JSON.parse(localStorage.getItem('pagos_dg_perfiles')||'{}'); // dim -> {nombre,IND,D,G,AR,MULTA,desde,hasta}
+function guardarPerfiles(){ localStorage.setItem('pagos_dg_perfiles',JSON.stringify(perfiles)); }
+function perfilDe(dim){ return perfiles[dim]||{nombre:'',...tarifas,desde:'',hasta:''}; }
+function profesDelCalendario(){
+  try{ const st=JSON.parse(localStorage.getItem('cal_dg_unif')||'null');
+    if(st&&Array.isArray(st.profesores)) return st.profesores; }catch(e){}
+  return [];
+}
+function sincronizarPerfiles(){
+  const lista=profesDelCalendario();
+  if(!lista.length){ toast('No encontré profes del calendario en este dispositivo'); renderPerfiles(); return; }
+  let nuevos=0;
+  lista.forEach(p=>{
+    if(!perfiles[p.dim]){ perfiles[p.dim]={nombre:p.nombre,...tarifas,desde:'',hasta:''}; nuevos++; }
+    else perfiles[p.dim].nombre=p.nombre; // nombre siempre al día
+  });
+  guardarPerfiles(); renderPerfiles(); render();
+  toast(nuevos? ('🔄 '+nuevos+' perfil(es) nuevo(s) creado(s)') : '🔄 Perfiles al día');
+}
+function renderPerfiles(){
+  const cont=$('perfiles'); const dims=Object.keys(perfiles).sort();
+  if(!dims.length){ cont.innerHTML='<div class="hint" style="margin-top:10px">Sin perfiles todavía. Tocá <b>Sincronizar</b> para traer tus profes del calendario.</div>'; return; }
+  const enCal=new Set(profesDelCalendario().map(p=>p.dim));
+  cont.innerHTML=dims.map(dm=>{ const pf=perfiles[dm]; const hu=!enCal.has(dm)&&enCal.size>0;
+    return `<div class="perf${hu?' huerfano':''}" data-dim="${dm}">
+      <div class="perf-h" data-ph="${dm}">
+        <span class="pbadge" style="background:${color(dm)}">${dm}</span>
+        <span class="nm">${pf.nombre||''} ${hu?'<span class="tagh">ya no está en el calendario</span>':''}</span>
+        <span class="rng2">${pf.desde&&pf.hasta? pf.desde.slice(5)+'→'+pf.hasta.slice(5) : 'usa semana'}</span>
+      </div>
+      <div class="perf-b">
+        <div class="tarifas">
+          <div class="tf"><label>IND</label><input inputmode="numeric" data-pf="IND" data-dim="${dm}" value="${pf.IND}"></div>
+          <div class="tf"><label>D</label><input inputmode="numeric" data-pf="D" data-dim="${dm}" value="${pf.D}"></div>
+          <div class="tf"><label>G</label><input inputmode="numeric" data-pf="G" data-dim="${dm}" value="${pf.G}"></div>
+          <div class="tf"><label>AR</label><input inputmode="numeric" data-pf="AR" data-dim="${dm}" value="${pf.AR}"></div>
+        </div>
+        <div class="desc-row"><label>Multa (c/u)</label><input inputmode="numeric" data-pf="MULTA" data-dim="${dm}" value="${pf.MULTA}"></div>
+        <div class="desc-row"><label>Pagar desde</label><input type="date" data-pf="desde" data-dim="${dm}" value="${pf.desde||''}"></div>
+        <div class="desc-row"><label>hasta</label><input type="date" data-pf="hasta" data-dim="${dm}" value="${pf.hasta||''}"></div>
+        <div class="hint" style="margin-top:6px">Si dejás las fechas vacías, se liquida con la semana elegida arriba.</div>
+        <button class="del-perf" data-del="${dm}">🗑️ Borrar este perfil</button>
+      </div>
+    </div>`; }).join('');
+  cont.querySelectorAll('[data-ph]').forEach(x=>x.onclick=()=>x.parentElement.classList.toggle('open'));
+  cont.querySelectorAll('input[data-pf]').forEach(inp=>{ inp.onchange=()=>{
+    const dm=inp.dataset.dim, k=inp.dataset.pf;
+    perfiles[dm][k]= (k==='desde'||k==='hasta')? inp.value : (+inp.value||0);
+    guardarPerfiles(); renderPerfiles(); render();
+    // reabrir el que estaba tocando
+    const el=cont.querySelector('.perf[data-dim="'+dm+'"]'); if(el)el.classList.add('open');
+  }; });
+  cont.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    const dm=b.dataset.del;
+    if(confirm('¿Borrar el perfil de '+dm+' ('+(perfiles[dm].nombre||'')+')?')){ delete perfiles[dm]; guardarPerfiles(); renderPerfiles(); render(); }
+  });
+}
+$('btnSync').onclick=sincronizarPerfiles;
+renderPerfiles();
+
 // ---- Decisiones y descuentos (persisten) ----
 let casos=JSON.parse(localStorage.getItem('pagos_dg_casos')||'{}');       // clave fila -> true/false (¿se paga?)
 let descs=JSON.parse(localStorage.getItem('pagos_dg_desc')||'{}');       // clave semana|profe -> {multas,productos,otros,nota}
@@ -139,20 +218,19 @@ $('btnCargar').onclick=async()=>{
     const url='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet='+HIST_TAB;
     const res=await fetch(url); if(!res.ok) throw new Error('HTTP '+res.status);
     const rows=parseCSV(await res.text());
-    const r=rangoSemana();
     filas=[];
     rows.forEach(x=>{
       const fecha=(x[0]||'').trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return;
-      if(fecha<r.ini||fecha>r.fin) return;
       filas.push({fecha, alumno:(x[1]||'').trim(), hora:(x[2]||'').trim(), sede:(x[3]||'').trim(), profe:(x[4]||'').trim()||'—', tipo:((x[5]||'').trim()||'G').toUpperCase(), estado:(x[6]||'').trim(), cobro:(x[7]||'').trim()});
     });
-    $('status').textContent=filas.length? (filas.length+' clases encontradas en la semana.') : 'No hay registros del HISTORIAL en esta semana.';
+    $('status').textContent=filas.length? ('Historial cargado ('+filas.length+' clases en total). Cada profe se liquida con su rango o la semana elegida.') : 'El HISTORIAL está vacío.';
     render();
   }catch(e){ $('status').textContent='No pude leer el HISTORIAL: '+e.message+'. Verificá que la planilla esté compartida y que exista la hoja HISTORIAL.'; }
 };
 
 // ---- Cálculo y render ----
-function tarifaDe(tipo){ if(tipo==='IND')return tarifas.IND; if(tipo==='D')return tarifas.D; if(tipo==='AR')return tarifas.AR; return tarifas.G; }
+function tarifaDe(pf,tipo){ if(tipo==='IND')return pf.IND; if(tipo==='D')return pf.D; if(tipo==='AR')return pf.AR; return pf.G; }
+function rangoDe(pf){ const r=rangoSemana(); return { ini: pf.desde||r.ini, fin: pf.hasta||r.fin }; }
 function esPagableAuto(f){ return f.estado==='Presente'||f.estado==='Presente (acople)'||f.estado==='Bloque'; }
 function esCaso(f){ return f.estado==='Ausente sin aviso'||f.estado==='Reagendable'; }
 function render(){
@@ -162,33 +240,36 @@ function render(){
   filas.forEach(f=>{ (porProfe[f.profe]=porProfe[f.profe]||[]).push(f); });
   let html='';
   Object.keys(porProfe).sort().forEach(p=>{
-    const fs=porProfe[p];
+    const pf=perfilDe(p);
+    const rg=rangoDe(pf);
+    const fs=porProfe[p].filter(f=>f.fecha>=rg.ini&&f.fecha<=rg.fin);
+    if(!fs.length) return; // nada en su rango
     const cnt={IND:0,D:0,G:0,AR:0};
     let subAuto=0;
-    fs.filter(esPagableAuto).forEach(f=>{ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; subAuto+=tarifaDe(t); });
+    fs.filter(esPagableAuto).forEach(f=>{ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; subAuto+=tarifaDe(pf,t); });
     // casos a revisar
     const listaCasos=fs.filter(esCaso);
     let subCasos=0;
-    listaCasos.forEach(f=>{ if(casos[claveFila(f)]) subCasos+=tarifaDe((f.tipo in cnt)?f.tipo:'G'); });
+    listaCasos.forEach(f=>{ if(casos[claveFila(f)]) subCasos+=tarifaDe(pf,(f.tipo in cnt)?f.tipo:'G'); });
     const d=descDe(p);
-    const totDesc=(+d.multas||0)*tarifas.MULTA+(+d.productos||0)+(+d.otros||0);
+    const totDesc=(+d.multas||0)*(pf.MULTA||0)+(+d.productos||0)+(+d.otros||0);
     const total=subAuto+subCasos-totDesc;
     html+=`<div class="pcard" data-p="${p}">
       <div class="phead" data-toggle="${p}">
         <span class="pbadge" style="background:${color(p)}">${p}</span>
-        <span class="pname">${PROFES[p]||''}</span>
+        <span class="pname">${nombreDe(p)}<div style="font-size:10px;color:var(--muted);font-weight:600">${rg.ini.slice(5)} → ${rg.fin.slice(5)}${pf.desde||pf.hasta?' (propio)':''}</div></span>
         <span class="ptotal">${gs(total)}</span>
       </div>
       <div class="pbody">
         <table><tr><th>Clases pagables</th><th class="num">Cant.</th><th class="num">Tarifa</th><th class="num">Subtotal</th></tr>
-          ${['IND','D','G','AR'].filter(t=>cnt[t]>0).map(t=>`<tr><td>${t}</td><td class="num">${cnt[t]}</td><td class="num">${gs(tarifaDe(t))}</td><td class="num">${gs(cnt[t]*tarifaDe(t))}</td></tr>`).join('')||'<tr><td colspan="4" style="color:var(--muted)">Sin clases pagables automáticas</td></tr>'}
+          ${['IND','D','G','AR'].filter(t=>cnt[t]>0).map(t=>`<tr><td>${t}</td><td class="num">${cnt[t]}</td><td class="num">${gs(tarifaDe(pf,t))}</td><td class="num">${gs(cnt[t]*tarifaDe(pf,t))}</td></tr>`).join('')||'<tr><td colspan="4" style="color:var(--muted)">Sin clases pagables automáticas</td></tr>'}
         </table>
         ${listaCasos.length?`<div style="margin-top:10px;font-size:12px;font-weight:800;color:var(--warn)">⚠️ Casos a revisar (decidís vos si se paga):</div>`:''}
         ${listaCasos.map(f=>{ const k=claveFila(f); const si=!!casos[k];
           return `<div class="caso"><div class="info"><b>${f.alumno}</b> · ${f.fecha.slice(5)} ${f.hora} (${f.tipo})<div class="est">${f.estado}${f.cobro==='Sí'?' · se cobra al alumno':f.cobro==='No'?' · no se cobra':''}</div></div>
             <button class="tgl${si?' si':''}" data-caso="${k}" data-t="${f.tipo}">${si?'✓ Se paga':'No se paga'}</button></div>`; }).join('')}
         <div style="margin-top:12px;font-size:12px;font-weight:800;color:var(--brand-d)">Descuentos</div>
-        <div class="desc-row"><label>Multas (cant.)</label><input class="qty" inputmode="numeric" data-d="multas" data-p="${p}" value="${d.multas||''}" placeholder="0"><span style="font-size:12px;color:var(--muted)">× ${gs(tarifas.MULTA)}</span></div>
+        <div class="desc-row"><label>Multas (cant.)</label><input class="qty" inputmode="numeric" data-d="multas" data-p="${p}" value="${d.multas||''}" placeholder="0"><span style="font-size:12px;color:var(--muted)">× ${gs(pf.MULTA||0)}</span></div>
         <div class="desc-row"><label>Productos Gs</label><input inputmode="numeric" data-d="productos" data-p="${p}" value="${d.productos||''}" placeholder="0"></div>
         <div class="desc-row"><label>Otros Gs</label><input inputmode="numeric" data-d="otros" data-p="${p}" value="${d.otros||''}" placeholder="0"></div>
         <div class="desc-row"><label>Nota</label><input data-d="nota" data-p="${p}" value="${(d.nota||'').replace(/"/g,'&quot;')}" placeholder="Motivo del descuento…"></div>
@@ -212,12 +293,15 @@ $('btnCopiar').onclick=()=>{
   let out='💵 PAGOS PROFES · Semana '+r.ini+' → '+r.fin+'\n\n';
   const porProfe={}; filas.forEach(f=>{ (porProfe[f.profe]=porProfe[f.profe]||[]).push(f); });
   Object.keys(porProfe).sort().forEach(p=>{
-    const fs=porProfe[p]; const cnt={IND:0,D:0,G:0,AR:0}; let sub=0;
-    fs.filter(esPagableAuto).forEach(f=>{ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; sub+=tarifaDe(t); });
-    fs.filter(esCaso).forEach(f=>{ if(casos[claveFila(f)]){ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; sub+=tarifaDe(t); } });
-    const d=descDe(p); const totDesc=(+d.multas||0)*tarifas.MULTA+(+d.productos||0)+(+d.otros||0);
-    out+=p+' ('+(PROFES[p]||'')+')\n';
-    ['IND','D','G','AR'].forEach(t=>{ if(cnt[t]) out+='  '+t+': '+cnt[t]+' × '+gs(tarifaDe(t))+'\n'; });
+    const pf=perfilDe(p); const rg=rangoDe(pf);
+    const fs=porProfe[p].filter(f=>f.fecha>=rg.ini&&f.fecha<=rg.fin);
+    if(!fs.length) return;
+    const cnt={IND:0,D:0,G:0,AR:0}; let sub=0;
+    fs.filter(esPagableAuto).forEach(f=>{ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; sub+=tarifaDe(pf,t); });
+    fs.filter(esCaso).forEach(f=>{ if(casos[claveFila(f)]){ const t=(f.tipo in cnt)?f.tipo:'G'; cnt[t]++; sub+=tarifaDe(pf,t); } });
+    const d=descDe(p); const totDesc=(+d.multas||0)*(pf.MULTA||0)+(+d.productos||0)+(+d.otros||0);
+    out+=p+' ('+(nombreDe(p)||'')+') · '+rg.ini+' → '+rg.fin+'\n';
+    ['IND','D','G','AR'].forEach(t=>{ if(cnt[t]) out+='  '+t+': '+cnt[t]+' × '+gs(tarifaDe(pf,t))+'\n'; });
     if(totDesc) out+='  Descuentos: −'+gs(totDesc)+(d.nota?' ('+d.nota+')':'')+'\n';
     out+='  TOTAL: '+gs(sub-totDesc)+'\n\n';
   });
