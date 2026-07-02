@@ -288,6 +288,7 @@
     <button class="btn reset" id="btnReset">🔄 Resetear semana desde madre</button>
     <button class="btn" id="btnAvanzar">▸ Avanzar semana</button>
     <button class="btn" id="btnPublicar">📲 Publicar día a tablets</button>
+    <button class="btn" id="btnCerrarDia">💾 Cerrar y guardar día</button>
   </div>
 </header>
 
@@ -1559,6 +1560,7 @@ document.querySelectorAll('.ev-ph .chip').forEach(ch=>{
 document.getElementById('btnReset').onclick=resetSemana;
 document.getElementById('btnAvanzar').onclick=avanzarSemana;
 document.getElementById('btnPublicar').onclick=()=>publicarDiaHoy(false);
+document.getElementById('btnCerrarDia').onclick=cerrarYGuardarDia;
 document.getElementById('overlay').onclick=(e)=>{ if(e.target.id==='overlay') closeEditor(); };
 
 // ===== Guardar HORARIOS del calendario en la planilla (sección SEMANA) =====
@@ -1568,6 +1570,59 @@ function cargarGIS(){ return new Promise((res,rej)=>{ if(window.google&&google.a
 function pedirToken(){ return new Promise(async(res,rej)=>{ try{ await cargarGIS(); }catch(e){ return rej(e);} try{ _tokenClient=google.accounts.oauth2.initTokenClient({ client_id:GOOGLE_CLIENT_ID, scope:'https://www.googleapis.com/auth/spreadsheets', callback:(r)=>{ if(r&&r.access_token){ _gtoken=r.access_token; res(r.access_token);} else rej(new Error('No autorizaste el acceso.')); } }); _tokenClient.requestAccessToken({prompt:_gtoken?'':'consent'}); }catch(e){ rej(e);} }); }
 async function sheetsGet(range){ const id=state.sheetId||DEFAULT_SHEET_ID; const u='https://sheets.googleapis.com/v4/spreadsheets/'+id+'/values/'+encodeURIComponent(range); const r=await fetch(u,{headers:{Authorization:'Bearer '+_gtoken}}); if(!r.ok) throw new Error('Lectura falló ('+r.status+')'); return r.json(); }
 async function sheetsBatchUpdate(data){ const id=state.sheetId||DEFAULT_SHEET_ID; const u='https://sheets.googleapis.com/v4/spreadsheets/'+id+'/values:batchUpdate'; const r=await fetch(u,{method:'POST',headers:{Authorization:'Bearer '+_gtoken,'Content-Type':'application/json'},body:JSON.stringify({valueInputOption:'USER_ENTERED',data})}); if(!r.ok) throw new Error('Guardado falló ('+r.status+')'); return r.json(); }
+
+// ===== ETAPA 3: cerrar el día y guardar el HISTORIAL (una fila por alumno) =====
+const SEDE_NICE={lomas:'LOMAS',elite:'ELITE',segurola:'SEGUROLA',adefinir:'A DEFINIR'};
+const HIST_TAB='HISTORIAL';
+const HIST_HEADER=['Fecha','Alumno','Hora','Sede','Profe','Tipo','Estado','Cobro'];
+// Resuelve el estado final y si se cobra, según la regla acordada
+function resolverEstado(rec){
+  const asis=rec.asis||'sin';
+  if(asis==='presente') return {estado: rec.acople?'Presente (acople)':'Presente', cobro:'Sí'};
+  // ausente o sin marcar -> depende de si estaba confirmado
+  if(rec.confirmado) return {estado:'Ausente sin aviso', cobro:'Sí'};     // ✅ + no vino = se cobra
+  return {estado:'Reagendable', cobro:'No'};                              // 👀 + no vino = reagenda
+}
+async function sheetsMeta(){ const id=state.sheetId||DEFAULT_SHEET_ID; const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+id+'?fields=sheets.properties.title',{headers:{Authorization:'Bearer '+_gtoken}}); if(!r.ok) throw new Error('No pude leer la planilla ('+r.status+')'); return r.json(); }
+async function sheetsAddTab(title){ const id=state.sheetId||DEFAULT_SHEET_ID; const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+id+':batchUpdate',{method:'POST',headers:{Authorization:'Bearer '+_gtoken,'Content-Type':'application/json'},body:JSON.stringify({requests:[{addSheet:{properties:{title}}}]})}); if(!r.ok) throw new Error('No pude crear la hoja ('+r.status+')'); return r.json(); }
+async function sheetsAppend(range, values){ const id=state.sheetId||DEFAULT_SHEET_ID; const u='https://sheets.googleapis.com/v4/spreadsheets/'+id+'/values/'+encodeURIComponent(range)+':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS'; const r=await fetch(u,{method:'POST',headers:{Authorization:'Bearer '+_gtoken,'Content-Type':'application/json'},body:JSON.stringify({values})}); if(!r.ok) throw new Error('No pude escribir ('+r.status+')'); return r.json(); }
+async function asegurarHistorial(){
+  const meta=await sheetsMeta();
+  const existe=(meta.sheets||[]).some(s=>s.properties && s.properties.title===HIST_TAB);
+  if(!existe){ await sheetsAddTab(HIST_TAB); await sheetsAppend(HIST_TAB+'!A1',[HIST_HEADER]); }
+}
+async function cerrarYGuardarDia(){
+  if(!_fbdb){ alert('Firebase no está disponible en este momento.'); return; }
+  const fecha=isoDe(new Date());
+  if(!confirm('💾 Cerrar y guardar el día '+fecha+' en el HISTORIAL.\n\nSe guarda una fila por alumno con su estado (presente / ausente / reagendable). ¿Continuar?')) return;
+  try{
+    // 1) leer todas las sedes del día desde Firebase
+    const sedes=['lomas','elite','segurola','adefinir'];
+    const filas=[];
+    for(const sk of sedes){
+      const snap=await _fbdb.ref('dia/'+fecha+'/'+sk).once('value');
+      const data=snap.val()||{};
+      Object.values(data).forEach(rec=>{
+        if(!rec||!rec.nombre) return;
+        if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO|ALMUERZO/i.test(rec.nombre)) return; // bloques no van al historial
+        const {estado,cobro}=resolverEstado(rec);
+        filas.push([fecha, rec.nombre, HORAS[rec.horaIdx]||'', SEDE_NICE[sk]||sk, rec.profe||'', rec.mod||'', estado, cobro]);
+      });
+    }
+    if(!filas.length){ alert('No hay asistencia registrada hoy para guardar.'); return; }
+    // 2) login (una vez por sesión)
+    if(!_gtoken) await pedirToken();
+    // 3) asegurar la hoja HISTORIAL
+    await asegurarHistorial();
+    // 4) evitar duplicar si ya se guardó este día
+    let prev={}; try{ prev=await sheetsGet(HIST_TAB+'!A2:A'); }catch(e){}
+    const yaEsta=(prev.values||[]).some(r=>r[0]===fecha);
+    if(yaEsta && !confirm('⚠️ El día '+fecha+' ya figura en el HISTORIAL.\n\n¿Agregar igual? (pueden quedar filas repetidas)')) return;
+    // 5) guardar
+    await sheetsAppend(HIST_TAB+'!A1', filas);
+    alert('✅ Día guardado en HISTORIAL.\n\n'+filas.length+' alumnos registrados el '+fecha+'.');
+  }catch(e){ alert('No pude guardar el día:\n\n'+e.message+'\n\nSi pide permisos de Google, aceptá y volvé a intentar.'); }
+}
 
 // deriva de la MADRE el horario semanal de cada alumno: { normName: {nombre, dias:{LUNES:Set,...}} }
 function horariosDesdeMadre(){
