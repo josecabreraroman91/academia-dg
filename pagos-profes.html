@@ -279,7 +279,7 @@ $('btnCargar').onclick=async()=>{
 function tarifaDe(pf,tipo){ if(tipo==='IND')return pf.IND; if(tipo==='D')return pf.D; if(tipo==='AR')return pf.AR; return pf.G; }
 function rangoDe(pf){ const r=rangoSemana(); return { ini: pf.desde||r.ini, fin: pf.hasta||r.fin }; }
 function esPagableAuto(f){ return f.estado==='Presente'||f.estado==='Presente (acople)'||f.estado==='Bloque'; }
-function esCaso(f){ return f.estado==='Ausente sin aviso'||f.estado==='Reagendable'; }
+function esCaso(f){ return /^Ausente/i.test(f.estado||''); }  // cubre "Ausente (no avisó/avisó/fuerza mayor)" y viejos
 function render(){
   const cont=$('lista');
   if(!filas.length){ cont.innerHTML='<div class="empty">Todavía no cargaste la semana.</div>'; $('btnCopiar').style.display='none'; return; }

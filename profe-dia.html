@@ -111,6 +111,8 @@
   .me-hora{font-size:13px;color:var(--muted);font-weight:700;margin-top:2px}
   .me-q{font-size:13px;color:var(--muted);margin:12px 0 14px}
   .me-opt{width:100%;padding:18px;border-radius:13px;border:2px solid var(--line);background:#f7fafb;font-size:19px;font-weight:900;cursor:pointer;margin-bottom:11px;color:var(--txt);display:flex;align-items:center;justify-content:center;gap:8px}
+  .nom .conf{font-size:14px}
+  .nom .mod{color:var(--muted);font-weight:600;font-size:13px}
   .me-opt.pres{border-color:#8fd0a8}
   .me-opt.aus{border-color:#e8a49d}
   .me-opt.sinm{border-color:#cfd8de}
@@ -153,8 +155,7 @@
   </div>
 
   <div class="leyenda">
-    <span><i class="pill pres"></i> Presente</span>
-    <span><i class="pill sin"></i> Sin marcar</span>
+    <span><i class="pill pres"></i> Presente (por defecto)</span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>✅ confirmado · 👀 sin confirmar</span>
   </div>
@@ -187,7 +188,6 @@
     <div class="me-q">¿A qué estado querés cambiar?</div>
     <button class="me-opt pres" data-est="presente">🟢 Presente</button>
     <button class="me-opt aus"  data-est="ausente">🔴 Ausente</button>
-    <button class="me-opt sinm" data-est="sin">⚪ Sin marcar</button>
     <button class="btn me-cancel" id="meCancel">Cancelar</button>
   </div>
 </div>
@@ -320,13 +320,12 @@ function render(){
           </div>`;
           return;
         }
-        const est=a.asis||'sin';
+        const est=a.asis==='ausente'?'ausente':'presente';   // por defecto PRESENTE; solo ausente si lo marcaron
         const conf=a.confirmado?'✅':'👀';
         html+=`<div class="al ${est}${a.acople?' acople':''}" data-id="${a.id}">
           <div class="estado">${EST_ICO[est]}</div>
           <div class="info">
-            <div class="nom">${escapeHtml(a.nombre)} <span style="color:var(--muted);font-weight:600;font-size:13px">${modTxt(a.mod)}</span></div>
-            <div class="meta"><span class="conf">${conf}</span>${a.acople?'<span class="tag">acople</span>':''}</div>
+            <div class="nom">${escapeHtml(a.nombre)} <span class="conf">${conf}</span> <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">acople</span>':''}</div>
           </div>
           ${a.acople?`<div class="del" data-del="${a.id}">✕</div>`:''}
         </div>`;
@@ -351,7 +350,7 @@ function render(){
 // ---- Menú de estado (cartel centrado, para evitar toques accidentales) ----
 function abrirMenuEstado(id){
   const rec=cacheDia[id]||{};
-  const cur=rec.asis||'sin';
+  const cur=rec.asis==='ausente'?'ausente':'presente';
   const ov=document.getElementById('ovEstado');
   document.getElementById('meNom').textContent=rec.nombre||'Alumno';
   document.getElementById('meHora').textContent=(HORAS[rec.horaIdx]||'')+(rec.profe?(' · '+rec.profe):'');
