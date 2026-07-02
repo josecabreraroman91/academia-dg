@@ -142,8 +142,7 @@
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
 
   <div class="bottom">
-    <button class="btn" id="btnSeed">🧪 Día de prueba</button>
-    <button class="btn court" id="btnAcople">➕ Agregar acople</button>
+    <button class="btn court" id="btnAcople">➕ Agregar alumno que vino sin estar en la lista</button>
   </div>
 </div>
 
@@ -257,7 +256,7 @@ function modTxt(m){ return m ? '('+m+')' : ''; }
 function render(){
   const wrap=document.getElementById('wrap');
   const items=Object.entries(cacheDia).map(([id,a])=>({id,...a})).filter(a=>a && a.nombre);
-  if(!items.length){ wrap.innerHTML='<div class="empty">No hay clases cargadas para hoy todavía.<br>Podés tocar <b>🧪 Día de prueba</b> para ver cómo funciona.</div>'; return; }
+  if(!items.length){ wrap.innerHTML='<div class="empty">Todavía no hay clases cargadas para hoy en esta sede.<br><br>Cuando se publique el día desde el calendario, van a aparecer acá automáticamente.<br><br>Si vino alguien igual, podés cargarlo con <b>➕ Agregar</b>.</div>'; return; }
   const porHora={};
   items.forEach(a=>{ const h=a.horaIdx!=null?a.horaIdx:0; (porHora[h]=porHora[h]||[]).push(a); });
   const horas=Object.keys(porHora).map(Number).sort((x,y)=>x-y);
@@ -325,21 +324,6 @@ document.getElementById('acGuardar').onclick=()=>{
   const profe=document.getElementById('acProfe').value;
   refDia.push({ nombre:nom, horaIdx, profe, mod:'', confirmado:false, asis:'presente', acople:true });
   mAc.classList.remove('show'); toast('✅ Agregado presente');
-};
-
-// ---- Día de prueba (scaffolding etapa 1) ----
-document.getElementById('btnSeed').onclick=()=>{
-  if(!confirm('Cargar un día de PRUEBA en esta sede (reemplaza lo que haya hoy). Solo para probar.')) return;
-  const demo={
-    a1:{nombre:'Juan Pérez', horaIdx:2, profe:'JM', mod:'G', confirmado:true,  asis:'presente'},
-    a2:{nombre:'María López', horaIdx:2, profe:'JM', mod:'G', confirmado:false, asis:'sin'},
-    a3:{nombre:'Pedro Gómez', horaIdx:2, profe:'VA', mod:'IND',confirmado:true,  asis:'presente'},
-    ar:{nombre:'ALTO RENDIMIENTO', horaIdx:2, profe:'MP', mod:'BLOQUE', confirmado:true, asis:'sin'},
-    a4:{nombre:'Ana Díaz', horaIdx:3, profe:'VA', mod:'G', confirmado:false, asis:'sin'},
-    a5:{nombre:'Luis Fernández', horaIdx:3, profe:'MP', mod:'D', confirmado:true, asis:'presente'},
-    a6:{nombre:'Carla Ruiz', horaIdx:8, profe:'JM', mod:'G', confirmado:false, asis:'sin'}
-  };
-  refDia.set(demo); toast('🧪 Día de prueba cargado');
 };
 
 // ---- Arranque: si ya hay sede guardada, entra directo ----
