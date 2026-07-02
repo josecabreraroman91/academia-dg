@@ -149,7 +149,7 @@
 <div class="modal" id="mAcople">
   <div class="sheet">
     <h3>➕ Agregar alumno (acople)</h3>
-    <div class="fld"><label>Nombre</label><input id="acNom" placeholder="Nombre y apellido"></div>
+    <div class="fld"><label>Nombre</label><input id="acNom" list="alumnosList" autocomplete="off" placeholder="Escribí para buscar…"><datalist id="alumnosList"></datalist></div>
     <div class="fld"><label>Hora</label><select id="acHora"></select></div>
     <div class="fld"><label>Profe</label><select id="acProfe"></select></div>
     <div class="acts">
@@ -179,6 +179,32 @@ try{document.getElementById("logoLand").src=LOGO;document.getElementById("logoTo
 const HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
 const PROFES = [{"nombre":"Juan Martinez","dim":"JM"},{"nombre":"Valeria Ávila","dim":"VA"},{"nombre":"Marina Pérez","dim":"MP"},{"nombre":"Florencia López","dim":"FL"},{"nombre":"Pablo Rojas","dim":"PR"},{"nombre":"Mauro Fernández","dim":"MF"},{"nombre":"Tomás Emilio","dim":"TE"},{"nombre":"Ramiro Acosta","dim":"RA"},{"nombre":"Oscar Benítez","dim":"OB"},{"nombre":"Rodrigo Sosa","dim":"RS"},{"nombre":"Carlos Giménez","dim":"ChG"},{"nombre":"Fabio Arce","dim":"FA"},{"nombre":"Profe HR","dim":"HR"},{"nombre":"Sin profe","dim":"SP"}];
 const SEDE_NOM={lomas:'LOMAS',elite:'ELITE',segurola:'SEGUROLA'};
+const SHEET_ID='1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';  // planilla (hoja ALUMNOS)
+
+// ---- Autocompletado de alumnos desde la planilla (gviz, sin login) ----
+function parseCSV(txt){
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<txt.length;i++){ const c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"') q=true; else if(c===','){ row.push(cur); cur=''; } else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; } else if(c!=='\r') cur+=c; }
+  }
+  if(cur.length||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+function normNombre(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
+async function cargarAlumnosPlanilla(){
+  try{
+    const url='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet=ALUMNOS';
+    const res=await fetch(url); if(!res.ok) throw new Error('HTTP '+res.status);
+    const rows=parseCSV(await res.text());
+    const set=new Set();
+    rows.forEach(r=>{ const nom=(r[1]||'').trim(); const n=normNombre(nom);
+      if(nom && n!=='alumnos' && n.length>1 && !/^(alto rendimiento|almuerzo|bloque)/.test(n)) set.add(nom); });
+    const dl=document.getElementById('alumnosList');
+    dl.innerHTML=[...set].sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+    console.log('Autocompletado: '+set.size+' alumnos cargados');
+  }catch(e){ console.warn('No pude cargar alumnos para autocompletar:', e.message); /* se puede escribir a mano igual */ }
+}
 const EST_ICO={sin:'⚪',presente:'🟢',ausente:'🔴'};
 const EST_NEXT={sin:'presente',presente:'ausente',ausente:'sin'};
 
@@ -212,6 +238,8 @@ function iniciarApp(){
   // selects del modal
   const selH=document.getElementById('acHora'); selH.innerHTML=HORAS.map((h,i)=>`<option value="${i}">${h}</option>`).join('');
   const selP=document.getElementById('acProfe'); selP.innerHTML=PROFES.map(p=>`<option value="${p.dim}">${p.dim} · ${p.nombre}</option>`).join('');
+  // autocompletado de alumnos desde la planilla (queda listo al toque)
+  cargarAlumnosPlanilla();
 }
 
 // ---- Helpers de presentación (estilo resumen) ----
