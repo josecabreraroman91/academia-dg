@@ -59,7 +59,11 @@
   .prof-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
   .prof-item{display:flex;align-items:center;gap:8px;background:var(--cell);border:1px solid var(--line);border-radius:8px;padding:8px 10px}
   .prof-item .pdim{background:var(--accent);color:#1a1a1a;font-weight:700;border-radius:6px;padding:3px 8px;font-size:13px;min-width:42px;text-align:center}
+  .prof-item .pdim-edit{width:56px;flex:0 0 auto;background:var(--accent);color:#1a1a1a;font-weight:800;border:1px solid var(--line);border-radius:6px;padding:7px 4px;font-size:14px;text-align:center;text-transform:uppercase}
+  .prof-item .pdim-edit:focus{outline:none;border-color:#1a1a1a}
   .prof-item .pnom{flex:1;font-weight:600}
+  .prof-item .pnom-edit{flex:1;font-weight:600;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 9px;color:var(--txt);font-size:14px;min-width:0}
+  .prof-item .pnom-edit:focus{outline:none;border-color:var(--accent)}
   .prof-item .pdel{background:#3a1f1f;border:1px solid #5a2a2a;color:#ff8a8a;border-radius:6px;padding:5px 9px;cursor:pointer;font-size:12px}
   .prof-add{display:flex;gap:8px;align-items:flex-end;border-top:1px solid var(--line);padding-top:12px}
   .prof-add .field{margin:0}
@@ -111,17 +115,18 @@
   .libre-toggle{position:absolute;top:1px;right:1px;font-size:10px;background:#0005;border:none;color:#fff;border-radius:4px;width:16px;height:16px;cursor:pointer;opacity:.35;padding:0;line-height:1}
   .libre-toggle:hover{opacity:1}
 
-  .overlay{position:fixed;inset:0;background:#000a;display:none;align-items:flex-end;z-index:50}
+  .overlay{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:10px;overflow-y:auto}
   .overlay.show{display:flex}
-  .sheet{background:var(--panel);width:100%;border-radius:16px 16px 0 0;padding:16px;max-height:88vh;max-height:90dvh;overflow:auto}
+  @media(min-width:640px){ .overlay{align-items:center} }
+  .sheet{background:var(--panel);width:100%;max-width:460px;border-radius:16px;padding:16px;max-height:92dvh;overflow:auto;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.5)}
   .sheet h3{margin-bottom:12px;font-size:15px}
   .field{margin-bottom:10px}
   .field label{display:block;font-size:11px;color:var(--muted);margin-bottom:3px}
   .field input,.field select,.field textarea{width:100%;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-size:14px;font-family:inherit}
   .field-row{display:flex;gap:8px}
   .field-row .field{flex:1}
-  .sheet-actions{position:sticky;bottom:0;display:flex;gap:8px;margin:12px -16px -16px;padding:12px 16px;padding-bottom:max(12px,env(safe-area-inset-bottom));background:var(--panel);border-top:1px solid var(--line)}
-  .sheet-actions .btn{flex:1;padding:11px}
+  .sheet-actions{position:sticky;bottom:0;display:flex;gap:10px;margin:14px -16px -16px;padding:15px 16px;padding-bottom:max(15px,env(safe-area-inset-bottom));background:var(--panel);border-top:2px solid var(--accent);box-shadow:0 -8px 18px rgba(0,0,0,.3)}
+  .sheet-actions .btn{flex:1;padding:16px;font-size:16px;font-weight:800}
   .btn.danger{background:#3a1f1f;border-color:#5a2a2a;color:#ff8a8a}
 
   .resumen{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;margin-top:0;white-space:pre-wrap;font-size:13px;line-height:1.5;flex:1;min-height:0;overflow:auto}
@@ -907,15 +912,41 @@ function addProf(){
 // ---- Gestión de profesores ----
 function openProfs(){ renderProfList(); document.getElementById('overlayProfs').classList.add('show'); }
 function closeProfs(){ document.getElementById('overlayProfs').classList.remove('show'); }
+function renombrarDim(viejo,nuevo){
+  const sd=state.sedesPorDia||{};
+  Object.keys(sd).forEach(dia=>{ (sd[dia]||[]).forEach(sede=>{
+    const arr=sede&&sede.profes; if(Array.isArray(arr)) arr.forEach((d,idx)=>{ if(d===viejo) arr[idx]=nuevo; });
+  }); });
+}
 function renderProfList(){
   const el=document.getElementById('profList');
   if(!state.profesores.length){ el.innerHTML='<p style="color:var(--muted);font-size:12px">Sin profesores cargados.</p>'; return; }
   el.innerHTML = state.profesores.map((p,i)=>`
     <div class="prof-item">
-      <span class="pdim">${p.dim}</span>
-      <span class="pnom">${p.nombre}</span>
+      <input class="pdim-edit" data-i="${i}" maxlength="4" placeholder="JM">
+      <input class="pnom-edit" data-i="${i}" placeholder="Nombre del profe">
       <button class="pdel" data-i="${i}">Borrar</button>
     </div>`).join('');
+  el.querySelectorAll('.pdim-edit').forEach(inp=>{
+    const i=+inp.dataset.i; inp.value=state.profesores[i].dim;
+    inp.onchange=()=>{
+      const nuevo=inp.value.trim(), viejo=state.profesores[i].dim;
+      if(!nuevo){ inp.value=viejo; return; }
+      if(nuevo===viejo) return;
+      if(state.profesores.some((q,j)=>j!==i && q.dim.toLowerCase()===nuevo.toLowerCase())){
+        alert('Ya existe un profe con el diminutivo "'+nuevo+'".'); inp.value=viejo; return;
+      }
+      renombrarDim(viejo,nuevo);              // actualiza las columnas de todas las sedes/días
+      state.profesores[i].dim=nuevo;
+      saveState(); renderAll();
+    };
+  });
+  el.querySelectorAll('.pnom-edit').forEach(inp=>{
+    const i=+inp.dataset.i; inp.value=state.profesores[i].nombre;
+    inp.onchange=()=>{ const v=inp.value.trim();
+      if(v){ state.profesores[i].nombre=v; saveState(); renderGrid(); }
+      else { inp.value=state.profesores[i].nombre; } };
+  });
   el.querySelectorAll('.pdel').forEach(b=>{
     b.onclick=()=>{
       const i=+b.dataset.i; const p=state.profesores[i];
