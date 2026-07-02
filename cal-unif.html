@@ -1614,13 +1614,25 @@ async function cerrarYGuardarDia(){
     if(!_gtoken) await pedirToken();
     // 3) asegurar la hoja HISTORIAL
     await asegurarHistorial();
-    // 4) evitar duplicar si ya se guardó este día
-    let prev={}; try{ prev=await sheetsGet(HIST_TAB+'!A2:A'); }catch(e){}
-    const yaEsta=(prev.values||[]).some(r=>r[0]===fecha);
-    if(yaEsta && !confirm('⚠️ El día '+fecha+' ya figura en el HISTORIAL.\n\n¿Agregar igual? (pueden quedar filas repetidas)')) return;
-    // 5) guardar
-    await sheetsAppend(HIST_TAB+'!A1', filas);
-    alert('✅ Día guardado en HISTORIAL.\n\n'+filas.length+' alumnos registrados el '+fecha+'.');
+    // 4) leer lo que ya hay del HISTORIAL y comparar (huella: fecha|alumno|hora|sede)
+    let prev={values:[]}; try{ prev=await sheetsGet(HIST_TAB+'!A2:H'); }catch(e){}
+    const existentes={};
+    (prev.values||[]).forEach((r,i)=>{ const k=[r[0],(r[1]||'').trim(),r[2],r[3]].join('||'); existentes[k]={row:i+2, vals:r}; });
+    const nuevas=[], updates=[]; let iguales=0;
+    filas.forEach(f=>{
+      const k=[f[0],(f[1]||'').trim(),f[2],f[3]].join('||');
+      const ex=existentes[k];
+      if(!ex){ nuevas.push(f); return; }
+      // ¿cambió algo? comparar profe(4), tipo(5), estado(6), cobro(7)
+      const cambio=[4,5,6,7].some(i=>String(ex.vals[i]||'')!==String(f[i]||''));
+      if(cambio) updates.push({range:HIST_TAB+'!A'+ex.row+':H'+ex.row, values:[f]});
+      else iguales++;
+    });
+    // 5) guardar: actualizar lo que cambió y agregar solo lo nuevo
+    if(updates.length) await sheetsBatchUpdate(updates);
+    if(nuevas.length)  await sheetsAppend(HIST_TAB+'!A1', nuevas);
+    if(!nuevas.length && !updates.length){ alert('✅ Día '+fecha+' ya estaba guardado y sin cambios.\n\nNo se duplicó nada.'); return; }
+    alert('✅ Día '+fecha+' guardado.\n\n➕ Nuevas: '+nuevas.length+'\n♻️ Actualizadas: '+updates.length+'\n✓ Sin cambios: '+iguales);
   }catch(e){ alert('No pude guardar el día:\n\n'+e.message+'\n\nSi pide permisos de Google, aceptá y volvé a intentar.'); }
 }
 
