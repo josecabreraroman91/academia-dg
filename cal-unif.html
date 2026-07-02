@@ -282,6 +282,7 @@
     <button class="btn" id="btnHorariosPlan">☁️ Guardar horarios en planilla</button>
     <button class="btn reset" id="btnReset">🔄 Resetear semana desde madre</button>
     <button class="btn" id="btnAvanzar">▸ Avanzar semana</button>
+    <button class="btn" id="btnPublicar">📲 Publicar día a tablets</button>
   </div>
 </header>
 
@@ -435,6 +436,8 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 const DAYS = ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
 const HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
@@ -590,7 +593,76 @@ function loadState(){
   asegurarSemanas();
   saveState();
 }
-function saveState(){ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }
+function saveState(){ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); autoPublicar(); }
+
+// ===== Firebase: publicar el DÍA DE HOY a las tablets (etapa 2) =====
+let _fbdb=null;
+try{
+  firebase.initializeApp({
+    apiKey:"AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+    authDomain:"academia-dg.firebaseapp.com",
+    databaseURL:"https://academia-dg-default-rtdb.firebaseio.com",
+    projectId:"academia-dg",
+    storageBucket:"academia-dg.firebasestorage.app",
+    messagingSenderId:"623967243039",
+    appId:"1:623967243039:web:e22397b466b63aefdf3e2a"
+  });
+  _fbdb=firebase.database();
+}catch(e){ console.warn('Firebase no disponible:', e.message); }
+
+function diaHoyNombre(){ const wd=new Date().getDay(); return (wd>=1&&wd<=6)?DAYS[wd-1]:null; } // LUNES..SABADO (o null si domingo)
+function fbKey(hi,d,si,nombre){ const n=String(nombre).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''); return hi+'_'+d+'_'+si+'_'+n; }
+
+// arma los registros del día de hoy, por sede, desde ESTA SEMANA (no madre, no próxima)
+function armarDiaHoy(){
+  const dia=diaHoyNombre(); if(!dia) return null;
+  const B=state.semana||{alumnos:{},libres:{}};
+  const sedesDia=state.sedesPorDia[dia]; if(!sedesDia) return null;
+  const porSede={};
+  sedesDia.forEach(s=>{
+    const recs={};
+    s.profes.forEach((d,pi)=>{
+      if(!d||d==='—') return;
+      for(let hi=0;hi<HORAS.length;hi++){
+        if(B.libres && B.libres[`${dia}|${s.key}|${pi}|${hi}`]) continue; // profe libre esa hora
+        for(let si=0;si<SLOTS_POR_HORA;si++){
+          const al=B.alumnos[`${dia}|${s.key}|${pi}|${hi}|${si}`];
+          if(al && al.nombre){
+            recs[fbKey(hi,d,si,al.nombre)]={ nombre:al.nombre, horaIdx:hi, profe:d, mod:al.mod||'', confirmado:!!al.confirmado };
+          }
+        }
+      }
+    });
+    porSede[s.key]=recs;
+  });
+  return porSede;
+}
+
+function publicarDiaHoy(silencioso){
+  if(!_fbdb){ if(!silencioso) alert('Firebase no está disponible en este momento.'); return; }
+  const porSede=armarDiaHoy();
+  if(!porSede){ if(!silencioso) alert('Hoy es domingo (o no hay día configurado): no hay nada para publicar.'); return; }
+  const fecha=isoDe(new Date());
+  const claves=Object.keys(porSede); let pend=claves.length;
+  claves.forEach(sk=>{
+    const ref=_fbdb.ref('dia/'+fecha+'/'+sk);
+    ref.once('value').then(snap=>{
+      const prev=snap.val()||{}, nuevo={};
+      // 1) preservar acoples cargados por los profes (no vienen del calendario)
+      Object.entries(prev).forEach(([k,v])=>{ if(v && v.acople) nuevo[k]=v; });
+      // 2) clases del calendario: preservar asistencia ya marcada; si es nueva, default por confirmación
+      Object.entries(porSede[sk]).forEach(([k,rec])=>{
+        const asisPrev = prev[k] && prev[k].asis;
+        nuevo[k]={ ...rec, asis: asisPrev || (rec.confirmado?'presente':'sin') };
+      });
+      return ref.set(nuevo);
+    }).then(()=>{ if(--pend===0 && !silencioso) alert('📲 Día de hoy publicado a las tablets ('+claves.length+' sede(s)).'); })
+      .catch(e=>{ if(!silencioso) alert('No pude publicar a las tablets: '+e.message); });
+  });
+}
+// auto-publicar continuo: cada cambio republica el día de hoy (con debounce)
+let _pubTimer=null;
+function autoPublicar(){ if(!_fbdb) return; clearTimeout(_pubTimer); _pubTimer=setTimeout(()=>publicarDiaHoy(true),1500); }
 
 function sedesDelDia(){ return state.sedesPorDia[state.dia]; }
 function sedeObj(){ return sedesDelDia().find(s=>s.key===state.sedeActiva); }
@@ -1439,6 +1511,7 @@ document.querySelectorAll('.ev-ph .chip').forEach(ch=>{
 });
 document.getElementById('btnReset').onclick=resetSemana;
 document.getElementById('btnAvanzar').onclick=avanzarSemana;
+document.getElementById('btnPublicar').onclick=()=>publicarDiaHoy(false);
 document.getElementById('overlay').onclick=(e)=>{ if(e.target.id==='overlay') closeEditor(); };
 
 // ===== Guardar HORARIOS del calendario en la planilla (sección SEMANA) =====
@@ -1496,6 +1569,8 @@ async function guardarHorariosEnPlanilla(){
 loadState();
 setMode(state.mode);
 fillAlumnosDatalist();
+// publica el día de hoy a las tablets al abrir (sin molestar si es domingo/sin datos)
+setTimeout(()=>publicarDiaHoy(true), 1200);
 </script>
 </body>
 </html>
