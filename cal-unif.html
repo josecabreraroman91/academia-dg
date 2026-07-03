@@ -112,8 +112,8 @@
   td.cell.libre{background:var(--libre)}
   td.cell.libre .slot.libre-slot{cursor:pointer;color:#fff;text-align:center;display:flex;align-items:center;justify-content:center;height:100%;min-height:30px;font-weight:800;font-size:15px;opacity:.92}
   td.cell.libre .slot.libre-slot:active{background:#0003}
-  .libre-toggle{position:absolute;top:1px;right:1px;font-size:10px;background:#0005;border:none;color:#fff;border-radius:4px;width:16px;height:16px;cursor:pointer;opacity:.35;padding:0;line-height:1}
-  .libre-toggle:hover{opacity:1}
+  .libre-toggle{position:absolute;top:2px;right:2px;font-size:11px;background:#ffe3e0;border:1px solid #e59b93;color:#c0392b;border-radius:6px;min-width:22px;height:20px;cursor:pointer;opacity:.9;padding:0 3px;line-height:1;font-weight:700;z-index:2}
+  .libre-toggle:hover,.libre-toggle:active{opacity:1;background:#c0392b;color:#fff}
 
   .overlay{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:10px;overflow-y:auto}
   .overlay.show{display:flex}
@@ -266,8 +266,8 @@
   .check-btn:hover{border-color:#2f9e57;color:#2f9e57}
   .slot.confirmado .check-btn{background:#2f9e57;color:#fff;border-color:#2f9e57}
   .col-x{background:#fde7e6;border-color:#f3c5c2;color:#cc4b42}
-  .libre-toggle{background:#ffffffcc;color:#9aa0a6;opacity:.5}
-  .libre-toggle:hover{opacity:1}
+  .libre-toggle{background:#ffe3e0;color:#c0392b;border:1px solid #e59b93;opacity:.9}
+  .libre-toggle:hover,.libre-toggle:active{opacity:1;background:#c0392b;color:#fff}
 
 </style>
 </head>
@@ -300,6 +300,9 @@
     <button class="btn" id="btnAvanzar">▸ Avanzar semana</button>
     <button class="btn" id="btnPublicar">📲 Publicar día a tablets</button>
     <button class="btn" id="btnCerrarDia">💾 Cerrar y guardar día</button>
+    <button class="btn" id="btnBackup">📥 Backup (bajar datos)</button>
+    <button class="btn" id="btnRestore">📤 Restaurar backup</button>
+    <input type="file" id="fileRestore" accept=".json,application/json" style="display:none">
   </div>
 </header>
 
@@ -630,7 +633,7 @@ function loadState(){
   asegurarSemanas();
   saveState();
 }
-function saveState(){ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); autoPublicar(); }
+function saveState(){ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); autoPublicar(); if(!_aplicandoRemoto && _calListo) empujarCalendario(); }
 
 // ===== Firebase: publicar el DÍA DE HOY a las tablets (etapa 2) =====
 let _fbdb=null;
@@ -646,6 +649,45 @@ try{
   });
   _fbdb=firebase.database();
 }catch(e){ console.warn('Firebase no disponible:', e.message); }
+
+// ===== CALENDARIO COMPARTIDO EN TIEMPO REAL (varios encargados) =====
+// Sincroniza la grilla entre dispositivos. Modelo: gana el último que guarda.
+let _calRef = _fbdb ? _fbdb.ref('calendario_v1') : null;
+let _aplicandoRemoto = false;   // evita reenviar lo que acabo de recibir
+let _calListo = false;          // ya hubo primera sincronización
+function empujarCalendario(){
+  if(!_calRef) return;
+  try{
+    _calRef.set(JSON.parse(JSON.stringify({
+      profesores: state.profesores || [],
+      sedesPorDia: state.sedesPorDia || {},
+      madre: state.madre || {alumnos:{},libres:{}},
+      semana: state.semana || {alumnos:{},libres:{}},
+      semanaProxima: state.semanaProxima || {alumnos:{},libres:{}},
+      lunesActual: state.lunesActual || '',
+      _ts: Date.now()
+    })));
+  }catch(e){ console.warn('No pude subir el calendario:', e.message); }
+}
+function iniciarCalendarioCompartido(){
+  if(!_calRef) return;
+  _calRef.on('value', snap=>{
+    const r = snap.val();
+    if(!r || !r.madre){          // nube vacía: subo mi calendario como base
+      empujarCalendario(); _calListo=true; return;
+    }
+    _aplicandoRemoto = true;
+    state.profesores    = r.profesores    || state.profesores;
+    state.sedesPorDia   = r.sedesPorDia   || state.sedesPorDia;
+    state.madre         = r.madre         || state.madre;
+    state.semana        = r.semana        || state.semana;
+    state.semanaProxima = r.semanaProxima || state.semanaProxima;
+    if(r.lunesActual) state.lunesActual = r.lunesActual;
+    try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
+    _aplicandoRemoto = false; _calListo = true;
+    try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
+  }, err=>{ console.warn('Calendario compartido sin permiso:', err.message); });
+}
 
 function diaHoyNombre(){ const wd=new Date().getDay(); return (wd>=1&&wd<=6)?DAYS[wd-1]:null; } // LUNES..SABADO (o null si domingo)
 function fbKey(hi,d,si,nombre){ const n=String(nombre).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''); return hi+'_'+d+'_'+si+'_'+n; }
@@ -795,7 +837,7 @@ function renderGrid(){
       if(esLibre){
         html+=`<td class="cell libre ${sc}"><div class="slot libre-slot" data-libreon="${c.sk}|${c.pi}|${hi}" title="Tocá para habilitar">🔒</div></td>`;
       } else {
-        html+=`<td class="cell ${sc}"><button class="libre-toggle" data-libre="${c.sk}|${c.pi}|${hi}" title="Marcar como libre (profe no disponible)">∅</button>`;
+        html+=`<td class="cell ${sc}"><button class="libre-toggle" data-libre="${c.sk}|${c.pi}|${hi}" title="Marcar: profe NO disponible en este horario">🔒</button>`;
         for(let si=0; si<SLOTS_POR_HORA; si++){
           const al=B.alumnos[cellKey(c.sk,c.pi,hi,si)];
           if(al){
@@ -1618,6 +1660,23 @@ document.getElementById('btnReset').onclick=resetSemana;
 document.getElementById('btnAvanzar').onclick=avanzarSemana;
 document.getElementById('btnPublicar').onclick=()=>publicarDiaHoy(false);
 document.getElementById('btnCerrarDia').onclick=cerrarYGuardarDia;
+document.getElementById('btnBackup').onclick=()=>{
+  const data=localStorage.getItem('cal_dg_unif')||JSON.stringify(state);
+  const blob=new Blob([data],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  const f=new Date(); const p=n=>String(n).padStart(2,'0');
+  a.download=`backup_calendario_${f.getFullYear()}-${p(f.getMonth()+1)}-${p(f.getDate())}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+};
+document.getElementById('btnRestore').onclick=()=>document.getElementById('fileRestore').click();
+document.getElementById('fileRestore').onchange=(e)=>{
+  const file=e.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ JSON.parse(r.result); localStorage.setItem('cal_dg_unif', r.result);
+      alert('✅ Backup restaurado. Se va a recargar el calendario.'); location.reload();
+    }catch(err){ alert('Ese archivo no es un backup válido:\n\n'+err.message); } };
+  r.readAsText(file); e.target.value='';
+};
 document.getElementById('ausGuardar').onclick=guardarHistorialFinal;
 document.getElementById('ausCancel').onclick=()=>{ cerrarClasificarAusentes(); _cierrePend=null; };
 document.getElementById('overlay').onclick=(e)=>{ if(e.target.id==='overlay') closeEditor(); };
@@ -1824,6 +1883,7 @@ async function guardarHorariosEnPlanilla(){
 loadState();
 setMode(state.mode);
 fillAlumnosDatalist();
+iniciarCalendarioCompartido();   // sincroniza el calendario entre encargados (tiempo real)
 // publica el día de hoy a las tablets al abrir (sin molestar si es domingo/sin datos)
 setTimeout(()=>publicarDiaHoy(true), 1200);
 </script>
