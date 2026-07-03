@@ -1631,6 +1631,11 @@ async function sheetsBatchUpdate(data){ const id=state.sheetId||DEFAULT_SHEET_ID
 
 // ===== ETAPA 3: cerrar el día y guardar el HISTORIAL (una fila por alumno) =====
 const SEDE_NICE={lomas:'LOMAS',elite:'ELITE',segurola:'SEGUROLA',adefinir:'A DEFINIR'};
+// ⬇⬇⬇  PEGÁ ACÁ la MISMA URL del puente (Apps Script /exec). Vacío = usa login de Google.
+const PUENTE_URL='https://script.google.com/macros/s/AKfycbwpDr6E8ae3rYaGXh7ardQb-pG4lduxRNPoT8jMu2W2YZJTUfHdR7TefSNTQDfhTEMCiA/exec';
+async function enviarAlPuente(action, payload){
+  await fetch(PUENTE_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(Object.assign({action}, payload)) });
+}
 const HIST_TAB='HISTORIAL';
 const HIST_HEADER=['Fecha','Alumno','Hora','Sede','Profe','Tipo','Estado','Cobro','Motivo'];
 const MOTIVOS={
@@ -1727,6 +1732,16 @@ async function guardarHistorialFinal(){
   const filas=filasAuto.slice();
   ausentes.forEach(a=>{ const m=MOTIVOS[a.motivo]||MOTIVOS.noaviso; const rec=a.rec;
     filas.push([fecha, rec.nombre, HORAS[rec.horaIdx]||'', a.sede, rec.profe||'', rec.mod||'', m.estado, m.cobro, m.label]); });
+  // ── PUENTE: guardar el día SIN login (el puente hace el upsert anti-duplicados) ──
+  if(PUENTE_URL){
+    try{
+      await enviarAlPuente('historial', {filas});
+      limpiarDiasViejos(); cerrarClasificarAusentes(); _cierrePend=null;
+      alert('✅ Día '+fecha+' guardado ('+filas.length+' registros).');
+    }catch(e){ alert('No pude guardar el día:\n\n'+e.message); }
+    return;
+  }
+  // ── Método anterior (login de Google) ──
   try{
     if(!_gtoken) await pedirToken();
     await asegurarHistorial();
