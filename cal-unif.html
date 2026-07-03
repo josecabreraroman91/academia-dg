@@ -274,7 +274,7 @@
 <body class="modo-semana">
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v9</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v10</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -351,9 +351,10 @@
     </div>
     <div class="field">
       <label>Bloques fijos (no son alumnos)</label>
-      <div style="display:flex;gap:8px">
-        <button class="btn" id="btnAltoRend" style="flex:1">🏋️ Alto rendimiento</button>
-        <button class="btn" id="btnAlmuerzo" style="flex:1">🍽️ Almuerzo</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn" id="btnAltoRend" style="flex:1;min-width:120px">🏋️ Alto rendimiento</button>
+        <button class="btn" id="btnAlmuerzo" style="flex:1;min-width:120px">🍽️ Almuerzo</button>
+        <button class="btn" id="btnBloquear" style="flex:1;min-width:120px;background:#ffe3e0;border-color:#e59b93;color:#c0392b">🔒 Bloquear (profe no disponible)</button>
       </div>
     </div>
     <div class="sheet-actions">
@@ -1003,6 +1004,14 @@ function guardarBloque(nombre){
   book().alumnos[cellKey(sk,+pi,+hi,+si)]={ nombre, nivel:'', lado:'', mod:'BLOQUE', nota:'' };
   saveState(); closeEditor(); renderGrid();
 }
+// Marca el horario del profe como NO disponible (celda roja con candado). Usa el mecanismo "libres".
+function guardarBloqueado(){
+  if(!editingCell) return;
+  if(!confirmarSiMadre()) return;
+  const [sk,pi,hi,si]=editingCell.split('|');
+  book().libres[libreKey(sk,+pi,+hi)]=true;
+  saveState(); closeEditor(); renderGrid();
+}
 function deleteEditor(){
   if(!editingCell) return;
   if(!confirmarSiMadre()) return;
@@ -1624,6 +1633,7 @@ document.querySelectorAll('.mode-btn').forEach(b=> b.onclick=()=> setMode(b.data
 document.getElementById('btnSave').onclick=saveEditor;
 document.getElementById('btnAltoRend').onclick=()=>guardarBloque('ALTO RENDIMIENTO');
 document.getElementById('btnAlmuerzo').onclick=()=>guardarBloque('ALMUERZO');
+document.getElementById('btnBloquear').onclick=guardarBloqueado;
 document.getElementById('btnCancel').onclick=closeEditor;
 document.getElementById('btnDelete').onclick=deleteEditor;
 // ===== Zoom de la grilla (botones, arranca siempre en 100%) =====
