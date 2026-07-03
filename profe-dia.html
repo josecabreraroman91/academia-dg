@@ -196,7 +196,6 @@
     <button class="me-opt aus"  data-est="ausente">🔴 Ausente</button>
     <div class="me-sep"></div>
     <button class="me-opt mover" id="meMover">↔️ Mover a otro profe u hora</button>
-    <button class="me-opt sacar" id="meSacar">🗑️ Sacar del día</button>
     <button class="btn me-cancel" id="meCancel">Cancelar</button>
   </div>
 </div>
@@ -382,11 +381,6 @@ function abrirMenuEstado(id){
     b.onclick=()=>{ refDia.child(id+'/asis').set(b.dataset.est); cerrarMenuEstado(); };
   });
   document.getElementById('meMover').onclick=()=>{ cerrarMenuEstado(); abrirMover(id); };
-  document.getElementById('meSacar').onclick=()=>{
-    if(confirm('¿Sacar a '+(rec.nombre||'este alumno')+' del día de hoy?\n\nNo modifica el calendario, solo la lista de hoy.')){
-      refDia.child(id+'/borrado').set(true); cerrarMenuEstado();
-    }
-  };
   ov.classList.add('show');
 }
 function cerrarMenuEstado(){ document.getElementById('ovEstado').classList.remove('show'); }
