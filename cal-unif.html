@@ -633,7 +633,7 @@ function loadState(){
   asegurarSemanas();
   saveState();
 }
-function saveState(){ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); autoPublicar(); if(!_aplicandoRemoto && _calListo) empujarCalendario(); }
+function saveState(){ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); try{reindexarAlumnos();}catch(e){} autoPublicar(); if(!_aplicandoRemoto && _calListo) empujarCalendario(); }
 
 // ===== Firebase: publicar el DÍA DE HOY a las tablets (etapa 2) =====
 let _fbdb=null;
@@ -685,6 +685,7 @@ function iniciarCalendarioCompartido(){
     if(r.lunesActual) state.lunesActual = r.lunesActual;
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
     _aplicandoRemoto = false; _calListo = true;
+    try{ reindexarAlumnos(); }catch(e){}
     try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
   }, err=>{ console.warn('Calendario compartido sin permiso:', err.message); });
 }
@@ -950,10 +951,27 @@ function actualizarHintTel(){
   else hint.textContent='· nuevo (no está en la nube)';
 }
 // Si el nombre coincide exacto con un alumno de la nube, trae sus datos (categoría, lado, tipo)
+// índice de alumnos del propio calendario (compartido): nombre -> {nivel, lado, mod}
+let _idxAlumnos={};
+function reindexarAlumnos(){
+  _idxAlumnos={};
+  [state.madre, state.semana, state.semanaProxima].forEach(F=>{
+    if(!F||!F.alumnos) return;
+    Object.values(F.alumnos).forEach(a=>{
+      if(!a||!a.nombre) return;
+      const k=normName(a.nombre); if(!k) return;
+      if(a.nivel||a.lado||a.mod){
+        const prev=_idxAlumnos[k]||{};
+        _idxAlumnos[k]={ nivel:a.nivel||prev.nivel||'', lado:a.lado||prev.lado||'', mod:a.mod||prev.mod||'' };
+      }
+    });
+  });
+}
 function autocompletarDesdeNube(){
   const nombre=document.getElementById('fNombre').value.trim();
   const k=normName(nombre);
-  const c=state.contactos[k] || contactosLocal[k];   // sincronizado o local (app Alumnos, mismo navegador)
+  // 1) contactos (sync/local, app Alumnos)  2) el propio calendario compartido
+  const c=state.contactos[k] || contactosLocal[k] || _idxAlumnos[k];
   if(!c) return; // alumno nuevo: no toca nada
   if(c.nivel) document.getElementById('fNivel').value=c.nivel;
   if(c.lado)  document.getElementById('fLado').value=c.lado;
@@ -1881,6 +1899,7 @@ async function guardarHorariosEnPlanilla(){
 }
 
 loadState();
+reindexarAlumnos();
 setMode(state.mode);
 fillAlumnosDatalist();
 iniciarCalendarioCompartido();   // sincroniza el calendario entre encargados (tiempo real)
