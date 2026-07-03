@@ -194,6 +194,12 @@
 <script>
 // ===== Config =====
 const SHEET_ID='1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';
+// ⬇⬇⬇  PEGÁ ACÁ la URL del puente (Apps Script, termina en /exec). Vacío = usa login de Google.
+const PUENTE_URL='https://script.google.com/macros/s/AKfycbwpDr6E8ae3rYaGXh7ardQb-pG4lduxRNPoT8jMu2W2YZJTUfHdR7TefSNTQDfhTEMCiA/exec';
+async function enviarAlPuente(action, payload){
+  // no-cors: el navegador manda los datos y el puente escribe; si el fetch no falla, quedó guardado
+  await fetch(PUENTE_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(Object.assign({action}, payload)) });
+}
 const STORE_KEY='alumnos_dg';
 const DIAS=[['LUNES','LUN'],['MARTES','MAR'],['MIERCOLES','MIÉ'],['JUEVES','JUE'],['VIERNES','VIE'],['SABADO','SÁB']];
 
@@ -517,9 +523,21 @@ async function sheetsAppend(values){
 async function guardarEnPlanilla(silent){
   const dirty=alumnos.filter(a=>a._dirty);
   if(!dirty.length){ if(!silent) alert('No hay cambios para guardar.\n\nEditá o creá un alumno y volvé a tocar este botón.'); return; }
+  const gsTxt=(n)=>(Number(n)||0).toLocaleString('en-US')+'Gs.';   // 120000 -> "120,000Gs." (igual que la planilla)
+  // ── PUENTE: guardar SIN que nadie se loguee ──
+  if(PUENTE_URL){
+    if(!silent && !confirm('Guardar '+dirty.length+' alumno(s) en la planilla?')) return;
+    const payload=dirty.map(a=>({ nombre:a.nombre, cat:a.cat||'', lado:a.lado||'', tipo:a.tipo||'', precio:gsTxt(a.precio), coment:a.comentarios||'', nomHor:a.nomHor||'', nomWpp:a.nomWpp||'', tel:a.tel||normPhone(a.telRaw)||'' }));
+    try{
+      await enviarAlPuente('alumnos', {alumnos:payload});
+      dirty.forEach(a=>a._dirty=false); save(); render();
+      if(silent) toast('☁️ Guardado en la planilla'); else alert('✅ Guardado en la planilla ('+dirty.length+' alumno/s).');
+    }catch(e){ if(silent) toast('⚠️ Quedó sin guardar — reintentá'); else alert('No pude guardar:\n\n'+e.message); }
+    return;
+  }
+  // ── Método anterior (login de Google), solo si no hay puente ──
   if(silent && !_gtoken) return;   // autoguardado solo si ya estás logueado; si no, queda el botón
   if(!silent && !confirm('Voy a guardar '+dirty.length+' alumno(s) en la planilla (hoja ALUMNOS).\n\nSolo escribo las columnas de datos (categoría, lado, tipo, precio, comentarios, nombres, teléfono). NO toco el horario semanal ni los meses de cobro.\n\n¿Continuar?')) return;
-  const gsTxt=(n)=>(Number(n)||0).toLocaleString('en-US')+'Gs.';   // 120000 -> "120,000Gs." (igual que la planilla)
   try{
     if(!silent) toast('Conectando con Google…');
     if(!_gtoken) await pedirToken();
