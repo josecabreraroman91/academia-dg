@@ -195,10 +195,18 @@
 // ===== Config =====
 const SHEET_ID='1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';
 // ⬇⬇⬇  PEGÁ ACÁ la URL del puente (Apps Script, termina en /exec). Vacío = usa login de Google.
-const PUENTE_URL='https://script.google.com/macros/s/AKfycbwpDr6E8ae3rYaGXh7ardQb-pG4lduxRNPoT8jMu2W2YZJTUfHdR7TefSNTQDfhTEMCiA/exec';
-async function enviarAlPuente(action, payload){
-  // no-cors: el navegador manda los datos y el puente escribe; si el fetch no falla, quedó guardado
-  await fetch(PUENTE_URL, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(Object.assign({action}, payload)) });
+const PUENTE_URL='https://script.google.com/macros/s/AKfycbxW8RAp2bvB9WTpx3piuYvYGkBrq4vf0A7J5-CNHlb6TzMrgrgETJpp255ec_rhgCqupQ/exec';
+function enviarAlPuente(action, payload){
+  return new Promise((resolve)=>{
+    const name='pnt_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+    const ifr=document.createElement('iframe'); ifr.name=name; ifr.style.display='none'; document.body.appendChild(ifr);
+    const form=document.createElement('form'); form.method='POST'; form.action=PUENTE_URL; form.target=name; form.style.display='none';
+    const inp=document.createElement('input'); inp.type='hidden'; inp.name='data'; inp.value=JSON.stringify(Object.assign({action}, payload));
+    form.appendChild(inp); document.body.appendChild(form);
+    let done=false; const fin=()=>{ if(done)return; done=true; setTimeout(()=>{ try{form.remove(); ifr.remove();}catch(e){} },300); resolve(); };
+    ifr.onload=fin; setTimeout(fin, 4000);   // resuelve al cargar el iframe o a los 4s
+    form.submit();
+  });
 }
 const STORE_KEY='alumnos_dg';
 const DIAS=[['LUNES','LUN'],['MARTES','MAR'],['MIERCOLES','MIÉ'],['JUEVES','JUE'],['VIERNES','VIE'],['SABADO','SÁB']];
