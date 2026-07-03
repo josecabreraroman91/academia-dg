@@ -696,8 +696,9 @@ function publicarDiaHoy(silencioso){
       Object.entries(prev).forEach(([k,v])=>{ if(v && v.acople) nuevo[k]=v; });
       // 2) clases del calendario: preservar asistencia ya marcada; si es nueva, default por confirmación
       Object.entries(porSede[sk]).forEach(([k,rec])=>{
-        const asisPrev = prev[k] && prev[k].asis;
-        nuevo[k]={ ...rec, asis: asisPrev || 'presente' };   // por defecto PRESENTE (el profe solo marca ausentes)
+        const p = prev[k] || {};
+        nuevo[k]={ ...rec, asis: p.asis || 'presente' };   // por defecto PRESENTE (el profe solo marca ausentes)
+        if(p.borrado) nuevo[k].borrado=true;   // si el profe lo sacó del día, sigue sacado
       });
       return ref.set(nuevo);
     }).then(()=>{ if(--pend===0 && !silencioso) alert('📲 Día de hoy publicado a las tablets ('+claves.length+' sede(s)).'); })
@@ -1696,6 +1697,7 @@ async function cerrarYGuardarDia(){
       const data=snap.val()||{};
       Object.values(data).forEach(rec=>{
         if(!rec||!rec.nombre) return;
+        if(rec.borrado) return;                                        // sacado del día por el profe
         if(/ALMUERZO/i.test(rec.nombre)) return;                       // almuerzo no va
         if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO/i.test(rec.nombre)){ // AR: se paga al profe
           filasAuto.push([fecha,'ALTO RENDIMIENTO',HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'','AR','Bloque','—','']);
