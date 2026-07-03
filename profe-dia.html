@@ -113,6 +113,12 @@
   .me-opt{width:100%;padding:18px;border-radius:13px;border:2px solid var(--line);background:#f7fafb;font-size:19px;font-weight:900;cursor:pointer;margin-bottom:11px;color:var(--txt);display:flex;align-items:center;justify-content:center;gap:8px}
   .nom .conf{font-size:14px}
   .nom .mod{color:var(--muted);font-weight:600;font-size:13px}
+  .me-sep{height:1px;background:var(--line);margin:4px 0 11px}
+  .me-opt.mover{border-color:#9db8e8;font-size:16px;padding:15px}
+  .me-opt.sacar{border-color:#e8a49d;font-size:16px;padding:15px;color:#a5271c}
+  .mv-fld{text-align:left;margin-bottom:12px}
+  .mv-fld label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:4px}
+  .mv-fld select{width:100%;padding:13px;border-radius:10px;border:1.5px solid var(--line);background:var(--cell);color:var(--txt);font-size:15px}
   .me-opt.pres{border-color:#8fd0a8}
   .me-opt.aus{border-color:#e8a49d}
   .me-opt.sinm{border-color:#cfd8de}
@@ -188,7 +194,24 @@
     <div class="me-q">¿A qué estado querés cambiar?</div>
     <button class="me-opt pres" data-est="presente">🟢 Presente</button>
     <button class="me-opt aus"  data-est="ausente">🔴 Ausente</button>
+    <div class="me-sep"></div>
+    <button class="me-opt mover" id="meMover">↔️ Mover a otro profe u hora</button>
+    <button class="me-opt sacar" id="meSacar">🗑️ Sacar del día</button>
     <button class="btn me-cancel" id="meCancel">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL: mover alumno a otro profe/hora -->
+<div class="modal" id="ovMover">
+  <div class="sheet estado-sheet">
+    <div class="me-nom" id="mvNom">Alumno</div>
+    <div class="me-q">¿A dónde lo mandás? (solo cambia el día de hoy)</div>
+    <div class="mv-fld"><label>Profe</label><select id="mvProfe"></select></div>
+    <div class="mv-fld"><label>Hora</label><select id="mvHora"></select></div>
+    <div class="acts">
+      <button class="btn" id="mvCancel">Cancelar</button>
+      <button class="btn court" id="mvConfirm">↔️ Mover</button>
+    </div>
   </div>
 </div>
 
@@ -292,7 +315,7 @@ function modTxt(m){ return m ? '('+m+')' : ''; }
 // ---- Render del día: HORA -> PROFE (destacado) -> alumnos ----
 function render(){
   const wrap=document.getElementById('wrap');
-  const items=Object.entries(cacheDia).map(([id,a])=>({id,...a})).filter(a=>a && a.nombre);
+  const items=Object.entries(cacheDia).map(([id,a])=>({id,...a})).filter(a=>a && a.nombre && !a.borrado);
   if(!items.length){ wrap.innerHTML='<div class="empty">Todavía no hay clases cargadas para hoy en esta sede.<br><br>Cuando se publique el día desde el calendario, van a aparecer acá automáticamente.<br><br>Si vino alguien igual, podés cargarlo con <b>➕ Agregar</b>.</div>'; return; }
   const porHora={};
   items.forEach(a=>{ const h=a.horaIdx!=null?a.horaIdx:0; (porHora[h]=porHora[h]||[]).push(a); });
@@ -354,13 +377,42 @@ function abrirMenuEstado(id){
   const ov=document.getElementById('ovEstado');
   document.getElementById('meNom').textContent=rec.nombre||'Alumno';
   document.getElementById('meHora').textContent=(HORAS[rec.horaIdx]||'')+(rec.profe?(' · '+rec.profe):'');
-  ov.querySelectorAll('.me-opt').forEach(b=>{
+  ov.querySelectorAll('.me-opt[data-est]').forEach(b=>{
     b.classList.toggle('actual', b.dataset.est===cur);
     b.onclick=()=>{ refDia.child(id+'/asis').set(b.dataset.est); cerrarMenuEstado(); };
   });
+  document.getElementById('meMover').onclick=()=>{ cerrarMenuEstado(); abrirMover(id); };
+  document.getElementById('meSacar').onclick=()=>{
+    if(confirm('¿Sacar a '+(rec.nombre||'este alumno')+' del día de hoy?\n\nNo modifica el calendario, solo la lista de hoy.')){
+      refDia.child(id+'/borrado').set(true); cerrarMenuEstado();
+    }
+  };
   ov.classList.add('show');
 }
 function cerrarMenuEstado(){ document.getElementById('ovEstado').classList.remove('show'); }
+
+// ---- Mover alumno a otro profe/hora (solo el día de hoy) ----
+let _moverId=null;
+function abrirMover(id){
+  _moverId=id; const rec=cacheDia[id]||{};
+  document.getElementById('mvNom').textContent=rec.nombre||'Alumno';
+  const dims=Object.keys(profesNombres||{}); const lista=dims.length? dims : PROFES.map(p=>p.dim);
+  document.getElementById('mvProfe').innerHTML=lista.map(dd=>`<option value="${dd}"${dd===rec.profe?' selected':''}>${dd} · ${profeNombre(dd)}</option>`).join('');
+  document.getElementById('mvHora').innerHTML=HORAS.map((h,i)=>`<option value="${i}"${i===rec.horaIdx?' selected':''}>${h}</option>`).join('');
+  document.getElementById('ovMover').classList.add('show');
+}
+function cerrarMover(){ document.getElementById('ovMover').classList.remove('show'); _moverId=null; }
+function confirmarMover(){
+  const rec=cacheDia[_moverId]; if(!rec){ cerrarMover(); return; }
+  const nuevoProfe=document.getElementById('mvProfe').value;
+  const nuevaHora=+document.getElementById('mvHora').value;
+  refDia.child(_moverId+'/borrado').set(true);   // sale de donde estaba (sin tocar el calendario)
+  refDia.push({ nombre:rec.nombre, horaIdx:nuevaHora, profe:nuevoProfe, mod:rec.mod||'', confirmado:!!rec.confirmado, asis:'presente', acople:true, movido:true });
+  cerrarMover();
+}
+document.getElementById('mvCancel').onclick=cerrarMover;
+document.getElementById('mvConfirm').onclick=confirmarMover;
+document.getElementById('ovMover').onclick=(e)=>{ if(e.target.id==='ovMover') cerrarMover(); };
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
 // ---- Acople ----
