@@ -269,12 +269,16 @@
   .libre-toggle{background:#ffe3e0;color:#c0392b;border:1px solid #e59b93;opacity:.9}
   .libre-toggle:hover,.libre-toggle:active{opacity:1;background:#c0392b;color:#fff}
 
+.dropdown{position:relative;display:inline-block}
+.dropdown-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:#fff;border:1px solid #d5dde2;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px;display:none;min-width:230px;flex-direction:column;gap:6px}
+.dropdown.open .dropdown-menu{display:flex}
+.dropdown-menu .btn{width:100%;text-align:left}
 </style>
 </head>
 <body class="modo-semana">
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v10</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v11</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -290,18 +294,22 @@
       <button class="zlbl" id="zReset" title="Volver a 100%">100%</button>
       <button id="zIn" aria-label="Acercar">+</button>
     </div>
-    <button class="btn profs" id="btnProfs">👥 Profesores</button>
+    <button class="btn profs" id="btnProfs" style="display:none">👥 Profesores</button>
     <button class="btn" id="btnAddProf" style="display:none">+ Columna profe</button>
-    <button class="btn" id="btnResumen">📋 Resumen del día</button>
-    <button class="btn envios" id="btnEnvios">📩 Enviar mensajes</button>
-    <button class="btn" id="btnTelefonos">🔄 Sincronizar</button>
-    <button class="btn" id="btnHorariosPlan">☁️ Guardar horarios en planilla</button>
-    <button class="btn reset" id="btnReset">🔄 Resetear semana desde madre</button>
     <button class="btn" id="btnAvanzar">▸ Avanzar semana</button>
-    <button class="btn" id="btnPublicar">📲 Publicar día a tablets</button>
     <button class="btn" id="btnCerrarDia">💾 Cerrar y guardar día</button>
-    <button class="btn" id="btnBackup">📥 Backup (bajar datos)</button>
-    <button class="btn" id="btnRestore">📤 Restaurar backup</button>
+    <div class="dropdown" id="ddAcciones">
+      <button class="btn" id="btnAcciones">⚙️ Acciones ▾</button>
+      <div class="dropdown-menu" id="accionesMenu">
+        <button class="btn profs" id="btnProfsMenu">👥 Profesores</button>
+        <button class="btn" id="btnPublicar">📲 Publicar día a tablets</button>
+        <button class="btn envios" id="btnEnvios">📩 Enviar mensajes</button>
+        <button class="btn" id="btnHorariosPlan">☁️ Guardar horarios en planilla</button>
+        <button class="btn reset" id="btnReset">🔄 Resetear semana desde madre</button>
+        <button class="btn" id="btnBackup">📥 Backup (bajar datos)</button>
+        <button class="btn" id="btnRestore">📤 Restaurar backup</button>
+      </div>
+    </div>
     <input type="file" id="fileRestore" accept=".json,application/json" style="display:none">
   </div>
 </header>
@@ -1649,15 +1657,23 @@ document.getElementById('zOut').onclick=()=>{ _zoom=Math.max(0.5, Math.round((_z
 document.getElementById('zReset').onclick=()=>{ _zoom=1; aplicarZoom(); };
 document.getElementById('btnAddProf').onclick=addProf;
 document.getElementById('btnProfs').onclick=openProfs;
+document.getElementById('btnProfsMenu').onclick=openProfs;
 document.getElementById('btnCloseProfs').onclick=closeProfs;
 document.getElementById('btnAddProfesor').onclick=addProfesor;
 document.getElementById('overlayProfs').onclick=(e)=>{ if(e.target.id==='overlayProfs') closeProfs(); };
-document.getElementById('btnResumen').onclick=toggleResumen;
 document.getElementById('btnEnvios').onclick=openEnvios;
-document.getElementById('btnTelefonos').onclick=openTel;
 document.getElementById('btnCloseTel').onclick=closeTel;
 document.getElementById('btnSync').onclick=syncContactos;
 document.getElementById('btnHorariosPlan').onclick=guardarHorariosEnPlanilla;
+// Desplegable ⚙️ Acciones (abre/cierra; se cierra al elegir una opción o al tocar afuera)
+(function(){
+  const dd=document.getElementById('ddAcciones'), btn=document.getElementById('btnAcciones');
+  if(dd&&btn){
+    btn.onclick=(e)=>{ e.stopPropagation(); dd.classList.toggle('open'); };
+    document.getElementById('accionesMenu').addEventListener('click', ()=> dd.classList.remove('open'));
+    document.addEventListener('click', (e)=>{ if(!dd.contains(e.target)) dd.classList.remove('open'); });
+  }
+})();
 document.getElementById('overlayTel').onclick=(e)=>{ if(e.target.id==='overlayTel') closeTel(); };
 // Vista de envíos
 document.getElementById('evBack').onclick=closeEnvios;
