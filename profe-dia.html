@@ -49,23 +49,29 @@
   .pill.sin{background:var(--sin)} .pill.pres{background:var(--pres)} .pill.aus{background:var(--aus)}
 
   .wrap{flex:1;padding:12px;padding-bottom:96px}
-  .hora-block{margin-bottom:18px}
-  .hora-h{font-size:16px;font-weight:800;color:var(--brand);margin:0 2px 10px;display:flex;align-items:center;gap:8px}
+  .hora-block{margin-bottom:10px}
+  .hora-h{font-size:1.02em;font-weight:800;color:var(--brand);margin:0 2px 5px;display:flex;align-items:center;gap:8px}
   .hora-h .ln{flex:1;height:1px;background:var(--line)}
-  /* formato lista: una línea por profe */
-  .slot{padding:9px 10px;border-radius:10px;background:var(--panel);border:1px solid var(--line);margin-bottom:6px;font-size:15px;line-height:1.6}
-  .slot.vacio{opacity:.55;font-style:italic}
+  /* formato lista compacto: una línea por profe. Todo en 'em' para que el zoom escale */
+  #wrap{font-size:13px}                      /* <- variable de zoom: cambia esto y escala todo */
+  .slot{padding:.28em .5em;border-radius:7px;background:var(--panel);border:1px solid var(--line);margin-bottom:4px;font-size:.95em;line-height:1.35}
+  .slot.vacio{opacity:.5;font-style:italic}
   .slot .prof{font-weight:800;color:var(--brand)}
-  .slot .disp{color:var(--muted);font-size:13px}
-  .slot .sep{color:var(--muted);margin:0 2px}
-  .slot .al{display:inline-block;padding:3px 8px;border-radius:8px;background:rgba(120,194,173,.14);cursor:pointer;user-select:none;margin:2px 0;border-left:3px solid var(--pres)}
+  .slot .disp{color:var(--muted);font-size:.85em}
+  .slot .sep{color:var(--muted);margin:0 1px}
+  .slot .al{display:inline-block;padding:.1em .4em;border-radius:6px;background:rgba(120,194,173,.14);cursor:pointer;user-select:none;margin:1px 0;border-left:3px solid var(--pres)}
   .slot .al.ausente{background:rgba(242,119,122,.16);border-left-color:var(--aus);text-decoration:line-through;opacity:.85}
   .slot .al.acople{border-style:dashed}
   .slot .al:active{transform:scale(.97)}
-  .slot .al .conf{font-size:12px}
-  .slot .al .mod{color:var(--muted);font-size:12px}
-  .slot .al .tag{font-size:10px;background:var(--line);padding:1px 5px;border-radius:6px;color:var(--muted)}
-  .slot .blk{display:inline-block;padding:3px 8px;border-radius:8px;background:rgba(180,160,235,.16);font-weight:700}
+  .slot .al .conf{font-size:.85em}
+  .slot .al .mod{color:var(--muted);font-size:.82em}
+  .slot .al .tag{font-size:.72em;background:var(--line);padding:0 .35em;border-radius:5px;color:var(--muted)}
+  .slot .blk{display:inline-block;padding:.1em .4em;border-radius:6px;background:rgba(180,160,235,.16);font-weight:700}
+  /* control de zoom */
+  .zoomctl{display:flex;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:2px}
+  .zoomctl button{width:30px;height:30px;border:0;background:transparent;color:var(--txt);font-size:18px;font-weight:800;border-radius:8px;cursor:pointer}
+  .zoomctl button:active{background:var(--line)}
+  .zoomctl .zlbl{width:auto;padding:0 6px;font-size:12px;font-weight:700;color:var(--muted)}
 
   /* header de profe: iniciales GRANDES con color */
   .profe-h{display:flex;align-items:center;gap:10px;margin:10px 2px 7px}
@@ -171,13 +177,18 @@
     </div>
     <div class="sp"></div>
     <div class="conn"><span class="dot" id="cdot"></span><span id="ctxt">…</span></div>
+    <div class="zoomctl" title="Acercar / alejar la lista">
+      <button id="zOut" aria-label="Alejar">−</button>
+      <button class="zlbl" id="zReset" title="Tamaño normal">A</button>
+      <button id="zIn" aria-label="Acercar">+</button>
+    </div>
   </div>
 
   <div class="leyenda">
     <span><i class="pill pres"></i> Presente (por defecto)</span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>✅ confirmado · 👀 sin confirmar</span>
-    <span style="opacity:.5;font-weight:700">v3</span>
+    <span style="opacity:.5;font-weight:700">v4</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -440,6 +451,18 @@ document.getElementById('acGuardar').onclick=()=>{
 
 // ---- Arranque: siempre muestra TODAS las sedes juntas ----
 (function(){ if(db) iniciarApp(); })();
+
+// ---- Zoom de la lista (acercar/alejar, se recuerda) ----
+(function(){
+  const wrap=document.getElementById('wrap');
+  const MIN=10, MAX=20, DEF=13;
+  let z=DEF; try{ const s=parseInt(localStorage.getItem('profe_zoom'),10); if(s>=MIN&&s<=MAX) z=s; }catch(e){}
+  function aplicar(){ wrap.style.fontSize=z+'px'; try{localStorage.setItem('profe_zoom',z);}catch(e){} }
+  document.getElementById('zIn').onclick=()=>{ z=Math.min(MAX,z+1); aplicar(); };
+  document.getElementById('zOut').onclick=()=>{ z=Math.max(MIN,z-1); aplicar(); };
+  document.getElementById('zReset').onclick=()=>{ z=DEF; aplicar(); };
+  aplicar();
+})();
 </script>
 </body>
 </html>
