@@ -17,7 +17,7 @@
     padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
 
   /* ===== LANDING: elegir sede ===== */
-  #landing{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center}
+  #landing{display:none;min-height:100vh;flex-direction:column;align-items:center;justify-content:center;gap:18px;padding:24px;text-align:center}
   #landing h1{font-size:22px;font-weight:800}
   #landing p{color:var(--muted);font-size:14px;max-width:340px}
   .sedes{display:flex;flex-direction:column;gap:12px;width:100%;max-width:360px;margin-top:8px}
@@ -28,7 +28,7 @@
   .sede-btn.lomas .em{background:var(--lomas)} .sede-btn.elite .em{background:var(--elite)} .sede-btn.segurola .em{background:var(--segurola)} .sede-btn.adefinir .em{background:var(--adefinir)}
 
   /* ===== APP ===== */
-  #app{display:none;min-height:100vh;flex-direction:column}
+  #app{display:flex;min-height:100vh;flex-direction:column}
   .top{position:sticky;top:0;z-index:20;background:var(--brand);padding:9px 14px;display:flex;align-items:center;gap:10px;
     box-shadow:0 2px 10px rgba(0,0,0,.18)}
   .logo-top{height:30px;width:auto;display:block;border-radius:4px}
@@ -52,6 +52,20 @@
   .hora-block{margin-bottom:18px}
   .hora-h{font-size:16px;font-weight:800;color:var(--brand);margin:0 2px 10px;display:flex;align-items:center;gap:8px}
   .hora-h .ln{flex:1;height:1px;background:var(--line)}
+  /* formato lista: una línea por profe */
+  .slot{padding:9px 10px;border-radius:10px;background:var(--panel);border:1px solid var(--line);margin-bottom:6px;font-size:15px;line-height:1.6}
+  .slot.vacio{opacity:.55;font-style:italic}
+  .slot .prof{font-weight:800;color:var(--brand)}
+  .slot .disp{color:var(--muted);font-size:13px}
+  .slot .sep{color:var(--muted);margin:0 2px}
+  .slot .al{display:inline-block;padding:3px 8px;border-radius:8px;background:rgba(120,194,173,.14);cursor:pointer;user-select:none;margin:2px 0;border-left:3px solid var(--pres)}
+  .slot .al.ausente{background:rgba(242,119,122,.16);border-left-color:var(--aus);text-decoration:line-through;opacity:.85}
+  .slot .al.acople{border-style:dashed}
+  .slot .al:active{transform:scale(.97)}
+  .slot .al .conf{font-size:12px}
+  .slot .al .mod{color:var(--muted);font-size:12px}
+  .slot .al .tag{font-size:10px;background:var(--line);padding:1px 5px;border-radius:6px;color:var(--muted)}
+  .slot .blk{display:inline-block;padding:3px 8px;border-radius:8px;background:rgba(180,160,235,.16);font-weight:700}
 
   /* header de profe: iniciales GRANDES con color */
   .profe-h{display:flex;align-items:center;gap:10px;margin:10px 2px 7px}
@@ -138,7 +152,7 @@
   <img id="logoLand" class="logo-land" alt="Academia Diego González">
   <h1>Asistencia · Academia DG</h1>
   <p>Elegí la sede de este dispositivo. Queda guardada; podés cambiarla cuando quieras.</p>
-  <div style="font-size:11px;color:var(--muted);margin:-6px 0 14px;font-weight:700">Versión 2 · con confirmación de estado ✔️</div>
+  <div style="font-size:11px;color:var(--muted);margin:-6px 0 14px;font-weight:700">Versión 3 · lista por horario · todas las sedes</div>
   <div class="sedes">
     <button class="sede-btn lomas"    data-sede="lomas"><span class="em"></span> LOMAS</button>
     <button class="sede-btn elite"    data-sede="elite"><span class="em"></span> ELITE</button>
@@ -157,13 +171,13 @@
     </div>
     <div class="sp"></div>
     <div class="conn"><span class="dot" id="cdot"></span><span id="ctxt">…</span></div>
-    <button class="chgSede" id="btnChg">Cambiar</button>
   </div>
 
   <div class="leyenda">
     <span><i class="pill pres"></i> Presente (por defecto)</span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>✅ confirmado · 👀 sin confirmar</span>
+    <span style="opacity:.5;font-weight:700">v3</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -179,6 +193,7 @@
     <h3>➕ Agregar alumno (acople)</h3>
     <div class="fld"><label>Nombre</label><input id="acNom" list="alumnosList" autocomplete="off" placeholder="Escribí para buscar…"><datalist id="alumnosList"></datalist></div>
     <div class="fld"><label>Hora</label><select id="acHora"></select></div>
+    <div class="fld"><label>Sede</label><select id="acSede"></select></div>
     <div class="fld"><label>Profe</label><select id="acProfe"></select></div>
     <div class="acts">
       <button class="btn" id="acCancel">Cancelar</button>
@@ -267,37 +282,49 @@ function hoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMo
 function fechaLarga(){ const d=new Date(); const D=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']; return D[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1); }
 function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1600); }
 
-let db=null, sede=null, fecha=hoyISO(), refDia=null, cacheDia={};
+const SEDES_ORDEN=['lomas','elite','segurola','adefinir'];
+const SEDE_EMOJI={lomas:'',elite:'💎',segurola:'🏝️',adefinir:'🏝️',habana:'🏝️'};
+const SEP='\u0001';                 // separador para id compuesto (sede + id)
+let db=null, fecha=hoyISO();
+let cacheDia={};                    // { sede\u0001id : {...rec, _sede, _id} }
+let cacheDispo={};                  // { sede : { profeDim:[horas libres] } }
+let miSede='lomas';                 // sede por defecto para agregar acoples
+try{ const s=localStorage.getItem('profe_sede'); if(s) miSede=s; }catch(e){}
 try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }catch(e){ alert('Error al iniciar Firebase: '+e.message); }
+function childRef(cid){ const i=cid.indexOf(SEP); return db.ref('dia/'+fecha+'/'+cid.slice(0,i)+'/'+cid.slice(i+1)); }
+function profeIdx(dim){ const i=PROFES.findIndex(p=>p.dim===dim); return i<0?999:i; }
 
-// ---- Sede: elegir / recordar ----
-function elegirSede(s){ sede=s; try{localStorage.setItem('profe_sede',s);}catch(e){} iniciarApp(); }
-document.querySelectorAll('.sede-btn').forEach(b=> b.onclick=()=>elegirSede(b.dataset.sede));
-document.getElementById('btnChg').onclick=()=>{ if(confirm('¿Cambiar de sede? Vas a volver a la pantalla de selección.')){ try{localStorage.removeItem('profe_sede');}catch(e){} location.reload(); } };
+// ---- Sede: "mi sede" solo se usa como valor por defecto al agregar acoples ----
+function elegirSede(s){ miSede=s; try{localStorage.setItem('profe_sede',s);}catch(e){} }
 
 function iniciarApp(){
   document.getElementById('landing').style.display='none';
   document.getElementById('app').style.display='flex';
-  document.getElementById('topSede').textContent=SEDE_NOM[sede]||sede;
-  document.getElementById('topEm').style.background='var(--'+sede+')';
+  document.getElementById('topSede').textContent='Todas las sedes';
+  document.getElementById('topEm').style.background='var(--elite)';
   document.getElementById('topFecha').textContent=fechaLarga();
-  // estado de conexión
   db.ref('.info/connected').on('value',(s)=>{
     const ok=s.val()===true;
     document.getElementById('cdot').className='dot '+(ok?'ok':'wait');
     document.getElementById('ctxt').textContent=ok?'En vivo':'Reconectando…';
   });
-  // escuchar el día de esta sede en tiempo real
-  refDia=db.ref('dia/'+fecha+'/'+sede);
-  refDia.on('value',(snap)=>{ cacheDia=snap.val()||{}; render(); });
-  // nombres de profes actualizados (los publica el calendario) — se refrescan solos
+  // escuchar TODO el día (todas las sedes + disponibilidad) en tiempo real
+  db.ref('dia/'+fecha).on('value',(snap)=>{
+    const all=snap.val()||{};
+    cacheDispo=all._dispo||{};
+    cacheDia={};
+    Object.keys(all).forEach(sk=>{
+      if(sk==='_dispo') return;
+      const recs=all[sk]||{};
+      Object.keys(recs).forEach(id=>{ const r=recs[id]; if(!r||typeof r!=='object') return; cacheDia[sk+SEP+id]={...r,_sede:sk,_id:id}; });
+    });
+    render();
+  });
   db.ref('dia/_profes').on('value',(snap)=>{ profesNombres=snap.val()||{}; render(); });
-  // Si la tablet queda prendida hasta el día siguiente, rota sola al día nuevo
   setInterval(()=>{ if(hoyISO()!==fecha) location.reload(); }, 60000);
-  // selects del modal
   const selH=document.getElementById('acHora'); selH.innerHTML=HORAS.map((h,i)=>`<option value="${i}">${h}</option>`).join('');
   const selP=document.getElementById('acProfe'); selP.innerHTML=PROFES.map(p=>`<option value="${p.dim}">${p.dim} · ${p.nombre}</option>`).join('');
-  // autocompletado de alumnos desde la planilla (queda listo al toque)
+  const selS=document.getElementById('acSede'); if(selS) selS.innerHTML=SEDES_ORDEN.map(sk=>`<option value="${sk}"${sk===miSede?' selected':''}>${SEDE_NOM[sk]||sk}</option>`).join('');
   cargarAlumnosPlanilla();
 }
 
@@ -311,62 +338,48 @@ function esBloque(a){ return a.mod==='BLOQUE' || /ALTO RENDIMIENTO|ALMUERZO/i.te
 function bloqueEmoji(a){ if(/ALMUERZO/i.test(a.nombre||'')) return '🍽️'; return '🏋️'; }
 function modTxt(m){ return m ? '('+m+')' : ''; }
 
-// ---- Render del día: HORA -> PROFE (destacado) -> alumnos ----
+// ---- Render del día: LISTA por HORA, una línea por profe (todas las sedes) ----
 function render(){
   const wrap=document.getElementById('wrap');
-  const items=Object.entries(cacheDia).map(([id,a])=>({id,...a})).filter(a=>a && a.nombre && !a.borrado);
-  if(!items.length){ wrap.innerHTML='<div class="empty">Todavía no hay clases cargadas para hoy en esta sede.<br><br>Cuando se publique el día desde el calendario, van a aparecer acá automáticamente.<br><br>Si vino alguien igual, podés cargarlo con <b>➕ Agregar</b>.</div>'; return; }
-  const porHora={};
-  items.forEach(a=>{ const h=a.horaIdx!=null?a.horaIdx:0; (porHora[h]=porHora[h]||[]).push(a); });
-  const horas=Object.keys(porHora).map(Number).sort((x,y)=>x-y);
+  const items=Object.entries(cacheDia).map(([cid,a])=>({cid,...a})).filter(a=>a && a.nombre && !a.borrado);
+  // rango de horas: de la primera a la última con alumnos
+  let minH=99,maxH=-1;
+  items.forEach(a=>{ const h=a.horaIdx!=null?a.horaIdx:0; if(h<minH)minH=h; if(h>maxH)maxH=h; });
+  if(maxH<0){ wrap.innerHTML='<div class="empty">Todavía no hay clases publicadas para hoy.<br><br>Cuando se publique el día desde el calendario, aparecen acá automáticamente.<br><br>Si vino alguien igual, podés cargarlo con <b>➕ Agregar</b>.</div>'; return; }
+  // índice alumnos: sede|profe|hora -> [alumnos]
+  const byCell={};
+  items.forEach(a=>{ const k=a._sede+'|'+a.profe+'|'+(a.horaIdx||0); (byCell[k]=byCell[k]||[]).push(a); });
   let html='';
-  horas.forEach(h=>{
-    const lista=porHora[h];
+  for(let h=minH; h<=maxH; h++){
+    const filas=[]; // {sede,profe,alumnos}
+    SEDES_ORDEN.forEach(sk=>{
+      const dp=cacheDispo[sk]||{};
+      const disp=Object.keys(dp).filter(p=>(dp[p]||[]).includes(h));           // profes disponibles esa hora
+      const conAl=items.filter(a=>a._sede===sk && (a.horaIdx||0)===h).map(a=>a.profe);
+      const profes=[...new Set([...disp,...conAl])].sort((x,y)=>profeIdx(x)-profeIdx(y));
+      profes.forEach(p=> filas.push({sede:sk,profe:p,alumnos:byCell[sk+'|'+p+'|'+h]||[]}));
+    });
+    if(!filas.length) continue;
     html+=`<div class="hora-block"><div class="hora-h">${HORAS[h]||('h'+h)} <span class="ln"></span></div>`;
-    // agrupar TODO por profe (alumnos y bloques juntos)
-    const porProfe={};
-    lista.forEach(a=>{ const p=a.profe||'—'; (porProfe[p]=porProfe[p]||[]).push(a); });
-    Object.keys(porProfe).sort().forEach(p=>{
-      const col=profeColor(p);
-      html+=`<div class="profe-h"><span class="profe-badge" style="background:${col}">${escapeHtml(p)}</span><span class="profe-nom">${escapeHtml(profeNombre(p))}</span><span class="profe-cnt">${porProfe[p].length}</span></div>`;
-      html+='<div class="cards">';
-      porProfe[p].sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).forEach(a=>{
-        if(esBloque(a)){
-          // ALTO RENDIMIENTO / ALMUERZO: misma tarjeta, pero fija (no se marca)
-          html+=`<div class="al bloqueal">
-            <div class="estado">${bloqueEmoji(a)}</div>
-            <div class="info">
-              <div class="nom">${escapeHtml(a.nombre)}</div>
-              <div class="meta"><span class="tag">fijo</span></div>
-            </div>
-          </div>`;
-          return;
-        }
-        const est=a.asis==='ausente'?'ausente':'presente';   // por defecto PRESENTE; solo ausente si lo marcaron
-        const conf=a.confirmado?'✅':'👀';
-        html+=`<div class="al ${est}${a.acople?' acople':''}" data-id="${a.id}">
-          <div class="estado">${EST_ICO[est]}</div>
-          <div class="info">
-            <div class="nom">${escapeHtml(a.nombre)} <span class="conf">${conf}</span> <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">acople</span>':''}</div>
-          </div>
-          ${a.acople?`<div class="del" data-del="${a.id}">✕</div>`:''}
-        </div>`;
-      });
-      html+='</div>';
+    filas.forEach(f=>{
+      const em=SEDE_EMOJI[f.sede]||'';
+      const cab=`<span class="prof">(${escapeHtml(f.profe)}${em?' '+em:''})</span>`;
+      if(!f.alumnos.length){
+        html+=`<div class="slot vacio">${cab} <span class="disp">— disponible —</span></div>`;
+      } else {
+        const partes=f.alumnos.sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(a=>{
+          if(esBloque(a)) return `<span class="blk">${bloqueEmoji(a)} ${escapeHtml(a.nombre)}</span>`;
+          const est=a.asis==='ausente'?'ausente':'presente';
+          const conf=a.confirmado?'✅':'👀';
+          return `<span class="al ${est}${a.acople?' acople':''}" data-id="${a.cid}">${EST_ICO[est]} ${escapeHtml(a.nombre)} <span class="conf">${conf}</span> <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
+        });
+        html+=`<div class="slot">${cab} ${partes.join(' <span class="sep">·</span> ')}</div>`;
+      }
     });
     html+='</div>';
-  });
+  }
   wrap.innerHTML=html;
-  wrap.querySelectorAll('.al[data-id]').forEach(el=>{
-    el.onclick=(ev)=>{
-      if(ev.target.dataset.del!==undefined) return;
-      abrirMenuEstado(el.dataset.id);
-    };
-  });
-  wrap.querySelectorAll('[data-del]').forEach(x=>{
-    x.onclick=(ev)=>{ ev.stopPropagation(); const id=x.dataset.del;
-      if(confirm('¿Quitar este acople?')) refDia.child(id).remove(); };
-  });
+  wrap.querySelectorAll('.al[data-id]').forEach(el=>{ el.onclick=()=>abrirMenuEstado(el.dataset.id); });
 }
 
 // ---- Menú de estado (cartel centrado, para evitar toques accidentales) ----
@@ -378,7 +391,7 @@ function abrirMenuEstado(id){
   document.getElementById('meHora').textContent=(HORAS[rec.horaIdx]||'')+(rec.profe?(' · '+rec.profe):'');
   ov.querySelectorAll('.me-opt[data-est]').forEach(b=>{
     b.classList.toggle('actual', b.dataset.est===cur);
-    b.onclick=()=>{ refDia.child(id+'/asis').set(b.dataset.est); cerrarMenuEstado(); };
+    b.onclick=()=>{ childRef(id).child('asis').set(b.dataset.est); cerrarMenuEstado(); };
   });
   document.getElementById('meMover').onclick=()=>{ cerrarMenuEstado(); abrirMover(id); };
   ov.classList.add('show');
@@ -400,8 +413,8 @@ function confirmarMover(){
   const rec=cacheDia[_moverId]; if(!rec){ cerrarMover(); return; }
   const nuevoProfe=document.getElementById('mvProfe').value;
   const nuevaHora=+document.getElementById('mvHora').value;
-  refDia.child(_moverId+'/borrado').set(true);   // sale de donde estaba (sin tocar el calendario)
-  refDia.push({ nombre:rec.nombre, horaIdx:nuevaHora, profe:nuevoProfe, mod:rec.mod||'', confirmado:!!rec.confirmado, asis:'presente', acople:true, movido:true });
+  childRef(_moverId).child('borrado').set(true);   // sale de donde estaba (sin tocar el calendario)
+  db.ref('dia/'+fecha+'/'+rec._sede).push({ nombre:rec.nombre, horaIdx:nuevaHora, profe:nuevoProfe, mod:rec.mod||'', confirmado:!!rec.confirmado, asis:'presente', acople:true, movido:true });
   cerrarMover();
 }
 document.getElementById('mvCancel').onclick=cerrarMover;
@@ -420,12 +433,13 @@ document.getElementById('acGuardar').onclick=()=>{
   const nom=document.getElementById('acNom').value.trim(); if(!nom){ toast('Poné un nombre'); return; }
   const horaIdx=+document.getElementById('acHora').value;
   const profe=document.getElementById('acProfe').value;
-  refDia.push({ nombre:nom, horaIdx, profe, mod:'', confirmado:false, asis:'presente', acople:true });
+  const selS=document.getElementById('acSede'); const sk=selS?selS.value:miSede;
+  db.ref('dia/'+fecha+'/'+sk).push({ nombre:nom, horaIdx, profe, mod:'', confirmado:false, asis:'presente', acople:true });
   mAc.classList.remove('show'); toast('✅ Agregado presente');
 };
 
-// ---- Arranque: si ya hay sede guardada, entra directo ----
-(function(){ let s=null; try{s=localStorage.getItem('profe_sede');}catch(e){} if(s){ sede=s; iniciarApp(); } })();
+// ---- Arranque: siempre muestra TODAS las sedes juntas ----
+(function(){ if(db) iniciarApp(); })();
 </script>
 </body>
 </html>
