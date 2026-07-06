@@ -49,17 +49,17 @@
   .pill.sin{background:var(--sin)} .pill.pres{background:var(--pres)} .pill.aus{background:var(--aus)}
 
   .wrap{flex:1;padding:12px;padding-bottom:96px}
-  .hora-block{margin-bottom:10px}
-  .hora-h{font-size:1.02em;font-weight:800;color:var(--brand);margin:0 2px 5px;display:flex;align-items:center;gap:8px}
+  .hora-block{margin-bottom:7px}
+  .hora-h{font-size:1em;font-weight:800;color:var(--brand);margin:0 2px 3px;display:flex;align-items:center;gap:8px}
   .hora-h .ln{flex:1;height:1px;background:var(--line)}
   /* formato lista compacto: una línea por profe. Todo en 'em' para que el zoom escale */
   #wrap{font-size:13px}                      /* <- variable de zoom: cambia esto y escala todo */
-  .slot{padding:.28em .5em;border-radius:7px;background:var(--panel);border:1px solid var(--line);margin-bottom:4px;font-size:.95em;line-height:1.35}
+  .slot{padding:.12em .5em;border-radius:6px;background:var(--panel);border:1px solid var(--line);margin-bottom:2px;font-size:.95em;line-height:1.2}
   .slot.vacio{opacity:.5;font-style:italic}
   .slot .prof{font-weight:800;color:var(--brand)}
   .slot .disp{color:var(--muted);font-size:.85em}
   .slot .sep{color:var(--muted);margin:0 1px}
-  .slot .al{display:inline-block;padding:.1em .4em;border-radius:6px;background:rgba(120,194,173,.14);cursor:pointer;user-select:none;margin:1px 0;border-left:3px solid var(--pres)}
+  .slot .al{display:inline-block;padding:.06em .4em;min-height:0;border:0;border-left:3px solid var(--pres);border-radius:5px;background:rgba(120,194,173,.14);cursor:pointer;user-select:none;line-height:1.3;vertical-align:middle;font-weight:600}
   .slot .al.ausente{background:rgba(242,119,122,.16);border-left-color:var(--aus);text-decoration:line-through;opacity:.85}
   .slot .al.acople{border-style:dashed}
   .slot .al:active{transform:scale(.97)}
@@ -188,7 +188,7 @@
     <span><i class="pill pres"></i> Presente (por defecto)</span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>✅ confirmado · 👀 sin confirmar</span>
-    <span style="opacity:.5;font-weight:700">v4</span>
+    <span style="opacity:.5;font-weight:700">v6</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
