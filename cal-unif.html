@@ -726,6 +726,27 @@ function armarDiaHoy(){
   });
   return porSede;
 }
+// Disponibilidad del día: por sede -> por profe -> horas NO bloqueadas (profe disponible para dar clase)
+function armarDispoHoy(){
+  const dia=diaHoyNombre(); if(!dia) return null;
+  const B=state.semana||{alumnos:{},libres:{}};
+  const sedesDia=state.sedesPorDia[dia]; if(!sedesDia) return null;
+  const dispo={};
+  sedesDia.forEach(s=>{
+    const porProfe={};
+    s.profes.forEach((d,pi)=>{
+      if(!d||d==='—') return;
+      const horas=[];
+      for(let hi=0;hi<HORAS.length;hi++){
+        if(B.libres && B.libres[`${dia}|${s.key}|${pi}|${hi}`]) continue; // bloqueado: no disponible
+        horas.push(hi);
+      }
+      if(horas.length) porProfe[d]=horas;
+    });
+    dispo[s.key]=porProfe;
+  });
+  return dispo;
+}
 
 function publicarProfes(){
   if(!_fbdb) return;
@@ -739,6 +760,9 @@ function publicarDiaHoy(silencioso){
   const porSede=armarDiaHoy();
   if(!porSede){ if(!silencioso) alert('Hoy es domingo (o no hay día configurado): no hay nada para publicar.'); return; }
   const fecha=isoDe(new Date());
+  // publicar disponibilidad (profes libres por hora) para que la tablet muestre casilleros vacíos
+  const dispo=armarDispoHoy();
+  if(dispo){ try{ _fbdb.ref('dia/'+fecha+'/_dispo').set(dispo); }catch(e){} }
   const claves=Object.keys(porSede); let pend=claves.length;
   claves.forEach(sk=>{
     const ref=_fbdb.ref('dia/'+fecha+'/'+sk);
