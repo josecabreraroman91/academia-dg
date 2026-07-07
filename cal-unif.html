@@ -278,7 +278,7 @@
 <body class="modo-semana">
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v11</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v12</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -703,8 +703,10 @@ function diaHoyNombre(){ const wd=new Date().getDay(); return (wd>=1&&wd<=6)?DAY
 function fbKey(hi,d,si,nombre){ const n=String(nombre).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''); return hi+'_'+d+'_'+si+'_'+n; }
 
 // arma los registros del día de hoy, por sede, desde ESTA SEMANA (no madre, no próxima)
-function armarDiaHoy(){
-  const dia=diaHoyNombre(); if(!dia) return null;
+function diaNombreDeFecha(date){ const wd=date.getDay(); return (wd>=1&&wd<=6)?DAYS[wd-1]:null; }
+function armarDiaHoy(){ const d=diaHoyNombre(); return d?armarDiaDe(d):null; }
+function armarDiaDe(dia){
+  if(!dia) return null;
   const B=state.semana||{alumnos:{},libres:{}};
   const sedesDia=state.sedesPorDia[dia]; if(!sedesDia) return null;
   const porSede={};
@@ -727,8 +729,9 @@ function armarDiaHoy(){
   return porSede;
 }
 // Disponibilidad del día: por sede -> por profe -> horas NO bloqueadas (profe disponible para dar clase)
-function armarDispoHoy(){
-  const dia=diaHoyNombre(); if(!dia) return null;
+function armarDispoHoy(){ const d=diaHoyNombre(); return d?armarDispoDe(d):null; }
+function armarDispoDe(dia){
+  if(!dia) return null;
   const B=state.semana||{alumnos:{},libres:{}};
   const sedesDia=state.sedesPorDia[dia]; if(!sedesDia) return null;
   const dispo={};
@@ -757,29 +760,35 @@ function publicarProfes(){
 function publicarDiaHoy(silencioso){
   if(!_fbdb){ if(!silencioso) alert('Firebase no está disponible en este momento.'); return; }
   publicarProfes();  // nombres de profes al día en las tablets
-  const porSede=armarDiaHoy();
-  if(!porSede){ if(!silencioso) alert('Hoy es domingo (o no hay día configurado): no hay nada para publicar.'); return; }
-  const fecha=isoDe(new Date());
-  // publicar disponibilidad (profes libres por hora) para que la tablet muestre casilleros vacíos
-  const dispo=armarDispoHoy();
+  const okHoy=publicarFecha(0, silencioso);      // HOY (con aviso si no es silencioso)
+  publicarFecha(1, true);                          // MAÑANA (siempre en silencio, para que el profe lo vea de noche)
+  if(!okHoy && !silencioso) alert('Hoy es domingo (o no hay día configurado): no hay nada para publicar.');
+}
+// Publica una fecha (offset 0=hoy, 1=mañana). Devuelve true si publicó algo.
+function publicarFecha(offset, silencioso){
+  if(!_fbdb) return false;
+  const d=new Date(); d.setDate(d.getDate()+offset);
+  const dia=diaNombreDeFecha(d); if(!dia) return false;   // domingo: no hay clases
+  const porSede=armarDiaDe(dia); if(!porSede) return false;
+  const fecha=isoDe(d);
+  const dispo=armarDispoDe(dia);
   if(dispo){ try{ _fbdb.ref('dia/'+fecha+'/_dispo').set(dispo); }catch(e){} }
   const claves=Object.keys(porSede); let pend=claves.length;
   claves.forEach(sk=>{
     const ref=_fbdb.ref('dia/'+fecha+'/'+sk);
     ref.once('value').then(snap=>{
       const prev=snap.val()||{}, nuevo={};
-      // 1) preservar acoples cargados por los profes (no vienen del calendario)
-      Object.entries(prev).forEach(([k,v])=>{ if(v && v.acople) nuevo[k]=v; });
-      // 2) clases del calendario: preservar asistencia ya marcada; si es nueva, default por confirmación
+      Object.entries(prev).forEach(([k,v])=>{ if(v && v.acople) nuevo[k]=v; });         // preservar acoples de profes
       Object.entries(porSede[sk]).forEach(([k,rec])=>{
         const p = prev[k] || {};
-        nuevo[k]={ ...rec, asis: p.asis || 'presente' };   // por defecto PRESENTE (el profe solo marca ausentes)
-        if(p.borrado) nuevo[k].borrado=true;   // si el profe lo sacó del día, sigue sacado
+        nuevo[k]={ ...rec, asis: p.asis || 'presente' };
+        if(p.borrado) nuevo[k].borrado=true;
       });
       return ref.set(nuevo);
-    }).then(()=>{ if(--pend===0 && !silencioso) alert('📲 Día de hoy publicado a las tablets ('+claves.length+' sede(s)).'); })
+    }).then(()=>{ if(--pend===0 && !silencioso) alert('📲 Día de hoy publicado a las tablets ('+claves.length+' sede(s)). Mañana también quedó disponible.'); })
       .catch(e=>{ if(!silencioso) alert('No pude publicar a las tablets: '+e.message); });
   });
+  return true;
 }
 // auto-publicar continuo: cada cambio republica el día de hoy (con debounce)
 let _pubTimer=null;
