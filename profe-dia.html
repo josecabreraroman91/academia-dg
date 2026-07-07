@@ -74,7 +74,7 @@
   .slot .al .tag{font-size:.72em;background:var(--line);padding:0 .35em;border-radius:5px;color:var(--muted)}
   .slot .blk{display:inline-block;padding:.1em .4em;border-radius:6px;background:rgba(180,160,235,.16);font-weight:700}
   /* control de zoom */
-  .zoomctl{display:flex;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:2px}
+  .zoomctl{position:fixed;right:12px;bottom:14px;z-index:45;display:flex;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:3px;box-shadow:0 6px 20px rgba(0,0,0,.28)}
   .zoomctl button{width:30px;height:30px;border:0;background:transparent;color:var(--txt);font-size:18px;font-weight:800;border-radius:8px;cursor:pointer}
   .zoomctl button:active{background:var(--line)}
   .zoomctl .zlbl{width:auto;padding:0 6px;font-size:12px;font-weight:700;color:var(--muted)}
@@ -190,18 +190,20 @@
     </div>
     <div class="sp"></div>
     <div class="conn"><span class="dot" id="cdot"></span><span id="ctxt">…</span></div>
-    <div class="zoomctl" title="Acercar / alejar la lista">
-      <button id="zOut" aria-label="Alejar">−</button>
-      <button class="zlbl" id="zReset" title="Tamaño normal">A</button>
-      <button id="zIn" aria-label="Acercar">+</button>
-    </div>
+  </div>
+
+  <!-- Zoom flotante (siempre accesible) -->
+  <div class="zoomctl" title="Acercar / alejar la lista">
+    <button id="zOut" aria-label="Alejar">−</button>
+    <button class="zlbl" id="zReset" title="Tamaño normal">A</button>
+    <button id="zIn" aria-label="Acercar">+</button>
   </div>
 
   <div class="leyenda">
     <span><i class="pill pres"></i> Presente (por defecto)</span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>✅ confirmado · 👀 sin confirmar</span>
-    <span style="opacity:.5;font-weight:700">v7</span>
+    <span style="opacity:.5;font-weight:700">v8</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
