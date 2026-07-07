@@ -13,21 +13,21 @@
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
-  header{position:relative;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);padding:10px 12px;flex-shrink:0}
-  .title{display:flex;align-items:center;gap:8px;font-weight:700;font-size:16px;margin-bottom:8px}
+  header{position:relative;z-index:20;background:var(--panel);border-bottom:1px solid var(--line);padding:4px 8px;flex-shrink:0}
+  .title{display:flex;align-items:center;gap:6px;font-weight:700;font-size:12px;margin-bottom:3px}
   .title small{color:var(--muted);font-weight:400;font-size:11px}
 
   /* Conmutador de modo */
-  .mode-switch{display:flex;gap:6px;background:var(--cell);border:1px solid var(--line);border-radius:10px;padding:4px;margin-bottom:8px}
-  .mode-btn{flex:1;padding:9px;border:none;border-radius:7px;background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:5px}
+  .mode-switch{display:flex;gap:5px;background:var(--cell);border:1px solid var(--line);border-radius:9px;padding:2px;margin-bottom:3px}
+  .mode-btn{flex:1;padding:4px;border:none;border-radius:6px;background:transparent;color:var(--muted);font-weight:700;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px}
   .mode-btn.active.semana{background:var(--accent);color:#1a1a1a}
   .mode-btn.active.madre{background:var(--madre);color:#fff}
 
   .madre-banner{display:none;background:var(--madre);color:#fff;font-size:12px;font-weight:600;padding:7px 10px;border-radius:8px;margin-bottom:8px;text-align:center}
   body.modo-madre .madre-banner{display:block}
 
-  .day-tabs,.sede-tabs{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px}
-  .tab{padding:7px 12px;border-radius:8px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-weight:600;font-size:13px;white-space:nowrap;cursor:pointer}
+  .day-tabs,.sede-tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:0}
+  .tab{padding:3px 7px;border-radius:7px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-weight:600;font-size:11px;white-space:nowrap;cursor:pointer}
   .tab.active{background:var(--accent);color:#1a1a1a;border-color:var(--accent)}
   .tab.prox{border-style:dashed;opacity:.9}
   .tab.prox.active{background:var(--accent);opacity:1}
@@ -38,12 +38,12 @@
   .sede-tabs .tab.active.segurola{background:var(--segurola);color:#fff;border-color:var(--segurola)}
   .sede-tabs .tab.active.adefinir{background:var(--adefinir);color:#fff;border-color:var(--adefinir)}
   .sub{margin-top:8px}
-  .toolbar{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
-  .btn{padding:7px 11px;border-radius:8px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-size:12px;font-weight:600;cursor:pointer}
+  .toolbar{display:flex;gap:5px;margin-top:3px;flex-wrap:wrap}
+  .btn{padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-size:10.5px;font-weight:600;cursor:pointer}
   .zoomctl{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--cell)}
-  .zoomctl button{background:transparent;border:none;color:var(--txt);font-weight:800;cursor:pointer;padding:6px 12px;font-size:16px;line-height:1}
+  .zoomctl button{background:transparent;border:none;color:var(--txt);font-weight:800;cursor:pointer;padding:3px 8px;font-size:13px;line-height:1}
   .zoomctl button:active{background:#ffffff1a}
-  .zoomctl .zlbl{font-size:11.5px;font-weight:700;min-width:46px;text-align:center;border-left:1px solid var(--line);border-right:1px solid var(--line);padding:7px 4px}
+  .zoomctl .zlbl{font-size:10.5px;font-weight:700;min-width:38px;text-align:center;border-left:1px solid var(--line);border-right:1px solid var(--line);padding:3px 4px}
   .btn.primary{background:var(--accent);color:#1a1a1a;border-color:var(--accent)}
   .btn.reset{background:#2a1f30;border-color:#4a2a52;color:#e0b8ff}
   .btn.profs{background:#1f2e2a;border-color:#2a4a42;color:#9fe8d0}
@@ -69,7 +69,7 @@
   .prof-add .field{margin:0}
   .prof-add .field.dim{max-width:90px}
 
-  main{padding:10px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+  main{padding:4px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   .grid-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;flex:1;min-height:0}
   body.modo-madre .grid-wrap{border-color:var(--madre)}
   table{border-collapse:separate;border-spacing:0;width:100%;min-width:max-content}
@@ -278,7 +278,7 @@
 <body class="modo-semana">
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v12</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v14</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
