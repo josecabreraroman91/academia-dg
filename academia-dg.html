@@ -18,7 +18,7 @@
   #topbar.show{display:flex}
   #topbar .brand{font-weight:800;font-size:14px;letter-spacing:-.3px;display:flex;align-items:center;gap:6px;margin-right:4px}
   #topbar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--clay)}
-  #topbar .tabsbar{display:flex;gap:6px;flex:1;overflow-x:auto}
+  #topbar .tabsbar{display:flex;gap:6px;flex:1;flex-wrap:wrap}
   .navtab{padding:7px 13px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
   .navtab.active{background:var(--panel2);color:var(--txt);border-color:var(--clay)}
   .navtab.home{padding:7px 11px}
@@ -72,7 +72,7 @@
     <button class="navtab home" data-go="menu">☰</button>
     <button class="navtab" data-go="cal">🎾 Calendario</button>
     <button class="navtab" data-go="alu">👥 Alumnos</button>
-    <button class="navtab" data-go="pag">💵 Pagos Profes</button>
+    <button class="navtab" data-go="pag">💵 Pagos</button>
   </div>
 </div>
 
