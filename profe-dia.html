@@ -35,7 +35,13 @@
   .logo-land{width:230px;max-width:72%;height:auto;border-radius:18px;box-shadow:0 8px 24px rgba(17,129,164,.28);margin-bottom:4px}
   .top .sede{font-weight:800;font-size:16px;display:flex;align-items:center;gap:7px}
   .top .sede .em{width:11px;height:11px;border-radius:50%}
-  .top .fecha{color:#c7cef0;font-size:12px}
+  .top .fecha{color:#fff;font-size:19px;font-weight:800;line-height:1.05}
+  .top .daynav{display:flex;align-items:center;gap:8px;margin-top:3px}
+  .top .dbtn{width:34px;height:34px;border:0;border-radius:9px;background:rgba(255,255,255,.16);color:#fff;font-size:19px;font-weight:800;cursor:pointer;line-height:1}
+  .top .dbtn:active{background:rgba(255,255,255,.32)}
+  .top .dbtn:disabled{opacity:.28;cursor:default}
+  .top .fechabox{text-align:center;min-width:118px}
+  .top .fechatag{font-size:10px;font-weight:800;letter-spacing:.5px;color:#0a2a33;background:var(--lime,#C8FF4D);border-radius:6px;padding:1px 8px;display:inline-block;margin-top:1px}
   .top .sp{flex:1}
   .conn{display:flex;align-items:center;gap:6px;font-size:11px;color:#c7cef0;font-weight:700}
   .conn .dot{width:9px;height:9px;border-radius:50%;background:var(--muted)}
@@ -173,7 +179,14 @@
     <img id="logoTop" class="logo-top" alt="DG">
     <div>
       <div class="sede"><span class="em" id="topEm"></span><span id="topSede">—</span></div>
-      <div class="fecha" id="topFecha">—</div>
+      <div class="daynav">
+        <button id="dPrev" class="dbtn" aria-label="Día anterior">◂</button>
+        <div class="fechabox">
+          <div class="fecha" id="topFecha">—</div>
+          <div class="fechatag" id="topTag">HOY</div>
+        </div>
+        <button id="dNext" class="dbtn" aria-label="Día siguiente">▸</button>
+      </div>
     </div>
     <div class="sp"></div>
     <div class="conn"><span class="dot" id="cdot"></span><span id="ctxt">…</span></div>
@@ -188,7 +201,7 @@
     <span><i class="pill pres"></i> Presente (por defecto)</span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>✅ confirmado · 👀 sin confirmar</span>
-    <span style="opacity:.5;font-weight:700">v6</span>
+    <span style="opacity:.5;font-weight:700">v7</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -289,14 +302,16 @@ async function cargarAlumnosPlanilla(){
 const EST_ICO={sin:'⚪',presente:'🟢',ausente:'🔴'};
 const EST_NEXT={sin:'presente',presente:'ausente',ausente:'sin'};
 
-function hoyISO(){ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-function fechaLarga(){ const d=new Date(); const D=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']; return D[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1); }
+function isoDeFecha(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function hoyISO(){ return isoDeFecha(new Date()); }
+function fechaDeOffset(o){ const d=new Date(); d.setDate(d.getDate()+o); return d; }
+function fechaLargaOffset(o){ const d=fechaDeOffset(o); const D=['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado']; return D[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1); }
 function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1600); }
 
 const SEDES_ORDEN=['lomas','elite','segurola','adefinir'];
 const SEDE_EMOJI={lomas:'',elite:'💎',segurola:'🏝️',adefinir:'🏝️',habana:'🏝️'};
 const SEP='\u0001';                 // separador para id compuesto (sede + id)
-let db=null, fecha=hoyISO();
+let db=null, diaOffset=0, fechaHoyBase=hoyISO(), fecha=hoyISO();
 let cacheDia={};                    // { sede\u0001id : {...rec, _sede, _id} }
 let cacheDispo={};                  // { sede : { profeDim:[horas libres] } }
 let miSede='lomas';                 // sede por defecto para agregar acoples
@@ -313,14 +328,38 @@ function iniciarApp(){
   document.getElementById('app').style.display='flex';
   document.getElementById('topSede').textContent='Todas las sedes';
   document.getElementById('topEm').style.background='var(--elite)';
-  document.getElementById('topFecha').textContent=fechaLarga();
+  document.getElementById('topFecha').textContent=fechaLargaOffset(diaOffset);
   db.ref('.info/connected').on('value',(s)=>{
     const ok=s.val()===true;
     document.getElementById('cdot').className='dot '+(ok?'ok':'wait');
     document.getElementById('ctxt').textContent=ok?'En vivo':'Reconectando…';
   });
-  // escuchar TODO el día (todas las sedes + disponibilidad) en tiempo real
-  db.ref('dia/'+fecha).on('value',(snap)=>{
+  // navegación de día (HOY / MAÑANA)
+  document.getElementById('dPrev').onclick=()=>irADia(diaOffset-1);
+  document.getElementById('dNext').onclick=()=>irADia(diaOffset+1);
+  actualizarCabeceraFecha();
+  escucharDia();                                  // escucha el día elegido en tiempo real
+  db.ref('dia/_profes').on('value',(snap)=>{ profesNombres=snap.val()||{}; render(); });
+  setInterval(()=>{ if(hoyISO()!==fechaHoyBase) location.reload(); }, 60000);  // rota al cambiar de día real
+  const selH=document.getElementById('acHora'); selH.innerHTML=HORAS.map((h,i)=>`<option value="${i}">${h}</option>`).join('');
+  const selP=document.getElementById('acProfe'); selP.innerHTML=PROFES.map(p=>`<option value="${p.dim}">${p.dim} · ${p.nombre}</option>`).join('');
+  const selS=document.getElementById('acSede'); if(selS) selS.innerHTML=SEDES_ORDEN.map(sk=>`<option value="${sk}"${sk===miSede?' selected':''}>${SEDE_NOM[sk]||sk}</option>`).join('');
+  cargarAlumnosPlanilla();
+}
+// ---- Navegación de día: solo HOY (0) y MAÑANA (1) ----
+let _diaRef=null, _diaHandler=null;
+function irADia(o){ o=Math.max(0,Math.min(1,o)); if(o===diaOffset) return; diaOffset=o; fecha=isoDeFecha(fechaDeOffset(diaOffset)); actualizarCabeceraFecha(); escucharDia(); }
+function actualizarCabeceraFecha(){
+  document.getElementById('topFecha').textContent=fechaLargaOffset(diaOffset);
+  const tag=document.getElementById('topTag'); if(tag){ tag.textContent=diaOffset===0?'HOY':'MAÑANA'; tag.style.background=diaOffset===0?'var(--lime,#C8FF4D)':'#ffd36b'; }
+  document.getElementById('dPrev').disabled=diaOffset<=0;
+  document.getElementById('dNext').disabled=diaOffset>=1;
+}
+function escucharDia(){
+  if(_diaRef && _diaHandler){ _diaRef.off('value',_diaHandler); }
+  cacheDia={}; cacheDispo={}; render();            // limpiar mientras carga el nuevo día
+  _diaRef=db.ref('dia/'+fecha);
+  _diaHandler=(snap)=>{
     const all=snap.val()||{};
     cacheDispo=all._dispo||{};
     cacheDia={};
@@ -330,13 +369,8 @@ function iniciarApp(){
       Object.keys(recs).forEach(id=>{ const r=recs[id]; if(!r||typeof r!=='object') return; cacheDia[sk+SEP+id]={...r,_sede:sk,_id:id}; });
     });
     render();
-  });
-  db.ref('dia/_profes').on('value',(snap)=>{ profesNombres=snap.val()||{}; render(); });
-  setInterval(()=>{ if(hoyISO()!==fecha) location.reload(); }, 60000);
-  const selH=document.getElementById('acHora'); selH.innerHTML=HORAS.map((h,i)=>`<option value="${i}">${h}</option>`).join('');
-  const selP=document.getElementById('acProfe'); selP.innerHTML=PROFES.map(p=>`<option value="${p.dim}">${p.dim} · ${p.nombre}</option>`).join('');
-  const selS=document.getElementById('acSede'); if(selS) selS.innerHTML=SEDES_ORDEN.map(sk=>`<option value="${sk}"${sk===miSede?' selected':''}>${SEDE_NOM[sk]||sk}</option>`).join('');
-  cargarAlumnosPlanilla();
+  };
+  _diaRef.on('value',_diaHandler);
 }
 
 // ---- Helpers de presentación (estilo resumen) ----
