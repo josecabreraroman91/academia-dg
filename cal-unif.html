@@ -272,13 +272,15 @@
 .dropdown{position:relative;display:inline-block}
 .dropdown-menu{position:absolute;top:calc(100% + 4px);left:0;z-index:60;background:#fff;border:1px solid #d5dde2;border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.18);padding:8px;display:none;min-width:230px;flex-direction:column;gap:6px}
 .dropdown.open .dropdown-menu{display:flex}
+.slot.revisar{background:#bfe9ff !important;box-shadow:inset 0 0 0 2px #2ba6e0;border-radius:6px}
+.slot.revisar .nm{color:#08405e}
 .dropdown-menu .btn{width:100%;text-align:left}
 </style>
 </head>
 <body class="modo-semana">
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v14</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v16</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -364,6 +366,10 @@
         <button class="btn" id="btnAlmuerzo" style="flex:1;min-width:120px">🍽️ Almuerzo</button>
         <button class="btn" id="btnBloquear" style="flex:1;min-width:120px;background:#ffe3e0;border-color:#e59b93;color:#c0392b">🔒 Bloquear (profe no disponible)</button>
       </div>
+    </div>
+    <div class="field" id="fieldRevisar">
+      <label>Recordatorio personal (solo vos, en este dispositivo)</label>
+      <button class="btn" id="btnRevisar" style="width:100%;background:#e3f4ff;border-color:#7fc3e8;color:#08557d;font-weight:700">⭐ Marcar para revisar</button>
     </div>
     <div class="sheet-actions">
       <button class="btn danger" id="btnDelete">Borrar</button>
@@ -889,9 +895,10 @@ function renderGrid(){
             if(al.lado) tags.push(`<span class="tag">${al.lado}</span>`);
             if(al.mod) tags.push(`<span class="tag mod">${al.mod}</span>`);
             const conf = state.mode==='semana' && al.confirmado;
+            const marcado = estaMarcado(c.sk,c.pi,hi,si);
             const checkBtn = state.mode==='semana'
               ? `<button class="check-btn" data-check="${c.sk}|${c.pi}|${hi}|${si}" title="${conf?'Confirmado':'Marcar asistencia'}">✓</button>` : '';
-            html+=`<div class="slot${conf?' confirmado':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
+            html+=`<div class="slot${conf?' confirmado':''}${marcado?' revisar':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
               <div class="nm">${esc(al.nombre)}</div>
               ${tags.length?`<div class="tags">${tags.join('')}</div>`:''}
               ${al.nota?`<div class="nota">${esc(al.nota)}</div>`:''}
@@ -979,6 +986,10 @@ function openEditor(cellId){
   document.getElementById('fMod').value=al.mod||'';
   document.getElementById('fNota').value=al.nota||'';
   actualizarHintTel();
+  // botón "para revisar": solo tiene sentido si hay un alumno en la celda
+  const fr=document.getElementById('fieldRevisar');
+  if(al.nombre){ fr.style.display=''; actualizarBtnRevisar(sk,+pi,+hi,+si); }
+  else { fr.style.display='none'; }
   inp.oninput=()=>{ actualizarHintTel(); autocompletarDesdeNube(); };
   document.getElementById('overlay').classList.add('show');
 }
@@ -1020,6 +1031,25 @@ function autocompletarDesdeNube(){
   if(c.mod)   document.getElementById('fMod').value=c.mod;
 }
 function closeEditor(){ document.getElementById('overlay').classList.remove('show'); editingCell=null; }
+
+// ===== MARCA PERSONAL "para revisar" (amarillo) — solo local, no toca nada compartido =====
+let _revisar={};
+try{ _revisar=JSON.parse(localStorage.getItem('cal_dg_revisar')||'{}')||{}; }catch(e){ _revisar={}; }
+function markKeyDe(sk,pi,hi,si){ return `${state.mode}|${state.semActiva}|${state.dia}|${sk}|${pi}|${hi}|${si}`; }
+function estaMarcado(sk,pi,hi,si){ return !!_revisar[markKeyDe(sk,pi,hi,si)]; }
+function guardarRevisar(){ try{ localStorage.setItem('cal_dg_revisar', JSON.stringify(_revisar)); }catch(e){} }
+function toggleRevisar(){
+  if(!editingCell) return;
+  const [sk,pi,hi,si]=editingCell.split('|');
+  const k=markKeyDe(sk,+pi,+hi,+si);
+  if(_revisar[k]) delete _revisar[k]; else _revisar[k]=true;
+  guardarRevisar(); actualizarBtnRevisar(sk,+pi,+hi,+si); renderGrid();
+}
+function actualizarBtnRevisar(sk,pi,hi,si){
+  const b=document.getElementById('btnRevisar'); if(!b) return;
+  if(estaMarcado(sk,pi,hi,si)){ b.textContent='✖️ Quitar marca de revisar'; b.style.background='#bfe9ff'; }
+  else { b.textContent='⭐ Marcar para revisar'; b.style.background='#e3f4ff'; }
+}
 function saveEditor(){
   if(!editingCell) return;
   if(!confirmarSiMadre()) return;
@@ -1673,6 +1703,7 @@ function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,
 document.querySelectorAll('.mode-btn').forEach(b=> b.onclick=()=> setMode(b.dataset.mode));
 document.getElementById('btnSave').onclick=saveEditor;
 document.getElementById('btnAltoRend').onclick=()=>guardarBloque('ALTO RENDIMIENTO');
+document.getElementById('btnRevisar').onclick=toggleRevisar;
 document.getElementById('btnAlmuerzo').onclick=()=>guardarBloque('ALMUERZO');
 document.getElementById('btnBloquear').onclick=guardarBloqueado;
 document.getElementById('btnCancel').onclick=closeEditor;
