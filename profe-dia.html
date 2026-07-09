@@ -203,7 +203,7 @@
     <span><i class="pill pres"></i> Presente (por defecto)</span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>✅ confirmado · 👀 sin confirmar</span>
-    <span style="opacity:.5;font-weight:700">v8</span>
+    <span style="opacity:.5;font-weight:700">v10</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -341,10 +341,16 @@ function iniciarApp(){
   document.getElementById('dNext').onclick=()=>irADia(diaOffset+1);
   actualizarCabeceraFecha();
   escucharDia();                                  // escucha el día elegido en tiempo real
-  db.ref('dia/_profes').on('value',(snap)=>{ profesNombres=snap.val()||{}; render(); });
+  db.ref('dia/_profes').on('value',(snap)=>{ const v=snap.val()||{}; profesNombres={...v,...profesNombres}; render(); });
+  // nombres de profes EN TIEMPO REAL desde el calendario compartido (siempre al día, sin publicar nada)
+  db.ref('calendario_v1/profesores').on('value',(snap)=>{
+    const arr=snap.val()||[]; const map={};
+    (Array.isArray(arr)?arr:Object.values(arr)).forEach(p=>{ if(p&&p.dim) map[p.dim]=p.nombre||''; });
+    if(Object.keys(map).length){ profesNombres=map; render(); }
+  });
   setInterval(()=>{ if(hoyISO()!==fechaHoyBase) location.reload(); }, 60000);  // rota al cambiar de día real
   const selH=document.getElementById('acHora'); selH.innerHTML=HORAS.map((h,i)=>`<option value="${i}">${h}</option>`).join('');
-  const selP=document.getElementById('acProfe'); selP.innerHTML=PROFES.map(p=>`<option value="${p.dim}">${p.dim} · ${p.nombre}</option>`).join('');
+  const selP=document.getElementById('acProfe'); selP.innerHTML=listaProfesSync().map(p=>optProfe(p.dim,false)).join('');
   const selS=document.getElementById('acSede'); if(selS) selS.innerHTML=SEDES_ORDEN.map(sk=>`<option value="${sk}"${sk===miSede?' selected':''}>${SEDE_NOM[sk]||sk}</option>`).join('');
   cargarAlumnosPlanilla();
 }
@@ -379,8 +385,15 @@ function escucharDia(){
 const PROFE_COLORS=['#E8B84B','#7EC8E3','#F09A3E','#B79CED','#78C2AD','#F2777A','#8FD14F','#E58FB5','#5BC0EB','#F6C177','#9AD1D4','#C3A6F0'];
 function profeColor(dim){ let s=0; const d=dim||'—'; for(let i=0;i<d.length;i++) s+=d.charCodeAt(i); return PROFE_COLORS[s%PROFE_COLORS.length]; }
 const PROFE_NOM={}; PROFES.forEach(p=>PROFE_NOM[p.dim]=p.nombre);
-let profesNombres={};  // nombres actualizados que publica el calendario
-function profeNombre(dim){ return profesNombres[dim] || PROFE_NOM[dim] || ''; }
+let profesNombres={};  // nombres reales que publica el calendario (dim -> nombre)
+function profeNombre(dim){ return profesNombres[dim] || ''; }   // solo el nombre sincronizado; nunca placeholders
+// lista de profes para los desplegables: usa lo que publicó el calendario; si no hay, solo los códigos
+function listaProfesSync(){
+  const dims=Object.keys(profesNombres||{});
+  if(dims.length) return dims.map(d=>({dim:d, nombre:profesNombres[d]||''}));
+  return PROFES.map(p=>({dim:p.dim, nombre:''}));
+}
+function optProfe(dim, sel){ const n=profeNombre(dim); return `<option value="${dim}"${sel?' selected':''}>${dim}${n?' · '+n:''}</option>`; }
 function esBloque(a){ return a.mod==='BLOQUE' || /ALTO RENDIMIENTO|ALMUERZO/i.test(a.nombre||''); }
 function bloqueEmoji(a){ if(/ALMUERZO/i.test(a.nombre||'')) return '🍽️'; return '🏋️'; }
 function modTxt(m){ return m ? '('+m+')' : ''; }
@@ -451,7 +464,7 @@ function abrirMover(id){
   _moverId=id; const rec=cacheDia[id]||{};
   document.getElementById('mvNom').textContent=rec.nombre||'Alumno';
   const dims=Object.keys(profesNombres||{}); const lista=dims.length? dims : PROFES.map(p=>p.dim);
-  document.getElementById('mvProfe').innerHTML=lista.map(dd=>`<option value="${dd}"${dd===rec.profe?' selected':''}>${dd} · ${profeNombre(dd)}</option>`).join('');
+  document.getElementById('mvProfe').innerHTML=lista.map(dd=>optProfe(dd, dd===rec.profe)).join('');
   document.getElementById('mvHora').innerHTML=HORAS.map((h,i)=>`<option value="${i}"${i===rec.horaIdx?' selected':''}>${h}</option>`).join('');
   document.getElementById('ovMover').classList.add('show');
 }
@@ -471,7 +484,11 @@ function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':
 
 // ---- Acople ----
 const mAc=document.getElementById('mAcople');
-document.getElementById('btnAcople').onclick=()=>{ document.getElementById('acNom').value=''; mAc.classList.add('show'); };
+document.getElementById('btnAcople').onclick=()=>{
+  document.getElementById('acNom').value='';
+  const selP=document.getElementById('acProfe'); selP.innerHTML=listaProfesSync().map(p=>optProfe(p.dim,false)).join('');
+  mAc.classList.add('show');
+};
 document.getElementById('acCancel').onclick=()=>mAc.classList.remove('show');
 document.getElementById('meCancel').onclick=cerrarMenuEstado;
 document.getElementById('ovEstado').onclick=(e)=>{ if(e.target.id==='ovEstado') cerrarMenuEstado(); };
