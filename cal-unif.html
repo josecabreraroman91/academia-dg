@@ -280,7 +280,7 @@
 <body class="modo-semana">
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v17</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v18</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -806,6 +806,7 @@ function publicarFecha(offset, silencioso){
 // auto-publicar continuo: cada cambio republica el día de hoy (con debounce)
 let _pubTimer=null;
 function autoPublicar(){ if(!_fbdb) return; clearTimeout(_pubTimer); _pubTimer=setTimeout(()=>publicarDiaHoy(true),1500); }
+function publicarYa(){ if(!_fbdb) return; clearTimeout(_pubTimer); publicarDiaHoy(true); }  // cambios de columnas: reflejar al instante
 
 function sedesDelDia(){ return bookSedes()[state.dia]; }
 function sedeObj(){ return sedesDelDia().find(s=>s.key===state.sedeActiva); }
@@ -937,7 +938,7 @@ function renderGrid(){
       if(!confirm(`¿Quitar la columna "${nom}" de ${s.nombre} (${state.dia})?`)) return;
       if(!confirmarSiMadre()) return;
       s.profes.splice(pi,1);
-      saveState(); renderGrid();
+      saveState(); renderGrid(); publicarYa();
     };
   });
   grid.querySelectorAll('.sede-addcol').forEach(b=>{
@@ -945,7 +946,7 @@ function renderGrid(){
       if(!confirmarSiMadre()) return;
       const s=sedeByKey(b.dataset.addcol);
       const primer = state.profesores[0] ? state.profesores[0].dim : '—';
-      s.profes.push(primer); saveState(); renderGrid();
+      s.profes.push(primer); saveState(); renderGrid(); publicarYa();
     };
   });
   grid.querySelectorAll('.slot[data-cell]').forEach(s=>{ s.onclick=()=> openEditor(s.dataset.cell); });
@@ -1101,7 +1102,7 @@ function deleteEditor(){
 function addProf(){
   if(!confirmarSiMadre()) return;
   const primer = state.profesores[0] ? state.profesores[0].dim : '—';
-  sedeObj().profes.push(primer); saveState(); renderGrid();
+  sedeObj().profes.push(primer); saveState(); renderGrid(); publicarYa();
 }
 
 // ---- Gestión de profesores ----
