@@ -65,8 +65,8 @@
   .slot .prof{font-weight:800;color:var(--brand)}
   .slot .disp{color:var(--muted);font-size:.85em}
   .slot .sep{color:var(--muted);margin:0 1px}
-  .slot .al{display:inline-block;padding:.06em .4em;min-height:0;border:0;border-left:3px solid var(--pres);border-radius:5px;background:rgba(120,194,173,.14);cursor:pointer;user-select:none;line-height:1.3;vertical-align:middle;font-weight:600}
-  .slot .al.ausente{background:rgba(242,119,122,.16);border-left-color:var(--aus);text-decoration:line-through;opacity:.85}
+  .slot .al{display:inline-block;padding:.06em .4em;min-height:0;border:0;border-radius:5px;background:transparent;cursor:pointer;user-select:none;line-height:1.3;vertical-align:middle;font-weight:600}
+  .slot .al.ausente{background:rgba(242,119,122,.18);color:#b3261e;text-decoration:line-through;text-decoration-color:#000;text-decoration-thickness:2px;opacity:.95}
   .slot .al.acople{border-style:dashed}
   .slot .al:active{transform:scale(.97)}
   .slot .al .conf{font-size:.85em}
@@ -200,10 +200,10 @@
   </div>
 
   <div class="leyenda">
-    <span><i class="pill pres"></i> Presente (por defecto)</span>
+    <span>Tocá un alumno para marcar <b>ausente</b></span>
     <span><i class="pill aus"></i> Ausente</span>
-    <span>✅ confirmado · 👀 sin confirmar</span>
-    <span style="opacity:.5;font-weight:700">v10</span>
+    <span>👀 = no confirmó</span>
+    <span style="opacity:.5;font-weight:700">v11</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -428,10 +428,10 @@ function render(){
         html+=`<div class="slot vacio">${cab} <span class="disp">— disponible —</span></div>`;
       } else {
         const partes=f.alumnos.sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(a=>{
-          if(esBloque(a)) return `<span class="blk">${bloqueEmoji(a)} ${escapeHtml(a.nombre)}</span>`;
+          if(esBloque(a)) return `<span class="blk">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}</span>`;
           const est=a.asis==='ausente'?'ausente':'presente';
-          const conf=a.confirmado?'✅':'👀';
-          return `<span class="al ${est}${a.acople?' acople':''}" data-id="${a.cid}">${EST_ICO[est]} ${escapeHtml(a.nombre)} <span class="conf">${conf}</span> <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
+          const ojito=a.confirmado?'':' <span class="conf">👀</span>';   // 👀 = no confirmó (cuando no se chequeó en el calendario)
+          return `<span class="al ${est}${a.acople?' acople':''}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
         });
         html+=`<div class="slot">${cab} ${partes.join(' <span class="sep">·</span> ')}</div>`;
       }
