@@ -203,7 +203,7 @@
     <span>Tocá un alumno para marcar <b>ausente</b></span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>👀 = no confirmó</span>
-    <span style="opacity:.5;font-weight:700">v14</span>
+    <span style="opacity:.5;font-weight:700">v15</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -470,12 +470,19 @@ function abrirMover(id){
   document.getElementById('ovMover').classList.add('show');
 }
 function cerrarMover(){ document.getElementById('ovMover').classList.remove('show'); _moverId=null; }
+// ¿en qué sede trabaja este profe? (según lo publicado) — para que el alumno movido caiga en su columna
+function sedeDeProfe(dim){
+  for(const sk of SEDES_ORDEN){ if(cacheDispo[sk] && cacheDispo[sk][dim]) return sk; }
+  for(const cid in cacheDia){ const a=cacheDia[cid]; if(a && a.profe===dim && !a.borrado) return a._sede; }
+  return null;
+}
 function confirmarMover(){
   const rec=cacheDia[_moverId]; if(!rec){ cerrarMover(); return; }
   const nuevoProfe=document.getElementById('mvProfe').value;
   const nuevaHora=+document.getElementById('mvHora').value;
+  const destSede=sedeDeProfe(nuevoProfe) || rec._sede;   // sede real del profe; si no se sabe, queda donde estaba
   childRef(_moverId).child('borrado').set(true);   // sale de donde estaba (sin tocar el calendario)
-  db.ref('dia/'+fecha+'/'+rec._sede).push({ nombre:rec.nombre, horaIdx:nuevaHora, profe:nuevoProfe, mod:rec.mod||'', confirmado:!!rec.confirmado, asis:'presente', acople:true, movido:true });
+  db.ref('dia/'+fecha+'/'+destSede).push({ nombre:rec.nombre, horaIdx:nuevaHora, profe:nuevoProfe, mod:rec.mod||'', confirmado:true, asis:'presente', acople:true, movido:true });
   cerrarMover();
 }
 document.getElementById('mvCancel').onclick=cerrarMover;
