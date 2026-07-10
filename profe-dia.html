@@ -56,7 +56,8 @@
 
   .wrap{flex:1;padding:12px;padding-bottom:96px}
   .hora-block{margin-bottom:7px}
-  .hora-h{font-size:1em;font-weight:800;color:var(--brand);margin:0 2px 3px;display:flex;align-items:center;gap:8px}
+  .hora-h{font-size:1.15em;font-weight:800;color:var(--brand);margin:0 2px 4px;display:flex;align-items:center;gap:8px}
+  .hora-h .hnum{background:#C8FF4D;color:#0a2a33;font-weight:900;padding:2px 11px;border-radius:8px;letter-spacing:.3px}
   .hora-h .ln{flex:1;height:1px;background:var(--line)}
   /* formato lista compacto: una línea por profe. Todo en 'em' para que el zoom escale */
   #wrap{font-size:13px}                      /* <- variable de zoom: cambia esto y escala todo */
@@ -203,7 +204,7 @@
     <span>Tocá un alumno para marcar <b>ausente</b></span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>👀 = no confirmó</span>
-    <span style="opacity:.5;font-weight:700">v15</span>
+    <span style="opacity:.5;font-weight:700">v16</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -237,6 +238,7 @@
     <button class="me-opt aus"  data-est="ausente">🔴 Ausente</button>
     <div class="me-sep"></div>
     <button class="me-opt mover" id="meMover">↔️ Mover a otro profe u hora</button>
+    <button class="me-opt sacar" id="meSacar">🗑️ Sacar del día</button>
     <button class="btn me-cancel" id="meCancel">Cancelar</button>
   </div>
 </div>
@@ -421,7 +423,7 @@ function render(){
       profes.forEach(p=> filas.push({sede:sk,profe:p,alumnos:byCell[sk+'|'+p+'|'+h]||[]}));
     });
     if(!filas.length) continue;
-    html+=`<div class="hora-block"><div class="hora-h">${HORAS[h]||('h'+h)} <span class="ln"></span></div>`;
+    html+=`<div class="hora-block"><div class="hora-h"><span class="hnum">${HORAS[h]||('h'+h)}</span> <span class="ln"></span></div>`;
     filas.forEach(f=>{
       const em=SEDE_EMOJI[f.sede]||'';
       const cab=`<span class="prof">(${escapeHtml(f.profe)}${em?' '+em:''})</span>`;
@@ -455,6 +457,11 @@ function abrirMenuEstado(id){
     b.onclick=()=>{ childRef(id).child('asis').set(b.dataset.est); cerrarMenuEstado(); };
   });
   document.getElementById('meMover').onclick=()=>{ cerrarMenuEstado(); abrirMover(id); };
+  document.getElementById('meSacar').onclick=()=>{
+    if(confirm('¿Sacar a '+(rec.nombre||'este alumno')+' de la lista de hoy?\n(No afecta el calendario, solo lo saca del día en la tablet)')){
+      childRef(id).child('borrado').set(true); cerrarMenuEstado();
+    }
+  };
   ov.classList.add('show');
 }
 function cerrarMenuEstado(){ document.getElementById('ovEstado').classList.remove('show'); }
