@@ -203,7 +203,7 @@
     <span>Tocá un alumno para marcar <b>ausente</b></span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>👀 = no confirmó</span>
-    <span style="opacity:.5;font-weight:700">v11</span>
+    <span style="opacity:.5;font-weight:700">v12</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -311,7 +311,7 @@ function fechaLargaOffset(o){ const d=fechaDeOffset(o); const D=['Domingo','Lune
 function toast(t){ const el=document.getElementById('toast'); el.textContent=t; el.classList.add('show'); clearTimeout(el._t); el._t=setTimeout(()=>el.classList.remove('show'),1600); }
 
 const SEDES_ORDEN=['lomas','elite','segurola','adefinir'];
-const SEDE_EMOJI={lomas:'',elite:'💎',segurola:'🏝️',adefinir:'🏝️',habana:'🏝️'};
+const SEDE_EMOJI={lomas:'',elite:'💎',segurola:'🏝️',adefinir:'🚨',habana:'🏝️'};
 const SEP='\u0001';                 // separador para id compuesto (sede + id)
 let db=null, diaOffset=0, fechaHoyBase=hoyISO(), fecha=hoyISO();
 let cacheDia={};                    // { sede\u0001id : {...rec, _sede, _id} }
@@ -412,9 +412,10 @@ function render(){
   let html='';
   for(let h=minH; h<=maxH; h++){
     const filas=[]; // {sede,profe,alumnos}
+    const PLACEHOLDER={'SP':1,'—':1,'':1};   // "Sin Profe" y vacíos: no son profes reales
     SEDES_ORDEN.forEach(sk=>{
       const dp=cacheDispo[sk]||{};
-      const disp=Object.keys(dp).filter(p=>(dp[p]||[]).includes(h));           // profes disponibles esa hora
+      const disp=Object.keys(dp).filter(p=>(dp[p]||[]).includes(h) && !PLACEHOLDER[p]);   // profes disponibles esa hora (sin SP/placeholders)
       const conAl=items.filter(a=>a._sede===sk && (a.horaIdx||0)===h).map(a=>a.profe);
       const profes=[...new Set([...disp,...conAl])].sort((x,y)=>profeIdx(x)-profeIdx(y));
       profes.forEach(p=> filas.push({sede:sk,profe:p,alumnos:byCell[sk+'|'+p+'|'+h]||[]}));
