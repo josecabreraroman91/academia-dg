@@ -280,7 +280,7 @@
 <body class="modo-semana">
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v16</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v17</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -577,6 +577,10 @@ function book(){
   if(state.mode==='madre') return state.madre;
   return state.semActiva==='proxima' ? state.semanaProxima : state.semana;
 }
+// Columnas de profes AHORA por planilla (madre/semana independientes)
+function bookSedes(){ const b=book(); if(!b.sedesPorDia) b.sedesPorDia=JSON.parse(JSON.stringify(state.sedesPorDia||{})); return b.sedesPorDia; }
+function sedesSemana(){ const b=state.semana||(state.semana={alumnos:{},libres:{}}); if(!b.sedesPorDia) b.sedesPorDia=JSON.parse(JSON.stringify(state.sedesPorDia||{})); return b.sedesPorDia; }
+function migrarSedesPorBook(){ const base=state.sedesPorDia||{}; ['madre','semana','semanaProxima'].forEach(k=>{ if(state[k] && !state[k].sedesPorDia) state[k].sedesPorDia=JSON.parse(JSON.stringify(base)); }); }
 // ===== Dos semanas editables (esta + la que viene), con fechas =====
 function isoDe(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function lunesDeHoy(){ const d=new Date(); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return isoDe(d); }
@@ -617,9 +621,9 @@ function loadState(){
       // Migración: actualizar nombres de sede a los definitivos (por key)
       const NOMBRES_SEDE={lomas:'LOMAS PADEL', elite:'ELITE PADEL', segurola:'SEGUROLA Y HABANA PADEL', adefinir:'A DEFINIR'};
       let cambio=false;
-      Object.values(state.sedesPorDia||{}).forEach(arr=> arr.forEach(sd=>{
-        if(NOMBRES_SEDE[sd.key] && sd.nombre!==NOMBRES_SEDE[sd.key]){ sd.nombre=NOMBRES_SEDE[sd.key]; cambio=true; }
-      }));
+      const _fixNombres = arr => (arr||[]).forEach(sd=>{ if(NOMBRES_SEDE[sd.key] && sd.nombre!==NOMBRES_SEDE[sd.key]){ sd.nombre=NOMBRES_SEDE[sd.key]; cambio=true; } });
+      Object.values(state.sedesPorDia||{}).forEach(_fixNombres);
+      [state.madre,state.semana,state.semanaProxima].forEach(bk=>{ if(bk&&bk.sedesPorDia) Object.values(bk.sedesPorDia).forEach(_fixNombres); });
       if(cambio) saveState();
       // Si la grilla guardada es de una versión anterior (o no tiene la grilla real cargada),
       // recargar la MADRE desde la planilla CALENDARIO una sola vez.
@@ -632,6 +636,7 @@ function loadState(){
         state.seedVersion = SEED_VERSION;
         saveState();
       }
+      migrarSedesPorBook();
       asegurarSemanas();
       return;
     }catch(e){}
@@ -645,6 +650,7 @@ function loadState(){
   // la semana arranca como copia de la madre
   state.semana = JSON.parse(JSON.stringify(state.madre));
   state.semanaProxima = JSON.parse(JSON.stringify(state.madre));
+  migrarSedesPorBook();
   asegurarSemanas();
   saveState();
 }
@@ -699,6 +705,7 @@ function iniciarCalendarioCompartido(){
     state.semanaProxima = r.semanaProxima || state.semanaProxima;
     if(r.lunesActual) state.lunesActual = r.lunesActual;
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
+    migrarSedesPorBook();
     _aplicandoRemoto = false; _calListo = true;
     try{ reindexarAlumnos(); }catch(e){}
     try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
@@ -714,7 +721,7 @@ function armarDiaHoy(){ const d=diaHoyNombre(); return d?armarDiaDe(d):null; }
 function armarDiaDe(dia){
   if(!dia) return null;
   const B=state.semana||{alumnos:{},libres:{}};
-  const sedesDia=state.sedesPorDia[dia]; if(!sedesDia) return null;
+  const sedesDia=sedesSemana()[dia]; if(!sedesDia) return null;
   const porSede={};
   sedesDia.forEach(s=>{
     const recs={};
@@ -739,7 +746,7 @@ function armarDispoHoy(){ const d=diaHoyNombre(); return d?armarDispoDe(d):null;
 function armarDispoDe(dia){
   if(!dia) return null;
   const B=state.semana||{alumnos:{},libres:{}};
-  const sedesDia=state.sedesPorDia[dia]; if(!sedesDia) return null;
+  const sedesDia=sedesSemana()[dia]; if(!sedesDia) return null;
   const dispo={};
   sedesDia.forEach(s=>{
     const porProfe={};
@@ -800,7 +807,7 @@ function publicarFecha(offset, silencioso){
 let _pubTimer=null;
 function autoPublicar(){ if(!_fbdb) return; clearTimeout(_pubTimer); _pubTimer=setTimeout(()=>publicarDiaHoy(true),1500); }
 
-function sedesDelDia(){ return state.sedesPorDia[state.dia]; }
+function sedesDelDia(){ return bookSedes()[state.dia]; }
 function sedeObj(){ return sedesDelDia().find(s=>s.key===state.sedeActiva); }
 
 // ¿Hace falta confirmar el cambio? (sólo en modo madre)
@@ -1101,7 +1108,8 @@ function addProf(){
 function openProfs(){ renderProfList(); document.getElementById('overlayProfs').classList.add('show'); }
 function closeProfs(){ document.getElementById('overlayProfs').classList.remove('show'); }
 function renombrarDim(viejo,nuevo){
-  const sd=state.sedesPorDia||{};
+  const sd=Object.assign({}, state.sedesPorDia||{});
+  [state.madre,state.semana,state.semanaProxima].forEach(bk=>{ if(bk&&bk.sedesPorDia) Object.keys(bk.sedesPorDia).forEach(d=>{ (bk.sedesPorDia[d]||[]).forEach(sede=>{ const arr=sede&&sede.profes; if(Array.isArray(arr)) arr.forEach((x,i)=>{ if(x===viejo) arr[i]=nuevo; }); }); }); });
   Object.keys(sd).forEach(dia=>{ (sd[dia]||[]).forEach(sede=>{
     const arr=sede&&sede.profes; if(Array.isArray(arr)) arr.forEach((d,idx)=>{ if(d===viejo) arr[idx]=nuevo; });
   }); });
@@ -1443,7 +1451,7 @@ function exportEnvios(){
   const sinTel=[];
   const header=['sesion_id','fecha','dia','hora','sede','profesor','nombre_calendario','nombre_wpp','telefono','estado'];
   const lines=[header.join(',')];
-  const sedes=state.sedesPorDia[state.dia];
+  const sedes=sedesSemana()[state.dia];
   const fecha=fechaCorta();
 
   HORAS.forEach((hora,hi)=>{
@@ -1510,7 +1518,7 @@ function phoneOk(tel){ return tel && tel.length>=8 && tel.length<=15; }
 // Construye la lista de envío desde la SEMANA del día actual
 function buildEnvioList(){
   rebuildLocalContacts();
-  const B=book(), sedes=state.sedesPorDia[state.dia], out=[];
+  const B=book(), sedes=bookSedes()[state.dia], out=[];
   HORAS.forEach((hora,hi)=>{
     const hhmm=hora.replace(':','');
     sedes.forEach(s=>{
