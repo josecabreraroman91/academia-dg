@@ -203,7 +203,7 @@
     <span>Tocá un alumno para marcar <b>ausente</b></span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>👀 = no confirmó</span>
-    <span style="opacity:.5;font-weight:700">v13</span>
+    <span style="opacity:.5;font-weight:700">v14</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -431,7 +431,7 @@ function render(){
         const partes=f.alumnos.sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(a=>{
           if(esBloque(a)) return `<span class="blk">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}</span>`;
           const est=a.asis==='ausente'?'ausente':'presente';
-          const ojito=a.confirmado?'':' <span class="conf">👀</span>';   // 👀 = no confirmó (cuando no se chequeó en el calendario)
+          const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';   // 👀 = no confirmó. Los acoples (agregados por el profe) ya están presentes
           return `<span class="al ${est}${a.acople?' acople':''}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
         });
         html+=`<div class="slot">${cab} ${partes.join(' <span class="sep">·</span> ')}</div>`;
