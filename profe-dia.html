@@ -203,7 +203,7 @@
     <span>Tocá un alumno para marcar <b>ausente</b></span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>👀 = no confirmó</span>
-    <span style="opacity:.5;font-weight:700">v12</span>
+    <span style="opacity:.5;font-weight:700">v13</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -499,7 +499,7 @@ document.getElementById('acGuardar').onclick=()=>{
   const horaIdx=+document.getElementById('acHora').value;
   const profe=document.getElementById('acProfe').value;
   const selS=document.getElementById('acSede'); const sk=selS?selS.value:miSede;
-  db.ref('dia/'+fecha+'/'+sk).push({ nombre:nom, horaIdx, profe, mod:'', confirmado:false, asis:'presente', acople:true });
+  db.ref('dia/'+fecha+'/'+sk).push({ nombre:nom, horaIdx, profe, mod:'', confirmado:true, asis:'presente', acople:true });
   mAc.classList.remove('show'); toast('✅ Agregado presente');
 };
 
