@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Cobros · Consulta · Academia DG</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --brand:#1181A4; --brand-d:#0d6a88; --lima:#CADB36;
+    --bg:#eef2f4; --panel:#ffffff; --panel2:#f1f5f7; --line:#dde3e7;
+    --txt:#16232c; --muted:#69788a; --ok:#1f9d55; --warn:#e0a800; --bad:#d84a3b;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);display:flex;flex-direction:column;min-height:100vh}
+  .top{background:var(--brand);color:#fff;padding:12px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:10}
+  .top h1{font-size:16px;font-weight:800;margin:0}
+  .top .sp{flex:1}
+  .top .estado{font-size:11px;opacity:.9;display:flex;align-items:center;gap:5px}
+  .dot{width:9px;height:9px;border-radius:50%;background:#9fb0bd}
+  .dot.ok{background:var(--lima)} .dot.wait{background:#ffd36b}
+  main{flex:1;padding:14px;max-width:640px;width:100%;margin:0 auto}
+  .btn{padding:9px 13px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--txt);font-size:13px;font-weight:700;cursor:pointer}
+  .btn.brand{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .btn.brand:active{background:var(--brand-d)}
+  .btn.ghost{background:transparent}
+  .btn:disabled{opacity:.4}
+
+  /* ---- Buscador ---- */
+  .search-wrap{position:relative;margin-bottom:14px}
+  .search-wrap input{width:100%;padding:14px 16px;font-size:17px;border:2px solid var(--line);border-radius:13px;background:var(--panel);color:var(--txt);font-weight:600}
+  .search-wrap input:focus{border-color:var(--brand);outline:none}
+  .ac{position:absolute;top:calc(100% + 4px);left:0;right:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.14);max-height:320px;overflow-y:auto;z-index:20;display:none}
+  .ac.show{display:block}
+  .ac .it{padding:12px 15px;cursor:pointer;border-bottom:1px solid var(--line);font-weight:600}
+  .ac .it:last-child{border-bottom:0}
+  .ac .it:active,.ac .it.hi{background:var(--panel2)}
+  .ac .it small{color:var(--muted);font-weight:500}
+
+  .hint{color:var(--muted);font-size:13px;text-align:center;margin-top:40px;line-height:1.6}
+  .hint b{color:var(--txt)}
+
+  /* ---- Ficha del alumno ---- */
+  .ficha{display:none}
+  .ficha.show{display:block}
+  .fback{display:inline-flex;align-items:center;gap:6px;color:var(--brand);font-weight:800;cursor:pointer;font-size:14px;margin-bottom:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:15px;margin-bottom:12px}
+  .nom{font-size:22px;font-weight:900;letter-spacing:-.3px}
+  .sub{color:var(--muted);font-size:13px;margin-top:3px;display:flex;flex-wrap:wrap;gap:4px 12px}
+  .sub b{color:var(--txt)}
+
+  .mesnav{display:flex;align-items:center;justify-content:center;gap:12px;margin:4px 0 12px}
+  .mesnav button{width:38px;height:38px;border:0;border-radius:10px;background:var(--panel);border:1px solid var(--line);font-size:20px;font-weight:800;cursor:pointer;color:var(--brand)}
+  .mesnav button:active{background:var(--panel2)}
+  .mesnav .lbl{min-width:150px;text-align:center;font-size:17px;font-weight:900}
+
+  .montos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px}
+  .monto{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:13px;text-align:center}
+  .monto .t{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);display:flex;align-items:center;justify-content:center;gap:4px}
+  .monto .g{font-size:21px;font-weight:900;margin-top:5px}
+  .monto .d{font-size:11px;color:var(--muted);margin-top:2px}
+  .monto.teo{border-color:#9cc4d2}
+  .monto.real{border-color:#b7d98a}
+
+  .estado-mes{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:13px;margin-bottom:12px;font-weight:800}
+  .estado-mes.pend{background:#fff4e5;color:#8a5a00;border:1px solid #f0cd8a}
+  .estado-mes.parcial{background:#eaf3fb;color:#0d5a82;border:1px solid #a9cbe6}
+  .estado-mes.pagado{background:#e8f6ec;color:#1f7a44;border:1px solid #a6d9b8}
+  .estado-mes .sal{margin-left:auto;font-size:13px;font-weight:700}
+
+  .sec-t{font-size:13px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin:16px 2px 8px}
+  .row{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--line);font-size:14px}
+  .row:last-child{border-bottom:0}
+  .row .r-l{flex:1}
+  .row .r-r{font-weight:800}
+  .chip{font-size:11px;padding:2px 8px;border-radius:7px;background:var(--panel2);color:var(--muted);font-weight:700}
+  .pago-row .del{color:var(--bad);cursor:pointer;font-weight:900;padding:0 4px}
+  .vacio{color:var(--muted);font-size:13px;padding:12px;text-align:center}
+
+  /* ---- Modal de cobro ---- */
+  .modal{position:fixed;inset:0;background:rgba(15,30,40,.55);display:none;align-items:flex-end;justify-content:center;z-index:60;padding:0}
+  .modal.show{display:flex}
+  .sheet{background:var(--panel);width:100%;max-width:640px;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.2)}
+  .sheet h3{margin:0 0 4px;font-size:18px;font-weight:900}
+  .sheet .msub{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .fld{margin-bottom:12px}
+  .fld label{display:block;font-size:12px;font-weight:800;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
+  .fld input,.fld textarea{width:100%;padding:12px;font-size:16px;border:1.5px solid var(--line);border-radius:10px;background:var(--panel);color:var(--txt)}
+  .fld input:focus,.fld textarea:focus{border-color:var(--brand);outline:none}
+  .quick{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}
+  .quick button{padding:7px 11px;border-radius:9px;border:1px solid var(--line);background:var(--panel2);font-size:12px;font-weight:800;cursor:pointer;color:var(--txt)}
+  .quick button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .formas{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .formas button{padding:12px;border-radius:11px;border:1.5px solid var(--line);background:var(--panel2);font-size:14px;font-weight:800;cursor:pointer;color:var(--txt)}
+  .formas button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+  .sheet-actions{display:flex;gap:10px;margin-top:16px}
+  .sheet-actions .btn{flex:1;padding:14px;font-size:15px}
+
+  .loadbar{font-size:12px;color:var(--muted);text-align:center;padding:8px}
+</style>
+</head>
+<body>
+<div class="top">
+  <h1>💰 Cobros · Consulta</h1>
+  <span class="sp"></span>
+  <button class="btn ghost" id="btnSync" style="color:#fff;border-color:rgba(255,255,255,.4);font-size:12px;padding:6px 10px">🔄 Actualizar</button>
+  <span class="estado"><span class="dot" id="cdot"></span><span id="ctxt">…</span></span>
+</div>
+
+<main>
+  <!-- BUSCADOR -->
+  <div id="vistaBuscar">
+    <div class="search-wrap">
+      <input id="q" type="text" placeholder="Buscá un alumno por su nombre…" autocomplete="off" spellcheck="false">
+      <div class="ac" id="ac"></div>
+    </div>
+    <div class="loadbar" id="loadbar">Cargando alumnos de la planilla…</div>
+    <div class="hint" id="hint" style="display:none">
+      Escribí el nombre de un alumno y elegilo de la lista.<br>
+      Vas a ver <b>cuánto paga</b>, las <b>clases del mes</b> y podés <b>registrar el cobro</b>.
+    </div>
+  </div>
+
+  <!-- FICHA DEL ALUMNO -->
+  <div class="ficha" id="ficha">
+    <div class="fback" id="fback">◂ Volver a la búsqueda</div>
+    <div class="card">
+      <div class="nom" id="fNom">—</div>
+      <div class="sub" id="fSub"></div>
+    </div>
+
+    <div class="mesnav">
+      <button id="mPrev">◂</button>
+      <div class="lbl" id="mLbl">—</div>
+      <button id="mNext">▸</button>
+    </div>
+
+    <div class="montos">
+      <div class="monto teo">
+        <div class="t">📅 Mensual</div>
+        <div class="g" id="mTeo">—</div>
+        <div class="d" id="mTeoD">según su horario</div>
+      </div>
+      <div class="monto real">
+        <div class="t">✅ Asistido</div>
+        <div class="g" id="mReal">—</div>
+        <div class="d" id="mRealD">clases que fue</div>
+      </div>
+    </div>
+
+    <div class="estado-mes pend" id="estadoMes">
+      <span id="estadoTxt">Pendiente</span>
+      <span class="sal" id="estadoSaldo"></span>
+    </div>
+
+    <button class="btn brand" style="width:100%;padding:14px;font-size:15px" id="btnCobrar">➕ Registrar cobro</button>
+
+    <div class="sec-t">Pagos de este mes</div>
+    <div class="card" id="pagosBox" style="padding:4px 12px"><div class="vacio">Todavía no hay pagos este mes.</div></div>
+
+    <div class="sec-t">Días que entrenó (del reporte)</div>
+    <div class="card" id="histBox" style="padding:4px 12px"><div class="vacio">Sin clases registradas este mes.</div></div>
+  </div>
+</main>
+
+<!-- MODAL COBRO -->
+<div class="modal" id="mCobro">
+  <div class="sheet">
+    <h3>Registrar cobro</h3>
+    <div class="msub" id="cobAlum">—</div>
+    <div class="fld">
+      <label>Monto a cobrar (Gs.)</label>
+      <input id="cMonto" type="tel" inputmode="numeric" placeholder="0">
+      <div class="quick" id="cQuick"></div>
+    </div>
+    <div class="fld">
+      <label>Forma de pago</label>
+      <div class="formas" id="cFormas">
+        <button data-f="Efectivo">💵 Efectivo</button>
+        <button data-f="Transferencia">🏦 Transferencia</button>
+        <button data-f="POS">💳 POS</button>
+        <button data-f="Otro">• Otro</button>
+      </div>
+    </div>
+    <div class="fld">
+      <label>Nota (opcional)</label>
+      <input id="cNota" type="text" placeholder="Ej: seña, paga el resto la semana que viene…">
+    </div>
+    <div class="sheet-actions">
+      <button class="btn ghost" id="cCancel">Cancelar</button>
+      <button class="btn brand" id="cGuardar">Guardar cobro</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== Config =====
+const firebaseConfig = {
+  apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  databaseURL: "https://academia-dg-default-rtdb.firebaseio.com"
+};
+const SHEET_ID='1Ux1uQJ31EpxnWafAIJw0cuzS2B2vfuv--LUfDA4bVqc';
+const MESES=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+let db=null;
+try{ firebase.initializeApp(firebaseConfig); db=firebase.database(); }catch(e){ console.warn(e); }
+
+// ===== Helpers =====
+function gs(n){ n=Math.round(Number(n)||0); return n.toLocaleString('es-PY').replace(/,/g,'.'); }
+function numGs(s){ s=String(s||''); const d=s.replace(/[^\d]/g,''); return d?parseInt(d,10):0; }
+function normName(s){ return String(s==null?'':s).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' '); }
+function isoDe(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function periodo(y,m){ return y+'-'+String(m+1).padStart(2,'0'); }
+function $(id){ return document.getElementById(id); }
+
+// parser CSV simple (maneja comillas)
+function parseCSV(text){
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<text.length;i++){ const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"') q=true; else if(c===','){ row.push(cur); cur=''; } else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; } else if(c==='\r'){} else cur+=c; }
+  }
+  if(cur!==''||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+
+// ===== Estado =====
+let alumnos=[];        // {nombre, precio, calWd:{wd:nClases}, dias:[]}
+let alIndex={};        // normName -> alumno
+let historial=[];      // {fecha, alumno, normAl, hora, sede, profe, tipo}
+let cobros={};         // normName -> { 'YYYY-MM': {pagos:[{monto,forma,nota,ts}]} }  (de Firebase)
+let cur=null;          // alumno seleccionado
+const now=new Date();
+let curY=now.getFullYear(), curM=now.getMonth();
+
+// ===== Conexión =====
+if(db){
+  db.ref('.info/connected').on('value',s=>{
+    const ok=s.val()===true;
+    $('cdot').className='dot '+(ok?'ok':'wait');
+    $('ctxt').textContent=ok?'En vivo':'Conectando…';
+  });
+  // cobros en tiempo real
+  db.ref('cobros_v1').on('value',snap=>{ cobros=snap.val()||{}; if(cur) renderFicha(); });
+}
+
+// ===== Cargar planilla (ALUMNOS + HISTORIAL) =====
+async function cargarPlanilla(){
+  $('loadbar').style.display='';
+  $('loadbar').textContent='Cargando alumnos y clases de la planilla…';
+  try{
+    // ALUMNOS
+    const urlA='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet=ALUMNOS';
+    const rowsA=parseCSV(await (await fetch(urlA)).text());
+    let h=-1; for(let i=0;i<Math.min(rowsA.length,12);i++){ if(rowsA[i].some(c=>normName(c)==='alumnos')){h=i;break;} } if(h<0) h=1;
+    const ros=[], idx={};
+    for(let i=h+1;i<rowsA.length;i++){
+      const r=rowsA[i]; const nom=(r[1]||'').trim(); if(!nom) continue;
+      const precio=numGs(r[6]);                 // G = precio por clase
+      const calWd={};
+      for(let c=12;c<=17;c++){ const cell=(r[c]||'').trim(); if(!cell||cell==='-') continue;
+        const horas=cell.split(/[,;]/).map(s=>s.trim()).filter(s=>/\d/.test(s));
+        if(horas.length) calWd[c-11]=horas.length;   // 12->LUN(1) ... 17->SAB(6)
+      }
+      const dias=Object.keys(calWd).map(Number).sort();
+      const a={ nombre:nom, precio, calWd, dias };
+      ros.push(a); idx[normName(nom)]=a;
+    }
+    alumnos=ros; alIndex=idx;
+
+    // HISTORIAL (asistencia real del reporte de profes)
+    try{
+      const urlH='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet=HISTORIAL';
+      const rowsH=parseCSV(await (await fetch(urlH)).text());
+      const hist=[];
+      for(let i=1;i<rowsH.length;i++){ const x=rowsH[i]; const fecha=(x[0]||'').trim(); const al=(x[1]||'').trim(); if(!fecha||!al) continue;
+        hist.push({ fecha, alumno:al, normAl:normName(al), hora:(x[2]||'').trim(), sede:(x[3]||'').trim(), profe:(x[4]||'').trim(), tipo:(x[5]||'').trim(), estado:(x[6]||'').trim() });
+      }
+      historial=hist;
+    }catch(e){ historial=[]; }
+
+    $('loadbar').style.display='none';
+    $('hint').style.display='';
+    if(cur){ cur=alIndex[normName(cur.nombre)]||cur; renderFicha(); }
+  }catch(e){
+    $('loadbar').textContent='No pude leer la planilla: '+e.message+'. Verificá que esté compartida como "cualquiera con el enlace".';
+  }
+}
+
+// ===== Cálculos =====
+function fechasMes(a,y,m){                       // días que le TOCA entrenar (horario fijo)
+  const out=[]; const d=new Date(y,m,1);
+  while(d.getMonth()===m){ const wd=d.getDay(); if(a.calWd[wd]) out.push({iso:isoDe(d), clases:a.calWd[wd]}); d.setDate(d.getDate()+1); }
+  return out;
+}
+function clasesTeoricas(a,y,m){ return fechasMes(a,y,m).reduce((s,f)=>s+f.clases,0); }
+function mensualTeorico(a,y,m){ return clasesTeoricas(a,y,m)*(a.precio||0); }
+
+function clasesAsistidasDetalle(a,y,m){          // del HISTORIAL
+  const pref=periodo(y,m);                       // 'YYYY-MM'
+  return historial.filter(x=> x.normAl===normName(a.nombre) && String(x.fecha).slice(0,7)===pref)
+                  .sort((p,q)=>String(p.fecha).localeCompare(String(q.fecha)));
+}
+function realAsistido(a,y,m){ return clasesAsistidasDetalle(a,y,m).length*(a.precio||0); }
+
+function pagosMes(a,y,m){
+  const n=normName(a.nombre); const per=periodo(y,m);
+  const md=(cobros[n]&&cobros[n][per])||{};
+  return (md.pagos||[]);
+}
+function totalPagado(a,y,m){ return pagosMes(a,y,m).reduce((s,p)=>s+(+p.monto||0),0); }
+
+// ===== Buscador =====
+let acSel=-1;
+$('q').addEventListener('input',()=>{ buscar(); });
+$('q').addEventListener('keydown',e=>{
+  const its=[...$('ac').querySelectorAll('.it')];
+  if(e.key==='ArrowDown'){ acSel=Math.min(its.length-1,acSel+1); pintarSel(its); e.preventDefault(); }
+  else if(e.key==='ArrowUp'){ acSel=Math.max(0,acSel-1); pintarSel(its); e.preventDefault(); }
+  else if(e.key==='Enter'){ if(its[acSel]) its[acSel].click(); }
+});
+function pintarSel(its){ its.forEach((it,i)=>it.classList.toggle('hi',i===acSel)); if(its[acSel]) its[acSel].scrollIntoView({block:'nearest'}); }
+function buscar(){
+  const q=normName($('q').value); const ac=$('ac');
+  if(!q){ ac.classList.remove('show'); ac.innerHTML=''; return; }
+  const res=alumnos.filter(a=>normName(a.nombre).includes(q)).slice(0,25);
+  if(!res.length){ ac.innerHTML='<div class="it"><small>Sin resultados</small></div>'; ac.classList.add('show'); return; }
+  ac.innerHTML=res.map(a=>`<div class="it" data-n="${encodeURIComponent(a.nombre)}">${a.nombre} <small>· Gs. ${gs(a.precio)}/clase</small></div>`).join('');
+  ac.classList.add('show'); acSel=-1;
+  ac.querySelectorAll('.it[data-n]').forEach(it=>it.onclick=()=>abrirAlumno(decodeURIComponent(it.dataset.n)));
+}
+
+// ===== Ficha =====
+function abrirAlumno(nombre){
+  cur=alIndex[normName(nombre)]; if(!cur) return;
+  const t=new Date(); curY=t.getFullYear(); curM=t.getMonth();
+  $('ac').classList.remove('show'); $('q').value='';
+  $('vistaBuscar').style.display='none';
+  $('ficha').classList.add('show');
+  renderFicha();
+}
+$('fback').onclick=()=>{ $('ficha').classList.remove('show'); $('vistaBuscar').style.display=''; cur=null; setTimeout(()=>$('q').focus(),50); };
+$('mPrev').onclick=()=>{ curM--; if(curM<0){curM=11;curY--;} renderFicha(); };
+$('mNext').onclick=()=>{ curM++; if(curM>11){curM=0;curY++;} renderFicha(); };
+
+function renderFicha(){
+  if(!cur) return;
+  const a=cur;
+  $('fNom').textContent=a.nombre;
+  const nClasesTeo=clasesTeoricas(a,curY,curM);
+  const asist=clasesAsistidasDetalle(a,curY,curM);
+  $('fSub').innerHTML=`<span>💵 <b>Gs. ${gs(a.precio)}</b>/clase</span>`+
+    (a.dias.length?`<span>📅 ${a.dias.map(d=>['','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(' · ')}</span>`:'<span>📅 sin horario fijo</span>');
+
+  $('mLbl').textContent=MESES[curM]+' '+curY;
+
+  const teo=mensualTeorico(a,curY,curM);
+  const real=asist.length*(a.precio||0);
+  $('mTeo').textContent='Gs. '+gs(teo);
+  $('mTeoD').textContent=nClasesTeo+' clase'+(nClasesTeo===1?'':'s');
+  $('mReal').textContent='Gs. '+gs(real);
+  $('mRealD').textContent=asist.length+' clase'+(asist.length===1?'':'s')+' que fue';
+
+  // estado del mes (comparado con el mensual teórico como referencia principal)
+  const pagado=totalPagado(a,curY,curM);
+  const ref=teo>0?teo:real;
+  const em=$('estadoMes');
+  let cls='pend', txt='Pendiente';
+  if(pagado<=0){ cls='pend'; txt='Sin cobrar'; }
+  else if(ref>0 && pagado>=ref){ cls='pagado'; txt='✅ Pagado'; }
+  else { cls='parcial'; txt='Cobro parcial'; }
+  em.className='estado-mes '+cls;
+  $('estadoTxt').textContent=txt;
+  $('estadoSaldo').textContent = pagado>0 ? ('Cobrado: Gs. '+gs(pagado)+(ref>pagado?(' · Falta: Gs. '+gs(ref-pagado)):'')) : '';
+
+  // pagos
+  const pagos=pagosMes(a,curY,curM);
+  $('pagosBox').innerHTML = pagos.length ? pagos.map((p,i)=>`
+    <div class="row pago-row">
+      <div class="r-l">Gs. <b>${gs(p.monto)}</b> <span class="chip">${p.forma||'—'}</span>${p.nota?`<div style="color:var(--muted);font-size:12px;margin-top:2px">${p.nota}</div>`:''}</div>
+      <div class="r-r" style="font-size:11px;color:var(--muted);font-weight:600">${p.ts?fechaHum(p.ts):''}</div>
+      <div class="del" data-del="${i}">✕</div>
+    </div>`).join('') : '<div class="vacio">Todavía no hay pagos este mes.</div>';
+  $('pagosBox').querySelectorAll('[data-del]').forEach(x=> x.onclick=()=>borrarPago(+x.dataset.del));
+
+  // historial de días
+  $('histBox').innerHTML = asist.length ? asist.map(x=>`
+    <div class="row">
+      <div class="r-l">${fechaCorta(x.fecha)} <span class="chip">${x.sede||'—'}</span> ${x.profe?`<span class="chip">${x.profe}</span>`:''}</div>
+      <div class="r-r" style="font-size:12px;color:var(--muted)">${x.hora||''}</div>
+    </div>`).join('') : '<div class="vacio">Sin clases registradas este mes.</div>';
+}
+function fechaCorta(iso){ const p=String(iso).split('-'); return p.length===3?(parseInt(p[2])+'/'+parseInt(p[1])):iso; }
+function fechaHum(ts){ const d=new Date(ts); return d.getDate()+'/'+(d.getMonth()+1)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
+
+// ===== Cobro =====
+let cobForma='Efectivo';
+$('btnCobrar').onclick=()=>{
+  if(!cur) return;
+  const teo=mensualTeorico(cur,curY,curM);
+  const real=clasesAsistidasDetalle(cur,curY,curM).length*(cur.precio||0);
+  const pagado=totalPagado(cur,curY,curM);
+  $('cobAlum').textContent=cur.nombre+' · '+MESES[curM]+' '+curY;
+  $('cMonto').value = (teo>pagado? (teo-pagado) : teo) || real || '';
+  cobForma='Efectivo'; pintarFormas();
+  $('cNota').value='';
+  // sugerencias rápidas
+  const q=[]; if(teo>0) q.push({l:'Mensual completo',v:teo}); if(teo>0) q.push({l:'Mitad',v:Math.round(teo/2)}); if(real>0&&real!==teo) q.push({l:'Por asistido',v:real}); if(pagado>0&&teo>pagado) q.push({l:'Saldo',v:teo-pagado});
+  $('cQuick').innerHTML=q.map(x=>`<button data-v="${x.v}">${x.l} · ${gs(x.v)}</button>`).join('');
+  $('cQuick').querySelectorAll('button').forEach(b=> b.onclick=()=>{ $('cMonto').value=b.dataset.v; });
+  $('mCobro').classList.add('show');
+};
+function pintarFormas(){ $('cFormas').querySelectorAll('button').forEach(b=> b.classList.toggle('on', b.dataset.f===cobForma)); }
+$('cFormas').querySelectorAll('button').forEach(b=> b.onclick=()=>{ cobForma=b.dataset.f; pintarFormas(); });
+$('cCancel').onclick=()=>$('mCobro').classList.remove('show');
+$('cGuardar').onclick=()=>{
+  const monto=numGs($('cMonto').value);
+  if(monto<=0){ alert('Poné un monto mayor a 0'); return; }
+  if(!db){ alert('No hay conexión con la base. Intentá de nuevo.'); return; }
+  const n=normName(cur.nombre); const per=periodo(curY,curM);
+  const ref=db.ref('cobros_v1/'+n+'/'+per+'/pagos');
+  ref.once('value').then(snap=>{
+    const arr=snap.val()||[];
+    arr.push({ monto, forma:cobForma, nota:$('cNota').value.trim(), ts:Date.now() });
+    return ref.set(arr);
+  }).then(()=>{ $('mCobro').classList.remove('show'); }).catch(e=>alert('No pude guardar: '+e.message));
+};
+function borrarPago(i){
+  if(!cur||!db) return;
+  if(!confirm('¿Borrar este pago?')) return;
+  const n=normName(cur.nombre); const per=periodo(curY,curM);
+  const ref=db.ref('cobros_v1/'+n+'/'+per+'/pagos');
+  ref.once('value').then(snap=>{ const arr=snap.val()||[]; arr.splice(i,1); return ref.set(arr); }).catch(e=>alert('No pude borrar: '+e.message));
+}
+$('mCobro').onclick=e=>{ if(e.target.id==='mCobro') $('mCobro').classList.remove('show'); };
+
+$('btnSync').onclick=cargarPlanilla;
+cargarPlanilla();
+</script>
+</body>
+</html>
