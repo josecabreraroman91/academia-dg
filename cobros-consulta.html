@@ -146,7 +146,7 @@
       <div class="monto real">
         <div class="t">✅ Asistido</div>
         <div class="g" id="mReal">—</div>
-        <div class="d" id="mRealD">clases que fue</div>
+        <div class="d" id="mRealD">clases a cobrar</div>
       </div>
     </div>
 
@@ -235,35 +235,12 @@ let cobros={};         // normName -> { 'YYYY-MM': {pagos:[{monto,forma,nota,ts}
 let cur=null;          // alumno seleccionado
 const now=new Date();
 let curY=now.getFullYear(), curM=now.getMonth();
-const HORAS=['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
-let asisFB={};         // normName -> [{fecha, sede, hora}]  (asistencia real que marcan los profes)
-let contactos={};      // normName -> {tel, nomWpp}          (de la app de Alumnos)
-function esBloqueNombre(n){ return /ALTO RENDIMIENTO|ALMUERZO/i.test(n||''); }
+let contactos={};      // normName -> {tel, nomWpp}  (de la app de Alumnos, para WhatsApp)
 function cargarContactos(){
   try{ const arr=JSON.parse(localStorage.getItem('alumnos_dg')||'[]'); const m={};
     (arr||[]).forEach(a=>{ if(a&&a.nombre) m[normName(a.nombre)]={tel:a.tel||a.telRaw||'', nomWpp:a.nomWpp||''}; });
     contactos=m;
   }catch(e){ contactos={}; }
-}
-function cargarAsistenciaFB(){
-  if(!db) return Promise.resolve();
-  return db.ref('dia').once('value').then(snap=>{
-    const all=snap.val()||{}; const map={};
-    Object.keys(all).forEach(fecha=>{
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return;                 // solo nodos de fecha
-      const dd=all[fecha]||{};
-      Object.keys(dd).forEach(sede=>{
-        if(sede==='_dispo') return;
-        const recs=dd[sede]||{};
-        Object.keys(recs).forEach(id=>{ const r=recs[id]; if(!r||typeof r!=='object') return;
-          if(r.borrado || r.asis==='ausente' || esBloqueNombre(r.nombre)) return;   // ausente no cuenta; bloques no son alumnos
-          const n=normName(r.nombre); if(!n) return;
-          (map[n]=map[n]||[]).push({ fecha, sede, hora: HORAS[r.horaIdx]||'' });
-        });
-      });
-    });
-    asisFB=map;
-  }).catch(()=>{});
 }
 
 // ===== Conexión =====
@@ -307,7 +284,7 @@ async function cargarPlanilla(){
       const rowsH=parseCSV(await (await fetch(urlH)).text());
       const hist=[];
       for(let i=1;i<rowsH.length;i++){ const x=rowsH[i]; const fecha=(x[0]||'').trim(); const al=(x[1]||'').trim(); if(!fecha||!al) continue;
-        hist.push({ fecha, alumno:al, normAl:normName(al), hora:(x[2]||'').trim(), sede:(x[3]||'').trim(), profe:(x[4]||'').trim(), tipo:(x[5]||'').trim(), estado:(x[6]||'').trim() });
+        hist.push({ fecha, alumno:al, normAl:normName(al), hora:(x[2]||'').trim(), sede:(x[3]||'').trim(), profe:(x[4]||'').trim(), tipo:(x[5]||'').trim(), estado:(x[6]||'').trim(), cobro:(x[7]||'').trim(), motivo:(x[8]||'').trim() });
       }
       historial=hist;
     }catch(e){ historial=[]; }
@@ -315,7 +292,6 @@ async function cargarPlanilla(){
     $('loadbar').style.display='none';
     $('hint').style.display='';
     cargarContactos();
-    cargarAsistenciaFB().then(()=>{ if(cur) renderFicha(); });
     if(cur){ cur=alIndex[normName(cur.nombre)]||cur; renderFicha(); }
   }catch(e){
     $('loadbar').textContent='No pude leer la planilla: '+e.message+'. Verificá que esté compartida como "cualquiera con el enlace".';
@@ -331,14 +307,15 @@ function fechasMes(a,y,m){                       // días que le TOCA entrenar (
 function clasesTeoricas(a,y,m){ return fechasMes(a,y,m).reduce((s,f)=>s+f.clases,0); }
 function mensualTeorico(a,y,m){ return clasesTeoricas(a,y,m)*(a.precio||0); }
 
-function clasesAsistidasDetalle(a,y,m){          // del HISTORIAL (planilla) + Firebase (lo que marcan los profes)
-  const pref=periodo(y,m); const n=normName(a.nombre); const seen=new Set(); const out=[];
-  const add=(fecha,sede,hora,profe)=>{ const k=fecha+'|'+hora+'|'+sede; if(seen.has(k)) return; seen.add(k); out.push({fecha,sede,hora,profe:profe||''}); };
-  historial.filter(x=> x.normAl===n && String(x.fecha).slice(0,7)===pref).forEach(x=>add(x.fecha,x.sede,x.hora,x.profe));
-  (asisFB[n]||[]).filter(x=> String(x.fecha).slice(0,7)===pref).forEach(x=>add(x.fecha,x.sede,x.hora,''));
-  return out.sort((p,q)=>String(p.fecha).localeCompare(String(q.fecha)));
+function histMes(a,y,m){                          // clases del HISTORIAL (planilla) para el alumno ese mes
+  const pref=periodo(y,m); const n=normName(a.nombre);
+  return historial.filter(x=> x.normAl===n && String(x.fecha).slice(0,7)===pref)
+                  .sort((p,q)=>String(p.fecha).localeCompare(String(q.fecha)));
 }
-function realAsistido(a,y,m){ return clasesAsistidasDetalle(a,y,m).length*(a.precio||0); }
+function seCobra(x){ return !/^no/i.test((x.cobro||'').trim()); }   // cobra salvo que diga "No" explícito
+function clasesAsistidasDetalle(a,y,m){ return histMes(a,y,m); }
+function clasesACobrar(a,y,m){ return histMes(a,y,m).filter(seCobra).length; }
+function montoACobrar(a,y,m){ return clasesACobrar(a,y,m)*(a.precio||0); }
 
 function pagosMes(a,y,m){
   const n=normName(a.nombre); const per=periodo(y,m);
@@ -386,17 +363,18 @@ function renderFicha(){
   $('fNom').textContent=a.nombre;
   const nClasesTeo=clasesTeoricas(a,curY,curM);
   const asist=clasesAsistidasDetalle(a,curY,curM);
+  const nCobra=clasesACobrar(a,curY,curM);
   $('fSub').innerHTML=`<span>💵 <b>Gs. ${gs(a.precio)}</b>/clase</span>`+
     (a.dias.length?`<span>📅 ${a.dias.map(d=>['','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(' · ')}</span>`:'<span>📅 sin horario fijo</span>');
 
   $('mLbl').textContent=MESES[curM]+' '+curY;
 
   const teo=mensualTeorico(a,curY,curM);
-  const real=asist.length*(a.precio||0);
+  const real=nCobra*(a.precio||0);
   $('mTeo').textContent='Gs. '+gs(teo);
   $('mTeoD').textContent=nClasesTeo+' clase'+(nClasesTeo===1?'':'s');
   $('mReal').textContent='Gs. '+gs(real);
-  $('mRealD').textContent=asist.length+' clase'+(asist.length===1?'':'s')+' que fue';
+  $('mRealD').textContent=nCobra+' clase'+(nCobra===1?'':'s')+' a cobrar';
 
   // estado del mes (comparado con el mensual teórico como referencia principal)
   const pagado=totalPagado(a,curY,curM);
@@ -420,12 +398,16 @@ function renderFicha(){
     </div>`).join('') : '<div class="vacio">Todavía no hay pagos este mes.</div>';
   $('pagosBox').querySelectorAll('[data-del]').forEach(x=> x.onclick=()=>borrarPago(+x.dataset.del));
 
-  // historial de días
-  $('histBox').innerHTML = asist.length ? asist.map(x=>`
-    <div class="row">
-      <div class="r-l">${fechaCorta(x.fecha)} <span class="chip">${x.sede||'—'}</span> ${x.profe?`<span class="chip">${x.profe}</span>`:''}</div>
+  // historial de días (del reporte de fin de día)
+  $('histBox').innerHTML = asist.length ? asist.map(x=>{
+    const cobra=seCobra(x);
+    const est=(x.estado||'').trim();
+    const chipEst = est ? `<span class="chip">${est}</span>` : '';
+    const chipCobro = cobra ? '' : `<span class="chip" style="background:#fdeaea;color:#b3261e">no se cobra</span>`;
+    return `<div class="row">
+      <div class="r-l">${fechaCorta(x.fecha)} <span class="chip">${x.sede||'—'}</span> ${chipEst} ${chipCobro}${x.motivo?`<div style="color:var(--muted);font-size:12px;margin-top:2px">${x.motivo}</div>`:''}</div>
       <div class="r-r" style="font-size:12px;color:var(--muted)">${x.hora||''}</div>
-    </div>`).join('') : '<div class="vacio">Sin clases registradas este mes.</div>';
+    </div>`; }).join('') : '<div class="vacio">Sin clases registradas este mes.<br><small>Se van cargando solas del reporte de fin de día.</small></div>';
 }
 function fechaCorta(iso){ const p=String(iso).split('-'); return p.length===3?(parseInt(p[2])+'/'+parseInt(p[1])):iso; }
 function fechaHum(ts){ const d=new Date(ts); return d.getDate()+'/'+(d.getMonth()+1)+' '+String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); }
@@ -435,7 +417,7 @@ let cobForma='Efectivo';
 $('btnCobrar').onclick=()=>{
   if(!cur) return;
   const teo=mensualTeorico(cur,curY,curM);
-  const real=clasesAsistidasDetalle(cur,curY,curM).length*(cur.precio||0);
+  const real=montoACobrar(cur,curY,curM);
   const pagado=totalPagado(cur,curY,curM);
   $('cobAlum').textContent=cur.nombre+' · '+MESES[curM]+' '+curY;
   $('cMonto').value = (teo>pagado? (teo-pagado) : teo) || real || '';
@@ -476,7 +458,7 @@ function armarMsgWpp(a,y,m){
   const c=contactos[normName(a.nombre)]||{};
   const nombre=(c.nomWpp||'').trim() || a.nombre.split(' ')[0];
   const asist=clasesAsistidasDetalle(a,y,m);
-  const real=asist.length*(a.precio||0);
+  const real=clasesACobrar(a,y,m)*(a.precio||0);
   const teo=mensualTeorico(a,y,m);
   const pagado=totalPagado(a,y,m);
   const aPagar = real>0 ? real : teo;
