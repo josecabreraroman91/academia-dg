@@ -156,6 +156,7 @@
     </div>
 
     <button class="btn brand" style="width:100%;padding:14px;font-size:15px" id="btnCobrar">➕ Registrar cobro</button>
+    <button class="btn" style="width:100%;padding:13px;font-size:15px;margin-top:8px;background:#25D366;color:#fff;border-color:#25D366" id="btnWpp">📱 Enviar resumen por WhatsApp</button>
 
     <div class="sec-t">Pagos de este mes</div>
     <div class="card" id="pagosBox" style="padding:4px 12px"><div class="vacio">Todavía no hay pagos este mes.</div></div>
@@ -234,6 +235,36 @@ let cobros={};         // normName -> { 'YYYY-MM': {pagos:[{monto,forma,nota,ts}
 let cur=null;          // alumno seleccionado
 const now=new Date();
 let curY=now.getFullYear(), curM=now.getMonth();
+const HORAS=['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+let asisFB={};         // normName -> [{fecha, sede, hora}]  (asistencia real que marcan los profes)
+let contactos={};      // normName -> {tel, nomWpp}          (de la app de Alumnos)
+function esBloqueNombre(n){ return /ALTO RENDIMIENTO|ALMUERZO/i.test(n||''); }
+function cargarContactos(){
+  try{ const arr=JSON.parse(localStorage.getItem('alumnos_dg')||'[]'); const m={};
+    (arr||[]).forEach(a=>{ if(a&&a.nombre) m[normName(a.nombre)]={tel:a.tel||a.telRaw||'', nomWpp:a.nomWpp||''}; });
+    contactos=m;
+  }catch(e){ contactos={}; }
+}
+function cargarAsistenciaFB(){
+  if(!db) return Promise.resolve();
+  return db.ref('dia').once('value').then(snap=>{
+    const all=snap.val()||{}; const map={};
+    Object.keys(all).forEach(fecha=>{
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return;                 // solo nodos de fecha
+      const dd=all[fecha]||{};
+      Object.keys(dd).forEach(sede=>{
+        if(sede==='_dispo') return;
+        const recs=dd[sede]||{};
+        Object.keys(recs).forEach(id=>{ const r=recs[id]; if(!r||typeof r!=='object') return;
+          if(r.borrado || r.asis==='ausente' || esBloqueNombre(r.nombre)) return;   // ausente no cuenta; bloques no son alumnos
+          const n=normName(r.nombre); if(!n) return;
+          (map[n]=map[n]||[]).push({ fecha, sede, hora: HORAS[r.horaIdx]||'' });
+        });
+      });
+    });
+    asisFB=map;
+  }).catch(()=>{});
+}
 
 // ===== Conexión =====
 if(db){
@@ -283,6 +314,8 @@ async function cargarPlanilla(){
 
     $('loadbar').style.display='none';
     $('hint').style.display='';
+    cargarContactos();
+    cargarAsistenciaFB().then(()=>{ if(cur) renderFicha(); });
     if(cur){ cur=alIndex[normName(cur.nombre)]||cur; renderFicha(); }
   }catch(e){
     $('loadbar').textContent='No pude leer la planilla: '+e.message+'. Verificá que esté compartida como "cualquiera con el enlace".';
@@ -298,10 +331,12 @@ function fechasMes(a,y,m){                       // días que le TOCA entrenar (
 function clasesTeoricas(a,y,m){ return fechasMes(a,y,m).reduce((s,f)=>s+f.clases,0); }
 function mensualTeorico(a,y,m){ return clasesTeoricas(a,y,m)*(a.precio||0); }
 
-function clasesAsistidasDetalle(a,y,m){          // del HISTORIAL
-  const pref=periodo(y,m);                       // 'YYYY-MM'
-  return historial.filter(x=> x.normAl===normName(a.nombre) && String(x.fecha).slice(0,7)===pref)
-                  .sort((p,q)=>String(p.fecha).localeCompare(String(q.fecha)));
+function clasesAsistidasDetalle(a,y,m){          // del HISTORIAL (planilla) + Firebase (lo que marcan los profes)
+  const pref=periodo(y,m); const n=normName(a.nombre); const seen=new Set(); const out=[];
+  const add=(fecha,sede,hora,profe)=>{ const k=fecha+'|'+hora+'|'+sede; if(seen.has(k)) return; seen.add(k); out.push({fecha,sede,hora,profe:profe||''}); };
+  historial.filter(x=> x.normAl===n && String(x.fecha).slice(0,7)===pref).forEach(x=>add(x.fecha,x.sede,x.hora,x.profe));
+  (asisFB[n]||[]).filter(x=> String(x.fecha).slice(0,7)===pref).forEach(x=>add(x.fecha,x.sede,x.hora,''));
+  return out.sort((p,q)=>String(p.fecha).localeCompare(String(q.fecha)));
 }
 function realAsistido(a,y,m){ return clasesAsistidasDetalle(a,y,m).length*(a.precio||0); }
 
@@ -435,6 +470,41 @@ function borrarPago(i){
   ref.once('value').then(snap=>{ const arr=snap.val()||[]; arr.splice(i,1); return ref.set(arr); }).catch(e=>alert('No pude borrar: '+e.message));
 }
 $('mCobro').onclick=e=>{ if(e.target.id==='mCobro') $('mCobro').classList.remove('show'); };
+
+// ===== WhatsApp: resumen personalizado =====
+function armarMsgWpp(a,y,m){
+  const c=contactos[normName(a.nombre)]||{};
+  const nombre=(c.nomWpp||'').trim() || a.nombre.split(' ')[0];
+  const asist=clasesAsistidasDetalle(a,y,m);
+  const real=asist.length*(a.precio||0);
+  const teo=mensualTeorico(a,y,m);
+  const pagado=totalPagado(a,y,m);
+  const aPagar = real>0 ? real : teo;
+  let t='Hola '+nombre+'! 👋\n';
+  t+='Te paso tu resumen de '+MESES[m]+' '+y+' 🎾\n\n';
+  if(asist.length){
+    t+='📅 Días que entrenaste ('+asist.length+' clase'+(asist.length===1?'':'s')+'):\n\n';
+    asist.forEach(x=>{ t+='  • '+fechaCorta(x.fecha)+(x.hora?(' - '+x.hora):'')+'\n'; });
+  } else {
+    t+='📅 Todavía no hay clases registradas este mes.\n';
+  }
+  t+='\nTotal a pagar: Gs. '+gs(aPagar);
+  const falta=aPagar-pagado;
+  if(pagado>0 && falta>0) t+='\nSaldo pendiente: Gs. '+gs(falta);
+  else if(pagado>0 && falta<=0) t+='\n¡Estás al día! 🎉';
+  t+='\n\n¡Gracias! 🙌';
+  return t;
+}
+$('btnWpp').onclick=()=>{
+  if(!cur) return;
+  const c=contactos[normName(cur.nombre)]||{};
+  const msg=armarMsgWpp(cur,curY,curM);
+  const tel=(c.tel||'').replace(/[^\d]/g,'');
+  if(tel){ window.open('https://wa.me/'+tel+'?text='+encodeURIComponent(msg),'_blank'); }
+  else if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(msg).then(()=>alert('Este alumno no tiene teléfono guardado en la app de Alumnos.\n\nEl mensaje se copió — pegalo en WhatsApp.')).catch(()=>prompt('Copiá el mensaje:',msg));
+  } else prompt('Copiá el mensaje:',msg);
+};
 
 $('btnSync').onclick=cargarPlanilla;
 cargarPlanilla();
