@@ -681,6 +681,7 @@ function empujarCalendario(){
   if(!_calRef) return;
   try{
     _calRef.set(JSON.parse(JSON.stringify({
+      seedVersion: SEED_VERSION,
       profesores: state.profesores || [],
       sedesPorDia: state.sedesPorDia || {},
       madre: state.madre || {alumnos:{},libres:{}},
@@ -695,8 +696,11 @@ function iniciarCalendarioCompartido(){
   if(!_calRef) return;
   _calRef.on('value', snap=>{
     const r = snap.val();
-    if(!r || !r.madre){          // nube vacía: subo mi calendario como base
-      empujarCalendario(); _calListo=true; return;
+    if(!r || !r.madre || r.seedVersion !== SEED_VERSION){   // nube vacía o versión vieja: subo mi calendario (producción) como base
+      empujarCalendario(); _calListo=true;
+      try{ reindexarAlumnos(); }catch(e){}
+      try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
+      return;
     }
     _aplicandoRemoto = true;
     state.profesores    = r.profesores    || state.profesores;
