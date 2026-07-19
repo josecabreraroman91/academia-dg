@@ -674,7 +674,7 @@ try{
 
 // ===== CALENDARIO COMPARTIDO EN TIEMPO REAL (varios encargados) =====
 // Sincroniza la grilla entre dispositivos. Modelo: gana el último que guarda.
-let _calRef = _fbdb ? _fbdb.ref('calendario_v1') : null;
+let _calRef = _fbdb ? _fbdb.ref('calendario_v2') : null;
 let _aplicandoRemoto = false;   // evita reenviar lo que acabo de recibir
 let _calListo = false;          // ya hubo primera sincronización
 function empujarCalendario(){

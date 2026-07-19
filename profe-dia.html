@@ -352,7 +352,7 @@ function iniciarApp(){
   escucharDia();                                  // escucha el día elegido en tiempo real
   db.ref('dia/_profes').on('value',(snap)=>{ const v=snap.val()||{}; profesNombres={...v,...profesNombres}; render(); });
   // nombres de profes EN TIEMPO REAL desde el calendario compartido (siempre al día, sin publicar nada)
-  db.ref('calendario_v1/profesores').on('value',(snap)=>{
+  db.ref('calendario_v2/profesores').on('value',(snap)=>{
     const arr=snap.val()||[]; const map={};
     (Array.isArray(arr)?arr:Object.values(arr)).forEach(p=>{ if(p&&p.dim) map[p.dim]=p.nombre||''; });
     if(Object.keys(map).length){ profesNombres=map; render(); }
