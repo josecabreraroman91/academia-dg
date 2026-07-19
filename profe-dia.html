@@ -74,6 +74,13 @@
   .slot .al .mod{color:var(--muted);font-size:.82em}
   .slot .al .tag{font-size:.72em;background:var(--line);padding:0 .35em;border-radius:5px;color:var(--muted)}
   .slot .blk{display:inline-block;padding:.1em .4em;border-radius:6px;background:rgba(180,160,235,.16);font-weight:700}
+  /* sección de ausentes (abajo) */
+  .ausentes-sec{margin-top:20px;border-top:2px dashed var(--line);padding-top:14px}
+  .aus-h{font-weight:800;color:var(--aus);font-size:1.02em;margin:0 2px 9px;letter-spacing:.2px}
+  .aus-item{display:flex;align-items:center;gap:10px;padding:.4em .6em;border-radius:8px;background:rgba(242,119,122,.12);border-left:3px solid var(--aus);margin-bottom:5px;cursor:pointer;font-size:.95em}
+  .aus-item:active{transform:scale(.99)}
+  .aus-nom{font-weight:700;color:#b3261e;text-decoration:line-through;text-decoration-color:#000;text-decoration-thickness:2px}
+  .aus-meta{margin-left:auto;font-size:.82em;color:var(--muted);white-space:nowrap}
   /* control de zoom */
   .zoomctl{position:fixed;right:12px;bottom:14px;z-index:45;display:flex;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:3px;box-shadow:0 6px 20px rgba(0,0,0,.28)}
   .zoomctl button{width:30px;height:30px;border:0;background:transparent;color:var(--txt);font-size:18px;font-weight:800;border-radius:8px;cursor:pointer}
@@ -204,7 +211,7 @@
     <span>Tocá un alumno para marcar <b>ausente</b></span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>👀 = no confirmó</span>
-    <span style="opacity:.5;font-weight:700">v16</span>
+    <span style="opacity:.5;font-weight:700">v17</span>
   </div>
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
@@ -404,13 +411,15 @@ function modTxt(m){ return m ? '('+m+')' : ''; }
 function render(){
   const wrap=document.getElementById('wrap');
   const items=Object.entries(cacheDia).map(([cid,a])=>({cid,...a})).filter(a=>a && a.nombre && !a.borrado);
-  // rango de horas: de la primera a la última con alumnos
+  const presentes=items.filter(a=>a.asis!=='ausente');
+  const ausentes=items.filter(a=>a.asis==='ausente' && !esBloque(a));
+  // rango de horas: de la primera a la última con alumnos PRESENTES
   let minH=99,maxH=-1;
-  items.forEach(a=>{ const h=a.horaIdx!=null?a.horaIdx:0; if(h<minH)minH=h; if(h>maxH)maxH=h; });
-  if(maxH<0){ wrap.innerHTML='<div class="empty">Todavía no hay clases publicadas para hoy.<br><br>Cuando se publique el día desde el calendario, aparecen acá automáticamente.<br><br>Si vino alguien igual, podés cargarlo con <b>➕ Agregar</b>.</div>'; return; }
-  // índice alumnos: sede|profe|hora -> [alumnos]
+  presentes.forEach(a=>{ const h=a.horaIdx!=null?a.horaIdx:0; if(h<minH)minH=h; if(h>maxH)maxH=h; });
+  if(maxH<0 && !ausentes.length){ wrap.innerHTML='<div class="empty">Todavía no hay clases publicadas para hoy.<br><br>Cuando se publique el día desde el calendario, aparecen acá automáticamente.<br><br>Si vino alguien igual, podés cargarlo con <b>➕ Agregar</b>.</div>'; return; }
+  // índice alumnos PRESENTES: sede|profe|hora -> [alumnos]
   const byCell={};
-  items.forEach(a=>{ const k=a._sede+'|'+a.profe+'|'+(a.horaIdx||0); (byCell[k]=byCell[k]||[]).push(a); });
+  presentes.forEach(a=>{ const k=a._sede+'|'+a.profe+'|'+(a.horaIdx||0); (byCell[k]=byCell[k]||[]).push(a); });
   let html='';
   for(let h=minH; h<=maxH; h++){
     const filas=[]; // {sede,profe,alumnos}
@@ -418,7 +427,7 @@ function render(){
     SEDES_ORDEN.forEach(sk=>{
       const dp=cacheDispo[sk]||{};
       const disp=Object.keys(dp).filter(p=>(dp[p]||[]).includes(h) && !PLACEHOLDER[p]);   // profes disponibles esa hora (sin SP/placeholders)
-      const conAl=items.filter(a=>a._sede===sk && (a.horaIdx||0)===h).map(a=>a.profe);
+      const conAl=presentes.filter(a=>a._sede===sk && (a.horaIdx||0)===h).map(a=>a.profe);
       const profes=[...new Set([...disp,...conAl])].sort((x,y)=>profeIdx(x)-profeIdx(y));
       profes.forEach(p=> filas.push({sede:sk,profe:p,alumnos:byCell[sk+'|'+p+'|'+h]||[]}));
     });
@@ -432,17 +441,26 @@ function render(){
       } else {
         const partes=f.alumnos.sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(a=>{
           if(esBloque(a)) return `<span class="blk">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}</span>`;
-          const est=a.asis==='ausente'?'ausente':'presente';
-          const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';   // 👀 = no confirmó. Los acoples (agregados por el profe) ya están presentes
-          return `<span class="al ${est}${a.acople?' acople':''}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
+          const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';   // 👀 = no confirmó. Los acoples ya están presentes
+          return `<span class="al presente${a.acople?' acople':''}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
         });
         html+=`<div class="slot">${cab} ${partes.join(' <span class="sep">·</span> ')}</div>`;
       }
     });
     html+='</div>';
   }
+  // ---- Sección de AUSENTES (abajo, con profe y hora para pagos) ----
+  if(ausentes.length){
+    html+=`<div class="ausentes-sec"><div class="aus-h">🔴 Ausentes · ${ausentes.length}</div>`;
+    ausentes.sort((a,b)=>((a.horaIdx||0)-(b.horaIdx||0))||(a.nombre||'').localeCompare(b.nombre||'')).forEach(a=>{
+      const em=SEDE_EMOJI[a._sede]||'';
+      html+=`<div class="aus-item" data-id="${a.cid}"><span class="aus-nom">${escapeHtml(a.nombre)}</span><span class="aus-meta">(${escapeHtml(a.profe)}${em?' '+em:''}) · ${HORAS[a.horaIdx]||''}</span></div>`;
+    });
+    html+=`</div>`;
+  }
   wrap.innerHTML=html;
   wrap.querySelectorAll('.al[data-id]').forEach(el=>{ el.onclick=()=>abrirMenuEstado(el.dataset.id); });
+  wrap.querySelectorAll('.aus-item[data-id]').forEach(el=>{ el.onclick=()=>abrirMenuEstado(el.dataset.id); });
 }
 
 // ---- Menú de estado (cartel centrado, para evitar toques accidentales) ----
