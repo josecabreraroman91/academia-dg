@@ -49,6 +49,7 @@
   .dchip{flex:1;text-align:center;font-size:10px;font-weight:700;padding:3px 0;border-radius:6px;background:var(--panel2);color:#41506180}
   .dchip.on{background:var(--clay);color:#1a1a1a}
   .dchip .hh{display:block;font-size:9px;font-weight:600;margin-top:1px;opacity:.85}
+  .adias-vacio{margin-top:8px;font-size:11px;color:#8a94a0;font-style:italic}
   .aprecio{margin-left:auto;text-align:right;font-weight:800;color:var(--court);white-space:nowrap;font-size:14px}
   .aprecio small{display:block;font-size:10px;color:var(--muted);font-weight:600}
 
@@ -263,6 +264,7 @@ function render(){
         </div>
         ${a.precio?`<div class="aprecio">${gs(a.precio)}<small>x clase</small></div>`:''}
       </div>
+      ${(a.horarios&&a.horarios.length)?`<div class="adias">${diasResumen(a)}</div>`:'<div class="adias-vacio">Sin días asignados</div>'}
     </div>`;
   }).join('');
   el.querySelectorAll('[data-edit]').forEach(c=>c.onclick=()=>openEditor(c.dataset.edit));
