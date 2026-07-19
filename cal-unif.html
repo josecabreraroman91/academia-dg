@@ -1814,7 +1814,7 @@ async function sheetsBatchUpdate(data){ const id=state.sheetId||DEFAULT_SHEET_ID
 // ===== ETAPA 3: cerrar el día y guardar el HISTORIAL (una fila por alumno) =====
 const SEDE_NICE={lomas:'LOMAS',elite:'ELITE',segurola:'SEGUROLA',adefinir:'A DEFINIR'};
 // ⬇⬇⬇  PEGÁ ACÁ la MISMA URL del puente (Apps Script /exec). Vacío = usa login de Google.
-const PUENTE_URL='https://script.google.com/macros/s/AKfycbxW8RAp2bvB9WTpx3piuYvYGkBrq4vf0A7J5-CNHlb6TzMrgrgETJpp255ec_rhgCqupQ/exec';
+const PUENTE_URL='https://script.google.com/macros/s/AKfycbzqfZKE_7hyrFMflS9NMETecbq_GOQ7jd18x-n-sPudwBS0aShBEiso3BLcrDklnmzDyg/exec';
 function enviarAlPuente(action, payload){
   return new Promise((resolve)=>{
     const name='pnt_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
