@@ -74,6 +74,7 @@
   <div class="tabsbar">
     <button class="navtab home" data-go="menu">☰</button>
     <button class="navtab" data-go="cal">🎾 Calendario</button>
+    <button class="navtab" data-go="prof">📋 Vista Profes</button>
     <button class="navtab" data-go="alu">👥 Alumnos</button>
     <button class="navtab" data-go="pag">💵 Pagos</button>
     <button class="navtab" data-go="cob">💰 Cobros</button>
@@ -90,6 +91,11 @@
     <div class="mcard" data-go="cal">
       <div class="ico">🎾</div>
       <div class="info"><div class="t">Calendario</div><div class="d">Horarios del día, envío de mensajes y reporte</div></div>
+      <div class="arrow">›</div>
+    </div>
+    <div class="mcard" data-go="prof">
+      <div class="ico">📋</div>
+      <div class="info"><div class="t">Vista Profes</div><div class="d">La lista del día como la ven los profes en la tablet</div></div>
       <div class="arrow">›</div>
     </div>
     <div class="mcard" data-go="alu">
@@ -114,6 +120,7 @@
 <!-- Escenario con las dos apps aisladas -->
 <div id="stage">
   <iframe id="frCal" data-src="cal-unif.html" title="Calendario" referrerpolicy="no-referrer"></iframe>
+  <iframe id="frProf" data-src="profe-dia.html" title="Vista Profes" referrerpolicy="no-referrer"></iframe>
   <iframe id="frAlu" data-src="alumnos-unif.html" title="Alumnos" referrerpolicy="no-referrer"></iframe>
   <iframe id="frPag" data-src="pagos-profes.html" title="Pagos a Profesores" referrerpolicy="no-referrer"></iframe>
   <iframe id="frCob" data-src="cobros-consulta.html" title="Cobros" referrerpolicy="no-referrer"></iframe>
@@ -124,17 +131,18 @@
   const menu=document.getElementById('menu');
   const stage=document.getElementById('stage');
   const frCal=document.getElementById('frCal');
+  const frProf=document.getElementById('frProf');
   const frAlu=document.getElementById('frAlu');
   const frPag=document.getElementById('frPag');
   const frCob=document.getElementById('frCob');
-  const loaded={cal:false, alu:false, pag:false, cob:false};
+  const loaded={cal:false, prof:false, alu:false, pag:false, cob:false};
 
   function go(dest){
     if(dest==='menu'){
       menu.classList.remove('hide');
       stage.classList.remove('show');
       topbar.classList.remove('show');
-      frCal.classList.remove('show'); frAlu.classList.remove('show'); frPag.classList.remove('show'); frCob.classList.remove('show');
+      frCal.classList.remove('show'); frProf.classList.remove('show'); frAlu.classList.remove('show'); frPag.classList.remove('show'); frCob.classList.remove('show');
       document.querySelectorAll('.navtab').forEach(t=>t.classList.remove('active'));
       return;
     }
@@ -144,10 +152,12 @@
     topbar.classList.add('show');
     // cargar el iframe la primera vez (lazy)
     if(dest==='cal' && !loaded.cal){ frCal.src=frCal.dataset.src; loaded.cal=true; }
+    if(dest==='prof' && !loaded.prof){ frProf.src=frProf.dataset.src; loaded.prof=true; }
     if(dest==='alu' && !loaded.alu){ frAlu.src=frAlu.dataset.src; loaded.alu=true; }
     if(dest==='cob' && !loaded.cob){ frCob.src=frCob.dataset.src; loaded.cob=true; }
     if(dest==='pag' && !loaded.pag){ frPag.src=frPag.dataset.src; loaded.pag=true; }
     frCal.classList.toggle('show', dest==='cal');
+    frProf.classList.toggle('show', dest==='prof');
     frAlu.classList.toggle('show', dest==='alu');
     frPag.classList.toggle('show', dest==='pag');
     frCob.classList.toggle('show', dest==='cob');
