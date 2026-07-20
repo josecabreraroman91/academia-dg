@@ -115,6 +115,9 @@
   td.cell.libre{background:var(--libre)}
   td.cell.libre .slot.libre-slot{cursor:pointer;color:#fff;text-align:center;display:flex;align-items:center;justify-content:center;height:100%;min-height:30px;font-weight:800;font-size:15px;opacity:.92}
   td.cell.libre .slot.libre-slot:active{background:#0003}
+  .drag-ghost{position:fixed;z-index:9999;transform:translate(-50%,-50%);background:var(--accent);color:#0c2a18;font-weight:800;padding:6px 10px;border-radius:8px;box-shadow:0 8px 22px #0008;pointer-events:none;font-size:13px;max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .slot.dragging{opacity:.35}
+  .slot.empty.drop-ok{background:#2fd071 !important;color:#0c2a18;outline:2px solid #2fd071;border-radius:4px}
   .libre-toggle{position:absolute;top:2px;right:2px;font-size:11px;background:#ffe3e0;border:1px solid #e59b93;color:#c0392b;border-radius:6px;min-width:22px;height:20px;cursor:pointer;opacity:.9;padding:0 3px;line-height:1;font-weight:700;z-index:2}
   .libre-toggle:hover,.libre-toggle:active{opacity:1;background:#c0392b;color:#fff}
 
@@ -964,7 +967,8 @@ function renderGrid(){
       s.profes.push(primer); saveState(); renderGrid(); publicarYa();
     };
   });
-  grid.querySelectorAll('.slot[data-cell]').forEach(s=>{ s.onclick=()=> openEditor(s.dataset.cell); });
+  grid.querySelectorAll('.slot[data-cell]').forEach(s=>{ s.onclick=()=>{ if(_dragMovedFlag){ _dragMovedFlag=false; return; } openEditor(s.dataset.cell); }; });
+  wireDrag();
   grid.querySelectorAll('.check-btn').forEach(b=>{
     b.onclick=(e)=>{
       e.stopPropagation();
@@ -1241,6 +1245,70 @@ function buildResumen(){
     out += '\n'; // espacio entre bloques de horario
   });
   return out.trim();
+}
+
+/* ===== Arrastrar alumno (mantener apretado ~medio segundo) a un espacio VACÍO ===== */
+let _dragMovedFlag=false, _dg=null;
+function wireDrag(){
+  grid.querySelectorAll('.slot[data-cell]:not(.empty)').forEach(s=>{
+    s.addEventListener('pointerdown', dragDown);
+  });
+}
+function dragDown(e){
+  if(e.pointerType==='mouse' && e.button!==0) return;
+  const el=e.currentTarget, cell=el.dataset.cell, p=cell.split('|'), B=book();
+  if(!B.alumnos[cellKey(p[0],+p[1],+p[2],+p[3])]) return;   // sin alumno: no se arrastra
+  const sx=e.clientX, sy=e.clientY; let tmr;
+  _dg={cell, el, active:false};
+  function move(ev){
+    if(!_dg) return;
+    if(!_dg.active){ if(Math.abs(ev.clientX-sx)>10||Math.abs(ev.clientY-sy)>10) fin(); }  // se movió antes: era scroll
+    else { ev.preventDefault(); onDragMove(ev); }
+  }
+  function up(){ if(_dg&&_dg.active) endDrag(); else fin(); }
+  function fin(){ clearTimeout(tmr); document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); document.removeEventListener('pointercancel',up); if(_dg&&!_dg.active) _dg=null; }
+  _dg._fin=fin;
+  tmr=setTimeout(()=>{ if(_dg) startDrag(sx,sy); }, 400);
+  document.addEventListener('pointermove',move,{passive:false});
+  document.addEventListener('pointerup',up);
+  document.addEventListener('pointercancel',up);
+}
+function startDrag(sx,sy){
+  if(!_dg) return;
+  _dg.active=true; _dg.el.classList.add('dragging');
+  const g=document.createElement('div'); g.className='drag-ghost';
+  const nm=_dg.el.querySelector('.nm'); g.textContent=nm?nm.textContent:'—';
+  g.style.left=sx+'px'; g.style.top=sy+'px'; document.body.appendChild(g); _dg.ghost=g;
+  _dg.block=(ev)=>ev.preventDefault();
+  document.addEventListener('touchmove',_dg.block,{passive:false});
+  if(navigator.vibrate){ try{navigator.vibrate(15);}catch(e){} }
+}
+function onDragMove(ev){
+  if(!_dg||!_dg.ghost) return;
+  _dg.ghost.style.left=ev.clientX+'px'; _dg.ghost.style.top=ev.clientY+'px';
+  const under=document.elementFromPoint(ev.clientX,ev.clientY);
+  const tgt=under&&under.closest?under.closest('.slot.empty[data-cell]'):null;
+  if(_dg.tgt&&_dg.tgt!==tgt) _dg.tgt.classList.remove('drop-ok');
+  if(tgt){ tgt.classList.add('drop-ok'); _dg.tgt=tgt; } else _dg.tgt=null;
+}
+function endDrag(){
+  const dg=_dg; _dg=null;
+  if(dg._fin) dg._fin();
+  if(dg.ghost) dg.ghost.remove();
+  if(dg.block) document.removeEventListener('touchmove',dg.block);
+  if(dg.tgt) dg.tgt.classList.remove('drop-ok');
+  dg.el.classList.remove('dragging');
+  _dragMovedFlag=true; setTimeout(()=>{_dragMovedFlag=false;},500);
+  if(dg.tgt) moverAlumnoCelda(dg.cell, dg.tgt.dataset.cell);
+}
+function moverAlumnoCelda(srcCell,dstCell){
+  if(srcCell===dstCell) return;
+  const B=book(), s=srcCell.split('|'), d=dstCell.split('|');
+  const sK=cellKey(s[0],+s[1],+s[2],+s[3]), dK=cellKey(d[0],+d[1],+d[2],+d[3]);
+  if(!B.alumnos[sK] || B.alumnos[dK]) return;   // solo si origen tiene alumno y destino está vacío
+  if(!confirmarSiMadre()) return;
+  B.alumnos[dK]=B.alumnos[sK]; delete B.alumnos[sK];
+  saveState(); renderGrid();
 }
 
 function toggleResumen(){
