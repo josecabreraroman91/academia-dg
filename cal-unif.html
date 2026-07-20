@@ -309,6 +309,7 @@
         <button class="btn profs" id="btnProfsMenu">👥 Profesores</button>
         <button class="btn" id="btnPublicar">📲 Publicar día a tablets</button>
         <button class="btn envios" id="btnEnvios">📩 Enviar mensajes</button>
+        <button class="btn" id="btnResumen">📋 Resumen del día (WhatsApp)</button>
         <button class="btn" id="btnHorariosPlan">☁️ Guardar horarios en planilla</button>
         <button class="btn reset" id="btnReset">🔄 Resetear semana desde madre</button>
         <button class="btn" id="btnBackup">📥 Backup (bajar datos)</button>
@@ -1749,6 +1750,7 @@ document.getElementById('btnCloseProfs').onclick=closeProfs;
 document.getElementById('btnAddProfesor').onclick=addProfesor;
 document.getElementById('overlayProfs').onclick=(e)=>{ if(e.target.id==='overlayProfs') closeProfs(); };
 document.getElementById('btnEnvios').onclick=openEnvios;
+document.getElementById('btnResumen').onclick=toggleResumen;
 document.getElementById('btnCloseTel').onclick=closeTel;
 document.getElementById('btnSync').onclick=syncContactos;
 document.getElementById('btnHorariosPlan').onclick=guardarHorariosEnPlanilla;
