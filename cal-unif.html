@@ -120,7 +120,7 @@
   .drag-ghost{position:fixed;z-index:9999;transform:translate(-50%,-50%);background:var(--accent);color:#0c2a18;font-weight:800;padding:6px 10px;border-radius:8px;box-shadow:0 8px 22px #0008;pointer-events:none;font-size:13px;max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .slot.dragging{opacity:.35}
   .slot.empty.drop-ok{background:#2fd071 !important;color:#0c2a18;outline:2px solid #2fd071;border-radius:4px}
-  .libre-toggle{position:absolute;top:2px;right:2px;font-size:11px;background:#ffe3e0;border:1px solid #e59b93;color:#c0392b;border-radius:6px;min-width:22px;height:20px;cursor:pointer;opacity:.9;padding:0 3px;line-height:1;font-weight:700;z-index:2}
+  .libre-toggle{display:none;position:absolute;top:2px;right:2px;font-size:11px;background:#ffe3e0;border:1px solid #e59b93;color:#c0392b;border-radius:6px;min-width:22px;height:20px;cursor:pointer;opacity:.9;padding:0 3px;line-height:1;font-weight:700;z-index:2}
   .libre-toggle:hover,.libre-toggle:active{opacity:1;background:#c0392b;color:#fff}
 
   .overlay{position:fixed;inset:0;background:#000a;display:none;align-items:flex-start;justify-content:center;z-index:50;padding:10px;overflow-y:auto}
@@ -1676,7 +1676,10 @@ function openEnvios(){
   document.getElementById('evTpl').value=state.tplEnvio||'';
   document.getElementById('evCC').value=state.cc||'595';
   _envioDia = state.dia;
-  { const sel=document.getElementById('evDiaSel'); if(sel) sel.value=_envioDia; }
+  { const base=new Date((state.lunesActual||lunesDeHoy())+'T00:00:00');
+    const nm=['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    const sel=document.getElementById('evDiaSel');
+    if(sel){ Array.from(sel.options).forEach((op,i)=>{ const dt=new Date(base); dt.setDate(base.getDate()+i); op.textContent=nm[i]+' '+dt.getDate()+'/'+(dt.getMonth()+1); }); sel.value=_envioDia; } }
   document.getElementById('evTitle').textContent='Envíos';
   evQueueIdx=0;
   // arrancar en el primer pendiente
