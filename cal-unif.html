@@ -706,7 +706,7 @@ function iniciarCalendarioCompartido(){
   if(!_calRef) return;
   _calRef.on('value', snap=>{
     const r = snap.val();
-    if(!r || !r.madre || r.seedVersion !== SEED_VERSION){   // nube vacía o versión vieja: subo mi calendario (producción) como base
+    if(!r || !r.madre){   // nube vacía: subo mi calendario (producción) como base. Si NO está vacía, solo sincronizo (no piso)
       empujarCalendario(); _calListo=true;
       try{ reindexarAlumnos(); }catch(e){}
       try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
