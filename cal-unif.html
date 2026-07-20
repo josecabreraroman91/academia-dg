@@ -466,6 +466,14 @@
     <div class="ev-top">
       <button class="btn" id="evBack">← Volver</button>
       <h2 id="evTitle">Envíos</h2>
+      <select id="evDiaSel" style="margin-left:8px;font-size:13px;font-weight:700;padding:5px 8px;border-radius:7px;border:1px solid #c9ced4;background:#fff;color:#1f2329">
+        <option value="LUNES">Lunes</option>
+        <option value="MARTES">Martes</option>
+        <option value="MIERCOLES">Miércoles</option>
+        <option value="JUEVES">Jueves</option>
+        <option value="VIERNES">Viernes</option>
+        <option value="SABADO">Sábado</option>
+      </select>
     </div>
     <div class="ev-counts">
       <span class="ev-pill sent">Enviados: <b id="evSent">0</b></span>
@@ -1545,9 +1553,9 @@ function exportEnvios(){
     sedes.forEach(s=>{
       s.profes.forEach((dim,pi)=>{
         if(!dim||dim==='—') return;
-        if(B.libres[`${state.dia}|${s.key}|${pi}|${hi}`]) return;
+        if(B.libres[`${dia}|${s.key}|${pi}|${hi}`]) return;
         for(let si=0;si<SLOTS_POR_HORA;si++){
-          const al=B.alumnos[`${state.dia}|${s.key}|${pi}|${hi}|${si}`];
+          const al=B.alumnos[`${dia}|${s.key}|${pi}|${hi}|${si}`];
           if(!al||!al.nombre) continue;
           const c=telDeAlumno(al.nombre);
           const tel=c?c.tel:'';
@@ -1588,6 +1596,7 @@ function closeTel(){ document.getElementById('overlayTel').classList.remove('sho
 
 // ===== VISTA DE ENVÍOS INTEGRADA =====
 let evQueueIdx = 0;
+let _envioDia = null;   // día elegido para la lista de envíos (independiente de lo que ves en el calendario)
 const WA_WIN_NAME = 'waSenderTab';
 
 function normPhone(raw){
@@ -1604,19 +1613,22 @@ function phoneOk(tel){ return tel && tel.length>=8 && tel.length<=15; }
 // Construye la lista de envío desde la SEMANA del día actual
 function buildEnvioList(){
   rebuildLocalContacts();
-  const B=book(), sedes=bookSedes()[state.dia], out=[];
+  const dia = _envioDia || state.dia;
+  const B = state.semana || {alumnos:{},libres:{}};   // SIEMPRE el editable de esta semana
+  const sedes = sedesSemana()[dia] || [];
+  const out=[];
   HORAS.forEach((hora,hi)=>{
     const hhmm=hora.replace(':','');
     sedes.forEach(s=>{
       s.profes.forEach((dim,pi)=>{
         if(!dim||dim==='—') return;
-        if(B.libres[`${state.dia}|${s.key}|${pi}|${hi}`]) return;
+        if(B.libres[`${dia}|${s.key}|${pi}|${hi}`]) return;
         for(let si=0;si<SLOTS_POR_HORA;si++){
-          const al=B.alumnos[`${state.dia}|${s.key}|${pi}|${hi}|${si}`];
+          const al=B.alumnos[`${dia}|${s.key}|${pi}|${hi}|${si}`];
           if(!al||!al.nombre) continue;
           const c=telDeAlumno(al.nombre);
           out.push({
-            sesion_id:`S_${state.dia}_${hhmm}_${dim}_${si}`,
+            sesion_id:`S_${dia}_${hhmm}_${dim}_${si}`,
             nombre:al.nombre,
             nombreWpp: (c&&c.nombreWpp)?c.nombreWpp:'',
             hora, sede:s.nombre, sedeKey:s.key, profesor:dim,
@@ -1663,7 +1675,9 @@ function openEnvios(){
   if(state.mode!=='semana'){ alert('Los envíos salen de la SEMANA. Cambiando a modo SEMANA.'); setMode('semana'); }
   document.getElementById('evTpl').value=state.tplEnvio||'';
   document.getElementById('evCC').value=state.cc||'595';
-  document.getElementById('evTitle').textContent='Envíos · '+fechaDelDia();
+  _envioDia = state.dia;
+  { const sel=document.getElementById('evDiaSel'); if(sel) sel.value=_envioDia; }
+  document.getElementById('evTitle').textContent='Envíos';
   evQueueIdx=0;
   // arrancar en el primer pendiente
   const s=sendQueue();
@@ -1836,6 +1850,7 @@ document.getElementById('btnHorariosPlan').onclick=guardarHorariosEnPlanilla;
 document.getElementById('overlayTel').onclick=(e)=>{ if(e.target.id==='overlayTel') closeTel(); };
 // Vista de envíos
 document.getElementById('evBack').onclick=closeEnvios;
+document.getElementById('evDiaSel').onchange=(e)=>{ _envioDia=e.target.value; evQueueIdx=0; renderEnvios(); };
 document.getElementById('evOpenWA').onclick=()=>{ const w=window.open('https://web.whatsapp.com', WA_WIN_NAME); if(w){ try{w.focus();}catch(e){} } };
 
 // Atajos de teclado de la cola de envíos (solo con la pantalla abierta y sin escribir en un campo)
