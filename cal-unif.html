@@ -22,7 +22,7 @@
 
   /* Conmutador de modo */
   .mode-switch{display:flex;gap:4px;background:var(--cell);border:1px solid var(--line);border-radius:8px;padding:1px;margin-bottom:2px}
-  .mode-btn{flex:1;padding:3px;border:none;border-radius:6px;background:transparent;color:var(--muted);font-weight:700;font-size:8.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px}
+  .mode-btn{flex:1;padding:5px;border:none;border-radius:6px;background:transparent;color:var(--muted);font-weight:700;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px}
   .mode-btn.active.semana{background:var(--accent);color:#1a1a1a}
   .mode-btn.active.madre{background:var(--madre);color:#fff}
 
@@ -30,7 +30,7 @@
   body.modo-madre .madre-banner{display:block}
 
   .day-tabs,.sede-tabs{display:flex;gap:4px;overflow-x:auto;padding-bottom:0}
-  .tab{padding:2px 5px;border-radius:6px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-weight:600;font-size:8px;white-space:nowrap;cursor:pointer}
+  .tab{padding:4px 8px;border-radius:7px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-weight:600;font-size:10.5px;white-space:nowrap;cursor:pointer}
   .tab.active{background:var(--accent);color:#1a1a1a;border-color:var(--accent)}
   .tab.prox{border-style:dashed;opacity:.9}
   .tab.prox.active{background:var(--accent);opacity:1}
@@ -42,7 +42,7 @@
   .sede-tabs .tab.active.adefinir{background:var(--adefinir);color:#fff;border-color:var(--adefinir)}
   .sub{margin-top:8px}
   .toolbar{display:flex;gap:4px;margin-top:2px;flex-wrap:wrap}
-  .btn{padding:3px 6px;border-radius:6px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-size:8px;font-weight:600;cursor:pointer}
+  .btn{padding:5px 9px;border-radius:7px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-size:10.5px;font-weight:600;cursor:pointer}
   .zoomctl{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--cell)}
   .zoomctl button{background:transparent;border:none;color:var(--txt);font-weight:800;cursor:pointer;padding:3px 8px;font-size:13px;line-height:1}
   .zoomctl button:active{background:#ffffff1a}
@@ -75,7 +75,7 @@
   main{padding:4px;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
   .grid-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;flex:1;min-height:0}
   body.modo-madre .grid-wrap{border-color:var(--madre)}
-  table{border-collapse:separate;border-spacing:0;width:100%;min-width:max-content}
+  table{border-collapse:separate;border-spacing:0;table-layout:fixed;width:max-content;min-width:100%}
   th,td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);vertical-align:top}
   th.hcol{position:sticky;left:0;top:0;z-index:9;background:var(--panel);min-width:46px;width:46px;text-align:center;padding:4px 2px;font-size:11px;font-weight:700}
   td.hcell{position:sticky;left:0;z-index:4;background:var(--panel);text-align:center;font-weight:700;color:var(--accent);font-size:14px;padding:3px}
@@ -89,29 +89,29 @@
   .sede-addcol{margin-left:5px;background:#ffffff14;border:1px solid #ffffff2a;color:inherit;border-radius:5px;width:18px;height:18px;font-size:12px;line-height:1;cursor:pointer;padding:0;vertical-align:middle}
   .sede-addcol:hover{background:#ffffff28}
   /* fila de profes */
-  th.profhead{position:sticky;top:28px;z-index:6;min-width:112px;background:var(--panel);padding:4px}
+  th.profhead{position:sticky;top:28px;z-index:6;width:160px;min-width:160px;max-width:160px;background:var(--panel);padding:4px;box-sizing:border-box}
   th.profhead select{background:var(--cell);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:3px;font-size:13.5px;width:100%;font-weight:700}
   .col-x{margin-top:3px;background:#3a1f1f;border:1px solid #5a2a2a;color:#ff8a8a;border-radius:5px;width:100%;height:18px;font-size:10px;cursor:pointer;padding:0}
   /* separador entre sedes */
   .sede-start{border-left:2px solid #38414f}
-  td.cell{min-width:112px;padding:0;background:var(--cell);position:relative;height:100%}
+  td.cell{width:160px;min-width:160px;max-width:160px;padding:0;background:var(--cell);position:relative;height:100%;overflow:hidden;box-sizing:border-box}
   td.cell, td.hcell{border-bottom:2px solid #000}
   .slotwrap{display:flex;flex-direction:column;height:100%;min-height:100%}
-  .slot{border-bottom:1px dashed #00000018;padding:5px 6px;min-height:40px;box-sizing:border-box;flex:1 1 auto;cursor:pointer;position:relative;font-size:13px}
+  .slot{border-bottom:1px dashed #00000018;padding:3px 24px 3px 6px;height:46px;min-height:46px;max-height:46px;overflow:hidden;box-sizing:border-box;flex:0 0 46px;cursor:pointer;position:relative;font-size:13px;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;align-content:center;column-gap:4px}
   .slot:last-child{border-bottom:none}
   .slot:hover{background:#222734}
-  .slot.empty{color:#39414f;min-height:40px;box-sizing:border-box;border-bottom:none;display:flex;align-items:center;justify-content:center;text-align:center}
-  .slot .nm{font-weight:600;line-height:1.15;font-size:14.5px}
-  .slot .tags{font-size:11.5px;color:var(--muted);margin-top:3px;display:flex;gap:4px;flex-wrap:wrap}
-  .slot .tag{background:#262b36;padding:1px 5px;border-radius:4px}
+  .slot.empty{color:#39414f;height:46px;min-height:46px;max-height:46px;box-sizing:border-box;border-bottom:none;display:flex;align-items:center;justify-content:center;text-align:center;padding:3px 6px}
+  .slot .nm{font-weight:800;line-height:1.1;font-size:12px;grid-column:1;grid-row:1;min-width:0;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word}
+  .slot .tags{font-size:9px;font-weight:700;color:var(--muted);margin:0;grid-column:2;grid-row:1/3;display:flex;flex-direction:column;gap:1px;align-items:stretch;justify-content:center;overflow:hidden}
+  .slot .tag{background:#262b36;padding:0 3px;border-radius:3px;text-align:center;line-height:1.3}
   .slot .tag.mod{background:#33405a;color:#bcd0ff}
   .slot .tag.nivel{background:#3a2f4d;color:#d6b8ff;font-weight:700}
-  .slot .nota{font-size:11px;color:#1a1a1a;background:var(--accent);border-radius:4px;padding:2px 5px;margin-top:3px;font-weight:600;display:flex;align-items:center;gap:3px}
+  .slot .nota{font-size:9.5px;font-weight:700;margin-top:1px;padding:0 4px;border-radius:4px;grid-column:1;grid-row:2;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .slot .nota::before{content:'💬'}
   .slot.confirmado{background:#16432a !important;border-left:3px solid #2fd071}
   .slot.confirmado .nm{color:#7df0aa}
   .slot.confirmado .tag,.slot.confirmado .tag.mod,.slot.confirmado .tag.nivel{background:#1d5a38;color:#bff4d2}
-  .check-btn{position:absolute;bottom:2px;right:2px;width:20px;height:20px;border-radius:50%;border:1px solid #2a4a3a;background:#1c2a22;color:#5a7a68;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
+  .check-btn{position:absolute;top:50%;transform:translateY(-50%);right:3px;width:20px;height:20px;border-radius:50%;border:1px solid #2a4a3a;background:#1c2a22;color:#5a7a68;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;line-height:1}
   .check-btn:hover{border-color:#2fd071;color:#2fd071}
   .slot.confirmado .check-btn{background:#2fd071;color:#0c2a18;border-color:#2fd071}
   td.cell.libre{background:var(--libre)}
@@ -708,6 +708,7 @@ function empujarCalendario(){
       semana: state.semana || {alumnos:{},libres:{}},
       semanaProxima: state.semanaProxima || {alumnos:{},libres:{}},
       lunesActual: state.lunesActual || '',
+      revisar: { marks: _revisar || {}, upd: Date.now() },
       _ts: Date.now()
     })));
   }catch(e){ console.warn('No pude subir el calendario:', e.message); }
@@ -729,6 +730,7 @@ function iniciarCalendarioCompartido(){
     state.semana        = r.semana        || state.semana;
     state.semanaProxima = r.semanaProxima || state.semanaProxima;
     if(r.lunesActual) state.lunesActual = r.lunesActual;
+    if(r.revisar){ _revisar = r.revisar.marks || {}; guardarRevisar(); }
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
     migrarSedesPorBook();
     _aplicandoRemoto = false; _calListo = true;
@@ -918,7 +920,8 @@ function renderGrid(){
   sedes.forEach(s=> s.profes.forEach((p,pi)=> cols.push({sk:s.key, pi, prof:p})) );
 
   // --- encabezado: fila de sedes (agrupadas) + fila de profesores ---
-  let html='<thead><tr class="row-sede"><th class="hcol" rowspan="2">Hora</th>';
+  let html='<colgroup><col style="width:46px">'+cols.map(()=>'<col style="width:160px">').join('')+'</colgroup>';
+  html+='<thead><tr class="row-sede"><th class="hcol" rowspan="2">Hora</th>';
   sedes.forEach(s=>{
     if(!s.profes.length) return;
     html+=`<th class="sedehead sede-${s.key}" colspan="${s.profes.length}">${s.emoji?s.emoji+' ':''}${esc(s.nombre)} <button class="sede-addcol" data-addcol="${s.key}" title="Agregar columna profe">+</button></th>`;
@@ -1091,7 +1094,7 @@ function autocompletarDesdeNube(){
 }
 function closeEditor(){ document.getElementById('overlay').classList.remove('show'); editingCell=null; }
 
-// ===== MARCA PERSONAL "para revisar" (amarillo) — solo local, no toca nada compartido =====
+// ===== MARCA "para revisar" (celeste) — COMPARTIDA entre dispositivos vía Firebase =====
 let _revisar={};
 try{ _revisar=JSON.parse(localStorage.getItem('cal_dg_revisar')||'{}')||{}; }catch(e){ _revisar={}; }
 function markKeyDe(sk,pi,hi,si){ return `${state.mode}|${state.semActiva}|${state.dia}|${sk}|${pi}|${hi}|${si}`; }
@@ -1102,7 +1105,8 @@ function toggleRevisar(){
   const [sk,pi,hi,si]=editingCell.split('|');
   const k=markKeyDe(sk,+pi,+hi,+si);
   if(_revisar[k]) delete _revisar[k]; else _revisar[k]=true;
-  guardarRevisar(); actualizarBtnRevisar(sk,+pi,+hi,+si); renderGrid();
+  guardarRevisar(); if(!_aplicandoRemoto && _calListo) empujarCalendario();
+  actualizarBtnRevisar(sk,+pi,+hi,+si); renderGrid();
 }
 function actualizarBtnRevisar(sk,pi,hi,si){
   const b=document.getElementById('btnRevisar'); if(!b) return;
