@@ -890,6 +890,25 @@ function sedeByKey(sk){ return sedesDelDia().find(s=>s.key===sk); }
 function cellKey(sk,pi,hi,si){ return `${state.dia}|${sk}|${pi}|${hi}|${si}`; }
 function libreKey(sk,pi,hi){ return `${state.dia}|${sk}|${pi}|${hi}`; }
 
+// Al borrar una columna de profe: elimina los datos de esa columna y corre una
+// posición a la izquierda las claves de las columnas siguientes (mismo día y sede).
+function remapColumnaBorrada(B, dia, sk, piBorrado){
+  const remap = (obj, partes) => {
+    const nuevos = {};
+    Object.keys(obj||{}).forEach(k => {
+      const p = k.split('|');
+      if(p.length !== partes || p[0] !== dia || p[1] !== sk){ nuevos[k] = obj[k]; return; }
+      const pi = +p[2];
+      if(pi === piBorrado) return;               // datos de la columna borrada: se van con ella
+      if(pi > piBorrado) p[2] = String(pi - 1);  // las de la derecha se corren una posición
+      nuevos[p.join('|')] = obj[k];
+    });
+    return nuevos;
+  };
+  B.alumnos = remap(B.alumnos, 5);  // DIA|sede|col|hora|slot
+  B.libres  = remap(B.libres, 4);   // DIA|sede|col|hora
+}
+
 function renderGrid(){
   const sedes=sedesDelDia();
   const grid=document.getElementById('grid');
@@ -965,6 +984,9 @@ function renderGrid(){
       const nom=s.profes[pi];
       if(!confirm(`¿Quitar la columna "${nom}" de ${s.nombre} (${state.dia})?`)) return;
       if(!confirmarSiMadre()) return;
+      // Reacomodar datos: borrar lo de esta columna y correr las de la derecha,
+      // para que cada profe conserve SUS alumnos y bloqueos (no herede los del borrado)
+      remapColumnaBorrada(book(), state.dia, s.key, pi);
       s.profes.splice(pi,1);
       saveState(); renderGrid(); publicarYa();
     };
@@ -1529,8 +1551,8 @@ function csvCell(v){
   return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v;
 }
 
-function fechaCorta(){ // dd/mm/yyyy del día seleccionado en la semana actual
-  const idx=DAYS.indexOf(state.dia);
+function fechaCorta(diaSel){ // dd/mm/yyyy del día indicado (o el seleccionado en el calendario)
+  const idx=DAYS.indexOf(diaSel||state.dia);
   const hoy=new Date(); const dow=hoy.getDay();
   const lunes=new Date(hoy); lunes.setDate(hoy.getDate()+(dow===0?-6:1-dow));
   const t=new Date(lunes); t.setDate(lunes.getDate()+idx);
@@ -1541,12 +1563,13 @@ function fechaCorta(){ // dd/mm/yyyy del día seleccionado en la semana actual
 // Genera el CSV con el formato que lee recordatorios_rapido.html
 function exportEnvios(){
   if(state.mode!=='semana'){ alert('Los envíos se exportan desde la SEMANA. Cambiando a modo SEMANA.'); setMode('semana'); }
-  const B=book();
+  const dia=_envioDia||state.dia; // mismo día que la lista de envíos
+  const B=state.semana||{alumnos:{},libres:{}}; // SIEMPRE el editable de esta semana (igual que buildEnvioList)
   const sinTel=[];
   const header=['sesion_id','fecha','dia','hora','sede','profesor','nombre_calendario','nombre_wpp','telefono','estado'];
   const lines=[header.join(',')];
-  const sedes=sedesSemana()[state.dia];
-  const fecha=fechaCorta();
+  const sedes=sedesSemana()[dia]||[];
+  const fecha=fechaCorta(dia);
 
   HORAS.forEach((hora,hi)=>{
     const hhmm=hora.replace(':','');
@@ -1560,10 +1583,10 @@ function exportEnvios(){
           const c=telDeAlumno(al.nombre);
           const tel=c?c.tel:'';
           const apodo=(c&&c.apodo)?c.apodo:al.nombre.trim().split(/\s+/)[0];
-          const sesion_id=`S_${state.dia}_${hhmm}_${dim}_${si}`;
+          const sesion_id=`S_${dia}_${hhmm}_${dim}_${si}`;
           if(!tel) sinTel.push(al.nombre);
           lines.push([
-            sesion_id, fecha, state.dia, hora, s.nombre, dim,
+            sesion_id, fecha, dia, hora, s.nombre, dim,
             al.nombre, apodo, tel, (al.confirmado?'CONFIRMADO':'PENDIENTE')
           ].map(csvCell).join(','));
         }
@@ -1571,12 +1594,12 @@ function exportEnvios(){
     });
   });
 
-  if(lines.length===1){ alert('No hay alumnos cargados en '+state.dia+' para exportar.'); return; }
+  if(lines.length===1){ alert('No hay alumnos cargados en '+dia+' para exportar.'); return; }
 
   const blob=new Blob([lines.join('\n')], {type:'text/csv;charset=utf-8'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`envios_${state.dia}_${fecha.replace(/\//g,'-')}.csv`;
+  a.download=`envios_${dia}_${fecha.replace(/\//g,'-')}.csv`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(a.href);
 
@@ -1648,7 +1671,7 @@ function sendQueue(){ return buildEnvioList().filter(c=>phoneOk(c.tel) && c.sede
 function adefList(){ return buildEnvioList().filter(c=>c.sedeKey==='adefinir'); }
 
 function enviadosHoy(){
-  const f=fechaCorta();
+  const f=fechaCorta(_envioDia||state.dia);
   if(!state.enviados[f]) state.enviados[f]={};
   return state.enviados[f];
 }
