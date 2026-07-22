@@ -1633,13 +1633,19 @@ let _envioDia = null;   // día elegido para la lista de envíos (independiente 
 const WA_WIN_NAME = 'waSenderTab';
 
 function normPhone(raw){
-  let d=String(raw==null?'':raw).replace(/\D/g,'');
+  // Acepta cualquier formato: 0981..., +595 981..., 595-981..., 00595981..., internacionales.
+  let d=String(raw==null?'':raw).replace(/\D/g,'');   // quita +, espacios, guiones, paréntesis
   const cc=String(state.cc||'').replace(/\D/g,'');
   if(!d) return '';
-  if(cc && d.indexOf(cc)===0) return d;
-  if(d.charAt(0)==='0') d=d.slice(1);
-  if(cc && d.length<=10) return cc+d;
-  return d;
+  if(d.slice(0,2)==='00') d=d.slice(2);               // prefijo internacional 00 → fuera (00595... → 595...)
+  if(cc && d.indexOf(cc)===0){
+    let resto=d.slice(cc.length);
+    while(resto.charAt(0)==='0') resto=resto.slice(1); // 595 0981... → 595 981... (el 0 local sobra)
+    return cc+resto;
+  }
+  while(d.charAt(0)==='0') d=d.slice(1);              // 0981... → 981...
+  if(cc && d.length<=10) return cc+d;                 // número local → se le agrega 595
+  return d;                                            // internacional con su propio código de país
 }
 function phoneOk(tel){ return tel && tel.length>=8 && tel.length<=15; }
 
