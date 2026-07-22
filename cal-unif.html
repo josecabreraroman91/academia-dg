@@ -1012,6 +1012,11 @@ function renderGrid(){
       const al=book().alumnos[cellKey(sk,+pi,+hi,+si)];
       if(!al) return;
       al.confirmado = !al.confirmado;
+      // Al marcar PRESENTE, se quita sola la marca celeste "para revisar" (ya quedó resuelto)
+      if(al.confirmado){
+        const kR=markKeyDe(sk,+pi,+hi,+si);
+        if(_revisar[kR]){ delete _revisar[kR]; guardarRevisar(); if(!_aplicandoRemoto && _calListo) empujarCalendario(); }
+      }
       saveState(); renderGrid();
     };
   });
