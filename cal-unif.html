@@ -320,6 +320,10 @@
         <button class="btn reset" id="btnReset">🔄 Resetear semana desde madre</button>
         <button class="btn" id="btnBackup">📥 Backup (bajar datos)</button>
         <button class="btn" id="btnRestore">📤 Restaurar backup</button>
+        <button class="btn" id="btnRestDia">🩹 Restaurar SOLO este día desde madre</button>
+        <button class="btn" id="btnDeshacer">⏪ Deshacer (backup automático)</button>
+        <button class="btn" id="btnPuntos">🕐 Puntos de restauración (nube)</button>
+        <button class="btn" id="btnResembrar">🚑 Re-sembrar TODO desde la semilla original</button>
       </div>
     </div>
     <input type="file" id="fileRestore" accept=".json,application/json" style="display:none">
@@ -615,6 +619,7 @@ function asegurarSemanas(){
 }
 function avanzarSemana(){
   if(!confirm('▸ Avanzar de semana.\n\n"La que viene" pasa a ser "ESTA semana", se genera una nueva próxima desde la MADRE, y la semana que pasó se descarta.\n\n¿Confirmás?')) return;
+  backupAuto('antes de avanzar semana');
   state.semana = state.semanaProxima;
   state.semanaProxima = JSON.parse(JSON.stringify(state.madre));
   state.lunesActual = isoDe(isoMas(state.lunesActual,7));
@@ -676,7 +681,28 @@ function loadState(){
   asegurarSemanas();
   saveState();
 }
-function saveState(){ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); try{reindexarAlumnos();}catch(e){} autoPublicar(); if(!_aplicandoRemoto && _calListo) empujarCalendario(); }
+function _avisoGuardado(mal){
+  let b=document.getElementById('avisoNoGuarda');
+  if(mal){
+    if(!b){ b=document.createElement('div'); b.id='avisoNoGuarda';
+      b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#c62828;color:#fff;font-weight:800;text-align:center;padding:10px;font-size:15px';
+      b.textContent='⚠️ ATENCIÓN: LOS CAMBIOS NO SE ESTÁN GUARDANDO EN ESTE DISPOSITIVO. Avisá a José / no sigas cargando.';
+      document.body.appendChild(b); }
+  } else if(b) b.remove();
+}
+function saveState(){
+  try{
+    localStorage.setItem('cal_dg_unif', JSON.stringify(state));
+    _avisoGuardado(false);
+  }catch(e){
+    // Sin espacio: sacrifico los backups locales (ya viven en la nube) y reintento
+    try{ localStorage.removeItem('cal_dg_backups'); localStorage.setItem('cal_dg_unif', JSON.stringify(state)); _avisoGuardado(false); }
+    catch(e2){ _avisoGuardado(true); console.error('SAVE FALLÓ:', e2.message); }
+  }
+  try{reindexarAlumnos();}catch(e){}
+  autoPublicar();
+  if(!_aplicandoRemoto && _calListo) empujarCalendario();
+}
 
 // ===== Firebase: publicar el DÍA DE HOY a las tablets (etapa 2) =====
 let _fbdb=null;
@@ -698,8 +724,24 @@ try{
 let _calRef = _fbdb ? _fbdb.ref('calendario_v2') : null;
 let _aplicandoRemoto = false;   // evita reenviar lo que acabo de recibir
 let _calListo = false;          // ya hubo primera sincronización
+const DIAS_SEM=['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
+function _conteoPorDia(alumnos){ const c={}; DIAS_SEM.forEach(d=>c[d]=0); Object.keys(alumnos||{}).forEach(k=>{ const d=k.split('|')[0]; if(c[d]!==undefined) c[d]++; }); return c; }
+let _remotoCounts=null;   // cuántos alumnos por día tenía la nube la última vez que la vimos
 function empujarCalendario(){
   if(!_calRef) return;
+  // GUARDIA: si estoy por publicar un día VACÍO que en la nube tenía gente, pido confirmación explícita
+  if(_remotoCounts){
+    const loc=_conteoPorDia(state.semana && state.semana.alumnos);
+    const vaciados=DIAS_SEM.filter(d=>_remotoCounts[d]>=5 && loc[d]===0);
+    if(vaciados.length){
+      logOp('intento_vaciado', vaciados.join(','));
+      if(!confirm('⚠️ ATENCIÓN MÁXIMA ⚠️\n\nEstás por PUBLICAR estos días SIN NINGÚN ALUMNO:\n\n   '+vaciados.join(', ')+'\n\nEn la nube ese/esos día(s) tienen alumnos cargados. Si publicás, se BORRAN para todos los dispositivos.\n\n¿Estás SEGURO de que querés vaciarlos?')){
+        console.warn('Publicación cancelada: vaciaba', vaciados);
+        return;
+      }
+      logOp('vaciado_confirmado', vaciados.join(','));
+    }
+  }
   try{
     _calRef.set(JSON.parse(JSON.stringify({
       seedVersion: SEED_VERSION,
@@ -712,6 +754,7 @@ function empujarCalendario(){
       revisar: { marks: _revisar || {}, upd: Date.now() },
       _ts: Date.now()
     })));
+    _remotoCounts=_conteoPorDia(state.semana && state.semana.alumnos);  // la nube ahora tiene esto
   }catch(e){ console.warn('No pude subir el calendario:', e.message); }
 }
 function iniciarCalendarioCompartido(){
@@ -724,12 +767,22 @@ function iniciarCalendarioCompartido(){
       try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
       return;
     }
+    // ¿Este remoto me vacía algún día que yo tengo con gente? → guardo copia de rescate ANTES de pisarme
+    try{
+      const locC=_conteoPorDia(state.semana && state.semana.alumnos);
+      const remC=_conteoPorDia(r.semana && r.semana.alumnos);
+      const vac=DIAS_SEM.filter(d=>locC[d]>=5 && remC[d]===0);
+      if(vac.length){ backupAuto('RESCATE: remoto vacía '+vac.join(',')); logOp('remoto_vacia', vac.join(',')); }
+      _remotoCounts=remC;
+    }catch(e){}
     _aplicandoRemoto = true;
     state.profesores    = r.profesores    || state.profesores;
     state.sedesPorDia   = r.sedesPorDia   || state.sedesPorDia;
     state.madre         = r.madre         || state.madre;
     state.semana        = r.semana        || state.semana;
     state.semanaProxima = r.semanaProxima || state.semanaProxima;
+    // Firebase borra objetos vacíos: rehidratar para que nunca falte la estructura
+    ['madre','semana','semanaProxima'].forEach(k=>{ if(state[k]){ if(!state[k].alumnos) state[k].alumnos={}; if(!state[k].libres) state[k].libres={}; } });
     if(r.lunesActual) state.lunesActual = r.lunesActual;
     if(r.revisar){ _revisar = r.revisar.marks || {}; guardarRevisar(); }
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
@@ -984,10 +1037,14 @@ function renderGrid(){
   });
   grid.querySelectorAll('.col-x').forEach(b=>{
     b.onclick=()=>{
+      if(b.dataset.busy) return; b.dataset.busy='1'; setTimeout(()=>{ delete b.dataset.busy; },1500);
       const pi=+b.dataset.colx; const s=sedeByKey(b.dataset.sk);
+      if(!s || s.profes[pi]===undefined){ renderGrid(); return; }  // la grilla cambió: no borrar a ciegas
       const nom=s.profes[pi];
       if(!confirm(`¿Quitar la columna "${nom}" de ${s.nombre} (${state.dia})?`)) return;
       if(!confirmarSiMadre()) return;
+      backupAuto('antes de borrar columna '+nom+' ('+state.dia+')');
+      logOp('borrar_columna', nom+' @ '+s.key+' ('+state.dia+')');
       // Reacomodar datos: borrar lo de esta columna y correr las de la derecha,
       // para que cada profe conserve SUS alumnos y bloqueos (no herede los del borrado)
       remapColumnaBorrada(book(), state.dia, s.key, pi);
@@ -1370,11 +1427,123 @@ function toggleResumen(){
   } else { el.style.display='none'; if(gw) gw.style.display=''; }
 }
 
+// ===== BACKUPS AUTOMÁTICOS (últimos 3, en este dispositivo) =====
+function backupAuto(motivo){
+  const item={t:Date.now(), motivo:motivo||'', estado:JSON.stringify(state)};
+  try{
+    const b=JSON.parse(localStorage.getItem('cal_dg_backups')||'[]');
+    b.unshift(item);
+    while(b.length>2) b.pop();   // 2 locales (menos presión sobre la cuota del navegador)
+    localStorage.setItem('cal_dg_backups', JSON.stringify(b));
+  }catch(e){ try{ localStorage.removeItem('cal_dg_backups'); }catch(e2){} }
+  // Copia EN LA NUBE (independiente del dispositivo): rota 3 espacios
+  try{
+    if(_fbdb){
+      let slot=0; try{ slot=(parseInt(localStorage.getItem('cal_dg_bkslot')||'0')+1)%3; localStorage.setItem('cal_dg_bkslot',String(slot)); }catch(e){}
+      _fbdb.ref('backups_auto/b'+slot).set(item);
+    }
+  }catch(e){}
+  logOp('backup', motivo);
+}
+// Registro de operaciones sensibles en la nube (para saber SIEMPRE qué pasó y desde dónde)
+function logOp(accion, detalle){
+  try{ if(_fbdb) _fbdb.ref('log_ops').push({t:Date.now(), accion:String(accion), detalle:String(detalle||''), dia:state.dia||'', ua:(navigator.userAgent||'').slice(0,80)}); }catch(e){}
+}
+
+// ===== PUNTOS DE RESTAURACIÓN AUTOMÁTICOS (nube) =====
+// Cada ~8h (máx 3 por día) se guarda una foto completa del estado en Firebase.
+// Solo se guardan estados SANOS (con alumnos). Se borran solos a las 48h.
+const SNAP_CADA_MS = 8*60*60*1000;      // 8 horas entre fotos
+const SNAP_VIDA_MS = 48*60*60*1000;     // se borran a los 2 días
+function _estadoSano(){
+  const a=(state.semana&&state.semana.alumnos)||{}, m=(state.madre&&state.madre.alumnos)||{};
+  return (Object.keys(a).length + Object.keys(m).length) >= 50;   // nunca fotografiar un estado vacío/roto
+}
+function snapshotAuto(){
+  if(!_fbdb || !_estadoSano()) return;
+  _fbdb.ref('snapshots').once('value').then(snap=>{
+    const all=snap.val()||{}; const ahora=Date.now();
+    let masNuevo=0;
+    Object.keys(all).forEach(k=>{
+      const t=all[k]&&all[k].t||0;
+      if(t>masNuevo) masNuevo=t;
+      if(ahora-t>SNAP_VIDA_MS) _fbdb.ref('snapshots/'+k).remove();   // limpieza: >48h, chau
+    });
+    if(ahora-masNuevo < SNAP_CADA_MS) return;   // ya hay una foto reciente (la hizo este u otro dispositivo)
+    _fbdb.ref('snapshots/s'+ahora).set({t:ahora, estado:JSON.stringify(state)});
+    logOp('snapshot','punto de restauración automático');
+  }).catch(()=>{});
+}
+function puntosRestauracion(){
+  if(!_fbdb){ alert('Sin conexión a la nube en este momento.'); return; }
+  _fbdb.ref('snapshots').once('value').then(snap=>{
+    const all=snap.val()||{};
+    const lista=Object.keys(all).map(k=>({k, t:all[k].t, estado:all[k].estado})).sort((a,b)=>b.t-a.t);
+    if(!lista.length){ alert('Todavía no hay puntos de restauración en la nube.\nSe crean solos cada ~8 horas (máx. 3 por día) y duran 2 días.'); return; }
+    const txt=lista.map((x,i)=>(i+1)+') '+new Date(x.t).toLocaleString('es-PY')).join('\n');
+    const sel=prompt('🕐 Puntos de restauración disponibles (nube):\n\n'+txt+'\n\nEscribí el número a restaurar (o Cancelar):');
+    const i=parseInt(sel)-1;
+    if(isNaN(i)||!lista[i]) return;
+    if(!confirm('Esto reemplaza TODO el calendario actual (en todos los dispositivos) por la foto del '+new Date(lista[i].t).toLocaleString('es-PY')+'.\n\n¿Confirmás?')) return;
+    backupAuto('antes de restaurar punto de nube');
+    state=JSON.parse(lista[i].estado);
+    logOp('restaurar_snapshot', new Date(lista[i].t).toISOString());
+    saveState(); renderAll();
+    alert('✅ Calendario restaurado al punto del '+new Date(lista[i].t).toLocaleString('es-PY')+'. Ya se publicó a todos los dispositivos.');
+  }).catch(e=>alert('No pude leer los puntos de la nube: '+e.message));
+}
+// ===== RESIEMBRA TOTAL: reconstruir todo desde la semilla original del archivo =====
+function resembrarTodo(){
+  if(!confirm('🚑 RE-SEMBRAR TODO\n\nEsto reconstruye el calendario COMPLETO (madre + semana + sedes + profesores) desde la semilla original que viene adentro de la app: todos los alumnos fijos de tu planilla.\n\nSe pierde lo que haya ahora (que puede estar roto/vacío) y lo reemplaza en TODOS los dispositivos.\n\n¿Continuar?')) return;
+  backupAuto('antes de re-sembrar todo');
+  state.profesores  = JSON.parse(JSON.stringify(SEED_CAL.profesores));
+  state.sedesPorDia = JSON.parse(JSON.stringify(SEED_CAL.sedesPorDia));
+  state.madre  = { alumnos: JSON.parse(JSON.stringify(SEED_CAL.alumnos)),        libres: JSON.parse(JSON.stringify(SEED_CAL.libres)) };
+  state.semana = { alumnos: JSON.parse(JSON.stringify(SEED_CAL_SEMANA.alumnos)), libres: JSON.parse(JSON.stringify(SEED_CAL_SEMANA.libres)) };
+  delete state.madre.sedesPorDia; delete state.semana.sedesPorDia;
+  migrarSedesPorBook();
+  logOp('resiembra_total','desde SEED');
+  saveState(); renderAll();
+  snapshotAuto();
+  alert('✅ Calendario re-sembrado completo desde la semilla original y publicado a todos los dispositivos.');
+}
+function deshacerBackup(){
+  let b=[]; try{ b=JSON.parse(localStorage.getItem('cal_dg_backups')||'[]'); }catch(e){}
+  if(!b.length){ alert('No hay backups automáticos en este dispositivo todavía.\nSe crean solos antes de borrar columnas, resetear o avanzar semana.'); return; }
+  const lista=b.map((x,i)=>(i+1)+') '+new Date(x.t).toLocaleString('es-PY')+' — '+x.motivo).join('\n');
+  const sel=prompt('⏪ Backups automáticos disponibles:\n\n'+lista+'\n\nEscribí el número a restaurar (o Cancelar):');
+  const i=parseInt(sel)-1;
+  if(isNaN(i)||!b[i]) return;
+  if(!confirm('Esto reemplaza TODO el estado actual por el backup del '+new Date(b[i].t).toLocaleString('es-PY')+'.\n\n¿Confirmás?')) return;
+  backupAuto('antes de deshacer');
+  state=JSON.parse(b[i].estado);
+  saveState(); renderAll();
+  alert('✅ Estado restaurado. Revisá el calendario.');
+}
+// ===== Restaurar UN SOLO día de la semana desde la MADRE =====
+function restaurarDiaDesdeMadre(){
+  const dia=state.dia;
+  if(!confirm('🩹 Restaurar '+dia+' de ESTA SEMANA copiándolo de la planilla MADRE.\n\nSolo se toca el '+dia+': los demás días quedan como están.\nSe pierden los cambios puntuales que hayas hecho este '+dia+' (vuelven los fijos de la madre).\n\n¿Continuar?')) return;
+  backupAuto('antes de restaurar '+dia);
+  const M=state.madre||{alumnos:{},libres:{}};
+  const S=state.semana||(state.semana={alumnos:{},libres:{}});
+  S.alumnos=S.alumnos||{}; S.libres=S.libres||{};
+  Object.keys(S.alumnos).forEach(k=>{ if(k.split('|')[0]===dia) delete S.alumnos[k]; });
+  Object.keys(S.libres).forEach(k=>{ if(k.split('|')[0]===dia) delete S.libres[k]; });
+  Object.keys(M.alumnos||{}).forEach(k=>{ if(k.split('|')[0]===dia) S.alumnos[k]=JSON.parse(JSON.stringify(M.alumnos[k])); });
+  Object.keys(M.libres||{}).forEach(k=>{ if(k.split('|')[0]===dia) S.libres[k]=M.libres[k]; });
+  const msed=(state.madre&&state.madre.sedesPorDia)||state.sedesPorDia||{};
+  if(msed[dia]){ sedesSemana(); state.semana.sedesPorDia[dia]=JSON.parse(JSON.stringify(msed[dia])); }
+  saveState(); renderGrid();
+  alert('✅ '+dia+' restaurado desde la MADRE. Revisalo y publicá a tablets si corresponde.');
+}
+
 // Resetear la SEMANA copiando la MADRE (limpia)
 function resetSemana(){
   const prox = state.semActiva==='proxima';
   const cual = prox ? 'LA QUE VIENE' : 'ESTA SEMANA';
   if(confirm('🔄 Esto reemplaza '+cual+' por una copia limpia de la planilla MADRE.\n\nSe pierden los cambios y agendados de esa semana. La madre NO se toca.\n\n¿Continuar?')){
+    backupAuto('antes de resetear semana');
     const copia = JSON.parse(JSON.stringify(state.madre));
     if(prox) state.semanaProxima=copia; else state.semana=copia;
     saveState();
@@ -1934,6 +2103,13 @@ document.querySelectorAll('.ev-ph .chip').forEach(ch=>{
   ch.onclick=()=>{ const ta=document.getElementById('evTpl'); ta.value+=ch.dataset.ph; state.tplEnvio=ta.value; saveState(); renderEnvios(); };
 });
 document.getElementById('btnReset').onclick=resetSemana;
+document.getElementById('btnRestDia').onclick=restaurarDiaDesdeMadre;
+document.getElementById('btnDeshacer').onclick=deshacerBackup;
+document.getElementById('btnPuntos').onclick=puntosRestauracion;
+document.getElementById('btnResembrar').onclick=resembrarTodo;
+// Programador de fotos: al abrir (tras sincronizar) y cada 30 min verifica si toca sacar una nueva
+setTimeout(snapshotAuto, 20000);
+setInterval(snapshotAuto, 30*60*1000);
 document.getElementById('btnAvanzar').onclick=avanzarSemana;
 document.getElementById('btnPublicar').onclick=()=>publicarDiaHoy(false);
 document.getElementById('btnCerrarDia').onclick=cerrarYGuardarDia;
