@@ -324,6 +324,7 @@
         <button class="btn" id="btnDeshacer">⏪ Deshacer (backup automático)</button>
         <button class="btn" id="btnPuntos">🕐 Puntos de restauración (nube)</button>
         <button class="btn" id="btnResembrar">🚑 Re-sembrar TODO desde la semilla original</button>
+        <button class="btn" id="btnVerLog">📋 Registro: quién tocó qué</button>
       </div>
     </div>
     <input type="file" id="fileRestore" accept=".json,application/json" style="display:none">
@@ -727,6 +728,8 @@ let _calListo = false;          // ya hubo primera sincronización
 const DIAS_SEM=['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
 function _conteoPorDia(alumnos){ const c={}; DIAS_SEM.forEach(d=>c[d]=0); Object.keys(alumnos||{}).forEach(k=>{ const d=k.split('|')[0]; if(c[d]!==undefined) c[d]++; }); return c; }
 let _remotoCounts=null;   // cuántos alumnos por día tenía la nube la última vez que la vimos
+let _ultimoTsRemoto=0;    // marca de tiempo de la última versión de la nube que ESTE dispositivo vio
+function _recargar(){ try{ location.reload(); }catch(e){} }
 function empujarCalendario(){
   if(!_calRef) return;
   // GUARDIA: si estoy por publicar un día VACÍO que en la nube tenía gente, pido confirmación explícita
@@ -743,7 +746,7 @@ function empujarCalendario(){
     }
   }
   try{
-    _calRef.set(JSON.parse(JSON.stringify({
+    const payload = JSON.parse(JSON.stringify({
       seedVersion: SEED_VERSION,
       profesores: state.profesores || [],
       sedesPorDia: state.sedesPorDia || {},
@@ -753,8 +756,21 @@ function empujarCalendario(){
       lunesActual: state.lunesActual || '',
       revisar: { marks: _revisar || {}, upd: Date.now() },
       _ts: Date.now()
-    })));
-    _remotoCounts=_conteoPorDia(state.semana && state.semana.alumnos);  // la nube ahora tiene esto
+    }));
+    // GUARDIA ANTI-DESACTUALIZADO: si la nube tiene una versión MÁS NUEVA que la última que este
+    // dispositivo vio (estuvo dormido/offline), NO puede pisar el trabajo de los demás.
+    _calRef.once('value').then(snap=>{
+      const r = snap && snap.val();
+      if(r && r._ts && r._ts > (_ultimoTsRemoto||0)){
+        logOp('empuje_bloqueado_desactualizado', 'nube:'+r._ts+' > visto:'+_ultimoTsRemoto);
+        backupAuto('cambios de dispositivo desactualizado (NO publicados)');
+        alert('⚠️ Este dispositivo estaba DESACTUALIZADO (estuvo dormido o sin conexión) y otro dispositivo guardó cambios más nuevos.\n\nPara proteger ese trabajo, tus últimos cambios de acá NO se publicaron (quedaron en un backup local por las dudas).\n\nLa app se va a recargar con los datos más nuevos. Después re-cargá lo tuyo.');
+        _recargar();
+        return;
+      }
+      _calRef.set(payload);
+      _remotoCounts=_conteoPorDia(state.semana && state.semana.alumnos);
+    }).catch(()=>{ try{ _calRef.set(payload); _remotoCounts=_conteoPorDia(state.semana && state.semana.alumnos); }catch(e){} });
   }catch(e){ console.warn('No pude subir el calendario:', e.message); }
 }
 function iniciarCalendarioCompartido(){
@@ -775,6 +791,7 @@ function iniciarCalendarioCompartido(){
       if(vac.length){ backupAuto('RESCATE: remoto vacía '+vac.join(',')); logOp('remoto_vacia', vac.join(',')); }
       _remotoCounts=remC;
     }catch(e){}
+    _ultimoTsRemoto = r._ts || _ultimoTsRemoto || 0;
     _aplicandoRemoto = true;
     state.profesores    = r.profesores    || state.profesores;
     state.sedesPorDia   = r.sedesPorDia   || state.sedesPorDia;
@@ -2107,6 +2124,16 @@ document.getElementById('btnRestDia').onclick=restaurarDiaDesdeMadre;
 document.getElementById('btnDeshacer').onclick=deshacerBackup;
 document.getElementById('btnPuntos').onclick=puntosRestauracion;
 document.getElementById('btnResembrar').onclick=resembrarTodo;
+document.getElementById('btnVerLog').onclick=function(){
+  if(!_fbdb){ alert('Sin conexión a la nube.'); return; }
+  _fbdb.ref('log_ops').once('value').then(snap=>{
+    const all=snap.val()||{};
+    const lista=Object.values(all).sort((a,b)=>b.t-a.t).slice(0,20);
+    if(!lista.length){ alert('El registro está vacío por ahora.'); return; }
+    const disp=ua=>{ ua=ua||''; if(ua.includes('Android'))return'📱 Android'; if(ua.includes('iPhone')||ua.includes('iPad'))return'📱 iPhone/iPad'; if(ua.includes('Windows'))return'💻 PC Windows'; if(ua.includes('Mac'))return'💻 Mac'; return '🖥️ Otro'; };
+    alert('📋 ÚLTIMAS OPERACIONES (más recientes arriba):\n\n'+lista.map(l=>new Date(l.t).toLocaleString('es-PY')+'\n   '+l.accion+(l.detalle?' — '+l.detalle:'')+'\n   desde: '+disp(l.ua)).join('\n\n'));
+  }).catch(e=>alert('No pude leer el registro: '+e.message));
+};
 // Programador de fotos: al abrir (tras sincronizar) y cada 30 min verifica si toca sacar una nueva
 setTimeout(snapshotAuto, 20000);
 setInterval(snapshotAuto, 30*60*1000);
