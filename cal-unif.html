@@ -326,6 +326,7 @@
         <button class="btn" id="btnPuntos">🕐 Puntos de restauración (nube)</button>
         <button class="btn" id="btnResembrar">🚑 Re-sembrar TODO desde la semilla original</button>
         <button class="btn" id="btnVerLog">📋 Registro: quién tocó qué</button>
+        <button class="btn" id="btnRevisarDatos">🔎 Revisar datos ocultos</button>
       </div>
     </div>
     <input type="file" id="fileRestore" accept=".json,application/json" style="display:none">
@@ -733,6 +734,7 @@ let _ultimoTsRemoto=0;    // marca de tiempo de la última versión de la nube q
 function _recargar(){ try{ location.reload(); }catch(e){} }
 function empujarCalendario(){
   if(!_calRef) return;
+  try{ sanearEstado(); }catch(e){}
   // GUARDIA: si estoy por publicar un día VACÍO que en la nube tenía gente, pido confirmación explícita
   if(_remotoCounts){
     const loc=_conteoPorDia(state.semana && state.semana.alumnos);
@@ -806,6 +808,7 @@ function iniciarCalendarioCompartido(){
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
     migrarSedesPorBook();
     _aplicandoRemoto = false; _calListo = true;
+    try{ sanearEstado(); }catch(e){}
     try{ reindexarAlumnos(); }catch(e){}
     try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
   }, err=>{ console.warn('Calendario compartido sin permiso:', err.message); });
@@ -910,7 +913,77 @@ let _pubTimer=null;
 function autoPublicar(){ if(!_fbdb) return; clearTimeout(_pubTimer); _pubTimer=setTimeout(()=>publicarDiaHoy(true),1500); }
 function publicarYa(){ if(!_fbdb) return; clearTimeout(_pubTimer); publicarDiaHoy(true); }  // cambios de columnas: reflejar al instante
 
-function sedesDelDia(){ return bookSedes()[state.dia]; }
+// ===== SANEADOR DE ESTRUCTURA =====
+// Firebase borra objetos/arrays vacíos al guardar. Si vuelve un día sin sedes o una sede
+// sin lista de profes, la grilla se caía y quedaba EN BLANCO. Esto lo reconstruye siempre.
+// Qué columnas hacen falta según los DATOS que realmente existen: {sedeKey: cantidadMinima}
+function columnasQueExigenLosDatos(B, dia){
+  const need={};
+  const mirar=(obj)=>Object.keys(obj||{}).forEach(k=>{
+    const p=k.split('|'); if(p[0]!==dia) return;
+    const sk=p[1], pi=parseInt(p[2],10);
+    if(!sk || isNaN(pi)) return;
+    if(!need[sk] || need[sk]<pi+1) need[sk]=pi+1;
+  });
+  if(B){ mirar(B.alumnos); mirar(B.libres); }
+  return need;
+}
+// Expande la configuración para que TODA celda con datos tenga su columna visible
+function expandirParaNoOcultarNada(mapaDia, B, dia){
+  const need=columnasQueExigenLosDatos(B, dia);
+  let sumadas=0;
+  Object.keys(need).forEach(sk=>{
+    let sede=mapaDia.find(s=>s.key===sk);
+    if(!sede){   // la sede entera no está en la plantilla: recuperarla
+      const base=((SEED_CAL.sedesPorDia&&SEED_CAL.sedesPorDia[dia])||[]).find(s=>s.key===sk);
+      sede=base?JSON.parse(JSON.stringify(base)):{key:sk, nombre:sk.toUpperCase(), emoji:'', profes:[]};
+      sede.profes=Array.isArray(sede.profes)?sede.profes:[];
+      mapaDia.push(sede); sumadas++;
+    }
+    while(sede.profes.length < need[sk]){ sede.profes.push('—'); sumadas++; }  // columnas faltantes
+  });
+  return sumadas;
+}
+function sanearEstado(){
+  let reparado=[];
+  const DIAS=['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
+  const plantilla=(d)=>JSON.parse(JSON.stringify((SEED_CAL.sedesPorDia&&SEED_CAL.sedesPorDia[d])||[]));
+  const sanearMapaSedes=(mapa, quien)=>{
+    if(!mapa || typeof mapa!=='object') { reparado.push(quien+': mapa de sedes'); mapa={}; }
+    DIAS.forEach(d=>{
+      if(!Array.isArray(mapa[d]) || !mapa[d].length){ mapa[d]=plantilla(d); if(mapa[d].length) reparado.push(quien+'/'+d+': sedes'); }
+      mapa[d]=mapa[d].filter(s=>s&&typeof s==='object');
+      mapa[d].forEach(s=>{
+        if(!Array.isArray(s.profes)){ s.profes=[]; reparado.push(quien+'/'+d+'/'+(s.key||'?')+': profes'); }
+        s.profes=s.profes.filter(p=>typeof p==='string');
+        if(!s.key) s.key='sede'+Math.random().toString(36).slice(2,6);
+        if(!s.nombre) s.nombre=s.key.toUpperCase();
+        if(typeof s.emoji!=='string') s.emoji='';
+      });
+      if(!mapa[d].length){ mapa[d]=plantilla(d); }   // si quedó sin nada, plantilla original
+    });
+    return mapa;
+  };
+  if(!Array.isArray(state.profesores) || !state.profesores.length){
+    state.profesores=JSON.parse(JSON.stringify(SEED_CAL.profesores)); reparado.push('profesores');
+  }
+  state.profesores=state.profesores.filter(p=>p&&p.dim);
+  state.sedesPorDia=sanearMapaSedes(state.sedesPorDia, 'base');
+  ['madre','semana','semanaProxima'].forEach(k=>{
+    if(!state[k] || typeof state[k]!=='object'){ state[k]={alumnos:{},libres:{}}; reparado.push(k); }
+    if(!state[k].alumnos || typeof state[k].alumnos!=='object'){ state[k].alumnos={}; reparado.push(k+'/alumnos'); }
+    if(!state[k].libres  || typeof state[k].libres!=='object'){ state[k].libres={};  reparado.push(k+'/libres'); }
+    state[k].sedesPorDia=sanearMapaSedes(state[k].sedesPorDia, k);
+    // CLAVE: nunca dejar alumnos fuera de la vista por falta de columnas
+    DIAS.forEach(d=>{ const n=expandirParaNoOcultarNada(state[k].sedesPorDia[d], state[k], d); if(n) reparado.push(k+'/'+d+': +'+n+' col. para no ocultar datos'); });
+  });
+  if(DIAS.indexOf(state.dia)<0){ state.dia='LUNES'; reparado.push('día activo'); }
+  if(state.mode!=='madre' && state.mode!=='semana'){ state.mode='semana'; }
+  if(state.semActiva!=='actual' && state.semActiva!=='proxima'){ state.semActiva='actual'; }
+  if(reparado.length){ try{ logOp('auto_reparacion', reparado.slice(0,8).join(', ')); }catch(e){} console.warn('🔧 Estructura reparada:', reparado); }
+  return reparado;
+}
+function sedesDelDia(){ sanearEstado(); return bookSedes()[state.dia] || []; }
 function sedeObj(){ return sedesDelDia().find(s=>s.key===state.sedeActiva); }
 
 // ¿Hace falta confirmar el cambio? (sólo en modo madre)
@@ -984,6 +1057,45 @@ function remapColumnaBorrada(B, dia, sk, piBorrado){
 }
 
 function renderGrid(){
+  try{ _renderGridReal(); }
+  catch(e){
+    console.error('renderGrid falló:', e);
+    try{ logOp('render_fallo', String(e && e.message).slice(0,90)); }catch(_){}
+    // 1er intento: reparar la estructura y volver a dibujar
+    try{ sanearEstado(); _renderGridReal(); return; }catch(e2){}
+    // 2º intento: reconstruir el día desde la MADRE
+    try{
+      const B=book(), M=state.madre;
+      if(M && M.sedesPorDia && M.sedesPorDia[state.dia]){
+        B.sedesPorDia[state.dia]=JSON.parse(JSON.stringify(M.sedesPorDia[state.dia]));
+        expandirParaNoOcultarNada(B.sedesPorDia[state.dia], B, state.dia);   // respetar lo cargado esta semana
+        _renderGridReal(); return;
+      }
+    }catch(e3){}
+    // Último recurso: cartel claro con botón de arreglo (NUNCA pantalla en blanco)
+    const g=document.getElementById('grid');
+    if(g) g.innerHTML='<tbody><tr><td style="padding:26px;text-align:center;background:#fff">'+
+      '<div style="font-size:17px;font-weight:800;color:#c62828;margin-bottom:8px">No se pudo dibujar el '+esc(state.dia)+'</div>'+
+      '<div style="font-size:13px;color:#555;margin-bottom:14px">La configuración de este día está dañada.<br>Tus datos NO se perdieron: tocá el botón para repararlo.</div>'+
+      '<button onclick="repararDiaActual()" style="padding:12px 20px;font-size:15px;font-weight:800;border-radius:8px;border:1px solid #1EA67A;background:#1EA67A;color:#fff;cursor:pointer">🔧 Reparar este día</button>'+
+      '</td></tr></tbody>';
+  }
+}
+function repararDiaActual(){
+  try{
+    backupAuto('antes de reparar '+state.dia);
+    sanearEstado();
+    const B=book(), M=state.madre;
+    if(M && M.sedesPorDia && M.sedesPorDia[state.dia]) B.sedesPorDia[state.dia]=JSON.parse(JSON.stringify(M.sedesPorDia[state.dia]));
+    else if(SEED_CAL.sedesPorDia[state.dia]) B.sedesPorDia[state.dia]=JSON.parse(JSON.stringify(SEED_CAL.sedesPorDia[state.dia]));
+    const sumadas=expandirParaNoOcultarNada(B.sedesPorDia[state.dia], B, state.dia);  // conserva lo de esta semana
+    logOp('reparar_dia', state.dia+' (+'+sumadas+' col.)');
+    saveState(); renderAll();
+    const vis=Object.keys(B.alumnos||{}).filter(k=>k.split('|')[0]===state.dia).length;
+    alert('✅ Día reparado.\n\n'+vis+' alumnos de este día están cargados y visibles'+(sumadas?('\nSe recuperaron '+sumadas+' columna(s) que tenían alumnos de esta semana.'):'')+'\n\nNo se borró nada.');
+  }catch(e){ alert('No pude reparar automáticamente: '+e.message+'\n\nProbá Acciones → 🕐 Puntos de restauración.'); }
+}
+function _renderGridReal(){
   const sedes=sedesDelDia();
   const grid=document.getElementById('grid');
   const B=book();
@@ -2129,6 +2241,51 @@ document.getElementById('btnRestDia').onclick=restaurarDiaDesdeMadre;
 document.getElementById('btnDeshacer').onclick=deshacerBackup;
 document.getElementById('btnPuntos').onclick=puntosRestauracion;
 document.getElementById('btnResembrar').onclick=resembrarTodo;
+document.getElementById('btnRevisarDatos').onclick=function(){
+  const DIAS=['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
+  const libros=[['ESTA SEMANA',state.semana],['LA QUE VIENE',state.semanaProxima],['MADRE',state.madre]];
+  let inf=[], totalOcultos=0, candados=[], totalCandados=0;
+  libros.forEach(([nom,B])=>{
+    if(!B) return;
+    DIAS.forEach(d=>{
+      const need=columnasQueExigenLosDatos(B,d);
+      const mapa=(B.sedesPorDia||{})[d]||[];
+      // (a) alumnos fuera de las columnas existentes
+      Object.keys(need).forEach(sk=>{
+        const sede=mapa.find(s=>s.key===sk);
+        const tiene=sede?sede.profes.length:0;
+        if(tiene<need[sk]){
+          const faltan=need[sk]-tiene;
+          const ocultos=Object.keys(B.alumnos||{}).filter(k=>{const p=k.split('|');return p[0]===d&&p[1]===sk&&parseInt(p[2],10)>=tiene;}).length;
+          totalOcultos+=ocultos;
+          inf.push('• '+nom+' / '+d+' / '+sk+': faltan '+faltan+' columna(s) — '+ocultos+' alumno(s) sin mostrar');
+        }
+      });
+      expandirParaNoOcultarNada(mapa,B,d);
+      // (b) alumnos tapados por un horario bloqueado (candado)
+      Object.keys(B.libres||{}).forEach(lk=>{
+        const p=lk.split('|'); if(p[0]!==d) return;
+        const dentro=Object.keys(B.alumnos||{}).filter(ak=>{
+          const q=ak.split('|');
+          return q[0]===p[0]&&q[1]===p[1]&&q[2]===p[2]&&q[3]===p[3] && B.alumnos[ak] && B.alumnos[ak].nombre;
+        });
+        if(dentro.length){ totalCandados+=dentro.length; candados.push({lk, nom, detalle:nom+' / '+d+' / '+p[1]+' col.'+p[2]+' '+(HORAS[+p[3]]||'')+': '+dentro.map(k=>B.alumnos[k].nombre).join(', ')}); }
+      });
+    });
+  });
+  if(!inf.length && !candados.length){ alert('✅ Revisión completa: no hay ningún alumno oculto.\n\nToda la información cargada se está mostrando en la grilla.'); return; }
+  let msg='🔎 Encontré datos que NO se están mostrando:\n\n';
+  if(inf.length) msg+='COLUMNAS FALTANTES ('+totalOcultos+' alumno/s):\n'+inf.join('\n')+'\n\n';
+  if(candados.length) msg+='TAPADOS POR UN CANDADO 🔒 ('+totalCandados+' alumno/s):\n'+candados.slice(0,10).map(c=>'• '+c.detalle).join('\n')+(candados.length>10?'\n  …y '+(candados.length-10)+' más':'')+'\n\n';
+  msg+='¿Querés que los recupere ahora? (agrega las columnas que faltan y saca esos candados — NO se borra nada)';
+  if(confirm(msg)){
+    backupAuto('antes de recuperar datos ocultos');
+    candados.forEach(c=>{ libros.forEach(([nom,B])=>{ if(B&&nom===c.nom&&B.libres) delete B.libres[c.lk]; }); });
+    logOp('recuperar_ocultos', (totalOcultos+totalCandados)+' alumnos');
+    saveState(); renderAll();
+    alert('✅ Listo: ahora se ven los '+(totalOcultos+totalCandados)+' alumnos que estaban ocultos.\n\nRevisá la grilla y, si algún horario tenía que quedar bloqueado, volvé a ponerle el candado.');
+  }
+};
 document.getElementById('btnVerLog').onclick=function(){
   if(!_fbdb){ alert('Sin conexión a la nube.'); return; }
   _fbdb.ref('log_ops').once('value').then(snap=>{
@@ -2366,6 +2523,7 @@ async function guardarHorariosEnPlanilla(){
 }
 
 loadState();
+try{ sanearEstado(); }catch(e){ console.error('saneo inicial:', e); }
 reindexarAlumnos();
 setMode(state.mode);
 fillAlumnosDatalist();
