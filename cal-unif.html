@@ -1466,8 +1466,14 @@ function buildResumen(){
         for(let si=0;si<SLOTS_POR_HORA;si++){
           const al=B.alumnos[aKey(s.key,pi,hi,si)];
           if(al && al.nombre){
-            let t=`${abrevNombre(al.nombre)} (${al.mod||''})`;
-            if(!al.confirmado) t+=' 👀';  // falta confirmar
+            let t;
+            if(al.mod==='BLOQUE'){
+              const emo = /ALMUERZO/i.test(al.nombre) ? ' 🍽️' : (/ALTO RENDIMIENTO/i.test(al.nombre) ? ' 🏋️' : '');
+              t=al.nombre+emo;                               // bloques: nombre + su emoji, sin "(BLOQUE)"
+            } else {
+              t=`${abrevNombre(al.nombre)} (${al.mod||''})`;
+              if(!al.confirmado) t+=' 👀';  // falta confirmar
+            }
             studs.push(t);
           }
         }
