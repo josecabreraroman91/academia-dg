@@ -283,6 +283,9 @@
 .dropdown.open .dropdown-menu{display:flex}
 .slot.revisar{background:#bfe9ff !important;box-shadow:inset 0 0 0 2px #2ba6e0;border-radius:6px}
 .slot.revisar .nm{color:#08405e}
+/* Si está PRESENTE (verde) y además marcado para revisar, manda el verde y el celeste queda como borde */
+.slot.confirmado.revisar{background:#b9e3c6 !important;box-shadow:inset 0 0 0 2px #2ba6e0}
+.slot.confirmado.revisar .nm{color:#1d5a34}
 .dropdown-menu .btn{width:100%;text-align:left}
 </style>
 </head>
@@ -1541,6 +1544,15 @@ function moverAlumnoCelda(srcCell,dstCell){
   if(!B.alumnos[sK] || B.alumnos[dK]) return;   // solo si origen tiene alumno y destino está vacío
   if(!confirmarSiMadre()) return;
   B.alumnos[dK]=B.alumnos[sK]; delete B.alumnos[sK];
+  // La marca "para revisar" viaja CON el alumno (antes se quedaba pegada a la celda:
+  // por eso un alumno verde caía en una celda con marca vieja y se ponía celeste)
+  try{
+    const kOrigen=markKeyDe(s[0],+s[1],+s[2],+s[3]), kDestino=markKeyDe(d[0],+d[1],+d[2],+d[3]);
+    if(_revisar[kOrigen]){ _revisar[kDestino]=true; delete _revisar[kOrigen]; }
+    else { delete _revisar[kDestino]; }   // el destino no hereda marcas de un alumno anterior
+    guardarRevisar();
+    if(!_aplicandoRemoto && _calListo) empujarCalendario();
+  }catch(e){}
   saveState(); renderGrid();
 }
 
@@ -2194,7 +2206,7 @@ document.getElementById('btnProfs').onclick=openProfs;
 document.getElementById('btnProfsMenu').onclick=openProfs;
 document.getElementById('btnCloseProfs').onclick=closeProfs;
 document.getElementById('btnAddProfesor').onclick=addProfesor;
-document.getElementById('overlayProfs').onclick=(e)=>{ if(e.target.id==='overlayProfs') closeProfs(); };
+cerrarSoloSiTocasElFondo('overlayProfs', closeProfs);
 document.getElementById('btnEnvios').onclick=openEnvios;
 document.getElementById('btnResumen').onclick=toggleResumen;
 document.getElementById('btnCloseTel').onclick=closeTel;
@@ -2209,7 +2221,7 @@ document.getElementById('btnHorariosPlan').onclick=guardarHorariosEnPlanilla;
     document.addEventListener('click', (e)=>{ if(!dd.contains(e.target)) dd.classList.remove('open'); });
   }
 })();
-document.getElementById('overlayTel').onclick=(e)=>{ if(e.target.id==='overlayTel') closeTel(); };
+cerrarSoloSiTocasElFondo('overlayTel', closeTel);
 // Vista de envíos
 document.getElementById('evBack').onclick=closeEnvios;
 document.getElementById('evDiaSel').onchange=(e)=>{ _envioDia=e.target.value; evQueueIdx=0; renderEnvios(); };
@@ -2321,7 +2333,18 @@ document.getElementById('fileRestore').onchange=(e)=>{
 };
 document.getElementById('ausGuardar').onclick=guardarHistorialFinal;
 document.getElementById('ausCancel').onclick=()=>{ cerrarClasificarAusentes(); _cierrePend=null; };
-document.getElementById('overlay').onclick=(e)=>{ if(e.target.id==='overlay') closeEditor(); };
+// Cerrar tocando el fondo, PERO no si venías seleccionando texto dentro del panel
+function cerrarSoloSiTocasElFondo(idOverlay, fnCerrar){
+  const ov=document.getElementById(idOverlay); if(!ov) return;
+  let inicio=null;
+  ov.addEventListener('pointerdown', e=>{ inicio=e.target; });
+  ov.addEventListener('click', e=>{
+    const empezoEnElFondo = inicio && inicio.id===idOverlay;
+    inicio=null;
+    if(e.target.id===idOverlay && empezoEnElFondo) fnCerrar();
+  });
+}
+cerrarSoloSiTocasElFondo('overlay', closeEditor);
 
 // ===== Guardar HORARIOS del calendario en la planilla (sección SEMANA) =====
 const GOOGLE_CLIENT_ID='992149858690-ieom1l1hc5fie8c283t81kv6ggvlkaj8.apps.googleusercontent.com';
