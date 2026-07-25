@@ -517,6 +517,15 @@ const ANCLAS = [
 ];
 const NOTA_PRINCIPIANTE = 0.40;   // por debajo de esto: "P"
 
+/* Mismo Firebase que usa el calendario, en un espacio propio (niveles_v1).
+   No toca calendario_v2, cobros_v1, dia, log_ops ni snapshots. */
+const FB_URL = "https://academia-dg-default-rtdb.firebaseio.com";
+const FB_NS  = "niveles_v1";
+
+/* Misma planilla que usan cal-unif.html y alumnos-unif.html */
+const SHEET_ID = "1DPyD7KmYSYNht2MHsn10csIMHPNRJpEhCJOgPtCRBrE";
+const GVIZ_ALUMNOS = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ALUMNOS`;
+
 const K_LS = {al:"adg_niv_alumnos", ev:"adg_niv_evals", cfg:"adg_niv_cfg", q:"adg_niv_cola"};
 
 /* ---------------- estado ---------------- */
@@ -775,7 +784,7 @@ function renderList(){
     b.setAttribute("aria-current", sel && sel.id===a.id);
     const stale = u && diasDesde(u.fecha)>90;
     b.innerHTML=`<span class="nm"><b></b><small></small></span>
-      <span class="lvlbadge ${u?"set":""} ${stale?"stale":""}">${u?fmtNivel(u.nivel):"—"}</span>`;
+      <span class="lvlbadge ${u?"set":""} ${stale?"stale":""}">${u?u.categoria:"—"}</span>`;
     b.querySelector("b").textContent=a.nombre;
     const tit = a.titular || "sin profe";
     b.querySelector("small").textContent =
@@ -965,6 +974,10 @@ function pintarScore(){
   const falta=[];
   if(!cfg.profe) falta.push("elegir tu nombre en <b>Profe</b>, arriba a la derecha");
   if(!r.completo) falta.push(`responder ${r.total-r.completos} ítem(s) que faltan`);
+  /* los botones de deshacer aparecen en cuanto el alumno tiene evaluación */
+  const hayPrev=!!ultimaEval(sel.id);
+  ["undo","reset"].forEach(id=>{ const b=document.getElementById(id); if(b) b.hidden=!hayPrev });
+
   const av=document.getElementById("aviso");
   av.innerHTML = falta.length ? "Para guardar falta: "+falta.join(" y ") : "";
   av.hidden = !falta.length;
