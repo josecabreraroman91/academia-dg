@@ -298,6 +298,7 @@ window.ADG = { token:null, listo:false };
   <div class="grow"></div>
   <label class="sync" for="profe">Profe</label>
   <select id="profe" aria-label="Profesor que evalúa"></select>
+  <span id="adgModo" style="display:none;font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid #d29922;color:#d29922;margin-right:6px">Administración</span>
   <button class="tb mono-label" id="openQueue">Cola</button>
   <button class="tb mono-label" id="openData">Datos</button>
   <span class="sync" id="syncState">Local</span>
@@ -1070,9 +1071,9 @@ function guardar(){
     sincronizado: false
   };
   evals.push(rec); reindexar(); save(K_LS.ev, evals);
-  if(anterior && anterior!==r.categoria){
-    cola[sel.id]={aprobado:false}; save(K_LS.q,cola);
-  }
+  /* Toda evaluación entra a la cola: la revisa y la da de alta el
+     administrador, y recién ahí sube a la planilla. */
+  cola[sel.id]={aprobado:false}; save(K_LS.q,cola);
   /* Si este alumno ya tenía el visto bueno y todavía no se aplicó, la
      aprobación se cae: hay que volver a aprobar el número nuevo. */
   if(cola[sel.id] && cola[sel.id].aprobado){
@@ -1084,7 +1085,7 @@ function guardar(){
 
   pushFirebase([rec]);
   auditar("evaluacion", `${sel.nombre} · ${modoActual} · ${fmtNivel(r.nivel)} ${r.categoria}${anterior&&anterior!==r.categoria?` (antes ${anterior})`:""}`);
-  toast(`Guardado · ${fmtNivel(r.nivel)} ${r.categoria}`);
+  toast(`Guardado · ${fmtNivel(r.nivel)} ${r.categoria} · pendiente de aprobación`);
   renderList(); bindEditor(); pintarScore();
 }
 
@@ -1457,6 +1458,35 @@ leerGviz(cfg.gviz||GVIZ_ALUMNOS);
     }, 120000);
   }
 
+  // Lee la ficha y decide qué puede ver esta persona.
+  // Sin permiso de aprobaciones: no ve Cola ni Datos.
+  function aplicarPermisos(correo){
+    var clave = String(correo).toLowerCase().replace(/\./g, ',');
+    fetch(FB_URL + '/usuarios/' + encodeURIComponent(clave) + '.json')
+      .then(function(r){ return r.json(); })
+      .then(function(f){
+        var p = (f && f.permisos) || {};
+        var puedeAprobar = (p.admin === true) ||
+                           (p.aprobaciones === 'leer') || (p.aprobaciones === 'escribir');
+        var q=document.getElementById('openQueue');
+        var d=document.getElementById('openData');
+        if(!puedeAprobar){
+          if(q) q.style.display='none';
+          if(d) d.style.display='none';
+        } else {
+          var t=document.getElementById('adgModo');
+          if(t) t.style.display='inline-block';
+        }
+      })
+      .catch(function(){
+        // Si no se pudo leer la ficha, se asume lo más restrictivo
+        var q=document.getElementById('openQueue');
+        var d=document.getElementById('openData');
+        if(q) q.style.display='none';
+        if(d) d.style.display='none';
+      });
+  }
+
   try{
     // onIdTokenChanged mantiene la credencial fresca (se renueva sola cada hora)
     firebase.auth().onIdTokenChanged(function(u){
@@ -1464,6 +1494,7 @@ leerGviz(cfg.gviz||GVIZ_ALUMNOS);
       u.getIdToken().then(function(t){
         window.ADG.token=t; window.ADG.listo=true;
         hide(); arrancarSync();
+        aplicarPermisos(u.email);
       });
     });
   }catch(e){ show('Firebase no inició: '+e.message); }
