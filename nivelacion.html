@@ -1458,8 +1458,9 @@ leerGviz(cfg.gviz||GVIZ_ALUMNOS);
       .then(function(r){ return r.json(); })
       .then(function(f){
         var p = (f && f.permisos) || {};
-        var puedeAprobar = (p.admin === true) ||
-                           (p.aprobaciones === 'leer') || (p.aprobaciones === 'escribir');
+        // Ya no hay paso de aprobación: la Cola queda como historial y
+        // Datos tiene la configuración. Solo el administrador.
+        var puedeAprobar = (p.admin === true);
         var q=document.getElementById('openQueue');
         var d=document.getElementById('openData');
         if(!puedeAprobar){
