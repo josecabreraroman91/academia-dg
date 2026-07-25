@@ -298,10 +298,13 @@ table.q td.mv{font-family:"Barlow Condensed",sans-serif;font-weight:700}
     <input type="url" id="gvizUrl">
     <div class="actions"><button class="btn ghost small" id="gvizLoad">Leer ahora</button><button class="btn ghost small" id="gvizSave">Guardar URL</button></div>
 
-    <h4>Firebase (opcional)</h4>
-    <p class="hint">URL de tu Realtime Database. Las evaluaciones se guardan en <code>/niveles</code> por REST, además del respaldo local. Dejalo vacío para trabajar solo local.</p>
-    <input type="url" id="fbUrl" placeholder="https://tu-proyecto.firebaseio.com">
-    <div class="actions"><button class="btn ghost small" id="fbSave">Guardar</button><button class="btn ghost small" id="fbPush">Subir pendientes</button></div>
+    <h4>Sincronización</h4>
+    <p class="hint">Las evaluaciones se guardan en el dispositivo y se suben al Firebase de la academia (espacio <code>niveles_v1</code>, aparte del calendario). Si un profe evalúa sin señal, queda guardado y sube solo cuando vuelve la conexión.</p>
+    <div class="actions">
+      <button class="btn ghost small" id="fbPush">Subir pendientes</button>
+      <button class="btn ghost small" id="fbPull">Traer de otros dispositivos</button>
+      <span class="hint" id="fbInfo"></span>
+    </div>
 
     <h4>Control de criterio</h4>
     <p class="hint">Promedio de nivel que pone cada profe. Si uno se despega más de 0,4 del promedio general, está puntuando con otra vara — no hace falta que nadie evalúe de más para detectarlo.</p>
@@ -498,6 +501,11 @@ const CATEGORIAS = [
 ];
 
 const SEDES_DEFAULT  = ["Elite","Segurola","Lomas"];
+/* Mismo Firebase que usa el calendario, en un espacio propio (niveles_v1).
+   No toca calendario_v2, cobros_v1, dia, log_ops ni snapshots. */
+const FB_URL = "https://academia-dg-default-rtdb.firebaseio.com";
+const FB_NS  = "niveles_v1";
+
 /* Misma planilla que usan cal-unif.html y alumnos-unif.html */
 const SHEET_ID = "1DPyD7KmYSYNht2MHsn10csIMHPNRJpEhCJOgPtCRBrE";
 const GVIZ_ALUMNOS = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ALUMNOS`;
@@ -507,7 +515,7 @@ const K_LS = {al:"adg_niv_alumnos", ev:"adg_niv_evals", cfg:"adg_niv_cfg", q:"ad
 let alumnos = load(K_LS.al, []);
 let evals   = load(K_LS.ev, []);      // historial: una fila por evaluación
 let cola    = load(K_LS.q,  {});      // id -> {aprobado:bool}
-let cfg     = load(K_LS.cfg, {profe:"", gviz:GVIZ_ALUMNOS, fb:""});
+let cfg     = load(K_LS.cfg, {profe:"", gviz:GVIZ_ALUMNOS});
 if(!cfg.gviz) cfg.gviz=GVIZ_ALUMNOS;
 let sel = null;          // alumno seleccionado
 let draft = {};          // respuestas en curso
@@ -539,10 +547,40 @@ function categoriaDe(n){ return (CATEGORIAS.find(c=>n<=c.max)||CATEGORIAS[CATEGO
 function fmtNivel(n){ return n.toFixed(2).replace(/0$/,"") }
 
 /* ---------------- alumnos ---------------- */
-function ultimaEval(id){
-  let r=null;
-  evals.forEach(e=>{ if(e.id_alumno===id && (!r || e.fecha>r.fecha)) r=e });
-  return r;
+/* Las evaluaciones no se borran nunca. Para deshacer se guarda un registro
+   de tipo "anulacion" que apunta a la evaluación anulada; el historial queda
+   entero y el nivel vuelve solo a la evaluación anterior. */
+let anulSet=new Set();          // id_eval anulados
+let ultimaPorAlumno={};         // id_alumno -> evaluación vigente
+
+function reindexar(){
+  anulSet=new Set();
+  evals.forEach(e=>{ if(e.tipo==="anulacion" && e.anula) anulSet.add(e.anula) });
+  ultimaPorAlumno={};
+  evals.forEach(e=>{
+    if(e.tipo==="anulacion") return;
+    if(anulSet.has(e.id_eval)) return;
+    const p=ultimaPorAlumno[e.id_alumno];
+    if(!p || e.fecha>p.fecha) ultimaPorAlumno[e.id_alumno]=e;
+  });
+}
+function ultimaEval(id){ return ultimaPorAlumno[id]||null }
+
+/* Anula una evaluación puntual */
+function anularEval(ev, motivo){
+  const rec={
+    id_eval: ev.id_alumno+"_an_"+Date.now(),
+    tipo:"anulacion", anula: ev.id_eval,
+    id_alumno: ev.id_alumno, nombre: ev.nombre,
+    nivel_anulado: ev.nivel, categoria_anulada: ev.categoria,
+    motivo: motivo||"", profe: cfg.profe,
+    uid: user?user.uid:"", email: user?user.email:"",
+    fecha: new Date().toISOString(), sincronizado:false
+  };
+  evals.push(rec); reindexar(); save(K_LS.ev,evals);
+  pushFirebase([rec]);
+  auditar("anulacion", `${ev.nombre} · se anuló ${fmtNivel(ev.nivel)} ${ev.categoria}${motivo?" · "+motivo:""}`);
+  return rec;
 }
 function diasDesde(iso){ return Math.floor((Date.now()-new Date(iso).getTime())/864e5) }
 
@@ -621,7 +659,7 @@ function migrarAId(lista){
     evals.forEach(e=>{ if(e.id_alumno===viejo){ e.id_alumno=a.id; n++ } });
     if(cola[viejo]){ cola[a.id]=cola[viejo]; delete cola[viejo] }
   });
-  if(n){ save(K_LS.ev,evals); save(K_LS.q,cola) }
+  if(n){ reindexar(); save(K_LS.ev,evals); save(K_LS.q,cola) }
   return n;
 }
 
@@ -770,6 +808,10 @@ function plantillaEditor(){
     <button class="btn ghost" id="clear">Limpiar</button>
     <span class="hint" id="progress"></span>
   </div>
+  <div class="actions">
+    <button class="btn ghost small" id="undo"${u?"":" hidden"}>Deshacer última evaluación</button>
+    <button class="btn ghost small" id="reset"${u?"":" hidden"}>Reiniciar alumno</button>
+  </div>
   <p class="hint" style="margin-top:10px">${prev}</p>`;
   return html;
 }
@@ -814,6 +856,27 @@ function bindEditor(){
 
   document.getElementById("save").onclick=guardar;
   document.getElementById("clear").onclick=()=>{ draft={}; bindEditor(); pintarScore() };
+
+  const bUndo=document.getElementById("undo"), bReset=document.getElementById("reset");
+  if(bUndo) bUndo.onclick=()=>{
+    const u=ultimaEval(sel.id);
+    if(!u) return;
+    if(!confirm(`Deshacer la evaluación de ${sel.nombre} del ${new Date(u.fecha).toLocaleDateString("es-PY")} (${fmtNivel(u.nivel)} ${u.categoria})?\n\nEl nivel vuelve a la evaluación anterior. Queda registrado quién lo deshizo.`)) return;
+    anularEval(u, "deshacer última");
+    const ahora=ultimaEval(sel.id);
+    if(!ahora || !ahora.categoria_anterior || ahora.categoria===ahora.categoria_anterior){ delete cola[sel.id]; save(K_LS.q,cola) }
+    abrir(sel);
+    toast(ahora? `Volvió a ${fmtNivel(ahora.nivel)} ${ahora.categoria}` : "Alumno sin evaluación");
+  };
+  if(bReset) bReset.onclick=()=>{
+    const mias=evals.filter(e=>e.tipo!=="anulacion" && e.id_alumno===sel.id && !anulSet.has(e.id_eval));
+    if(!mias.length) return;
+    if(!confirm(`Reiniciar a ${sel.nombre}?\n\nSe anulan sus ${mias.length} evaluación(es) y vuelve a quedar como sin evaluar, con la categoría que tiene la planilla (${sel.cat_actual||"sin categoría"}).\n\nEl historial no se borra: queda el registro de qué se anuló y quién lo hizo.`)) return;
+    mias.forEach(e=>anularEval(e, "reinicio de alumno"));
+    delete cola[sel.id]; save(K_LS.q,cola);
+    abrir(sel);
+    toast("Alumno reiniciado");
+  };
 }
 
 function aplicarModo(){
@@ -877,7 +940,7 @@ function guardar(){
     fiabilidad: 50,
     sincronizado: false
   };
-  evals.push(rec); save(K_LS.ev, evals);
+  evals.push(rec); reindexar(); save(K_LS.ev, evals);
   if(anterior && anterior!==r.categoria){
     cola[sel.id]={aprobado:false}; save(K_LS.q,cola);
   }
@@ -952,7 +1015,7 @@ async function pushFirebase(recs){
   const q = "";
   for(const r of recs){
     try{
-      const res=await fetch(`${base}/niveles/${r.id_eval}.json${q}`,{
+      const res=await fetch(`${base}/evaluaciones/${r.id_eval}.json${q}`,{
         method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(r)
       });
       if(res.ok){
@@ -962,6 +1025,29 @@ async function pushFirebase(recs){
     }catch(e){ /* queda pendiente */ }
   }
   save(K_LS.ev,evals); estadoSync();
+}
+
+/* Trae de Firebase las evaluaciones cargadas en otros dispositivos y las
+   mezcla con las locales. Gana la más reciente por alumno; nunca borra
+   nada de lo local. */
+async function pullFirebase(){
+  const base=dbBase();
+  try{
+    const r=await fetch(`${base}/evaluaciones.json`);
+    if(!r.ok) throw 0;
+    const data=await r.json();
+    if(!data) return 0;
+    const tengo=new Set(evals.map(e=>e.id_eval));
+    let nuevas=0;
+    Object.values(data).forEach(e=>{
+      if(e && e.id_eval && !tengo.has(e.id_eval)){
+        e.sincronizado=true; evals.push(e); nuevas++;
+      }
+    });
+    if(nuevas){ reindexar(); save(K_LS.ev,evals); renderList(); if(sel) pintarScore() }
+    estadoSync(nuevas);
+    return nuevas;
+  }catch(e){ estadoSync(); return 0 }
 }
 
 /* registro de auditoría: quién hizo qué y cuándo */
@@ -979,10 +1065,11 @@ async function auditar(accion, detalle){
     });
   }catch(e){}
 }
-function estadoSync(){
+function estadoSync(nuevas){
   const pend=evals.filter(e=>!e.sincronizado).length;
   const el=document.getElementById("syncState");
-  el.textContent = !dbBase() ? "Local" : (pend? `${pend} sin subir` : "Sincronizado");
+  el.textContent = pend ? `${pend} sin subir`
+                 : (nuevas ? `${nuevas} nuevas` : `${Object.keys(ultimaPorAlumno).length} evaluados`);
 }
 
 /* ---------------- exportar ---------------- */
@@ -1008,7 +1095,7 @@ function toast(msg){
 /* ---------------- profe que evalúa ----------------
    Sin login propio: el control de acceso va a venir del panel general de
    permisos. Los campos uid/email quedan preparados para cuando llegue.     */
-const dbBase = () => (cfg.fb||"").replace(/\/$/,"");
+const dbBase = () => FB_URL + "/" + FB_NS;
 let user=null, token=null;
 
 function initProfes(){
@@ -1072,8 +1159,17 @@ async function leerGviz(url){
     mergeAlumnos(p); toast(`${p.length} alumnos desde la planilla`);
   }catch(e){ toast("No pude leer la hoja") }
 }
-document.getElementById("fbSave").onclick=()=>{ cfg.fb=document.getElementById("fbUrl").value.trim(); save(K_LS.cfg,cfg); estadoSync(); toast("Firebase guardado") };
-document.getElementById("fbPush").onclick=()=>pushFirebase(evals.filter(e=>!e.sincronizado));
+document.getElementById("fbPush").onclick=async()=>{
+  const pend=evals.filter(e=>!e.sincronizado);
+  if(!pend.length) return toast("No hay nada pendiente");
+  await pushFirebase(pend);
+  const quedan=evals.filter(e=>!e.sincronizado).length;
+  document.getElementById("fbInfo").textContent = quedan? `Quedaron ${quedan} sin subir` : "Todo subido";
+};
+document.getElementById("fbPull").onclick=async()=>{
+  const n=await pullFirebase();
+  document.getElementById("fbInfo").textContent = n? `${n} evaluaciones nuevas` : "Sin novedades";
+};
 document.getElementById("expEvals").onclick=()=>{
   if(!evals.length) return toast("Sin evaluaciones");
   const cols=["fecha","nombre","titular","profe","modo","nivel","categoria","categoria_anterior","notaGlobal","D1","D2","D3","D4","D5","id_alumno"];
@@ -1092,10 +1188,16 @@ document.getElementById("expQueue").onclick=()=>{
 };
 
 document.getElementById("gvizUrl").value=cfg.gviz||GVIZ_ALUMNOS;
-document.getElementById("fbUrl").value=cfg.fb||"";
 initProfes();
+reindexar();
 renderFilters(); renderList(); estadoSync();
 leerGviz(cfg.gviz||GVIZ_ALUMNOS);
+pullFirebase().then(()=>pushFirebase(evals.filter(e=>!e.sincronizado)));
+/* reintenta cada 2 minutos: si un profe evaluó sin señal, sube al volver */
+setInterval(()=>{
+  const pend=evals.filter(e=>!e.sincronizado);
+  if(pend.length) pushFirebase(pend); else pullFirebase();
+}, 120000);
 </script>
 </body>
 </html>
