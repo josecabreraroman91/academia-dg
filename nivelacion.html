@@ -250,6 +250,47 @@ table.q td.mv{font-family:"Barlow Condensed",sans-serif;font-weight:700}
 </style>
 </head>
 <body>
+<div id="adgLogin" style="display:none;position:fixed;inset:0;z-index:2147483647;background:#0d1117;color:#e6edf3;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center">
+  <div style="font-size:20px;font-weight:600;margin-bottom:8px">Nivelaci&oacute;n &middot; Academia DG</div>
+  <div style="opacity:.75;margin-bottom:24px;max-width:360px;line-height:1.5">Ingres&aacute; para cargar evaluaciones.</div>
+  <button id="adgLoginBtn" style="font-size:16px;padding:14px 26px;border:0;border-radius:10px;background:#2f81f7;color:#fff;cursor:pointer;font-weight:600">Entrar con Google</button>
+  <div id="adgLoginErr" style="color:#ff7b72;margin-top:18px;max-width:360px;line-height:1.5"></div>
+</div>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script>
+// ---- Control de acceso (Academia DG) ----
+// Esta app le habla a la base por llamadas directas, no por el SDK.
+// Por eso hay que colgarle la credencial a cada llamada: eso hace el
+// envoltorio de abajo, sin tocar ninguna de las 6 llamadas originales.
+window.ADG = { token:null, listo:false };
+(function(){
+  try{
+    firebase.initializeApp({
+      apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+      authDomain: "academia-dg.firebaseapp.com",
+      databaseURL: "https://academia-dg-default-rtdb.firebaseio.com",
+      projectId: "academia-dg",
+      storageBucket: "academia-dg.firebasestorage.app",
+      messagingSenderId: "623967243039",
+      appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
+    });
+  }catch(e){}
+
+  // Envoltorio: agrega la credencial a toda llamada a la base
+  var _fetch = window.fetch.bind(window);
+  window.fetch = function(url, opts){
+    try{
+      if(typeof url==='string' && url.indexOf('firebaseio.com')>=0 && window.ADG.token){
+        url += (url.indexOf('?')>=0 ? '&' : '?') + 'auth=' + encodeURIComponent(window.ADG.token);
+      }
+    }catch(e){}
+    return _fetch(url, opts);
+  };
+})();
+</script>
+
 
 <div class="topbar">
   <div class="brand">Nivelación <span>DG</span></div>
@@ -1392,12 +1433,41 @@ initProfes();
 reindexar();
 renderFilters(); renderList(); estadoSync();
 leerGviz(cfg.gviz||GVIZ_ALUMNOS);
-pullFirebase().then(()=>pushFirebase(evals.filter(e=>!e.sincronizado)));
-/* reintenta cada 2 minutos: si un profe evaluó sin señal, sube al volver */
-setInterval(()=>{
-  const pend=evals.filter(e=>!e.sincronizado);
-  if(pend.length) pushFirebase(pend); else pullFirebase();
-}, 120000);
+// ---- Sincronización protegida: no arranca sin sesión iniciada ----
+(function(){
+  var _arrancado=false;
+  function ov(){ return document.getElementById('adgLogin'); }
+  function show(m){ var o=ov(); if(o){ o.style.display='flex'; if(m) document.getElementById('adgLoginErr').textContent=m; } }
+  function hide(){ var o=ov(); if(o) o.style.display='none'; }
+
+  var b=document.getElementById('adgLoginBtn');
+  if(b) b.onclick=function(){
+    document.getElementById('adgLoginErr').textContent='';
+    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+      .catch(function(e){ show('No se pudo entrar: '+e.message); });
+  };
+
+  function arrancarSync(){
+    if(_arrancado) return; _arrancado=true;
+    pullFirebase().then(function(){ pushFirebase(evals.filter(function(e){return !e.sincronizado;})); });
+    /* reintenta cada 2 minutos: si un profe evaluó sin señal, sube al volver */
+    setInterval(function(){
+      var pend=evals.filter(function(e){return !e.sincronizado;});
+      if(pend.length) pushFirebase(pend); else pullFirebase();
+    }, 120000);
+  }
+
+  try{
+    // onIdTokenChanged mantiene la credencial fresca (se renueva sola cada hora)
+    firebase.auth().onIdTokenChanged(function(u){
+      if(!u){ window.ADG.token=null; show(''); return; }
+      u.getIdToken().then(function(t){
+        window.ADG.token=t; window.ADG.listo=true;
+        hide(); arrancarSync();
+      });
+    });
+  }catch(e){ show('Firebase no inició: '+e.message); }
+})();
 </script>
 </body>
 </html>
