@@ -497,7 +497,6 @@ const CATEGORIAS = [
   {cat:"1ra", max:99}
 ];
 
-const PROFES_DEFAULT = ["Profe 1","Profe 2","Profe 3"];
 const SEDES_DEFAULT  = ["Elite","Segurola","Lomas"];
 /* Misma planilla que usan cal-unif.html y alumnos-unif.html */
 const SHEET_ID = "1DPyD7KmYSYNht2MHsn10csIMHPNRJpEhCJOgPtCRBrE";
@@ -508,7 +507,7 @@ const K_LS = {al:"adg_niv_alumnos", ev:"adg_niv_evals", cfg:"adg_niv_cfg", q:"ad
 let alumnos = load(K_LS.al, []);
 let evals   = load(K_LS.ev, []);      // historial: una fila por evaluación
 let cola    = load(K_LS.q,  {});      // id -> {aprobado:bool}
-let cfg     = load(K_LS.cfg, {profe:"", gviz:GVIZ_ALUMNOS, fb:"", profes:PROFES_DEFAULT});
+let cfg     = load(K_LS.cfg, {profe:"", gviz:GVIZ_ALUMNOS, fb:""});
 if(!cfg.gviz) cfg.gviz=GVIZ_ALUMNOS;
 let sel = null;          // alumno seleccionado
 let draft = {};          // respuestas en curso
@@ -1014,9 +1013,13 @@ let user=null, token=null;
 
 function initProfes(){
   const s=document.getElementById("profe");
-  const desdeDatos=[...new Set(alumnos.map(a=>a.titular).filter(Boolean))];
-  const lista=[...new Set([...desdeDatos, ...cfg.profes])].sort();
-  s.innerHTML=`<option value="">— elegir —</option>`+lista.map(p=>`<option>${esc(p)}</option>`).join("");
+  const lista=titulares();                       // solo los de la columna PROFESOR
+  /* Si el profe guardado ya no está en la planilla, lo limpio: evita que
+     quede pegado un nombre viejo del dispositivo. */
+  if(cfg.profe && !lista.includes(cfg.profe)){ cfg.profe=""; save(K_LS.cfg,cfg) }
+  s.innerHTML = lista.length
+    ? `<option value="">— elegir —</option>`+lista.map(p=>`<option>${esc(p)}</option>`).join("")
+    : `<option value="">sin profes en la planilla</option>`;
   s.value=cfg.profe||"";
   s.onchange=()=>{ cfg.profe=s.value; save(K_LS.cfg,cfg); if(sel) pintarScore() };
 }
@@ -1048,7 +1051,7 @@ function mergeAlumnos(nuevos){
   nuevos.forEach(n=>{ map[n.id]={...map[n.id],...n} });
   alumnos=Object.values(map);
   const mig=migrarAId(alumnos);
-  save(K_LS.al,alumnos); renderFilters(); renderList();
+  save(K_LS.al,alumnos); initProfes(); renderFilters(); renderList();
   if(mig) toast(`${mig} evaluaciones re-apuntadas al ID`);
 }
 document.getElementById("genIds").onclick=()=>{
