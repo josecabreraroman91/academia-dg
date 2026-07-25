@@ -526,6 +526,24 @@ const FB_NS  = "niveles_v1";
 const SHEET_ID = "1DPyD7KmYSYNht2MHsn10csIMHPNRJpEhCJOgPtCRBrE";
 const GVIZ_ALUMNOS = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ALUMNOS`;
 
+/* Iniciales de profe, tal como están en Envio Mensajes.gs (CONFIG.PROFESORES).
+   La planilla guarda la inicial; acá se muestra el nombre. */
+const PROFES = {
+  JM:"Jose Mongelos",   RS:"Rodolfo Silva",     ChG:"Checho Gonzalez",
+  FL:"Fernando Lavall", PR:"Pablo Recalde",     MP:"Matias Popovich",
+  VA:"Viani Alfonso",   TE:"Tati Enciso",       MF:"Mathias Fernandez",
+  FA:"Frida Arenas",    OB:"Olga Bareiro",      HR:"Hernan Rodriguez",
+  RA:"Rodrigo Avila"
+};
+function nombreProfe(ini){
+  if(!ini) return "";
+  const k=Object.keys(PROFES).find(x=>x.toUpperCase()===String(ini).toUpperCase());
+  return k? PROFES[k] : ini;
+}
+function nombresProfes(lista){
+  return (lista||[]).map(nombreProfe).join(" y ");
+}
+
 const K_LS = {al:"adg_niv_alumnos", ev:"adg_niv_evals", cfg:"adg_niv_cfg", q:"adg_niv_cola"};
 
 /* ---------------- estado ---------------- */
@@ -751,7 +769,7 @@ function renderFilters(){
   const s=document.getElementById("filtroProfe");
   const list=titulares();
   s.hidden=!list.length;
-  s.innerHTML=`<option value="">Todos los profes</option>`+list.map(p=>`<option${p===filtroProfe?" selected":""}>${esc(p)}</option>`).join("");
+  s.innerHTML=`<option value="">Todos los profes</option>`+list.map(p=>`<option value="${esc(p)}"${p===filtroProfe?" selected":""}>${esc(nombreProfe(p))}</option>`).join("");
   s.onchange=()=>{ filtroProfe=s.value; renderList() };
 }
 
@@ -875,7 +893,7 @@ function numeroItem(dimId,idx){
 
 function bindEditor(){
   document.getElementById("scName").textContent=sel.nombre;
-  document.getElementById("scMeta").textContent=sel.titular||"sin profe asignado";
+  document.getElementById("scMeta").textContent=nombresProfes(sel.profes)||"sin profe asignado";
   const u=ultimaEval(sel.id);
   document.getElementById("scPrev").textContent = u ? `evaluación anterior: ${u.categoria}` : (sel.cat_actual?`planilla: ${sel.cat_actual}`:"");
 
@@ -1200,7 +1218,8 @@ function initProfes(){
      quede pegado un nombre viejo del dispositivo. */
   if(cfg.profe && !lista.includes(cfg.profe)){ cfg.profe=""; save(K_LS.cfg,cfg) }
   s.innerHTML = lista.length
-    ? `<option value="">— elegir —</option>`+lista.map(p=>`<option>${esc(p)}</option>`).join("")
+    ? `<option value="">— elegir —</option>`+lista.map(p=>
+        `<option value="${esc(p)}">${esc(nombreProfe(p))}${PROFES[p]||nombreProfe(p)!==p?` · ${esc(p)}`:""}</option>`).join("")
     : `<option value="">sin profes en la planilla</option>`;
   s.value=cfg.profe||"";
   s.onchange=()=>{ cfg.profe=s.value; save(K_LS.cfg,cfg); if(sel) pintarScore() };
