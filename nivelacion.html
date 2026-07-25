@@ -296,8 +296,7 @@ window.ADG = { token:null, listo:false };
   <div class="brand">Nivelación <span>DG</span></div>
   <button class="tb backbtn mono-label" id="back">← Alumnos</button>
   <div class="grow"></div>
-  <label class="sync" for="profe">Profe</label>
-  <select id="profe" aria-label="Profesor que evalúa"></select>
+  <select id="profe" aria-label="Profesor que evalúa" style="display:none"></select>
   <span id="adgModo" style="display:none;font-size:11px;padding:3px 9px;border-radius:20px;border:1px solid #d29922;color:#d29922;margin-right:6px">Administración</span>
   <button class="tb mono-label" id="openQueue">Cola</button>
   <button class="tb mono-label" id="openData">Datos</button>
@@ -310,7 +309,7 @@ window.ADG = { token:null, listo:false };
       <input type="search" id="q" placeholder="Buscar alumno" aria-label="Buscar alumno">
       <select id="filtroProfe" aria-label="Filtrar por profesor titular" style="width:100%;margin-top:8px;padding:7px 8px;border:1px solid var(--glass);border-radius:var(--r);background:var(--paper)" hidden></select>
       <div class="filters" style="margin-top:4px">
-        <button class="chip" id="fMine" aria-pressed="false">Mis alumnos</button>
+        <button class="chip" id="fMine" aria-pressed="false" style="display:none">Mis alumnos</button>
         <button class="chip" id="fPend" aria-pressed="false">Sin evaluar</button>
         <button class="chip" id="fStale" aria-pressed="false">+90 días</button>
       </div>
@@ -1038,7 +1037,6 @@ function pintarScore(){
 
   /* Digo con claridad qué falta para poder guardar */
   const falta=[];
-  if(!cfg.profe) falta.push("elegir tu nombre en <b>Profe</b>, arriba a la derecha");
   if(!r.completo) falta.push(`responder ${r.total-r.completos} ítem(s) que faltan`);
   /* los botones de deshacer aparecen en cuanto el alumno tiene evaluación */
   const hayPrev=!!ultimaEval(sel.id);
@@ -1071,21 +1069,15 @@ function guardar(){
     sincronizado: false
   };
   evals.push(rec); reindexar(); save(K_LS.ev, evals);
-  /* Toda evaluación entra a la cola: la revisa y la da de alta el
-     administrador, y recién ahí sube a la planilla. */
-  cola[sel.id]={aprobado:false}; save(K_LS.q,cola);
-  /* Si este alumno ya tenía el visto bueno y todavía no se aplicó, la
-     aprobación se cae: hay que volver a aprobar el número nuevo. */
-  if(cola[sel.id] && cola[sel.id].aprobado){
-    cola[sel.id].aprobado=false; save(K_LS.q,cola);
-    marcarAprobado(sel.id, false, null);
-    auditar("aprobacion_caida", `${sel.nombre} · se re-evaluó, la aprobación anterior quedó sin efecto`);
-    setTimeout(()=>toast("La aprobación anterior se canceló: volvé a aprobar"), 2300);
-  }
+  /* Sin paso de aprobación: la evaluación queda aprobada al guardarse y
+     el script de la planilla la levanta en su próxima pasada. Si el alumno
+     se re-evalúa, este registro pisa al anterior con el número nuevo. */
+  cola[sel.id]={aprobado:true}; save(K_LS.q,cola);
+  marcarAprobado(sel.id, true, rec);
 
   pushFirebase([rec]);
   auditar("evaluacion", `${sel.nombre} · ${modoActual} · ${fmtNivel(r.nivel)} ${r.categoria}${anterior&&anterior!==r.categoria?` (antes ${anterior})`:""}`);
-  toast(`Guardado · ${fmtNivel(r.nivel)} ${r.categoria} · pendiente de aprobación`);
+  toast(`Guardado · ${fmtNivel(r.nivel)} ${r.categoria} · se aplica a la planilla`);
   renderList(); bindEditor(); pintarScore();
 }
 
