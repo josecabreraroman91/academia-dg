@@ -292,7 +292,7 @@
 <body class="modo-semana">
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v19 · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v20 · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -706,6 +706,7 @@ function saveState(){
     catch(e2){ _avisoGuardado(true); console.error('SAVE FALLÓ:', e2.message); }
   }
   try{reindexarAlumnos();}catch(e){}
+  try{ guardarRevisar(); }catch(e){}   // espejo de marcas (compatibilidad) siempre al día
   autoPublicar();
   if(!_aplicandoRemoto && _calListo) empujarCalendario();
 }
@@ -760,7 +761,10 @@ function empujarCalendario(){
       semana: state.semana || {alumnos:{},libres:{}},
       semanaProxima: state.semanaProxima || {alumnos:{},libres:{}},
       lunesActual: state.lunesActual || '',
-      revisar: { marks: _revisar || {}, upd: Date.now() },
+      // La marca ya viaja DENTRO de cada alumno (al.revisar). Este mapa se sigue
+      // publicando solo para que un dispositivo con la versión anterior siga viendo
+      // los celestes; "enAlumno" avisa a los dispositivos nuevos que lo ignoren.
+      revisar: { marks: _derivarMarcas(), upd: Date.now(), enAlumno: true },
       _ts: Date.now()
     }));
     // GUARDIA ANTI-DESACTUALIZADO: si la nube tiene una versión MÁS NUEVA que la última que este
@@ -807,7 +811,11 @@ function iniciarCalendarioCompartido(){
     // Firebase borra objetos vacíos: rehidratar para que nunca falte la estructura
     ['madre','semana','semanaProxima'].forEach(k=>{ if(state[k]){ if(!state[k].alumnos) state[k].alumnos={}; if(!state[k].libres) state[k].libres={}; } });
     if(r.lunesActual) state.lunesActual = r.lunesActual;
-    if(r.revisar){ _revisar = r.revisar.marks || {}; guardarRevisar(); }
+    // Marcas "para revisar": si el que publicó ya usa el formato nuevo, las marcas vienen
+    // dentro de cada alumno y el mapa se ignora. Si publicó un dispositivo con la versión
+    // anterior, se importa su mapa hacia adentro de los alumnos (una sola vez).
+    if(r.revisar && !r.revisar.enAlumno){ try{ importarMarcasViejas(r.revisar.marks||{}); }catch(e){} }
+    guardarRevisar();
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
     migrarSedesPorBook();
     _aplicandoRemoto = false; _calListo = true;
@@ -1140,7 +1148,7 @@ function _renderGridReal(){
             if(al.lado) tags.push(`<span class="tag">${al.lado}</span>`);
             if(al.mod) tags.push(`<span class="tag mod">${al.mod}</span>`);
             const conf = state.mode==='semana' && al.confirmado;
-            const marcado = estaMarcado(c.sk,c.pi,hi,si);
+            const marcado = !!al.revisar;   // el estado se lee del ALUMNO, nunca de la celda
             const checkBtn = state.mode==='semana'
               ? `<button class="check-btn" data-check="${c.sk}|${c.pi}|${hi}|${si}" title="${conf?'Confirmado':'Marcar asistencia'}">✓</button>` : '';
             html+=`<div class="slot${conf?' confirmado':''}${marcado?' revisar':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
@@ -1203,10 +1211,8 @@ function _renderGridReal(){
       if(!al) return;
       al.confirmado = !al.confirmado;
       // Al marcar PRESENTE, se quita sola la marca celeste "para revisar" (ya quedó resuelto)
-      if(al.confirmado){
-        const kR=markKeyDe(sk,+pi,+hi,+si);
-        if(_revisar[kR]){ delete _revisar[kR]; guardarRevisar(); if(!_aplicandoRemoto && _calListo) empujarCalendario(); }
-      }
+      if(al.confirmado && al.revisar) delete al.revisar;
+      guardarRevisar();
       saveState(); renderGrid();
     };
   });
@@ -1290,19 +1296,61 @@ function autocompletarDesdeNube(){
 }
 function closeEditor(){ document.getElementById('overlay').classList.remove('show'); editingCell=null; }
 
-// ===== MARCA "para revisar" (celeste) — COMPARTIDA entre dispositivos vía Firebase =====
+// ===== MARCA "para revisar" (celeste) — VIVE DENTRO DEL ALUMNO =====
+// Antes la marca se guardaba en un mapa aparte, con la POSICIÓN de la celda como clave.
+// Por eso al mover un alumno el estado se quedaba pegado a la celda vieja y el alumno
+// "heredaba" el color de la celda destino. Ahora la marca es una propiedad del alumno
+// (al.revisar), igual que al.confirmado: viaja SIEMPRE con él, por cualquier camino.
+// _revisar queda solo como espejo de compatibilidad (localStorage + versiones viejas).
 let _revisar={};
 try{ _revisar=JSON.parse(localStorage.getItem('cal_dg_revisar')||'{}')||{}; }catch(e){ _revisar={}; }
 function markKeyDe(sk,pi,hi,si){ return `${state.mode}|${state.semActiva}|${state.dia}|${sk}|${pi}|${hi}|${si}`; }
-function estaMarcado(sk,pi,hi,si){ return !!_revisar[markKeyDe(sk,pi,hi,si)]; }
-function guardarRevisar(){ try{ localStorage.setItem('cal_dg_revisar', JSON.stringify(_revisar)); }catch(e){} }
+function estaMarcado(sk,pi,hi,si){
+  const al=book().alumnos[cellKey(sk,pi,hi,si)];
+  return !!(al && al.revisar);
+}
+// Reconstruye el mapa viejo a partir de los alumnos (para localStorage y dispositivos con la versión anterior)
+function _librosMarcas(){
+  return [
+    {b:state.madre,         pref:'madre|actual|'},
+    {b:state.semana,        pref:'semana|actual|'},
+    {b:state.semanaProxima, pref:'semana|proxima|'}
+  ];
+}
+function _derivarMarcas(){
+  const m={};
+  _librosMarcas().forEach(({b,pref})=>{
+    const A=(b&&b.alumnos)||{};
+    Object.keys(A).forEach(k=>{ if(A[k]&&A[k].revisar) m[pref+k]=true; });
+  });
+  return m;
+}
+function guardarRevisar(){
+  try{ _revisar=_derivarMarcas(); localStorage.setItem('cal_dg_revisar', JSON.stringify(_revisar)); }catch(e){}
+}
+// Importa marcas guardadas con el formato viejo (mapa por celda) hacia adentro de cada alumno.
+// Se usa una vez al arrancar y cuando llega una publicación de un dispositivo con la versión anterior.
+function importarMarcasViejas(mapa){
+  if(!mapa || typeof mapa!=='object') return 0;
+  let n=0;
+  _librosMarcas().forEach(({b,pref})=>{
+    const A=(b&&b.alumnos)||{};
+    Object.keys(A).forEach(k=>{ const al=A[k]; if(!al) return;
+      const debe=!!mapa[pref+k];
+      if(!!al.revisar!==debe){ if(debe) al.revisar=true; else delete al.revisar; n++; }
+    });
+  });
+  return n;
+}
 function toggleRevisar(){
   if(!editingCell) return;
   const [sk,pi,hi,si]=editingCell.split('|');
-  const k=markKeyDe(sk,+pi,+hi,+si);
-  if(_revisar[k]) delete _revisar[k]; else _revisar[k]=true;
-  guardarRevisar(); if(!_aplicandoRemoto && _calListo) empujarCalendario();
-  actualizarBtnRevisar(sk,+pi,+hi,+si); renderGrid();
+  const al=book().alumnos[cellKey(sk,+pi,+hi,+si)];
+  if(!al) return;                      // sin alumno no hay estado que marcar
+  if(al.revisar) delete al.revisar; else al.revisar=true;
+  guardarRevisar();
+  actualizarBtnRevisar(sk,+pi,+hi,+si);
+  saveState(); renderGrid();           // saveState ya publica a los demás dispositivos
 }
 function actualizarBtnRevisar(sk,pi,hi,si){
   const b=document.getElementById('btnRevisar'); if(!b) return;
@@ -1317,14 +1365,24 @@ function saveEditor(){
   const k=cellKey(sk,+pi,+hi,+si);
   if(!nombre){ delete book().alumnos[k]; }
   else{
-    book().alumnos[k]={
+    // El estado (presente / para revisar) es del ALUMNO, no de la celda: si sigue siendo
+    // la misma persona se conserva; si se cambió por otra, arranca limpio.
+    const previo = book().alumnos[k] || {};
+    const mismaPersona = previo.nombre && normName(previo.nombre)===normName(nombre);
+    const nuevo={
       nombre,
       nivel:document.getElementById('fNivel').value.trim(),
       lado:document.getElementById('fLado').value,
       mod:document.getElementById('fMod').value,
       nota:document.getElementById('fNota').value.trim()
     };
+    if(mismaPersona){
+      if(previo.confirmado) nuevo.confirmado=true;
+      if(previo.revisar)    nuevo.revisar=true;
+    }
+    book().alumnos[k]=nuevo;
   }
+  guardarRevisar();
   saveState(); closeEditor(); renderGrid();
 }
 function guardarBloque(nombre){
@@ -1549,16 +1607,11 @@ function moverAlumnoCelda(srcCell,dstCell){
   const sK=cellKey(s[0],+s[1],+s[2],+s[3]), dK=cellKey(d[0],+d[1],+d[2],+d[3]);
   if(!B.alumnos[sK] || B.alumnos[dK]) return;   // solo si origen tiene alumno y destino está vacío
   if(!confirmarSiMadre()) return;
+  // El alumno se mueve ENTERO (nombre, nivel, lado, tipo, nota, confirmado y revisar).
+  // Todo su estado es propiedad del objeto, así que viaja con él y la celda destino
+  // no le aporta ni le hereda absolutamente nada.
   B.alumnos[dK]=B.alumnos[sK]; delete B.alumnos[sK];
-  // La marca "para revisar" viaja CON el alumno (antes se quedaba pegada a la celda:
-  // por eso un alumno verde caía en una celda con marca vieja y se ponía celeste)
-  try{
-    const kOrigen=markKeyDe(s[0],+s[1],+s[2],+s[3]), kDestino=markKeyDe(d[0],+d[1],+d[2],+d[3]);
-    if(_revisar[kOrigen]){ _revisar[kDestino]=true; delete _revisar[kOrigen]; }
-    else { delete _revisar[kDestino]; }   // el destino no hereda marcas de un alumno anterior
-    guardarRevisar();
-    if(!_aplicandoRemoto && _calListo) empujarCalendario();
-  }catch(e){}
+  guardarRevisar();
   saveState(); renderGrid();
 }
 
@@ -2339,15 +2392,36 @@ document.getElementById('fileRestore').onchange=(e)=>{
 };
 document.getElementById('ausGuardar').onclick=guardarHistorialFinal;
 document.getElementById('ausCancel').onclick=()=>{ cerrarClasificarAusentes(); _cierrePend=null; };
-// Cerrar tocando el fondo, PERO no si venías seleccionando texto dentro del panel
+// ===== CIERRE DE VENTANAS TOCANDO EL FONDO =====
+// Regla: la ventana se cierra SOLO si el gesto entero fue un toque limpio en el fondo.
+// Si empezó adentro del panel (típico al seleccionar texto y soltar afuera), si el dedo/
+// cursor se arrastró, o si quedó texto seleccionado, NO se cierra y no se pierde nada.
+// El arranque del gesto se registra en TODO el documento (fase de captura) para que se
+// detecte aunque haya empezado sobre un campo, sobre el panel o fuera de la ventana.
+let _gestoIni=null;
+(function(){
+  const arranque=(e)=>{ _gestoIni={t:e.target, x:e.clientX, y:e.clientY}; };
+  document.addEventListener('pointerdown', arranque, true);
+  document.addEventListener('mousedown',   arranque, true);   // respaldo sin Pointer Events
+  document.addEventListener('touchstart',  (e)=>{ const t=e.touches&&e.touches[0]; if(t) _gestoIni={t:e.target, x:t.clientX, y:t.clientY}; }, true);
+})();
+function hayTextoSeleccionado(){
+  try{ const s=window.getSelection&&window.getSelection(); return !!(s && String(s).trim()); }catch(e){ return false; }
+}
 function cerrarSoloSiTocasElFondo(idOverlay, fnCerrar){
   const ov=document.getElementById(idOverlay); if(!ov) return;
-  let inicio=null;
-  ov.addEventListener('pointerdown', e=>{ inicio=e.target; });
-  ov.addEventListener('click', e=>{
-    const empezoEnElFondo = inicio && inicio.id===idOverlay;
-    inicio=null;
-    if(e.target.id===idOverlay && empezoEnElFondo) fnCerrar();
+  ov.addEventListener('click', (e)=>{
+    if(e.target!==ov) return;                 // soltó sobre el panel, no sobre el fondo
+    const g=_gestoIni;
+    if(!g || g.t!==ov) return;                // el gesto NO empezó en el fondo (venía de adentro)
+    if(Math.abs(e.clientX-g.x)>8 || Math.abs(e.clientY-g.y)>8) return;   // fue un arrastre
+    // Si quedó texto seleccionado, el primer toque en el fondo solo deselecciona:
+    // así nunca se pierde lo que estabas haciendo y el segundo toque cierra normal.
+    if(hayTextoSeleccionado()){
+      try{ const s=window.getSelection&&window.getSelection(); if(s&&s.removeAllRanges) s.removeAllRanges(); }catch(err){}
+      return;
+    }
+    fnCerrar();
   });
 }
 cerrarSoloSiTocasElFondo('overlay', closeEditor);
@@ -2553,6 +2627,16 @@ async function guardarHorariosEnPlanilla(){
 
 loadState();
 try{ sanearEstado(); }catch(e){ console.error('saneo inicial:', e); }
+// Migración única: las marcas celestes guardadas con el formato viejo (mapa por celda)
+// pasan a vivir adentro de cada alumno. Así no se pierde ninguna marca ya cargada.
+try{
+  if(localStorage.getItem('cal_dg_revisar_migrado')!=='1'){
+    const n=importarMarcasViejas(_revisar);
+    localStorage.setItem('cal_dg_revisar_migrado','1');
+    if(n){ try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e2){} console.warn('🔧 Marcas "para revisar" migradas al alumno:', n); }
+  }
+  guardarRevisar();
+}catch(e){ console.warn('migración de marcas:', e.message); }
 reindexarAlumnos();
 setMode(state.mode);
 fillAlumnosDatalist();
