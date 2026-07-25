@@ -98,7 +98,7 @@ button{cursor:pointer}
 .lvlbadge{
   font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:17px;
   background:var(--paper);border:1px solid var(--glass);border-radius:var(--r);
-  padding:1px 7px;min-width:44px;text-align:center;line-height:1.3
+  padding:1px 7px;min-width:56px;text-align:center;line-height:1.3
 }
 .lvlbadge.set{background:var(--mesh);color:var(--ball);border-color:var(--mesh)}
 .lvlbadge.stale{border-color:var(--alert);color:var(--alert)}
@@ -495,25 +495,28 @@ const RUBRICA = [
   ]}
 ];
 
-const CATEGORIAS = [
-  {cat:"7ma", max:2.00},
-  {cat:"6ta", max:2.75},
-  {cat:"5ta", max:3.50},
-  {cat:"4ta", max:4.25},
-  {cat:"3ra", max:5.00},
-  {cat:"2da", max:5.50},
-  {cat:"1ra", max:99}
+/* CATEGORÍA CON DECIMALES, EN LA ESCALA DE LA PLANILLA.
+   En Academia DG el 1 es la categoría más alta y el 8 la más baja, más "P"
+   para principiante. Este es el número que va a la columna C.
+
+   Cómo se calcula: cada categoría entera tiene una nota de referencia
+   (abajo). Entre dos referencias se interpola, así sale el decimal.
+   Redondea a 0.25, igual que Playtomic.
+
+   ESTOS VALORES SE AJUSTAN: compará el resultado con alumnos que ya sabés
+   en qué categoría juegan y movelos hasta que coincida. */
+const ANCLAS = [
+  {nota:0.75, cat:8},
+  {nota:1.28, cat:7},
+  {nota:1.83, cat:6},
+  {nota:2.35, cat:5},
+  {nota:2.83, cat:4},
+  {nota:3.25, cat:3},
+  {nota:3.60, cat:2},
+  {nota:3.88, cat:1}
 ];
+const NOTA_PRINCIPIANTE = 0.40;   // por debajo de esto: "P"
 
-const SEDES_DEFAULT  = ["Elite","Segurola","Lomas"];
-/* Mismo Firebase que usa el calendario, en un espacio propio (niveles_v1).
-   No toca calendario_v2, cobros_v1, dia, log_ops ni snapshots. */
-const FB_URL = "https://academia-dg-default-rtdb.firebaseio.com";
-const FB_NS  = "niveles_v1";
-
-/* Misma planilla que usan cal-unif.html y alumnos-unif.html */
-const SHEET_ID = "1DPyD7KmYSYNht2MHsn10csIMHPNRJpEhCJOgPtCRBrE";
-const GVIZ_ALUMNOS = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ALUMNOS`;
 const K_LS = {al:"adg_niv_alumnos", ev:"adg_niv_evals", cfg:"adg_niv_cfg", q:"adg_niv_cola"};
 
 /* ---------------- estado ---------------- */
@@ -546,9 +549,29 @@ function calcular(resp, modo){
   const notaGlobal = Object.keys(pesos).reduce((a,k)=>a+dims[k].val*pesos[k],0);
   const crudo = 1.0 + (notaGlobal/4)*4.6;
   const nivel = Math.round(crudo*4)/4;
-  return {dims, notaGlobal, nivel, completo: completos===total, completos, total, categoria: categoriaDe(nivel)};
+  return {dims, notaGlobal, nivel, completo: completos===total, completos, total, categoria: categoriaDe(notaGlobal)};
 }
-function categoriaDe(n){ return (CATEGORIAS.find(c=>n<=c.max)||CATEGORIAS[CATEGORIAS.length-1]).cat }
+/* Devuelve la categoría con decimales, o "P" */
+function categoriaDe(nota){
+  if(nota < NOTA_PRINCIPIANTE) return "P";
+  const prim=ANCLAS[0], ult=ANCLAS[ANCLAS.length-1];
+  if(nota <= prim.nota) return prim.cat.toFixed(2);
+  if(nota >= ult.nota)  return ult.cat.toFixed(2);
+  for(let i=0;i<ANCLAS.length-1;i++){
+    const a=ANCLAS[i], b=ANCLAS[i+1];
+    if(nota>=a.nota && nota<=b.nota){
+      const f=(nota-a.nota)/(b.nota-a.nota);
+      const c=a.cat + f*(b.cat-a.cat);          // baja de 8 hacia 1
+      return (Math.round(c*4)/4).toFixed(2);
+    }
+  }
+  return ult.cat.toFixed(2);
+}
+/* Posición en la barra: 8 a la izquierda, 1 a la derecha */
+function posCat(cat){
+  if(cat==="P") return 0;
+  return Math.max(0, Math.min(100, ((8-parseFloat(cat))/7)*100));
+}
 function fmtNivel(n){ return n.toFixed(2).replace(/0$/,"") }
 
 /* ---------------- alumnos ---------------- */
@@ -620,12 +643,14 @@ function detectarCols(rows){
   const low=rows[hr].map(normName);
   const find=n=>low.indexOf(n);
   const iLado=find("lado"), iLun=find("lunes");
+  let iCat=find("categoria");
+  if(iCat<0 && iLado>0) iCat=iLado-1;
   /* La columna ID: si le pusiste encabezado "id" la busca por nombre.
      Si no, usa la columna anterior a LUNES — la L, que ninguna otra app
      lee ni escribe (teléfono es K, los días arrancan en M). */
   let iId=find("id");
   if(iId<0 && iLun>2) iId=iLun-1;
-  return {hr, nombre:find("alumnos"), cat: iLado>0? iLado-1 : -1, profe:find("profesor"), id:iId};
+  return {hr, nombre:find("alumnos"), cat:iCat, profe:find("profesor"), id:iId};
 }
 /* Devuelve la lista de alumnos, o null si no reconoce la planilla */
 let ultimasFilas=[];      // última lectura cruda, para generar los IDs
@@ -647,7 +672,8 @@ function leerAlumnos(txt){
       nombre,
       fila: r+1,                        // fila real de la planilla
       cat_actual: d.cat>=0 ? (f[d.cat]||"").trim() : "",
-      titular:    d.profe>=0 ? (f[d.profe]||"").trim() : ""
+      titular:    d.profe>=0 ? (f[d.profe]||"").trim() : "",
+      profes:     d.profe>=0 ? parseProfes(f[d.profe]) : []
     });
   }
   return out;
@@ -696,10 +722,21 @@ function slug(s){
   return normName(s).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
 }
 
+/* La columna Profesor guarda iniciales y puede tener varias por celda:
+   "PR RS", "MP, VA, RS", "ChG VA". Las separo para que el desplegable
+   muestre profes y no combinaciones. */
+function parseProfes(txt){
+  return String(txt||"").split(/[,;\/]+|\s+/).map(t=>t.trim()).filter(Boolean);
+}
+
 /* ---------------- render roster ---------------- */
 let filtroProfe="", soloPend=false, soloStale=false, soloMios=false, modoActual="express";
 
-function titulares(){ return [...new Set(alumnos.map(a=>a.titular).filter(Boolean))].sort() }
+function titulares(){
+  const set=new Set();
+  alumnos.forEach(a=>(a.profes||parseProfes(a.titular)).forEach(p=>set.add(p)));
+  return [...set].sort();
+}
 
 function renderFilters(){
   const s=document.getElementById("filtroProfe");
@@ -712,9 +749,9 @@ function renderFilters(){
 function visibles(){
   const q=document.getElementById("q").value.trim().toLowerCase();
   return alumnos.filter(a=>{
-    if(filtroProfe && a.titular!==filtroProfe) return false;
+    if(filtroProfe && !(a.profes||parseProfes(a.titular)).includes(filtroProfe)) return false;
     if(q && !a.nombre.toLowerCase().includes(q)) return false;
-    if(soloMios && cfg.profe && (a.titular||"").toLowerCase()!==cfg.profe.toLowerCase()) return false;
+    if(soloMios && cfg.profe && !(a.profes||parseProfes(a.titular)).includes(cfg.profe)) return false;
     const u=ultimaEval(a.id);
     if(soloPend && u) return false;
     if(soloStale && !(u && diasDesde(u.fecha)>90)) return false;
@@ -784,7 +821,7 @@ function plantillaEditor(){
     <div class="readout">
       <div class="bignum idle" id="scNum">—</div>
       <div class="cat" id="scCat"></div>
-      <div class="prev" id="scPrev"></div>
+      <div class="prev"><span id="scRef"></span><br><span id="scPrev"></span></div>
     </div>
     <div class="track" id="track"></div>
     <div class="dims" id="scDims"></div>
@@ -831,14 +868,14 @@ function bindEditor(){
   document.getElementById("scName").textContent=sel.nombre;
   document.getElementById("scMeta").textContent=sel.titular||"sin profe asignado";
   const u=ultimaEval(sel.id);
-  document.getElementById("scPrev").textContent = u ? `antes ${fmtNivel(u.nivel)} / ${u.categoria}` : (sel.cat_actual?`calendario ${sel.cat_actual}`:"");
+  document.getElementById("scPrev").textContent = u ? `evaluación anterior: ${u.categoria}` : (sel.cat_actual?`planilla: ${sel.cat_actual}`:"");
 
   // pista 0-7
   const tr=document.getElementById("track");
   tr.innerHTML="";
-  for(let v=0;v<=7;v++){
-    const p=(v/7)*100;
-    tr.insertAdjacentHTML("beforeend",`<span class="tick" style="left:${p}%"></span><span class="tlab" style="left:${p}%">${v}</span>`);
+  for(let c=8;c>=1;c--){
+    const p=((8-c)/7)*100;
+    tr.insertAdjacentHTML("beforeend",`<span class="tick" style="left:${p}%"></span><span class="tlab" style="left:${p}%">${c}</span>`);
   }
   tr.insertAdjacentHTML("beforeend",`<span class="marker" id="marker" style="left:0%"></span>`);
 
@@ -908,10 +945,11 @@ function pintarScore(){
   const r=calcular(draft, modoActual);
   const num=document.getElementById("scNum");
   const hay=r.completos>0;
-  num.textContent = hay? fmtNivel(r.nivel) : "—";
+  num.textContent = hay? r.categoria : "—";
   num.classList.toggle("idle", !hay);
-  document.getElementById("scCat").textContent = hay? r.categoria : "";
-  document.getElementById("marker").style.left = (hay? (r.nivel/7)*100 : 0)+"%";
+  document.getElementById("scCat").textContent = hay? "categoría" : "";
+  document.getElementById("scRef").textContent = hay? `nivel Playtomic ${fmtNivel(r.nivel)} de 7` : "";
+  document.getElementById("marker").style.left = (hay? posCat(r.categoria) : 0)+"%";
   RUBRICA.forEach(d=>{
     const bar=document.getElementById("bar-"+d.id);
     bar.querySelector("i").style.width = (r.dims[d.id].val/4*100)+"%";
