@@ -1,0 +1,1098 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nivelación · Academia DG</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#F4F6F4;
+  --card:#FFFFFF;
+  --mesh:#1E2426;
+  --mesh-60:#5C6668;
+  --mesh-30:#9AA3A4;
+  --turf:#14685A;
+  --turf-dark:#0E4C42;
+  --glass:#D9E4E1;
+  --ball:#CDE94A;
+  --alert:#B4451F;
+  --r:3px;
+  --pad:16px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--paper);
+  color:var(--mesh);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-size:15px;
+  line-height:1.45;
+  -webkit-text-size-adjust:100%;
+}
+button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer}
+.mono-label{
+  font-family:"Barlow Condensed",system-ui,sans-serif;
+  text-transform:uppercase;
+  letter-spacing:.08em;
+  font-weight:600;
+}
+
+/* ---------- barra superior ---------- */
+.topbar{
+  position:sticky;top:0;z-index:40;
+  background:var(--turf);color:#fff;
+  display:flex;align-items:center;gap:12px;
+  padding:10px var(--pad);
+  flex-wrap:wrap;
+}
+.brand{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.brand span{color:var(--ball)}
+.topbar .grow{flex:1 1 40px}
+.topbar select,.topbar button.tb{
+  background:rgba(255,255,255,.12);
+  border:1px solid rgba(255,255,255,.28);
+  color:#fff;border-radius:var(--r);
+  padding:6px 9px;
+}
+.topbar select option{color:var(--mesh)}
+.topbar button.tb:hover{background:rgba(255,255,255,.22)}
+.sync{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:13px;opacity:.85}
+
+/* ---------- layout ---------- */
+.wrap{display:flex;align-items:flex-start;gap:0;max-width:1400px;margin:0 auto}
+.roster{
+  width:322px;flex:0 0 322px;
+  border-right:1px solid var(--glass);
+  min-height:calc(100vh - 52px);
+  background:var(--card);
+}
+.board{flex:1 1 auto;min-width:0;padding:var(--pad);padding-bottom:60px}
+
+/* ---------- roster ---------- */
+.roster-head{padding:12px var(--pad) 10px;border-bottom:1px solid var(--glass)}
+.roster-head input[type=search]{
+  width:100%;padding:8px 10px;border:1px solid var(--glass);border-radius:var(--r);background:var(--paper)
+}
+.filters{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.chip{
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:13px;
+  padding:4px 9px;border:1px solid var(--glass);background:var(--card);border-radius:99px;color:var(--mesh-60)
+}
+.chip[aria-pressed=true]{background:var(--mesh);border-color:var(--mesh);color:#fff}
+.count{padding:8px var(--pad);font-size:12px;color:var(--mesh-30);font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.08em}
+.list{list-style:none;margin:0;padding:0 0 24px;max-height:calc(100vh - 210px);overflow:auto}
+.list li{border-bottom:1px solid var(--glass)}
+.stud{
+  width:100%;text-align:left;background:none;border:0;
+  padding:10px var(--pad);display:flex;align-items:center;gap:10px
+}
+.stud:hover{background:var(--paper)}
+.stud[aria-current=true]{background:var(--paper);box-shadow:inset 3px 0 0 var(--ball)}
+.stud .nm{flex:1 1 auto;min-width:0}
+.stud .nm b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stud .nm small{color:var(--mesh-30);font-size:12px}
+.lvlbadge{
+  font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:17px;
+  background:var(--paper);border:1px solid var(--glass);border-radius:var(--r);
+  padding:1px 7px;min-width:44px;text-align:center;line-height:1.3
+}
+.lvlbadge.set{background:var(--mesh);color:var(--ball);border-color:var(--mesh)}
+.lvlbadge.stale{border-color:var(--alert);color:var(--alert)}
+
+/* ---------- scoreboard (elemento firma) ---------- */
+.score{
+  background:var(--mesh);color:#fff;border-radius:var(--r);
+  padding:14px 16px 10px;margin-bottom:var(--pad);
+  position:sticky;top:52px;z-index:30;
+}
+.score .who{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.score .who h2{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px;margin:0;text-transform:uppercase;letter-spacing:.02em}
+.score .who .meta{font-size:12px;color:var(--mesh-30);font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.08em}
+.readout{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
+.bignum{
+  font-family:"Barlow Condensed",sans-serif;font-weight:700;
+  font-size:76px;line-height:.85;color:var(--ball);
+  font-variant-numeric:tabular-nums;
+}
+.bignum.idle{color:var(--mesh-60)}
+.readout .cat{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:21px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px}
+.readout .prev{font-size:12px;color:var(--mesh-30);padding-bottom:9px}
+.readout .prev.moved{color:var(--ball)}
+/* pista 0-7 */
+.track{position:relative;height:26px;margin-top:12px;border-top:1px solid rgba(255,255,255,.22)}
+.track .tick{position:absolute;top:0;width:1px;height:5px;background:rgba(255,255,255,.3)}
+.track .tlab{position:absolute;top:7px;transform:translateX(-50%);font-size:10px;color:var(--mesh-30);font-family:"Barlow Condensed",sans-serif}
+.marker{
+  position:absolute;top:-6px;width:11px;height:11px;border-radius:50%;
+  background:var(--ball);transform:translateX(-50%);
+  transition:left .25s cubic-bezier(.2,.7,.2,1);
+}
+/* barras por dimensión */
+.dims{display:flex;gap:6px;margin-top:10px}
+.dim{flex:1 1 0;min-width:0}
+.dim .bar{height:5px;background:rgba(255,255,255,.14);border-radius:99px;overflow:hidden}
+.dim .bar i{display:block;height:100%;background:var(--ball);width:0;transition:width .25s ease}
+.dim .bar.partial i{background:rgba(205,233,74,.45)}
+.dim .lb{font-size:10px;color:var(--mesh-30);font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* ---------- barra de modo ---------- */
+.modebar{
+  display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:9px 12px;margin-bottom:12px;
+  background:var(--card);border:1px solid var(--glass);border-radius:var(--r)
+}
+.modebar .mono-label{font-size:13px;color:var(--mesh-60)}
+.modebar .hint{flex:1 1 200px}
+
+/* ---------- rúbrica ---------- */
+.dimblock{background:var(--card);border:1px solid var(--glass);border-radius:var(--r);margin-bottom:12px;overflow:hidden}
+.dimblock > header{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 14px;background:var(--paper);border-bottom:1px solid var(--glass)
+}
+.dimblock > header h3{margin:0;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:18px;text-transform:uppercase;letter-spacing:.03em}
+.dimblock > header .w{margin-left:auto;font-size:12px;color:var(--mesh-60);font-family:"Barlow Condensed",sans-serif;letter-spacing:.06em}
+.item{padding:12px 14px;border-bottom:1px solid var(--glass)}
+.item:last-child{border-bottom:0}
+.item > .q{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
+.item > .q .n{font-family:"Barlow Condensed",sans-serif;color:var(--mesh-30);font-weight:600;font-size:14px;min-width:20px}
+.item > .q label{font-weight:600}
+.segs{display:flex;gap:4px;flex-wrap:wrap}
+.seg{
+  flex:1 1 122px;min-width:104px;
+  text-align:left;background:var(--card);
+  border:1px solid var(--glass);border-radius:var(--r);
+  padding:7px 9px;line-height:1.3;
+}
+.seg .sn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:15px;color:var(--mesh-30);display:block}
+.seg .sd{font-size:12px;color:var(--mesh-60);display:block;margin-top:1px}
+.seg:hover{border-color:var(--turf)}
+.seg:focus-visible{outline:2px solid var(--turf);outline-offset:1px}
+.seg[aria-pressed=true]{background:var(--mesh);border-color:var(--mesh)}
+.seg[aria-pressed=true] .sn{color:var(--ball)}
+.seg[aria-pressed=true] .sd{color:rgba(255,255,255,.82)}
+
+/* ---------- acciones ---------- */
+.actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.btn{
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;
+  font-weight:600;font-size:16px;
+  padding:9px 16px;border-radius:var(--r);border:1px solid var(--mesh);background:var(--mesh);color:#fff
+}
+.btn:hover{background:#000}
+.btn[disabled]{opacity:.4;cursor:not-allowed}
+.btn.ghost{background:none;color:var(--mesh);border-color:var(--glass)}
+.btn.ghost:hover{background:var(--paper);border-color:var(--mesh-30)}
+.btn.small{font-size:14px;padding:6px 11px}
+.hint{font-size:12px;color:var(--mesh-30)}
+
+/* ---------- vacío ---------- */
+.empty{
+  background:var(--card);border:1px solid var(--glass);border-radius:var(--r);
+  padding:34px var(--pad);text-align:center
+}
+.empty h2{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;font-size:22px;margin:0 0 6px}
+.empty p{color:var(--mesh-60);max-width:44ch;margin:0 auto 14px}
+
+/* ---------- paneles ---------- */
+dialog{
+  border:0;border-radius:var(--r);padding:0;max-width:640px;width:calc(100% - 24px);
+  box-shadow:0 18px 50px rgba(30,36,38,.28)
+}
+dialog::backdrop{background:rgba(30,36,38,.5)}
+.pnl-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--glass)}
+.pnl-head h2{margin:0;font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;font-size:20px;letter-spacing:.03em}
+.pnl-body{padding:16px;max-height:70vh;overflow:auto}
+.pnl-body h4{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:14px;margin:18px 0 6px;color:var(--mesh-60)}
+.pnl-body h4:first-child{margin-top:0}
+.pnl-body textarea,.pnl-body input[type=text],.pnl-body input[type=url]{
+  width:100%;padding:8px 10px;border:1px solid var(--glass);border-radius:var(--r);background:var(--paper)
+}
+.pnl-body textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
+table.q{width:100%;border-collapse:collapse;font-size:13.5px}
+table.q th,table.q td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--glass)}
+table.q th{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:12px;color:var(--mesh-60)}
+table.q td.mv{font-family:"Barlow Condensed",sans-serif;font-weight:700}
+.toast{
+  position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
+  background:var(--mesh);color:var(--ball);
+  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;
+  padding:10px 18px;border-radius:var(--r);z-index:90;
+  opacity:0;pointer-events:none;transition:opacity .18s
+}
+.toast.on{opacity:1}
+.backbtn{display:none}
+
+@media (max-width:900px){
+  .wrap{display:block}
+  .roster{width:auto;flex:none;border-right:0;border-bottom:1px solid var(--glass);min-height:0}
+  .list{max-height:none}
+  .board{padding-bottom:80px}
+  body.editing .roster{display:none}
+  body.editing .backbtn{display:inline-block}
+  body:not(.editing) .board{display:none}
+  .bignum{font-size:62px}
+  .score{top:0}
+  .seg{flex:1 1 100%}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">Nivelación <span>DG</span></div>
+  <button class="tb backbtn mono-label" id="back">← Alumnos</button>
+  <div class="grow"></div>
+  <label class="sync" for="profe">Profe</label>
+  <select id="profe" aria-label="Profesor que evalúa"></select>
+  <button class="tb mono-label" id="openQueue">Cola</button>
+  <button class="tb mono-label" id="openData">Datos</button>
+  <span class="sync" id="syncState">Local</span>
+</div>
+
+<div class="wrap">
+  <aside class="roster">
+    <div class="roster-head">
+      <input type="search" id="q" placeholder="Buscar alumno" aria-label="Buscar alumno">
+      <select id="filtroProfe" aria-label="Filtrar por profesor titular" style="width:100%;margin-top:8px;padding:7px 8px;border:1px solid var(--glass);border-radius:var(--r);background:var(--paper)" hidden></select>
+      <div class="filters" style="margin-top:4px">
+        <button class="chip" id="fMine" aria-pressed="false">Mis alumnos</button>
+        <button class="chip" id="fPend" aria-pressed="false">Sin evaluar</button>
+        <button class="chip" id="fStale" aria-pressed="false">+90 días</button>
+      </div>
+    </div>
+    <div class="count" id="count"></div>
+    <ul class="list" id="list"></ul>
+  </aside>
+
+  <main class="board" id="board">
+    <div class="empty" id="empty">
+      <h2>Elegí un alumno</h2>
+      <p>Cargá el listado en <b>Datos</b> y después tocá un alumno para evaluarlo. La evaluación son 15 ítems, unos 3 minutos.</p>
+      <button class="btn ghost" id="emptyData">Cargar alumnos</button>
+    </div>
+    <div id="editor" hidden></div>
+  </main>
+</div>
+
+<dialog id="dlgData">
+  <div class="pnl-head"><h2>Datos</h2><div class="grow" style="flex:1"></div><button class="btn ghost small" data-close>Cerrar</button></div>
+  <div class="pnl-body">
+    <h4>Listado de alumnos</h4>
+    <p class="hint">Lee la hoja <b>ALUMNOS</b> tal como está: busca la fila de encabezado con la celda «ALUMNOS» y de ahí saca <b>nombre</b>, <b>categoría</b> (la columna anterior a LADO) y <b>profesor</b>. No hace falta reordenar nada. Si preferís pegar a mano, copiá la hoja completa con sus encabezados.</p>
+    <textarea id="csvIn" placeholder="Pegá acá la hoja ALUMNOS completa (con la fila de encabezados)"></textarea>
+    <div class="actions">
+      <button class="btn" id="csvImport">Importar alumnos</button>
+      <span class="hint" id="csvInfo"></span>
+    </div>
+
+    <h4>Desde la planilla del calendario</h4>
+    <p class="hint">Ya viene apuntando a la hoja ALUMNOS de tu planilla. Se lee cada vez que abrís la app. Requiere que la planilla esté compartida como «cualquiera con el enlace puede ver», igual que la necesitan el calendario y alumnos-unif.</p>
+    <input type="url" id="gvizUrl">
+    <div class="actions"><button class="btn ghost small" id="gvizLoad">Leer ahora</button><button class="btn ghost small" id="gvizSave">Guardar URL</button></div>
+
+    <h4>Firebase (opcional)</h4>
+    <p class="hint">URL de tu Realtime Database. Las evaluaciones se guardan en <code>/niveles</code> por REST, además del respaldo local. Dejalo vacío para trabajar solo local.</p>
+    <input type="url" id="fbUrl" placeholder="https://tu-proyecto.firebaseio.com">
+    <div class="actions"><button class="btn ghost small" id="fbSave">Guardar</button><button class="btn ghost small" id="fbPush">Subir pendientes</button></div>
+
+    <h4>Control de criterio</h4>
+    <p class="hint">Promedio de nivel que pone cada profe. Si uno se despega más de 0,4 del promedio general, está puntuando con otra vara — no hace falta que nadie evalúe de más para detectarlo.</p>
+    <div id="calibBody"></div>
+
+    <h4>Columna ID</h4>
+    <p class="hint"><b>Nunca insertes una columna en el medio de ALUMNOS.</b> Tanto el calendario como alumnos-unif escriben por letra fija (C, D, F:K, M:R): si corrés todo un lugar, se rompen las dos. La columna <b>L</b> queda libre — está entre el teléfono (K) y LUNES (M), y ninguna app la toca. Verificá que esté vacía antes de usarla.</p>
+    <ol class="hint" style="padding-left:18px;line-height:1.7">
+      <li>Tocá <b>Generar IDs</b>. Baja un archivo con una columna de valores, en el mismo orden que tus filas.</li>
+      <li>Abrilo, copiá la columna completa.</li>
+      <li>En la planilla, click en la celda que te indique abajo y pegá con <b>Ctrl+Shift+V</b> (solo valores, sin formato).</li>
+      <li>Volvé acá y tocá <b>Leer ahora</b> para que la app tome los IDs.</li>
+    </ol>
+    <div class="actions">
+      <button class="btn" id="genIds">Generar IDs</button>
+      <span class="hint" id="idsInfo"></span>
+    </div>
+    <p class="hint">Los IDs ya existentes no se tocan: solo completa los vacíos y sigue la numeración. Un alumno nuevo que cargues por alumnos-unif queda sin ID hasta que vuelvas a generar — la app te lo va a marcar como «sin ID» en la lista.</p>
+
+    <h4>Profes de la lista</h4>
+    <p class="hint">El selector de arriba se llena solo con los nombres de la columna <b>profe</b> del CSV de alumnos. Cada profe elige el suyo una vez por dispositivo y queda guardado. Escribilo igual en la planilla que en el selector, si no el filtro «Mis alumnos» no lo reconoce.</p>
+
+    <h4>Reglas de seguridad</h4>
+    <p class="hint">Pegalas en Realtime Database → Reglas. No reemplazan al control de acceso, pero evitan lo peor: que algo pise o borre lo ya guardado.</p>
+    <textarea id="rulesOut" readonly>{
+  "rules": {
+    "niveles": {
+      ".read": true,
+      "$id": {
+        ".write": "!data.exists()"
+      }
+    },
+    "auditoria": {
+      ".read": true,
+      "$id": {
+        ".write": "!data.exists()"
+      }
+    }
+  }
+}</textarea>
+    <p class="hint">Lo importante de esas reglas: una evaluación <b>se escribe una vez y no se puede editar ni borrar</b>. Si alguien se equivocó, evalúa de nuevo y queda la corrección con fecha al lado. Es lo contrario de lo que le pasó al calendario, donde el último que guardaba pisaba todo.</p>
+
+    <h4>Respaldo</h4>
+    <div class="actions">
+      <button class="btn ghost small" id="expEvals">Exportar evaluaciones CSV</button>
+      <button class="btn ghost small" id="expAll">Exportar todo JSON</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="dlgQueue">
+  <div class="pnl-head"><h2>Cola de cambios</h2><div style="flex:1"></div><button class="btn ghost small" data-close>Cerrar</button></div>
+  <div class="pnl-body">
+    <p class="hint" id="queueNote"></p>
+    <div id="queueBody"></div>
+    <div class="actions">
+      <button class="btn" id="expQueue">Exportar aprobados CSV</button>
+      <span class="hint">Columnas: id, nombre, titular, categoria_anterior, categoria, nivel, fecha</span>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ==========================================================================
+   NIVELACIÓN ACADEMIA DG
+   Rúbrica del profe (15 ítems, 0-4) → nota ponderada → nivel 0-7 → categoría.
+   Fórmulas:
+     Dk        = promedio de sus ítems (0-4)
+     notaGlobal= D1*.25 + D2*.25 + D3*.10 + D4*.25 + D5*.15
+     nivel     = 1.0 + (notaGlobal/4) * 4.6      → redondeado a 0.25
+   ========================================================================== */
+
+const PESOS = {D1:.25, D2:.25, D3:.10, D4:.25, D5:.15};
+
+/* Modo express: 6 ítems para cargar rápido a todo el padrón.
+   Saque/resto queda afuera (es el que menos discrimina) y su 10% se
+   reparte entre las otras cuatro dimensiones. */
+const PESOS_EXPRESS = {D1:.28, D2:.28, D3:0, D4:.28, D5:.16};
+const EXPRESS_ITEMS = ["reves","pared","voleas","bandeja","consistencia","competencia"];
+
+const RUBRICA = [
+  {id:"D1", titulo:"Fondo y defensa", items:[
+    {k:"derecha", q:"Derecha", d:[
+      "Gesto incompleto, no controla dirección",
+      "Mantiene la bola a ritmo lento",
+      "Dirige a ritmo medio, falla en bolas rápidas",
+      "Dirección, profundidad y efectos a ritmo medio-alto",
+      "Fiable y ofensiva a ritmo alto y forzada"]},
+    {k:"reves", q:"Revés", d:[
+      "Lo evita, se da la vuelta para no usarlo",
+      "Lo intenta pero es errático",
+      "Defensivo con control a ritmo medio",
+      "Controla dirección y profundidad, sufre solo bolas muy rápidas",
+      "Ofensivo y consistente"]},
+    {k:"pared", q:"Salida de pared", d:[
+      "No devuelve la bola de pared",
+      "Devuelve pared de fondo lenta de derecha",
+      "Fondo de derecha y algo de revés",
+      "Fondo y lateral de derecha consistente, revés en desarrollo",
+      "Bajadas de pared consistentes de los dos lados"]},
+    {k:"globo", q:"Globo", d:[
+      "No usa el globo",
+      "Globea sin control de altura ni profundidad",
+      "Globo defensivo que gana tiempo",
+      "Globo profundo que hace retroceder al rival",
+      "Globo como arma: cambia el punto y recupera la red"]}
+  ]},
+  {id:"D2", titulo:"Red y ataque", items:[
+    {k:"voleas", q:"Voleas (derecha y revés)", d:[
+      "No sube a la red o no llega a la volea",
+      "Volea de bloqueo sin dirección",
+      "Volea de control a ritmo medio, revés flojo",
+      "Volea profunda y dirigida de ambos lados",
+      "Volea ofensiva, define y ataca los pies"]},
+    {k:"bandeja", q:"Bandeja", d:[
+      "No la ejecuta, remata todo al cristal",
+      "La intenta pero sin control",
+      "Bandeja de control que devuelve la bola",
+      "Bandeja colocada que le permite mantener la red",
+      "Bandeja profunda como recurso táctico, con variantes"]},
+    {k:"vibora", q:"Víbora / remate", d:[
+      "No remata",
+      "Remate sin control, regala el punto",
+      "Remate plano con control",
+      "Víbora con efecto que presiona al rival",
+      "Define por 3 y 4 metros, víbora agresiva"]}
+  ]},
+  {id:"D3", titulo:"Saque y resto", items:[
+    {k:"saque", q:"Saque", d:[
+      "Doble falta frecuente",
+      "Pone el saque pero sin dirección",
+      "Saque seguro, sube a la red después",
+      "Dirige el saque y busca la pared lateral",
+      "Saque como primera arma: varía efecto y dirección"]},
+    {k:"resto", q:"Resto", d:[
+      "No devuelve el saque con regularidad",
+      "Devuelve alto y corto, regala la red",
+      "Devuelve profundo la mayoría de las veces",
+      "Resta profundo y dirigido, dificulta la subida",
+      "Ataca el resto y le roba la red al que saca"]}
+  ]},
+  {id:"D4", titulo:"Táctica y juego", items:[
+    {k:"posicion", q:"Posicionamiento y juego en pareja", d:[
+      "No entiende la posición en la cancha",
+      "Se cruza con el compañero, deja huecos",
+      "Sostiene la línea con el compañero a ritmo lento",
+      "Se mueve en bloque con el compañero, cubre bien",
+      "Coordinación total, cubre y comunica en todo momento"]},
+    {k:"decision", q:"Toma de decisiones", d:[
+      "Juega por reflejo, no elige golpe",
+      "Intuitivo, sin estrategia",
+      "Reconoce algunas situaciones de ataque y defensa",
+      "Elige bien el golpe según la situación",
+      "Varía el juego según el rival y controla el ritmo"]},
+    {k:"consistencia", q:"Consistencia (errores no forzados)", d:[
+      "Muchísimos errores no forzados",
+      "Muchos errores, no sostiene el peloteo",
+      "Errores moderados a ritmo medio",
+      "Pocos errores, sostiene peloteos largos",
+      "Muy fiable, casi no regala puntos"]},
+    {k:"lectura", q:"Lectura y anticipación", d:[
+      "No lee la bola, llega tarde a todo",
+      "Reacciona tarde, se sorprende con la pared",
+      "Lee la bola directa, le cuesta la pared",
+      "Anticipa la bola y la pared, se posiciona antes",
+      "Lee la intención del rival antes del golpe"]}
+  ]},
+  {id:"D5", titulo:"Físico y competición", items:[
+    {k:"fisico", q:"Movilidad y condición física", d:[
+      "Movilidad muy limitada, no llega a la bola",
+      "Se cansa en pocos puntos",
+      "Sostiene un partido a ritmo tranquilo",
+      "Buen desplazamiento, aguanta partido completo",
+      "Explosivo y resistente, mantiene nivel los tres sets"]},
+    {k:"competencia", q:"Experiencia competitiva", d:[
+      "Nunca compitió",
+      "Jugó internos o amistosos de la academia",
+      "Torneos amateur y americanas",
+      "Compite regularmente en torneos de club",
+      "Circuito provincial o nacional con resultados"]}
+  ]}
+];
+
+const CATEGORIAS = [
+  {cat:"7ma", max:2.00},
+  {cat:"6ta", max:2.75},
+  {cat:"5ta", max:3.50},
+  {cat:"4ta", max:4.25},
+  {cat:"3ra", max:5.00},
+  {cat:"2da", max:5.50},
+  {cat:"1ra", max:99}
+];
+
+const PROFES_DEFAULT = ["Profe 1","Profe 2","Profe 3"];
+const SEDES_DEFAULT  = ["Elite","Segurola","Lomas"];
+/* Misma planilla que usan cal-unif.html y alumnos-unif.html */
+const SHEET_ID = "1DPyD7KmYSYNht2MHsn10csIMHPNRJpEhCJOgPtCRBrE";
+const GVIZ_ALUMNOS = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ALUMNOS`;
+const K_LS = {al:"adg_niv_alumnos", ev:"adg_niv_evals", cfg:"adg_niv_cfg", q:"adg_niv_cola"};
+
+/* ---------------- estado ---------------- */
+let alumnos = load(K_LS.al, []);
+let evals   = load(K_LS.ev, []);      // historial: una fila por evaluación
+let cola    = load(K_LS.q,  {});      // id -> {aprobado:bool}
+let cfg     = load(K_LS.cfg, {profe:"", gviz:GVIZ_ALUMNOS, fb:"", profes:PROFES_DEFAULT});
+if(!cfg.gviz) cfg.gviz=GVIZ_ALUMNOS;
+let sel = null;          // alumno seleccionado
+let draft = {};          // respuestas en curso
+
+function load(k,fb){ try{ const v=JSON.parse(localStorage.getItem(k)); return v??fb }catch(e){ return fb } }
+function save(k,v){ try{ localStorage.setItem(k,JSON.stringify(v)) }catch(e){ toast("Sin espacio local") } }
+
+/* ---------------- cálculo ---------------- */
+function calcular(resp, modo){
+  const exp = modo==="express";
+  const pesos = exp? PESOS_EXPRESS : PESOS;
+  const dims={}; let completos=0, total=0;
+  RUBRICA.forEach(d=>{
+    let suma=0,n=0,cuenta=0;
+    d.items.forEach(it=>{
+      if(exp && !EXPRESS_ITEMS.includes(it.k)) return;
+      cuenta++; total++;
+      const v=resp[it.k];
+      if(typeof v==="number"){ suma+=v; n++; completos++; }
+    });
+    dims[d.id]={val: n? suma/n : 0, n, de:cuenta};
+  });
+  const notaGlobal = Object.keys(pesos).reduce((a,k)=>a+dims[k].val*pesos[k],0);
+  const crudo = 1.0 + (notaGlobal/4)*4.6;
+  const nivel = Math.round(crudo*4)/4;
+  return {dims, notaGlobal, nivel, completo: completos===total, completos, total, categoria: categoriaDe(nivel)};
+}
+function categoriaDe(n){ return (CATEGORIAS.find(c=>n<=c.max)||CATEGORIAS[CATEGORIAS.length-1]).cat }
+function fmtNivel(n){ return n.toFixed(2).replace(/0$/,"") }
+
+/* ---------------- alumnos ---------------- */
+function ultimaEval(id){
+  let r=null;
+  evals.forEach(e=>{ if(e.id_alumno===id && (!r || e.fecha>r.fecha)) r=e });
+  return r;
+}
+function diasDesde(iso){ return Math.floor((Date.now()-new Date(iso).getTime())/864e5) }
+
+/* Lector de la hoja ALUMNOS.
+   El encabezado NO está en la fila 1: se busca la celda "ALUMNOS" en las
+   primeras 6 filas, igual que hace alumnos-unif.html. Las columnas son
+   relativas a ese encabezado: categoría = la de antes de LADO. */
+function normName(s){
+  return String(s==null?"":s).normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .toLowerCase().trim().replace(/\s+/g," ");
+}
+function parseCSV(txt){
+  const rows=[]; let row=[], cur="", q=false;
+  for(let i=0;i<txt.length;i++){
+    const c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"') q=true;
+      else if(c===","){ row.push(cur); cur=""; }
+      else if(c==="\n"){ row.push(cur); rows.push(row); row=[]; cur=""; }
+      else if(c==="\r"){}
+      else cur+=c; }
+  }
+  if(cur!==""||row.length){ row.push(cur); rows.push(row) }
+  return rows;
+}
+function detectarCols(rows){
+  let hr=-1;
+  for(let r=0;r<Math.min(6,rows.length);r++){
+    if(rows[r].map(normName).indexOf("alumnos")>=0){ hr=r; break }
+  }
+  if(hr<0) return null;
+  const low=rows[hr].map(normName);
+  const find=n=>low.indexOf(n);
+  const iLado=find("lado"), iLun=find("lunes");
+  /* La columna ID: si le pusiste encabezado "id" la busca por nombre.
+     Si no, usa la columna anterior a LUNES — la L, que ninguna otra app
+     lee ni escribe (teléfono es K, los días arrancan en M). */
+  let iId=find("id");
+  if(iId<0 && iLun>2) iId=iLun-1;
+  return {hr, nombre:find("alumnos"), cat: iLado>0? iLado-1 : -1, profe:find("profesor"), id:iId};
+}
+/* Devuelve la lista de alumnos, o null si no reconoce la planilla */
+let ultimasFilas=[];      // última lectura cruda, para generar los IDs
+
+function leerAlumnos(txt){
+  const rows=parseCSV(txt);
+  const d=detectarCols(rows);
+  if(!d || d.nombre<0) return null;
+  ultimasFilas=rows;
+  const out=[];
+  for(let r=d.hr+1;r<rows.length;r++){
+    const f=rows[r]||[];
+    const nombre=(f[d.nombre]||"").trim();
+    if(!nombre) continue;
+    const idPlanilla = d.id>=0 ? (f[d.id]||"").trim() : "";
+    out.push({
+      id: idPlanilla || slug(nombre),   // sin ID todavía: cae al nombre
+      sinId: !idPlanilla,
+      nombre,
+      fila: r+1,                        // fila real de la planilla
+      cat_actual: d.cat>=0 ? (f[d.cat]||"").trim() : "",
+      titular:    d.profe>=0 ? (f[d.profe]||"").trim() : ""
+    });
+  }
+  return out;
+}
+
+/* Cuando un alumno pasa a tener ID, sus evaluaciones viejas (guardadas
+   bajo el nombre) se re-apuntan al ID. Así no se pierde historial. */
+function migrarAId(lista){
+  let n=0;
+  lista.forEach(a=>{
+    if(a.sinId) return;
+    const viejo=slug(a.nombre);
+    if(viejo===a.id) return;
+    evals.forEach(e=>{ if(e.id_alumno===viejo){ e.id_alumno=a.id; n++ } });
+    if(cola[viejo]){ cola[a.id]=cola[viejo]; delete cola[viejo] }
+  });
+  if(n){ save(K_LS.ev,evals); save(K_LS.q,cola) }
+  return n;
+}
+
+/* Genera la columna de IDs para pegar en la planilla. Respeta los que
+   ya existen y sigue la numeración desde el más alto. */
+function generarIDs(){
+  if(!ultimasFilas.length){ toast("Primero leé la planilla"); return null }
+  const d=detectarCols(ultimasFilas);
+  if(!d || d.id<0){ toast("No pude ubicar la columna ID"); return null }
+  let max=0;
+  for(let r=d.hr+1;r<ultimasFilas.length;r++){
+    const v=((ultimasFilas[r]||[])[d.id]||"").trim();
+    const m=/^A(\d+)$/i.exec(v);
+    if(m) max=Math.max(max,+m[1]);
+  }
+  const col=[]; let nuevos=0;
+  for(let r=d.hr+1;r<ultimasFilas.length;r++){
+    const f=ultimasFilas[r]||[];
+    const nombre=(f[d.nombre]||"").trim();
+    const actual=(f[d.id]||"").trim();
+    if(!nombre){ col.push(""); continue }
+    if(actual){ col.push(actual); continue }
+    col.push("A"+String(++max).padStart(4,"0")); nuevos++;
+  }
+  const letra=String.fromCharCode(65+d.id);   // 11 → L
+  return {texto:col.join("\n"), celda:letra+(d.hr+2), nuevos, total:col.filter(Boolean).length};
+}
+function slug(s){
+  return normName(s).replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"");
+}
+
+/* ---------------- render roster ---------------- */
+let filtroProfe="", soloPend=false, soloStale=false, soloMios=false, modoActual="express";
+
+function titulares(){ return [...new Set(alumnos.map(a=>a.titular).filter(Boolean))].sort() }
+
+function renderFilters(){
+  const s=document.getElementById("filtroProfe");
+  const list=titulares();
+  s.hidden=!list.length;
+  s.innerHTML=`<option value="">Todos los profes</option>`+list.map(p=>`<option${p===filtroProfe?" selected":""}>${esc(p)}</option>`).join("");
+  s.onchange=()=>{ filtroProfe=s.value; renderList() };
+}
+
+function visibles(){
+  const q=document.getElementById("q").value.trim().toLowerCase();
+  return alumnos.filter(a=>{
+    if(filtroProfe && a.titular!==filtroProfe) return false;
+    if(q && !a.nombre.toLowerCase().includes(q)) return false;
+    if(soloMios && cfg.profe && (a.titular||"").toLowerCase()!==cfg.profe.toLowerCase()) return false;
+    const u=ultimaEval(a.id);
+    if(soloPend && u) return false;
+    if(soloStale && !(u && diasDesde(u.fecha)>90)) return false;
+    return true;
+  });
+}
+
+function renderList(){
+  const ul=document.getElementById("list");
+  const vis=visibles();
+  const sinId=alumnos.filter(a=>a.sinId).length;
+  document.getElementById("count").textContent =
+    alumnos.length ? `${vis.length} de ${alumnos.length} alumnos${sinId?` · ${sinId} sin ID`:""}`
+                   : "Sin alumnos cargados";
+  ul.innerHTML="";
+  vis.slice(0,600).forEach(a=>{
+    const u=ultimaEval(a.id);
+    const li=document.createElement("li");
+    const b=document.createElement("button");
+    b.className="stud";
+    b.setAttribute("aria-current", sel && sel.id===a.id);
+    const stale = u && diasDesde(u.fecha)>90;
+    b.innerHTML=`<span class="nm"><b></b><small></small></span>
+      <span class="lvlbadge ${u?"set":""} ${stale?"stale":""}">${u?fmtNivel(u.nivel):"—"}</span>`;
+    b.querySelector("b").textContent=a.nombre;
+    const tit = a.titular || "sin profe";
+    b.querySelector("small").textContent =
+      tit + (u ? ` · ${u.categoria}${u.modo==="express"?" exp":""} · ${diasDesde(u.fecha)}d`
+                : (a.cat_actual? ` · ${a.cat_actual} (planilla)`:" · sin evaluar"));
+    b.onclick=()=>abrir(a);
+    li.appendChild(b); ul.appendChild(li);
+  });
+  if(vis.length>600){
+    const li=document.createElement("li");
+    li.innerHTML=`<div class="count">Mostrando 600. Usá el buscador.</div>`;
+    ul.appendChild(li);
+  }
+}
+
+/* ---------------- editor ---------------- */
+function abrir(a){
+  sel=a;
+  const u=ultimaEval(a.id);
+  draft = u ? {...u.respuestas} : {};
+  modoActual = u ? (u.modo||"completa") : "express";
+  document.getElementById("empty").hidden=true;
+  const ed=document.getElementById("editor");
+  ed.hidden=false;
+  document.body.classList.add("editing");
+  ed.innerHTML = plantillaEditor();
+  bindEditor();
+  pintarScore();
+  renderList();
+  window.scrollTo({top:0});
+}
+
+function plantillaEditor(){
+  const u=ultimaEval(sel.id);
+  const prev = u ? `Última: ${fmtNivel(u.nivel)} · ${u.categoria} · ${new Date(u.fecha).toLocaleDateString("es-PY")} · ${u.profe||"?"}`
+                 : (sel.cat_actual ? `Calendario: ${sel.cat_actual} · sin evaluar` : "Sin evaluación previa");
+  let html = `
+  <section class="score" aria-label="Nivel calculado">
+    <div class="who">
+      <h2 id="scName"></h2>
+      <span class="meta" id="scMeta"></span>
+    </div>
+    <div class="readout">
+      <div class="bignum idle" id="scNum">—</div>
+      <div class="cat" id="scCat"></div>
+      <div class="prev" id="scPrev"></div>
+    </div>
+    <div class="track" id="track"></div>
+    <div class="dims" id="scDims"></div>
+  </section>
+  <div class="modebar">
+    <span class="mono-label">Evaluación</span>
+    <button class="chip" data-modo="express">Express · 6 ítems</button>
+    <button class="chip" data-modo="completa">Completa · 15 ítems</button>
+    <span class="hint" id="modoHint"></span>
+  </div>`;
+
+  RUBRICA.forEach(d=>{
+    html+=`<div class="dimblock"><header><h3>${d.titulo}</h3><span class="w">Peso ${Math.round(PESOS[d.id]*100)}%</span></header>`;
+    d.items.forEach((it,idx)=>{
+      html+=`<div class="item" data-item="${it.k}"><div class="q"><span class="n">${String(numeroItem(d.id,idx)).padStart(2,"0")}</span><label>${it.q}</label></div><div class="segs" role="group" aria-label="${it.q}">`;
+      it.d.forEach((desc,v)=>{
+        html+=`<button class="seg" data-k="${it.k}" data-v="${v}" aria-pressed="false"><span class="sn">${v}</span><span class="sd">${desc}</span></button>`;
+      });
+      html+=`</div></div>`;
+    });
+    html+=`</div>`;
+  });
+
+  html+=`<div class="actions">
+    <button class="btn" id="save" disabled>Guardar evaluación</button>
+    <button class="btn ghost" id="clear">Limpiar</button>
+    <span class="hint" id="progress"></span>
+  </div>
+  <p class="hint" style="margin-top:10px">${prev}</p>`;
+  return html;
+}
+function numeroItem(dimId,idx){
+  let n=0;
+  for(const d of RUBRICA){ if(d.id===dimId) return n+idx+1; n+=d.items.length }
+  return n;
+}
+
+function bindEditor(){
+  document.getElementById("scName").textContent=sel.nombre;
+  document.getElementById("scMeta").textContent=sel.titular||"sin profe asignado";
+  const u=ultimaEval(sel.id);
+  document.getElementById("scPrev").textContent = u ? `antes ${fmtNivel(u.nivel)} / ${u.categoria}` : (sel.cat_actual?`calendario ${sel.cat_actual}`:"");
+
+  // pista 0-7
+  const tr=document.getElementById("track");
+  tr.innerHTML="";
+  for(let v=0;v<=7;v++){
+    const p=(v/7)*100;
+    tr.insertAdjacentHTML("beforeend",`<span class="tick" style="left:${p}%"></span><span class="tlab" style="left:${p}%">${v}</span>`);
+  }
+  tr.insertAdjacentHTML("beforeend",`<span class="marker" id="marker" style="left:0%"></span>`);
+
+  const dz=document.getElementById("scDims");
+  dz.innerHTML=RUBRICA.map(d=>`<div class="dim"><div class="bar" id="bar-${d.id}"><i></i></div><div class="lb">${d.titulo.split(" ")[0]}</div></div>`).join("");
+
+  document.querySelectorAll(".seg").forEach(b=>{
+    b.onclick=()=>{
+      const k=b.dataset.k, v=+b.dataset.v;
+      draft[k] = draft[k]===v ? undefined : v;
+      if(draft[k]===undefined) delete draft[k];
+      document.querySelectorAll(`.seg[data-k="${k}"]`).forEach(o=>o.setAttribute("aria-pressed", +o.dataset.v===draft[k]));
+      pintarScore();
+    };
+    b.setAttribute("aria-pressed", +b.dataset.v===draft[b.dataset.k]);
+  });
+  document.querySelectorAll("[data-modo]").forEach(b=>{
+    b.onclick=()=>{ modoActual=b.dataset.modo; aplicarModo(); pintarScore() };
+  });
+  aplicarModo();
+
+  document.getElementById("save").onclick=guardar;
+  document.getElementById("clear").onclick=()=>{ draft={}; bindEditor(); pintarScore() };
+}
+
+function aplicarModo(){
+  const exp = modoActual==="express";
+  document.querySelectorAll("[data-modo]").forEach(b=>
+    b.setAttribute("aria-pressed", b.dataset.modo===modoActual));
+  document.querySelectorAll(".item").forEach(el=>{
+    el.hidden = exp && !EXPRESS_ITEMS.includes(el.dataset.item);
+  });
+  document.querySelectorAll(".dimblock").forEach(bl=>{
+    bl.hidden = ![...bl.querySelectorAll(".item")].some(i=>!i.hidden);
+  });
+  RUBRICA.forEach(d=>{
+    const bar=document.getElementById("bar-"+d.id);
+    if(bar) bar.parentElement.style.opacity = (exp && !d.items.some(i=>EXPRESS_ITEMS.includes(i.k))) ? .3 : 1;
+  });
+  document.getElementById("modoHint").textContent = exp
+    ? "Para cargar el padrón rápido. Podés completar los 15 después."
+    : "Nivel definitivo. Usala en alumnos que compiten o que están al borde de categoría.";
+}
+
+function pintarScore(){
+  const r=calcular(draft, modoActual);
+  const num=document.getElementById("scNum");
+  const hay=r.completos>0;
+  num.textContent = hay? fmtNivel(r.nivel) : "—";
+  num.classList.toggle("idle", !hay);
+  document.getElementById("scCat").textContent = hay? r.categoria : "";
+  document.getElementById("marker").style.left = (hay? (r.nivel/7)*100 : 0)+"%";
+  RUBRICA.forEach(d=>{
+    const bar=document.getElementById("bar-"+d.id);
+    bar.querySelector("i").style.width = (r.dims[d.id].val/4*100)+"%";
+    bar.classList.toggle("partial", r.dims[d.id].n < r.dims[d.id].de);
+  });
+  const prev=document.getElementById("scPrev");
+  const u=ultimaEval(sel.id);
+  const base = u? u.categoria : sel.cat_actual;
+  prev.classList.toggle("moved", hay && base && base!==r.categoria);
+  document.getElementById("progress").textContent = `${r.completos} de ${r.total} ítems`;
+  document.getElementById("save").disabled = !r.completo || !cfg.profe;
+  if(!cfg.profe) document.getElementById("progress").textContent += " · elegí profe arriba";
+}
+
+function guardar(){
+  const r=calcular(draft, modoActual);
+  if(!r.completo) return;
+  const u=ultimaEval(sel.id);
+  const anterior = u ? u.categoria : (sel.cat_actual||"");
+  const rec={
+    id_eval: sel.id+"_"+Date.now(),
+    id_alumno: sel.id, nombre: sel.nombre,
+    profe: cfg.profe, titular: sel.titular||"", modo: modoActual,
+    uid: user?user.uid:"", email: user?user.email:"",
+    fecha: new Date().toISOString(),
+    respuestas: {...draft},
+    D1:+r.dims.D1.val.toFixed(3), D2:+r.dims.D2.val.toFixed(3), D3:+r.dims.D3.val.toFixed(3),
+    D4:+r.dims.D4.val.toFixed(3), D5:+r.dims.D5.val.toFixed(3),
+    notaGlobal:+r.notaGlobal.toFixed(3),
+    nivel:r.nivel, categoria:r.categoria,
+    categoria_anterior: anterior,
+    fiabilidad: 50,
+    sincronizado: false
+  };
+  evals.push(rec); save(K_LS.ev, evals);
+  if(anterior && anterior!==r.categoria){
+    cola[sel.id]={aprobado:false}; save(K_LS.q,cola);
+  }
+  pushFirebase([rec]);
+  auditar("evaluacion", `${sel.nombre} · ${modoActual} · ${fmtNivel(r.nivel)} ${r.categoria}${anterior&&anterior!==r.categoria?` (antes ${anterior})`:""}`);
+  toast(`Guardado · ${fmtNivel(r.nivel)} ${r.categoria}`);
+  renderList(); bindEditor(); pintarScore();
+}
+
+/* ---------------- cola de cambios ---------------- */
+function filasCola(){
+  return Object.keys(cola).map(id=>{
+    const u=ultimaEval(id); if(!u) return null;
+    return {...u, aprobado: !!cola[id].aprobado};
+  }).filter(Boolean).filter(u=>u.categoria_anterior && u.categoria_anterior!==u.categoria);
+}
+function renderQueue(){
+  const box=document.getElementById("queueBody");
+  const filas=filasCola();
+  const admin=true;
+  document.getElementById("expQueue").hidden=!admin;
+  document.getElementById("queueNote").textContent = admin
+    ? "Revisá los cambios, tildá los que apruebes y exportá el archivo que consume el calendario."
+    : "Solo lectura. La aprobación de cambios de categoría la hace la administración.";
+  if(!filas.length){ box.innerHTML=`<p class="hint">Sin cambios pendientes. Cuando una evaluación mueva de categoría a un alumno, aparece acá.</p>`; return }
+  let h=`<table class="q"><thead><tr><th>Alumno</th><th>Titular</th><th>Antes</th><th>Ahora</th><th>Nivel</th><th>Evaluó</th>${admin?"<th>Aprobar</th>":""}</tr></thead><tbody>`;
+  filas.forEach(f=>{
+    h+=`<tr><td>${esc(f.nombre)}</td><td>${esc(f.titular||"")}</td><td>${esc(f.categoria_anterior)}</td>
+        <td class="mv">${esc(f.categoria)}</td><td class="mv">${fmtNivel(f.nivel)}</td>
+        <td>${esc(f.profe||"")}</td>
+        ${admin?`<td><input type="checkbox" data-ap="${f.id_alumno}" ${f.aprobado?"checked":""} aria-label="Aprobar ${esc(f.nombre)}"></td>`:""}</tr>`;
+  });
+  h+=`</tbody></table>`;
+  box.innerHTML=h;
+  box.querySelectorAll("[data-ap]").forEach(c=>{
+    c.onchange=()=>{
+      cola[c.dataset.ap].aprobado=c.checked; save(K_LS.q,cola);
+      const u=ultimaEval(c.dataset.ap);
+      auditar(c.checked?"aprobacion":"desaprobacion", `${u?u.nombre:c.dataset.ap} → ${u?u.categoria:""}`);
+    };
+  });
+}
+/* ---------------- control de criterio ---------------- */
+function renderCalib(){
+  const box=document.getElementById("calibBody");
+  const porProfe={};
+  evals.forEach(e=>{
+    const p=e.profe||"sin profe";
+    (porProfe[p]=porProfe[p]||[]).push(e.nivel);
+  });
+  const nombres=Object.keys(porProfe);
+  if(!nombres.length){ box.innerHTML=`<p class="hint">Todavía no hay evaluaciones guardadas.</p>`; return }
+  const todos=evals.map(e=>e.nivel);
+  const gral=todos.reduce((a,b)=>a+b,0)/todos.length;
+  let h=`<table class="q"><thead><tr><th>Profe</th><th>Evaluó</th><th>Promedio</th><th>Desvío</th></tr></thead><tbody>`;
+  nombres.sort().forEach(p=>{
+    const v=porProfe[p], prom=v.reduce((a,b)=>a+b,0)/v.length, d=prom-gral;
+    const alerta=Math.abs(d)>0.4;
+    h+=`<tr><td>${esc(p)}</td><td>${v.length}</td><td class="mv">${prom.toFixed(2)}</td>
+        <td class="mv" style="${alerta?"color:var(--alert)":""}">${d>=0?"+":""}${d.toFixed(2)}</td></tr>`;
+  });
+  h+=`</tbody></table><p class="hint" style="margin-top:8px">Promedio general: <b>${gral.toFixed(2)}</b> sobre ${todos.length} evaluaciones.</p>`;
+  box.innerHTML=h;
+}
+
+function esc(s){ return String(s??"").replace(/[<>&"]/g,m=>({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;"}[m])) }
+
+/* ---------------- Firebase (REST, opcional) ---------------- */
+async function pushFirebase(recs){
+  const base=dbBase();
+  if(!base || !recs.length) return;
+  const q = "";
+  for(const r of recs){
+    try{
+      const res=await fetch(`${base}/niveles/${r.id_eval}.json${q}`,{
+        method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify(r)
+      });
+      if(res.ok){
+        const i=evals.findIndex(e=>e.id_eval===r.id_eval);
+        if(i>=0) evals[i].sincronizado=true;
+      }
+    }catch(e){ /* queda pendiente */ }
+  }
+  save(K_LS.ev,evals); estadoSync();
+}
+
+/* registro de auditoría: quién hizo qué y cuándo */
+async function auditar(accion, detalle){
+  const base=dbBase();
+  if(!base) return;
+  const id=Date.now()+"_"+(user?user.uid.slice(0,6):"local");
+  try{
+    await fetch(`${base}/auditoria/${id}.json`,{
+      method:"PUT", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        fecha:new Date().toISOString(), accion, detalle,
+        uid:user?user.uid:"", email:user?user.email:"", nombre:user?user.nombre:cfg.profe||""
+      })
+    });
+  }catch(e){}
+}
+function estadoSync(){
+  const pend=evals.filter(e=>!e.sincronizado).length;
+  const el=document.getElementById("syncState");
+  el.textContent = !dbBase() ? "Local" : (pend? `${pend} sin subir` : "Sincronizado");
+}
+
+/* ---------------- exportar ---------------- */
+function toCSV(rows, cols){
+  const q=v=>{ const s=String(v??""); return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s };
+  return [cols.join(","), ...rows.map(r=>cols.map(c=>q(r[c])).join(","))].join("\n");
+}
+function download(name, txt){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([txt],{type:"text/csv;charset=utf-8"}));
+  a.download=name; a.click(); URL.revokeObjectURL(a.href);
+}
+
+/* ---------------- toast ---------------- */
+let tT;
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg; t.classList.add("on");
+  clearTimeout(tT); tT=setTimeout(()=>t.classList.remove("on"),2200);
+}
+
+/* ---------------- arranque ---------------- */
+/* ---------------- profe que evalúa ----------------
+   Sin login propio: el control de acceso va a venir del panel general de
+   permisos. Los campos uid/email quedan preparados para cuando llegue.     */
+const dbBase = () => (cfg.fb||"").replace(/\/$/,"");
+let user=null, token=null;
+
+function initProfes(){
+  const s=document.getElementById("profe");
+  const desdeDatos=[...new Set(alumnos.map(a=>a.titular).filter(Boolean))];
+  const lista=[...new Set([...desdeDatos, ...cfg.profes])].sort();
+  s.innerHTML=`<option value="">— elegir —</option>`+lista.map(p=>`<option>${esc(p)}</option>`).join("");
+  s.value=cfg.profe||"";
+  s.onchange=()=>{ cfg.profe=s.value; save(K_LS.cfg,cfg); if(sel) pintarScore() };
+}
+
+document.getElementById("q").oninput=renderList;
+document.getElementById("fMine").onclick=e=>{
+  if(!cfg.profe){ toast("Entrá con tu usuario"); return }
+  soloMios=!soloMios; e.currentTarget.setAttribute("aria-pressed",soloMios); renderList();
+};
+document.getElementById("fPend").onclick=e=>{ soloPend=!soloPend; e.currentTarget.setAttribute("aria-pressed",soloPend); renderList() };
+document.getElementById("fStale").onclick=e=>{ soloStale=!soloStale; e.currentTarget.setAttribute("aria-pressed",soloStale); renderList() };
+document.getElementById("back").onclick=()=>{ document.body.classList.remove("editing") };
+function abrirDatos(){ renderCalib(); document.getElementById("dlgData").showModal() }
+document.getElementById("openData").onclick=abrirDatos;
+document.getElementById("emptyData").onclick=abrirDatos;
+document.getElementById("openQueue").onclick=()=>{ renderQueue(); document.getElementById("dlgQueue").showModal() };
+document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest("dialog").close());
+
+document.getElementById("csvImport").onclick=()=>{
+  const parsed=leerAlumnos(document.getElementById("csvIn").value);
+  if(parsed===null){ document.getElementById("csvInfo").textContent="No encontré la fila de encabezados con la celda ALUMNOS"; return }
+  if(!parsed.length){ document.getElementById("csvInfo").textContent="No encontré filas"; return }
+  mergeAlumnos(parsed);
+  document.getElementById("csvInfo").textContent=`${parsed.length} alumnos leídos`;
+  toast(`${alumnos.length} alumnos en la lista`);
+};
+function mergeAlumnos(nuevos){
+  const map={}; alumnos.forEach(a=>map[a.id]=a);
+  nuevos.forEach(n=>{ map[n.id]={...map[n.id],...n} });
+  alumnos=Object.values(map);
+  const mig=migrarAId(alumnos);
+  save(K_LS.al,alumnos); renderFilters(); renderList();
+  if(mig) toast(`${mig} evaluaciones re-apuntadas al ID`);
+}
+document.getElementById("genIds").onclick=()=>{
+  const r=generarIDs();
+  if(!r) return;
+  download("ids-alumnos.csv", r.texto);
+  document.getElementById("idsInfo").innerHTML =
+    `Pegá en <b>${r.celda}</b> · ${r.nuevos} nuevos de ${r.total} alumnos`;
+};
+document.getElementById("gvizSave").onclick=()=>{ cfg.gviz=document.getElementById("gvizUrl").value.trim(); save(K_LS.cfg,cfg); toast("URL guardada") };
+document.getElementById("gvizLoad").onclick=()=>leerGviz(document.getElementById("gvizUrl").value.trim());
+async function leerGviz(url){
+  if(!url) return;
+  try{
+    const r=await fetch(url); const t=await r.text();
+    const p=leerAlumnos(t);
+    if(!p||!p.length){ toast("No pude leer la hoja ALUMNOS"); return }
+    mergeAlumnos(p); toast(`${p.length} alumnos desde la planilla`);
+  }catch(e){ toast("No pude leer la hoja") }
+}
+document.getElementById("fbSave").onclick=()=>{ cfg.fb=document.getElementById("fbUrl").value.trim(); save(K_LS.cfg,cfg); estadoSync(); toast("Firebase guardado") };
+document.getElementById("fbPush").onclick=()=>pushFirebase(evals.filter(e=>!e.sincronizado));
+document.getElementById("expEvals").onclick=()=>{
+  if(!evals.length) return toast("Sin evaluaciones");
+  const cols=["fecha","nombre","titular","profe","modo","nivel","categoria","categoria_anterior","notaGlobal","D1","D2","D3","D4","D5","id_alumno"];
+  download("evaluaciones-dg.csv", toCSV(evals,cols));
+};
+document.getElementById("expAll").onclick=()=>{
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify({alumnos,evals,cola},null,1)],{type:"application/json"}));
+  a.download="nivelacion-dg.json"; a.click(); URL.revokeObjectURL(a.href);
+};
+document.getElementById("expQueue").onclick=()=>{
+  const ap=filasCola().filter(f=>f.aprobado);
+  if(!ap.length) return toast("Ninguno aprobado");
+  download("cambios-categoria.csv", toCSV(ap,["id_alumno","nombre","titular","categoria_anterior","categoria","nivel","fecha","profe"]));
+  auditar("exportacion", `${ap.length} cambios de categoría al calendario`);
+};
+
+document.getElementById("gvizUrl").value=cfg.gviz||GVIZ_ALUMNOS;
+document.getElementById("fbUrl").value=cfg.fb||"";
+initProfes();
+renderFilters(); renderList(); estadoSync();
+leerGviz(cfg.gviz||GVIZ_ALUMNOS);
+</script>
+</body>
+</html>
