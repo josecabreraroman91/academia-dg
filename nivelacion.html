@@ -139,6 +139,11 @@ button{cursor:pointer}
 .dim .bar.partial i{background:rgba(205,233,74,.45)}
 .dim .lb{font-size:10px;color:var(--mesh-30);font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
+.aviso{
+  margin:10px 0 0;padding:9px 12px;font-size:13.5px;
+  background:#FDF6E3;border-left:3px solid #C8952A;border-radius:var(--r)
+}
+
 /* ---------- barra de modo ---------- */
 .modebar{
   display:flex;align-items:center;gap:8px;flex-wrap:wrap;
@@ -808,6 +813,7 @@ function plantillaEditor(){
     <button class="btn ghost" id="clear">Limpiar</button>
     <span class="hint" id="progress"></span>
   </div>
+  <p class="aviso" id="aviso" hidden></p>
   <div class="actions">
     <button class="btn ghost small" id="undo"${u?"":" hidden"}>Deshacer última evaluación</button>
     <button class="btn ghost small" id="reset"${u?"":" hidden"}>Reiniciar alumno</button>
@@ -916,8 +922,15 @@ function pintarScore(){
   const base = u? u.categoria : sel.cat_actual;
   prev.classList.toggle("moved", hay && base && base!==r.categoria);
   document.getElementById("progress").textContent = `${r.completos} de ${r.total} ítems`;
-  document.getElementById("save").disabled = !r.completo || !cfg.profe;
-  if(!cfg.profe) document.getElementById("progress").textContent += " · elegí profe arriba";
+
+  /* Digo con claridad qué falta para poder guardar */
+  const falta=[];
+  if(!cfg.profe) falta.push("elegir tu nombre en <b>Profe</b>, arriba a la derecha");
+  if(!r.completo) falta.push(`responder ${r.total-r.completos} ítem(s) que faltan`);
+  const av=document.getElementById("aviso");
+  av.innerHTML = falta.length ? "Para guardar falta: "+falta.join(" y ") : "";
+  av.hidden = !falta.length;
+  document.getElementById("save").disabled = falta.length>0;
 }
 
 function guardar(){
