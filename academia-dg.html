@@ -70,6 +70,20 @@
 </style>
 </head>
 <body>
+<div id="adgLogin" style="display:none;position:fixed;inset:0;z-index:99999;background:#0d1117;color:#e6edf3;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center">
+  <div style="font-size:22px;font-weight:700;margin-bottom:8px">Academia DG</div>
+  <div id="adgMsg" style="opacity:.75;margin-bottom:24px;max-width:340px;line-height:1.5">Ingres&aacute; para acceder al sistema.</div>
+  <button id="adgLoginBtn" style="font-size:16px;padding:14px 26px;border:0;border-radius:10px;background:#2f81f7;color:#fff;cursor:pointer;font-weight:600">Entrar con Google</button>
+  <button id="adgOutBtn" style="display:none;font-size:14px;padding:10px 20px;margin-top:14px;border:1px solid #30363d;border-radius:10px;background:transparent;color:#8b949e;cursor:pointer">Salir</button>
+  <div id="adgErr" style="color:#ff7b72;margin-top:18px;max-width:340px;line-height:1.5"></div>
+</div>
+<div id="adgQuien" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;font:12px system-ui;
+  background:rgba(13,17,23,.88);color:#c9d1d9;padding:6px 10px;border-radius:8px">
+  <span id="adgQuienTxt"></span>
+  <a href="#" id="adgSalir" style="color:#58a6ff;margin-left:10px;text-decoration:none">Salir</a>
+</div>
+
 
 <!-- Barra superior con pestañas (oculta en el menú) -->
 <div id="topbar">
@@ -168,6 +182,75 @@
   }
 
   document.querySelectorAll('[data-go]').forEach(b=> b.onclick=()=>go(b.dataset.go));
+</script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+// ---- Control de acceso del hub (Academia DG) ----
+(function(){
+  var cfg = {
+    apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+    authDomain: "academia-dg.firebaseapp.com",
+    databaseURL: "https://academia-dg-default-rtdb.firebaseio.com",
+    projectId: "academia-dg",
+    storageBucket: "academia-dg.firebasestorage.app",
+    messagingSenderId: "623967243039",
+    appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
+  };
+  // Qu\u00e9 permiso necesita cada secci\u00f3n
+  var REQUIERE = { cal:'calendario', prof:'profes', alu:'calendario', pag:'cobros', cob:'cobros' };
+
+  function $(id){ return document.getElementById(id); }
+  function show(m, salir){
+    $('adgLogin').style.display='flex';
+    if(m!==undefined) $('adgMsg').innerHTML=m;
+    $('adgLoginBtn').style.display = salir? 'none':'inline-block';
+    $('adgOutBtn').style.display  = salir? 'inline-block':'none';
+  }
+  function hide(){ $('adgLogin').style.display='none'; }
+  function err(m){ $('adgErr').textContent=m||''; }
+  function ocultar(go){
+    document.querySelectorAll('[data-go="'+go+'"]').forEach(function(e){ e.style.display='none'; });
+  }
+
+  try{ firebase.initializeApp(cfg); }catch(e){}
+
+  function aplicar(perm, nombre, correo){
+    Object.keys(REQUIERE).forEach(function(go){
+      var v = perm[REQUIERE[go]];
+      if(v!=='leer' && v!=='escribir') ocultar(go);
+    });
+    $('adgQuienTxt').textContent = (nombre||correo);
+    $('adgQuien').style.display='block';
+    hide();
+  }
+
+  document.addEventListener('DOMContentLoaded', function(){
+    $('adgLoginBtn').onclick=function(){
+      err('');
+      firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+        .catch(function(e){ err('No se pudo entrar: '+e.message); });
+    };
+    $('adgOutBtn').onclick=function(){ firebase.auth().signOut().then(function(){ location.reload(); }); };
+    $('adgSalir').onclick=function(ev){ ev.preventDefault(); firebase.auth().signOut().then(function(){ location.reload(); }); };
+
+    firebase.auth().onAuthStateChanged(function(u){
+      if(!u){ show('Ingres\u00e1 para acceder al sistema.', false); return; }
+      var clave = u.email.replace(/\./g, ',');
+      firebase.database().ref('usuarios/'+clave).once('value').then(function(snap){
+        var f = snap.val();
+        if(!f || f.activo!==true){
+          show('Tu acceso no est\u00e1 habilitado.<br><br><b>'+u.email+'</b><br><br>Ped\u00edle a Jos\u00e9 que te d\u00e9 de alta.', true);
+          return;
+        }
+        aplicar(f.permisos||{}, f.nombre, u.email);
+      }).catch(function(e){
+        show('No se pudo verificar tu acceso.<br><br>'+e.message, true);
+      });
+    });
+  });
+})();
 </script>
 </body>
 </html>
