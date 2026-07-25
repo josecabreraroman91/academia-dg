@@ -290,6 +290,14 @@
 </style>
 </head>
 <body class="modo-semana">
+<div id="adgLogin" style="display:none;position:fixed;inset:0;z-index:2147483647;background:#0d1117;color:#e6edf3;
+  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center">
+  <div style="font-size:20px;font-weight:600;margin-bottom:8px">Calendario &middot; Academia DG</div>
+  <div style="opacity:.75;margin-bottom:24px;max-width:360px;line-height:1.5">Ingres&aacute; para sincronizar el calendario.</div>
+  <button id="adgLoginBtn" style="font-size:16px;padding:14px 26px;border:0;border-radius:10px;background:#2f81f7;color:#fff;cursor:pointer;font-weight:600">Entrar con Google</button>
+  <div id="adgLoginErr" style="color:#ff7b72;margin-top:18px;max-width:360px;line-height:1.5"></div>
+</div>
+
 
 <header>
   <div class="title">🎾 Calendario Academia DG <small>v20 · PRODUCCIÓN</small></div>
@@ -521,6 +529,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script>
 const DAYS = ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
 const HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
@@ -2640,9 +2649,34 @@ try{
 reindexarAlumnos();
 setMode(state.mode);
 fillAlumnosDatalist();
-iniciarCalendarioCompartido();   // sincroniza el calendario entre encargados (tiempo real)
-// publica el día de hoy a las tablets al abrir (sin molestar si es domingo/sin datos)
-setTimeout(()=>publicarDiaHoy(true), 1200);
+// ---- Control de acceso (Academia DG) ----
+// Nada que escriba o lea de Firebase arranca sin sesión iniciada.
+(function(){
+  var _arrancado=false;
+  function ov(){ return document.getElementById('adgLogin'); }
+  function show(m){ var o=ov(); if(o){ o.style.display='flex'; if(m) document.getElementById('adgLoginErr').textContent=m; } }
+  function hide(){ var o=ov(); if(o) o.style.display='none'; }
+  var b=document.getElementById('adgLoginBtn');
+  if(b) b.onclick=function(){
+    document.getElementById('adgLoginErr').textContent='';
+    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+      .catch(function(e){ show('No se pudo entrar: '+e.message); });
+  };
+  try{
+    firebase.auth().onAuthStateChanged(function(u){
+      if(u){
+        hide();
+        if(!_arrancado){
+          _arrancado=true;
+          iniciarCalendarioCompartido();   // sincroniza el calendario entre encargados (tiempo real)
+          setTimeout(function(){ publicarDiaHoy(true); }, 1200);
+        }
+      } else {
+        show('');
+      }
+    });
+  }catch(e){ show('Firebase no inició: '+e.message); }
+})();
 </script>
 </body>
 </html>
