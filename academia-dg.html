@@ -96,7 +96,6 @@
     <button class="navtab" data-go="pag">💵 Pagos</button>
     <button class="navtab" data-go="cob">💰 Cobros</button>
     <button class="navtab" data-go="niv">📝 Evaluación</button>
-    <button class="navtab" data-go="apr">📊 Aprobaciones</button>
     <button class="navtab" data-go="pan">🔑 Accesos</button>
   </div>
 </div>
@@ -140,12 +139,6 @@
       <div class="arrow">›</div>
     </div>
 
-    <div class="mcard" data-go="apr">
-      <div class="ico">📊</div>
-      <div class="info"><div class="t">Nivelación · Aprobaciones</div><div class="d">Revisar lo que cargaron los profes y confirmar los cambios de categoría</div></div>
-      <div class="arrow">›</div>
-    </div>
-
     <div class="mcard" data-go="pan">
       <div class="ico">🔑</div>
       <div class="info"><div class="t">Accesos</div><div class="d">Quién entra a qué: agregar correos, dar permisos y dar de baja</div></div>
@@ -163,7 +156,6 @@
   <iframe id="frPag" data-src="pagos-profes.html" title="Pagos a Profesores" referrerpolicy="no-referrer"></iframe>
   <iframe id="frCob" data-src="cobros-consulta.html" title="Cobros" referrerpolicy="no-referrer"></iframe>
   <iframe id="frNiv" data-src="nivelacion.html" title="Evaluación de alumnos" referrerpolicy="no-referrer"></iframe>
-  <iframe id="frApr" data-src="nivelacion.html?vista=admin" title="Nivelación · Aprobaciones" referrerpolicy="no-referrer"></iframe>
   <iframe id="frPan" data-src="panel.html" title="Accesos" referrerpolicy="no-referrer"></iframe>
 </div>
 
@@ -177,16 +169,15 @@
   const frPag=document.getElementById('frPag');
   const frCob=document.getElementById('frCob');
   const frNiv=document.getElementById('frNiv');
-  const frApr=document.getElementById('frApr');
   const frPan=document.getElementById('frPan');
-  const loaded={cal:false, prof:false, alu:false, pag:false, cob:false, niv:false, apr:false, pan:false};
+  const loaded={cal:false, prof:false, alu:false, pag:false, cob:false, niv:false, pan:false};
 
   function go(dest){
     if(dest==='menu'){
       menu.classList.remove('hide');
       stage.classList.remove('show');
       topbar.classList.remove('show');
-      frCal.classList.remove('show'); frProf.classList.remove('show'); frAlu.classList.remove('show'); frPag.classList.remove('show'); frCob.classList.remove('show'); frNiv.classList.remove('show'); frApr.classList.remove('show'); frPan.classList.remove('show');
+      frCal.classList.remove('show'); frProf.classList.remove('show'); frAlu.classList.remove('show'); frPag.classList.remove('show'); frCob.classList.remove('show'); frNiv.classList.remove('show'); frPan.classList.remove('show');
       document.querySelectorAll('.navtab').forEach(t=>t.classList.remove('active'));
       return;
     }
@@ -201,7 +192,6 @@
     if(dest==='cob' && !loaded.cob){ frCob.src=frCob.dataset.src+'?v='+Date.now(); loaded.cob=true; }
     if(dest==='pag' && !loaded.pag){ frPag.src=frPag.dataset.src+'?v='+Date.now(); loaded.pag=true; }
     if(dest==='niv' && !loaded.niv){ frNiv.src=frNiv.dataset.src+'?v='+Date.now(); loaded.niv=true; }
-    if(dest==='apr' && !loaded.apr){ frApr.src=frApr.dataset.src+'&v='+Date.now(); loaded.apr=true; }
     if(dest==='pan' && !loaded.pan){ frPan.src=frPan.dataset.src+'?v='+Date.now(); loaded.pan=true; }
     frCal.classList.toggle('show', dest==='cal');
     frProf.classList.toggle('show', dest==='prof');
@@ -209,7 +199,6 @@
     frPag.classList.toggle('show', dest==='pag');
     frCob.classList.toggle('show', dest==='cob');
     frNiv.classList.toggle('show', dest==='niv');
-    frApr.classList.toggle('show', dest==='apr');
     frPan.classList.toggle('show', dest==='pan');
     document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('active', t.dataset.go===dest));
   }
@@ -233,7 +222,7 @@
   };
   // Qu\u00e9 permiso necesita cada secci\u00f3n
   var REQUIERE = { cal:'calendario', prof:'profes', alu:'alumnos', pag:'pagos', cob:'cobros',
-                   niv:'nivelacion', apr:'aprobaciones', pan:'__admin__' };
+                   niv:'nivelacion', pan:'__admin__' };
 
   function $(id){ return document.getElementById(id); }
   function show(m, salir){
