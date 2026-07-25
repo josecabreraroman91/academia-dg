@@ -361,12 +361,14 @@ table.q td.mv{font-family:"Barlow Condensed",sans-serif;font-weight:700}
 </dialog>
 
 <dialog id="dlgQueue">
-  <div class="pnl-head"><h2>Cola de cambios</h2><div style="flex:1"></div><button class="btn ghost small" data-close>Cerrar</button></div>
+  <div class="pnl-head"><h2>Revisión de evaluaciones</h2><div style="flex:1"></div><button class="btn ghost small" data-close>Cerrar</button></div>
   <div class="pnl-body">
     <p class="hint" id="queueNote"></p>
     <div id="queueBody"></div>
     <div class="actions">
-      <button class="btn" id="expQueue">Exportar aprobados CSV</button>
+      <button class="btn" id="aprobarTodos" hidden>Aprobar todos los cambios</button>
+      <button class="btn ghost small" id="togCambios">Ver todas las evaluaciones</button>
+      <button class="btn ghost small" id="expQueue">Exportar CSV</button>
       <span class="hint">Columnas: id, nombre, titular, categoria_anterior, categoria, nivel, fecha</span>
     </div>
   </div>
@@ -605,6 +607,10 @@ function fmtNivel(n){ return n.toFixed(2).replace(/0$/,"") }
 /* Las evaluaciones no se borran nunca. Para deshacer se guarda un registro
    de tipo "anulacion" que apunta a la evaluación anulada; el historial queda
    entero y el nivel vuelve solo a la evaluación anterior. */
+/* Vista de administrador: se activa agregando ?admin=1 a la URL.
+   El link que se comparte con los profes no la lleva. */
+const ADMIN = new URLSearchParams(location.search).has("admin");
+
 let anulSet=new Set();          // id_eval anulados
 let ultimaPorAlumno={};         // id_alumno -> evaluación vigente
 
@@ -1026,52 +1032,119 @@ function guardar(){
   if(anterior && anterior!==r.categoria){
     cola[sel.id]={aprobado:false}; save(K_LS.q,cola);
   }
+  /* Si este alumno ya tenía el visto bueno y todavía no se aplicó, la
+     aprobación se cae: hay que volver a aprobar el número nuevo. */
+  if(cola[sel.id] && cola[sel.id].aprobado){
+    cola[sel.id].aprobado=false; save(K_LS.q,cola);
+    marcarAprobado(sel.id, false, null);
+    auditar("aprobacion_caida", `${sel.nombre} · se re-evaluó, la aprobación anterior quedó sin efecto`);
+    setTimeout(()=>toast("La aprobación anterior se canceló: volvé a aprobar"), 2300);
+  }
+
   pushFirebase([rec]);
   auditar("evaluacion", `${sel.nombre} · ${modoActual} · ${fmtNivel(r.nivel)} ${r.categoria}${anterior&&anterior!==r.categoria?` (antes ${anterior})`:""}`);
   toast(`Guardado · ${fmtNivel(r.nivel)} ${r.categoria}`);
   renderList(); bindEditor(); pintarScore();
 }
 
-/* ---------------- cola de cambios ---------------- */
-function filasCola(){
-  return Object.keys(cola).map(id=>{
-    const u=ultimaEval(id); if(!u) return null;
-    return {...u, aprobado: !!cola[id].aprobado};
-  }).filter(Boolean).filter(u=>u.categoria_anterior && u.categoria_anterior!==u.categoria);
+/* ---------------- revisión y aprobación ---------------- */
+let soloCambios=true;
+
+function catPlanilla(id){
+  const a=alumnos.find(x=>x.id===id);
+  return a? (a.cat_actual||"") : "";
 }
-function renderQueue(){
+
+/* Todas las evaluaciones vigentes, de todos los dispositivos */
+function filasRevision(){
+  const out=[];
+  Object.keys(ultimaPorAlumno).forEach(id=>{
+    const u=ultimaPorAlumno[id];
+    const antes=catPlanilla(id);
+    const cambia = String(antes)!==String(u.categoria);
+    if(soloCambios && !cambia) return;
+    const est=aprobadosFB[id];
+    out.push({
+      ...u, antes, cambia,
+      aprobado: !!(est && !est.aplicado),
+      aplicado: !!(est && est.aplicado)
+    });
+  });
+  return out.sort((a,b)=> b.fecha.localeCompare(a.fecha));
+}
+
+async function renderQueue(){
   const box=document.getElementById("queueBody");
-  const filas=filasCola();
-  const admin=true;
-  document.getElementById("expQueue").hidden=!admin;
-  document.getElementById("queueNote").textContent = admin
-    ? "Revisá los cambios, tildá los que apruebes y exportá el archivo que consume el calendario."
-    : "Solo lectura. La aprobación de cambios de categoría la hace la administración.";
-  if(!filas.length){ box.innerHTML=`<p class="hint">Sin cambios pendientes. Cuando una evaluación mueva de categoría a un alumno, aparece acá.</p>`; return }
-  let h=`<table class="q"><thead><tr><th>Alumno</th><th>Titular</th><th>Antes</th><th>Ahora</th><th>Nivel</th><th>Evaluó</th>${admin?"<th>Aprobar</th>":""}</tr></thead><tbody>`;
+  box.innerHTML=`<p class="hint">Buscando evaluaciones…</p>`;
+  await pullFirebase();
+  await pullAprobados();
+
+  document.getElementById("expQueue").hidden=!ADMIN;
+  document.getElementById("aprobarTodos").hidden=!ADMIN;
+  document.getElementById("queueNote").textContent = ADMIN
+    ? "Tildá las que apruebes. Después corré aplicarCategoriasAprobadas en Apps Script para que lleguen a la planilla."
+    : "Solo lectura. La aprobación la hace la administración.";
+
+  const filas=filasRevision();
+  const tog=document.getElementById("togCambios");
+  tog.textContent = soloCambios? "Ver todas las evaluaciones" : "Ver solo los cambios";
+  tog.onclick=()=>{ soloCambios=!soloCambios; renderQueue() };
+
+  if(!filas.length){
+    box.innerHTML=`<p class="hint">${soloCambios?"Ninguna evaluación cambia la categoría de la planilla.":"Todavía no hay evaluaciones cargadas."}</p>`;
+    return;
+  }
+
+  let h=`<table class="q"><thead><tr>
+    <th>Alumno</th><th>Planilla</th><th>Nueva</th><th>Evaluó</th><th>Cuándo</th><th>Estado</th>
+    ${ADMIN?"<th>Aprobar</th>":""}</tr></thead><tbody>`;
+
   filas.forEach(f=>{
-    h+=`<tr><td>${esc(f.nombre)}</td><td>${esc(f.titular||"")}</td><td>${esc(f.categoria_anterior)}</td>
-        <td class="mv">${esc(f.categoria)}</td><td class="mv">${fmtNivel(f.nivel)}</td>
-        <td>${esc(f.profe||"")}</td>
-        ${admin?`<td><input type="checkbox" data-ap="${f.id_alumno}" ${f.aprobado?"checked":""} aria-label="Aprobar ${esc(f.nombre)}"></td>`:""}</tr>`;
+    const dias=diasDesde(f.fecha);
+    const estado = f.aplicado ? "en la planilla"
+                 : f.aprobado ? "aprobado, falta aplicar"
+                 : f.cambia   ? "sin aprobar" : "sin cambio";
+    h+=`<tr>
+      <td>${esc(f.nombre)}</td>
+      <td>${esc(f.antes||"—")}</td>
+      <td class="mv">${esc(f.categoria)}</td>
+      <td>${esc(nombreProfe(f.profe))}${f.modo==="express"?" · exp":""}</td>
+      <td>${dias===0?"hoy":dias+"d"}</td>
+      <td>${estado}</td>
+      ${ADMIN?`<td><input type="checkbox" data-ap="${f.id_alumno}" ${f.aprobado||f.aplicado?"checked":""} ${f.aplicado?"disabled":""} aria-label="Aprobar ${esc(f.nombre)}"></td>`:""}
+    </tr>`;
   });
   h+=`</tbody></table>`;
   box.innerHTML=h;
+
   box.querySelectorAll("[data-ap]").forEach(c=>{
     c.onchange=async()=>{
       const id=c.dataset.ap;
-      cola[id].aprobado=c.checked; save(K_LS.q,cola);
       const u=ultimaEval(id);
+      cola[id]={aprobado:c.checked}; save(K_LS.q,cola);
       auditar(c.checked?"aprobacion":"desaprobacion", `${u?u.nombre:id} → ${u?u.categoria:""}`);
       const ok=await marcarAprobado(id, c.checked, u);
-      const nota=document.getElementById("queueNote");
-      if(!ok) nota.textContent="No pude registrar la aprobación en Firebase. Revisá la conexión y volvé a tildar.";
-      else nota.textContent = c.checked
-        ? "Aprobado. Para que llegue a la planilla, corré aplicarCategoriasAprobadas en Apps Script."
-        : "Aprobación quitada.";
+      if(!ok){ c.checked=!c.checked; document.getElementById("queueNote").textContent="No pude guardar la aprobación. Revisá la conexión."; }
+      else await pullAprobados();
     };
   });
 }
+
+async function aprobarTodos(){
+  const pend=filasRevision().filter(f=>f.cambia && !f.aprobado && !f.aplicado);
+  if(!pend.length) return toast("No hay nada pendiente de aprobar");
+  if(!confirm(`Aprobar ${pend.length} evaluación(es)?\n\nDespués hay que correr aplicarCategoriasAprobadas para que lleguen a la planilla.`)) return;
+  let ok=0;
+  for(const f of pend){
+    const u=ultimaEval(f.id_alumno);
+    if(await marcarAprobado(f.id_alumno, true, u)){ ok++; cola[f.id_alumno]={aprobado:true} }
+  }
+  save(K_LS.q,cola);
+  auditar("aprobacion_masiva", `${ok} evaluaciones aprobadas`);
+  await renderQueue();
+  toast(`${ok} aprobadas`);
+}
+
 /* ---------------- control de criterio ---------------- */
 function renderCalib(){
   const box=document.getElementById("calibBody");
@@ -1143,7 +1216,8 @@ async function pullFirebase(){
    y recién ahí escribe la categoría en la columna C de la planilla. */
 async function marcarAprobado(idAlumno, aprobado, u){
   const base=dbBase();
-  if(!base || !u) return false;
+  if(!base) return false;
+  if(aprobado && !u) return false;
   try{
     if(!aprobado){
       const r=await fetch(`${base}/aprobados/${idAlumno}.json`,{method:"DELETE"});
@@ -1161,6 +1235,17 @@ async function marcarAprobado(idAlumno, aprobado, u){
     });
     return r.ok;
   }catch(e){ return false }
+}
+
+let aprobadosFB={};      // id_alumno -> {aprobado, aplicado, ...}
+
+async function pullAprobados(){
+  const base=dbBase();
+  try{
+    const r=await fetch(`${base}/aprobados.json`);
+    aprobadosFB = r.ok ? (await r.json())||{} : {};
+  }catch(e){ aprobadosFB={} }
+  return aprobadosFB;
 }
 
 /* registro de auditoría: quién hizo qué y cuándo */
@@ -1236,7 +1321,7 @@ document.getElementById("back").onclick=()=>{ document.body.classList.remove("ed
 function abrirDatos(){ renderCalib(); document.getElementById("dlgData").showModal() }
 document.getElementById("openData").onclick=abrirDatos;
 document.getElementById("emptyData").onclick=abrirDatos;
-document.getElementById("openQueue").onclick=()=>{ renderQueue(); document.getElementById("dlgQueue").showModal() };
+document.getElementById("openQueue").onclick=()=>{ document.getElementById("dlgQueue").showModal(); renderQueue() };
 document.querySelectorAll("[data-close]").forEach(b=>b.onclick=()=>b.closest("dialog").close());
 
 document.getElementById("csvImport").onclick=()=>{
@@ -1294,8 +1379,9 @@ document.getElementById("expAll").onclick=()=>{
   a.href=URL.createObjectURL(new Blob([JSON.stringify({alumnos,evals,cola},null,1)],{type:"application/json"}));
   a.download="nivelacion-dg.json"; a.click(); URL.revokeObjectURL(a.href);
 };
+document.getElementById("aprobarTodos").onclick=aprobarTodos;
 document.getElementById("expQueue").onclick=()=>{
-  const ap=filasCola().filter(f=>f.aprobado);
+  const ap=filasRevision().filter(f=>f.aprobado||f.aplicado);
   if(!ap.length) return toast("Ninguno aprobado");
   download("cambios-categoria.csv", toCSV(ap,["id_alumno","nombre","titular","categoria_anterior","categoria","nivel","fecha","profe"]));
   auditar("exportacion", `${ap.length} cambios de categoría al calendario`);
