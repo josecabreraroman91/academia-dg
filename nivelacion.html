@@ -1040,10 +1040,17 @@ function renderQueue(){
   h+=`</tbody></table>`;
   box.innerHTML=h;
   box.querySelectorAll("[data-ap]").forEach(c=>{
-    c.onchange=()=>{
-      cola[c.dataset.ap].aprobado=c.checked; save(K_LS.q,cola);
-      const u=ultimaEval(c.dataset.ap);
-      auditar(c.checked?"aprobacion":"desaprobacion", `${u?u.nombre:c.dataset.ap} → ${u?u.categoria:""}`);
+    c.onchange=async()=>{
+      const id=c.dataset.ap;
+      cola[id].aprobado=c.checked; save(K_LS.q,cola);
+      const u=ultimaEval(id);
+      auditar(c.checked?"aprobacion":"desaprobacion", `${u?u.nombre:id} → ${u?u.categoria:""}`);
+      const ok=await marcarAprobado(id, c.checked, u);
+      const nota=document.getElementById("queueNote");
+      if(!ok) nota.textContent="No pude registrar la aprobación en Firebase. Revisá la conexión y volvé a tildar.";
+      else nota.textContent = c.checked
+        ? "Aprobado. Para que llegue a la planilla, corré aplicarCategoriasAprobadas en Apps Script."
+        : "Aprobación quitada.";
     };
   });
 }
@@ -1112,6 +1119,30 @@ async function pullFirebase(){
     estadoSync(nuevas);
     return nuevas;
   }catch(e){ estadoSync(); return 0 }
+}
+
+/* Deja el visto bueno en Firebase. El script de Apps Script lee esta lista
+   y recién ahí escribe la categoría en la columna C de la planilla. */
+async function marcarAprobado(idAlumno, aprobado, u){
+  const base=dbBase();
+  if(!base || !u) return false;
+  try{
+    if(!aprobado){
+      const r=await fetch(`${base}/aprobados/${idAlumno}.json`,{method:"DELETE"});
+      return r.ok;
+    }
+    const r=await fetch(`${base}/aprobados/${idAlumno}.json`,{
+      method:"PUT", headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({
+        id_alumno:idAlumno, nombre:u.nombre,
+        categoria:u.categoria, categoria_anterior:u.categoria_anterior||"",
+        nivel:u.nivel, evaluo:u.profe||"", fecha_eval:u.fecha,
+        aprobo:cfg.profe||"", fecha_aprob:new Date().toISOString(),
+        aplicado:false
+      })
+    });
+    return r.ok;
+  }catch(e){ return false }
 }
 
 /* registro de auditoría: quién hizo qué y cuándo */
