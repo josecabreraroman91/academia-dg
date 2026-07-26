@@ -274,9 +274,12 @@ function parseCSV(txt){ const rows=[]; let row=[],cur='',q=false;
 $('btnCargar').onclick=async()=>{
   $('status').textContent='Cargando…';
   try{
-    const url='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet='+HIST_TAB;
-    const res=await fetch(url); if(!res.ok) throw new Error('HTTP '+res.status);
-    const rows=parseCSV(await res.text());
+    /* Copia del historial en Firebase (últimos 90 días), en vez de la
+       planilla pública. La refresca el script sincronizarHistorial. */
+    const snap=await firebase.database().ref('historial_v1/csv').once('value');
+    const csv=snap.val();
+    if(!csv) throw new Error('no encontré la copia del historial en Firebase');
+    const rows=parseCSV(csv);
     filas=[];
     rows.forEach(x=>{
       const fecha=(x[0]||'').trim(); if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return;
