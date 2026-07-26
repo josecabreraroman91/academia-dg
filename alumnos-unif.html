@@ -447,7 +447,9 @@ async function importarPlanilla(){
         ['cat','lado','profe','tipo','nomHor','nomWpp'].forEach(k=>{ if(!exist[k]&&datos[k]) exist[k]=datos[k]; });
         if(!exist.precio&&datos.precio) exist.precio=datos.precio;
         if(!exist.tel&&datos.tel){ exist.tel=datos.tel; exist.telRaw=datos.telRaw; }
-        if((!exist.horarios||!exist.horarios.length)&&horarios.length) exist.horarios=horarios;
+        // Los días vienen de la MADRE vía planilla: la planilla manda.
+        // Si la planilla trae horarios, pisan a los que había.
+        if(horarios.length) exist.horarios=horarios;
         actualizados++;
       } else {
         alumnos.push(Object.assign({id:uid(),_dirty:false},datos)); nuevos++;
