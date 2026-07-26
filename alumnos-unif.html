@@ -390,6 +390,7 @@ function deleteEditor(){
   if(!editId) return;
   const a=alumnos.find(x=>x.id===editId);
   if(!confirm(`¿Borrar a ${a?a.nombre:'este alumno'}? No se puede deshacer.`)) return;
+  borrarAlumnoEnVivo(a?a.nombre:'');
   alumnos=alumnos.filter(x=>x.id!==editId);
   save(); closeEditor(); render(); toast('Alumno borrado');
 }
@@ -561,6 +562,56 @@ async function sheetsAppend(values){
   const r=await fetch(u,{method:'POST',headers:{Authorization:'Bearer '+_gtoken,'Content-Type':'application/json'},body:JSON.stringify({values})});
   if(!r.ok) throw new Error('Agregado falló ('+r.status+')'); return r.json();
 }
+
+/* ============================================================
+   PUBLICAR ALUMNOS EN VIVO
+   Además de mandarlos a la planilla, cada alumno creado o editado
+   se escribe en Firebase en el acto. El calendario y nivelación
+   van a leer de ahí, así un alumno nuevo está disponible al segundo
+   en vez de esperar los 15 minutos de la copia.
+   ============================================================ */
+function claveAlumno_(nombre){
+  return String(nombre==null?'':nombre)
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/\s+/g,' ').trim()
+    .replace(/[.#$/\[\]]/g,'_');
+}
+
+function publicarAlumnosEnVivo(lista){
+  try{
+    if(!window.firebase || !firebase.apps || !firebase.apps.length) return Promise.resolve();
+    if(!firebase.auth().currentUser) return Promise.resolve();
+    var updates = {};
+    (lista||[]).forEach(function(a){
+      var k = claveAlumno_(a.nombre);
+      if(!k) return;
+      updates[k] = {
+        nombre: a.nombre || '',
+        cat:    a.cat || '',
+        lado:   a.lado || '',
+        profe:  a.profe || '',
+        tipo:   a.tipo || '',
+        precio: Number(a.precio) || 0,
+        tel:    a.tel || '',
+        nomHor: a.nomHor || '',
+        nomWpp: a.nomWpp || '',
+        ts:     Date.now()
+      };
+    });
+    if(!Object.keys(updates).length) return Promise.resolve();
+    return firebase.database().ref('alumnos_v2').update(updates);
+  }catch(e){ console.warn('No pude publicar en vivo:', e.message); return Promise.resolve(); }
+}
+
+function borrarAlumnoEnVivo(nombre){
+  try{
+    if(!window.firebase || !firebase.apps || !firebase.apps.length) return;
+    if(!firebase.auth().currentUser) return;
+    var k = claveAlumno_(nombre);
+    if(k) firebase.database().ref('alumnos_v2/'+k).remove();
+  }catch(e){}
+}
+
 async function guardarEnPlanilla(silent){
   const dirty=alumnos.filter(a=>a._dirty);
   if(!dirty.length){ if(!silent) alert('No hay cambios para guardar.\n\nEditá o creá un alumno y volvé a tocar este botón.'); return; }
@@ -571,6 +622,7 @@ async function guardarEnPlanilla(silent){
     const payload=dirty.map(a=>({ nombre:a.nombre, cat:a.cat||'', lado:a.lado||'', tipo:a.tipo||'', precio:gsTxt(a.precio), coment:a.comentarios||'', nomHor:a.nomHor||'', nomWpp:a.nomWpp||'', tel:a.tel||normPhone(a.telRaw)||'' }));
     try{
       await enviarAlPuente('alumnos', {alumnos:payload});
+      publicarAlumnosEnVivo(dirty);          // disponible al instante para el calendario
       dirty.forEach(a=>a._dirty=false); save(); render();
       if(silent) toast('☁️ Guardado en la planilla'); else alert('✅ Guardado en la planilla ('+dirty.length+' alumno/s).');
     }catch(e){ if(silent) toast('⚠️ Quedó sin guardar — reintentá'); else alert('No pude guardar:\n\n'+e.message); }
