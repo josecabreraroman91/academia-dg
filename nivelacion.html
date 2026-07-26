@@ -1447,7 +1447,8 @@ document.getElementById("gvizUrl").value=cfg.gviz||GVIZ_ALUMNOS;
 initProfes();
 reindexar();
 renderFilters(); renderList(); estadoSync();
-leerGviz(cfg.gviz||GVIZ_ALUMNOS);
+/* El listado se pide después del login: sin sesión, Firebase lo niega.
+   Ver escucharAlumnosNuevos() y la llamada dentro de onIdTokenChanged. */
 // ---- Sincronización protegida: no arranca sin sesión iniciada ----
 (function(){
   var _arrancado=false;
@@ -1511,6 +1512,7 @@ leerGviz(cfg.gviz||GVIZ_ALUMNOS);
         hide(); arrancarSync();
         aplicarPermisos(u.email);
         escucharAlumnosNuevos();
+        leerGviz();                 // ahora sí: con la credencial puesta
       });
     });
   }catch(e){ show('Firebase no inició: '+e.message); }
