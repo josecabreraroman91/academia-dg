@@ -1922,6 +1922,25 @@ function rebuildLocalContacts(){
 }
 // Llena el datalist del buscador con TODOS los nombres disponibles localmente (sin sincronizar):
 // contactos sincronizados + alumnos ya cargados en el calendario + la app Alumnos (mismo navegador)
+/* ============================================================
+   ALUMNOS EN VIVO
+   La app de Alumnos escribe cada alumno nuevo en alumnos_v2 al
+   instante. Acá nos suscribimos: un alumno recién creado aparece
+   en el autocompletado en un segundo, sin sincronizar la planilla.
+   Solo suma nombres y teléfonos. No toca la grilla ni la MADRE.
+   ============================================================ */
+let alumnosVivo = {};
+
+function escucharAlumnosVivo(){
+  if(!_fbdb) return;
+  try{
+    _fbdb.ref('alumnos_v2').on('value', function(snap){
+      alumnosVivo = snap.val() || {};
+      try{ fillAlumnosDatalist(); }catch(e){}
+    }, function(err){ console.warn('alumnos_v2:', err.message); });
+  }catch(e){ console.warn('No pude escuchar alumnos_v2:', e.message); }
+}
+
 function fillAlumnosDatalist(){
   rebuildLocalContacts();
   const dl=document.getElementById('alumnosList');
@@ -1930,13 +1949,20 @@ function fillAlumnosDatalist(){
   Object.values(state.contactos||{}).forEach(c=>{ if(c&&c.nombre) set.add(c.nombre); });
   [state.madre,state.semana,state.semanaProxima].forEach(b=>{ if(b&&b.alumnos) Object.values(b.alumnos).forEach(al=>{ if(al&&al.nombre&&al.mod!=='BLOQUE') set.add(al.nombre); }); });
   Object.values(contactosLocal).forEach(c=>set.add(c.nombre));
+  Object.values(alumnosVivo).forEach(c=>{ if(c&&c.nombre) set.add(c.nombre); });
   const nombres=[...set].sort((a,b)=>a.localeCompare(b));
   dl.innerHTML=nombres.map(n=>`<option value="${n.replace(/"/g,'&quot;')}"></option>`).join('');
 }
 
 function telDeAlumno(nombre){
   const k=normName(nombre);
-  return state.contactos[k] || contactosLocal[k] || null;   // primero lo sincronizado, si no lo local
+  if(state.contactos[k]) return state.contactos[k];
+  if(contactosLocal[k]) return contactosLocal[k];
+  // último recurso: el alumno recién creado, que todavía no se sincronizó
+  const vivo = Object.values(alumnosVivo).find(function(c){
+    return c && c.nombre && normName(c.nombre)===k;
+  });
+  return vivo ? {nombre:vivo.nombre, tel:vivo.tel||''} : null;
 }
 
 function csvCell(v){
@@ -2669,6 +2695,7 @@ fillAlumnosDatalist();
         if(!_arrancado){
           _arrancado=true;
           iniciarCalendarioCompartido();   // sincroniza el calendario entre encargados (tiempo real)
+          escucharAlumnosVivo();           // alumnos nuevos disponibles al instante
           setTimeout(function(){ publicarDiaHoy(true); }, 1200);
         }
       } else {
