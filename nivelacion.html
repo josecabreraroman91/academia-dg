@@ -322,8 +322,8 @@ window.ADG = { token:null, listo:false };
   <main class="board" id="board">
     <div class="empty" id="empty">
       <h2>Elegí un alumno</h2>
-      <p>Cargá el listado en <b>Datos</b> y después tocá un alumno para evaluarlo. La evaluación son 15 ítems, unos 3 minutos.</p>
-      <button class="btn ghost" id="emptyData">Cargar alumnos</button>
+      <p>Buscalo en la lista de la izquierda y tocalo para evaluarlo. La evaluación son 15 ítems, unos 3 minutos.</p>
+      <button class="btn ghost" id="emptyData" style="display:none">Cargar alumnos</button>
     </div>
     <div id="editor" hidden></div>
   </main>
@@ -340,10 +340,10 @@ window.ADG = { token:null, listo:false };
       <span class="hint" id="csvInfo"></span>
     </div>
 
-    <h4>Desde la planilla del calendario</h4>
-    <p class="hint">Ya viene apuntando a la hoja ALUMNOS de tu planilla. Se lee cada vez que abrís la app. Requiere que la planilla esté compartida como «cualquiera con el enlace puede ver», igual que la necesitan el calendario y alumnos-unif.</p>
-    <input type="url" id="gvizUrl">
-    <div class="actions"><button class="btn ghost small" id="gvizLoad">Leer ahora</button><button class="btn ghost small" id="gvizSave">Guardar URL</button></div>
+    <h4>Listado de alumnos</h4>
+    <p class="hint">El listado ya no se baja de la planilla: llega de Firebase, que está cerrado por reglas. Se carga solo al entrar, y los alumnos creados desde la app de Alumnos aparecen al instante. No hay nada que configurar acá.</p>
+    <input type="url" id="gvizUrl" hidden>
+    <div class="actions" hidden><button class="btn ghost small" id="gvizLoad">Leer ahora</button><button class="btn ghost small" id="gvizSave">Guardar URL</button></div>
 
     <h4>Sincronización</h4>
     <p class="hint">Las evaluaciones se guardan en el dispositivo y se suben al Firebase de la academia (espacio <code>niveles_v1</code>, aparte del calendario). Si un profe evalúa sin señal, queda guardado y sube solo cuando vuelve la conexión.</p>
