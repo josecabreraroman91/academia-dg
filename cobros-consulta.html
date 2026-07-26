@@ -272,8 +272,12 @@ async function cargarPlanilla(){
   $('loadbar').textContent='Cargando alumnos y clases de la planilla…';
   try{
     // ALUMNOS
-    const urlA='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet=ALUMNOS';
-    const rowsA=parseCSV(await (await fetch(urlA)).text());
+    /* Ya no se baja la planilla de Google: se leen las copias que dejan
+       los scripts en Firebase, cerradas por reglas. */
+    const snapA=await firebase.database().ref('alumnos_v1/csv').once('value');
+    const csvA=snapA.val();
+    if(!csvA) throw new Error('no encontré la copia de alumnos en Firebase');
+    const rowsA=parseCSV(csvA);
     let h=-1; for(let i=0;i<Math.min(rowsA.length,12);i++){ if(rowsA[i].some(c=>normName(c)==='alumnos')){h=i;break;} } if(h<0) h=1;
     const ros=[], idx={};
     for(let i=h+1;i<rowsA.length;i++){
@@ -292,8 +296,10 @@ async function cargarPlanilla(){
 
     // HISTORIAL (asistencia real del reporte de profes)
     try{
-      const urlH='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet=HISTORIAL';
-      const rowsH=parseCSV(await (await fetch(urlH)).text());
+      const snapH=await firebase.database().ref('historial_v1/csv').once('value');
+      const csvH=snapH.val();
+      if(!csvH) throw new Error('no encontré la copia del historial en Firebase');
+      const rowsH=parseCSV(csvH);
       const hist=[];
       for(let i=1;i<rowsH.length;i++){ const x=rowsH[i]; const fecha=(x[0]||'').trim(); const al=(x[1]||'').trim(); if(!fecha||!al) continue;
         hist.push({ fecha, alumno:al, normAl:normName(al), hora:(x[2]||'').trim(), sede:(x[3]||'').trim(), profe:(x[4]||'').trim(), tipo:(x[5]||'').trim(), estado:(x[6]||'').trim(), cobro:(x[7]||'').trim(), motivo:(x[8]||'').trim() });
@@ -501,7 +507,8 @@ $('btnWpp').onclick=()=>{
 };
 
 $('btnSync').onclick=cargarPlanilla;
-cargarPlanilla();
+/* Sin sesión iniciada, Firebase niega las copias: se carga después del login */
+firebase.auth().onAuthStateChanged(function(u){ if(u) cargarPlanilla(); });
 </script>
 
 <script>
