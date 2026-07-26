@@ -1812,12 +1812,19 @@ async function syncContactos(){
   const id=document.getElementById('fSheetId').value.trim() || DEFAULT_SHEET_ID;
   const tab=document.getElementById('fSheetTab').value.trim() || DEFAULT_SHEET_TAB;
   state.sheetId=id; state.sheetTab=tab; saveState();
-  status.textContent='⏳ Leyendo hoja '+tab+'…';
-  const url='https://docs.google.com/spreadsheets/d/'+id+'/gviz/tq?tqx=out:csv&sheet='+encodeURIComponent(tab);
+  status.textContent='⏳ Leyendo los alumnos…';
+  /* Ya no se baja la planilla de Google: se lee la copia que el script
+     deja en Firebase (alumnos_v1), cerrada por reglas. La copia se
+     refresca sola con el activador de sincronizarAlumnos. */
   try{
-    const res=await fetch(url);
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const text=await res.text();
+    const snap = await _fbdb.ref('alumnos_v1').once('value');
+    const paq = snap.val();
+    if(!paq || !paq.csv) throw new Error('no encontré la copia de alumnos en Firebase');
+    const text = paq.csv;
+    if(paq.actualizado){
+      const min = Math.round((Date.now() - new Date(paq.actualizado).getTime())/60000);
+      if(min > 60) console.warn('la copia de alumnos es de hace '+min+' minutos');
+    }
     const rows=parseCSV(text);
     if(rows.length<2) throw new Error('hoja vacía o sin datos');
     // Detectar la FILA de encabezados. No exigir teléfono (en la planilla su encabezado viene vacío);
