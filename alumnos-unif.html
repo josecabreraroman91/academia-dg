@@ -599,7 +599,12 @@ function publicarAlumnosEnVivo(lista){
       };
     });
     if(!Object.keys(updates).length) return Promise.resolve();
-    return firebase.database().ref('alumnos_v2').update(updates);
+    return firebase.database().ref('alumnos_v2').update(updates)
+      .then(function(){ try{ toast('✔ Disponible para el calendario'); }catch(e){} })
+      .catch(function(e){
+        try{ toast('⚠️ No se publicó en vivo: '+e.message); }catch(x){}
+        console.warn('publicarAlumnosEnVivo:', e);
+      });
   }catch(e){ console.warn('No pude publicar en vivo:', e.message); return Promise.resolve(); }
 }
 
@@ -621,8 +626,8 @@ async function guardarEnPlanilla(silent){
     if(!silent && !confirm('Guardar '+dirty.length+' alumno(s) en la planilla?')) return;
     const payload=dirty.map(a=>({ nombre:a.nombre, cat:a.cat||'', lado:a.lado||'', tipo:a.tipo||'', precio:gsTxt(a.precio), coment:a.comentarios||'', nomHor:a.nomHor||'', nomWpp:a.nomWpp||'', tel:a.tel||normPhone(a.telRaw)||'' }));
     try{
+      publicarAlumnosEnVivo(dirty);          // primero Firebase: no depende de la planilla
       await enviarAlPuente('alumnos', {alumnos:payload});
-      publicarAlumnosEnVivo(dirty);          // disponible al instante para el calendario
       dirty.forEach(a=>a._dirty=false); save(); render();
       if(silent) toast('☁️ Guardado en la planilla'); else alert('✅ Guardado en la planilla ('+dirty.length+' alumno/s).');
     }catch(e){ if(silent) toast('⚠️ Quedó sin guardar — reintentá'); else alert('No pude guardar:\n\n'+e.message); }
