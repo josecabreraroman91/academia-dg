@@ -310,18 +310,39 @@ function parseCSV(txt){
   return rows;
 }
 function normNombre(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ').trim(); }
+/* El autocompletado ya no baja la planilla de Google: lee la copia que
+   el script deja en Firebase (alumnos_v1), que está cerrada por reglas.
+   Y además escucha alumnos_v2, donde la app de Alumnos escribe cada
+   alumno nuevo al instante: aparece sin esperar la copia. */
+let _nombresBase=[], _nombresVivo=[];
+
+function pintarAutocompletado(){
+  const dl=document.getElementById('alumnosList'); if(!dl) return;
+  const set=new Set();
+  _nombresBase.concat(_nombresVivo).forEach(nom=>{
+    const n=normNombre(nom);
+    if(nom && n!=='alumnos' && n.length>1 && !/^(alto rendimiento|almuerzo|bloque)/.test(n)) set.add(nom);
+  });
+  dl.innerHTML=[...set].sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
+  console.log('Autocompletado: '+set.size+' alumnos');
+}
+
 async function cargarAlumnosPlanilla(){
   try{
-    const url='https://docs.google.com/spreadsheets/d/'+SHEET_ID+'/gviz/tq?tqx=out:csv&sheet=ALUMNOS';
-    const res=await fetch(url); if(!res.ok) throw new Error('HTTP '+res.status);
-    const rows=parseCSV(await res.text());
-    const set=new Set();
-    rows.forEach(r=>{ const nom=(r[1]||'').trim(); const n=normNombre(nom);
-      if(nom && n!=='alumnos' && n.length>1 && !/^(alto rendimiento|almuerzo|bloque)/.test(n)) set.add(nom); });
-    const dl=document.getElementById('alumnosList');
-    dl.innerHTML=[...set].sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
-    console.log('Autocompletado: '+set.size+' alumnos cargados');
+    const snap = await firebase.database().ref('alumnos_v1/csv').once('value');
+    const csv = snap.val();
+    if(!csv) throw new Error('la copia de alumnos está vacía');
+    _nombresBase = parseCSV(csv).map(r => (r[1]||'').trim()).filter(Boolean);
+    pintarAutocompletado();
   }catch(e){ console.warn('No pude cargar alumnos para autocompletar:', e.message); /* se puede escribir a mano igual */ }
+
+  try{
+    firebase.database().ref('alumnos_v2').on('value', function(sn){
+      const v = sn.val() || {};
+      _nombresVivo = Object.keys(v).map(k => (v[k] && v[k].nombre) || '').filter(Boolean);
+      pintarAutocompletado();
+    }, function(err){ console.warn('alumnos_v2:', err.message); });
+  }catch(e){ console.warn('No pude escuchar alumnos nuevos:', e.message); }
 }
 const EST_ICO={sin:'⚪',presente:'🟢',ausente:'🔴'};
 const EST_NEXT={sin:'presente',presente:'ausente',ausente:'sin'};
