@@ -1367,9 +1367,18 @@ document.getElementById("csvImport").onclick=()=>{
   document.getElementById("csvInfo").textContent=`${parsed.length} alumnos leídos`;
   toast(`${alumnos.length} alumnos en la lista`);
 };
-function mergeAlumnos(nuevos){
+/* completo=true: el listado que llega es LA lista entera, así que los
+   alumnos locales que ya no figuran se sacan (alguien los borró).
+   Sus evaluaciones NO se tocan: viven aparte y quedan en el historial. */
+function mergeAlumnos(nuevos, completo){
   const map={}; alumnos.forEach(a=>map[a.id]=a);
   nuevos.forEach(n=>{ map[n.id]={...map[n.id],...n} });
+  if(completo){
+    const vigentes=new Set(nuevos.map(n=>n.id));
+    let fuera=0;
+    Object.keys(map).forEach(k=>{ if(!vigentes.has(k)){ delete map[k]; fuera++; } });
+    if(fuera) setTimeout(()=>toast(`${fuera} alumno(s) que ya no están se sacaron del listado`), 900);
+  }
   alumnos=Object.values(map);
   const mig=migrarAId(alumnos);
   save(K_LS.al,alumnos); initProfes(); renderFilters(); renderList();
@@ -1395,8 +1404,40 @@ async function leerGviz(url){
     if(!paq || !paq.csv){ toast("No encontré la copia de alumnos en Firebase"); return }
     const p = leerAlumnos(paq.csv);
     if(!p || !p.length){ toast("La copia vino sin alumnos"); return }
-    mergeAlumnos(p); toast(`${p.length} alumnos`);
+
+    /* La copia se saca cada 15 minutos, así que puede no traer a los
+       recién creados. Los sumamos antes de reconciliar, si no se
+       borrarían apenas entran. */
+    let lista = p;
+    try{
+      const rv = await fetch(FB_URL + '/alumnos_v2.json');
+      const vivos = await rv.json();
+      if(vivos){
+        const yaEstan = new Set(p.map(a=>a.id));
+        Object.values(vivos).forEach(function(a){
+          if(!a || !a.nombre) return;
+          const rec = alumnoDesdeVivo(a);
+          if(!yaEstan.has(rec.id)) lista = lista.concat([rec]);
+        });
+      }
+    }catch(e){}
+
+    mergeAlumnos(lista, true); toast(`${lista.length} alumnos`);
   }catch(e){ toast("No pude leer los alumnos") }
+}
+
+/* Convierte un alumno de alumnos_v2 al mismo formato que usa el listado.
+   Sin el campo id, todos se pisaban entre sí en una única entrada. */
+function alumnoDesdeVivo(a){
+  const nom = String(a.nombre||'').trim();
+  return {
+    id: slug(nom),
+    sinId: true,
+    nombre: nom,
+    cat_actual: a.cat || '',
+    titular: a.profe || '',
+    profes: a.profe ? parseProfes(a.profe) : []
+  };
 }
 
 /* Alumnos creados recién, todavía no incluidos en la copia */
@@ -1404,10 +1445,10 @@ function escucharAlumnosNuevos(){
   try{
     firebase.database().ref('alumnos_v2').on('value', function(snap){
       const v = snap.val() || {};
-      const nuevos = Object.keys(v).map(function(k){
-        const a = v[k];
-        return { nombre: a.nombre||'', categoria: a.cat||'', titular: a.profe||'', id_alumno: '' };
-      }).filter(function(a){ return a.nombre; });
+      const nuevos = Object.keys(v)
+        .map(function(k){ return v[k]; })
+        .filter(function(a){ return a && a.nombre; })
+        .map(alumnoDesdeVivo);
       if(nuevos.length){
         try{ mergeAlumnos(nuevos); reindexar(); renderFilters(); renderList(); }catch(e){}
       }
