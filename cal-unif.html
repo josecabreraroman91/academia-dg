@@ -1922,7 +1922,7 @@ function construirContactos(iNom,iTel){
 // Contactos LOCALES: leídos de la app Alumnos (mismo navegador) SIN sincronizar
 let contactosLocal={};
 function rebuildLocalContacts(){
-  contactosLocal={};
+  contactosLocal={}; resetIdxFlex();
   try{ const arr=JSON.parse(localStorage.getItem('alumnos_dg')||'[]');
     if(Array.isArray(arr)) arr.forEach(a=>{ if(a&&a.nombre) contactosLocal[normName(a.nombre)]={nombre:a.nombre, tel:a.tel||normPhone(a.telRaw||'')||'', nombreWpp:a.nomWpp||'', nivel:a.cat||'', lado:a.lado||'', mod:a.tipo||''}; });
   }catch(e){}
@@ -1961,10 +1961,58 @@ function fillAlumnosDatalist(){
   dl.innerHTML=nombres.map(n=>`<option value="${n.replace(/"/g,'&quot;')}"></option>`).join('');
 }
 
+/* Clave para emparejar un alumno de la grilla con su ficha de la planilla.
+   Replica lo que hacía el generador de ENVIOS (normalizarNombreKey): además
+   de minúsculas y acentos, saca los emojis y el " LOMAS" / " SEGUROLA"
+   pegado al final del nombre. Sin esto, un alumno escrito en la grilla como
+   "Pedro Gomez Lomas" no encuentra a "Pedro Gomez" en la planilla y queda
+   sin teléfono, aunque el número esté bien cargado. */
+function keyAlumno(s){
+  let t = normName(s)
+    .replace(/[\u{1F300}-\u{1FFFF}]/gu,' ')
+    .replace(/\uFE0F/g,' ')
+    .replace(/\s+/g,' ')
+    .trim();
+  let antes;
+  do { antes = t; t = t.replace(/\s+(lomas|segurola)\s*$/,'').trim(); } while (t !== antes);
+  return t.replace(/\.+$/,'').trim();
+}
+
+/* Nombres de la grilla que no son alumnos: no van a la lista de envíos */
+function esBloque(nombre){
+  const t = keyAlumno(nombre).replace(/\./g,'').trim();
+  return t==='' || t==='-' || t.length<=2 ||
+         t==='alto rendimiento' || t==='alto r' ||
+         t==='almuerzo' || t==='libre';
+}
+
+/* Las mismas fichas, indexadas con la clave flexible */
+let _idxFlex=null;
+function idxFlex(){
+  if(_idxFlex) return _idxFlex;
+  _idxFlex={};
+  const cargar = o => Object.values(o||{}).forEach(c=>{
+    if(!c||!c.nombre) return;
+    const k=keyAlumno(c.nombre);
+    if(k && !_idxFlex[k]) _idxFlex[k]=c;
+  });
+  cargar(state.contactos); cargar(contactosLocal);
+  Object.values(alumnosVivo||{}).forEach(a=>{
+    if(!a||!a.nombre) return;
+    const k=keyAlumno(a.nombre);
+    if(k && !_idxFlex[k]) _idxFlex[k]={nombre:a.nombre, tel:a.tel||''};
+  });
+  return _idxFlex;
+}
+function resetIdxFlex(){ _idxFlex=null; }
+
 function telDeAlumno(nombre){
   const k=normName(nombre);
   if(state.contactos[k]) return state.contactos[k];
   if(contactosLocal[k]) return contactosLocal[k];
+  // sin coincidencia exacta: probar con el nombre limpio (sin sede ni emojis)
+  const flex = idxFlex()[keyAlumno(nombre)];
+  if(flex) return flex;
   // último recurso: el alumno recién creado, que todavía no se sincronizó
   const vivo = Object.values(alumnosVivo).find(function(c){
     return c && c.nombre && normName(c.nombre)===k;
@@ -2081,6 +2129,7 @@ function buildEnvioList(){
         for(let si=0;si<SLOTS_POR_HORA;si++){
           const al=B.alumnos[`${dia}|${s.key}|${pi}|${hi}|${si}`];
           if(!al||!al.nombre) continue;
+          if(al.mod==='BLOQUE' || esBloque(al.nombre)) continue;   // ALTO RENDIMIENTO, ALMUERZO, LIBRE...
           const c=telDeAlumno(al.nombre);
           out.push({
             sesion_id:`S_${dia}_${hhmm}_${dim}_${si}`,
