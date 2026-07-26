@@ -259,6 +259,7 @@ table.q td.mv{font-family:"Barlow Condensed",sans-serif;font-weight:700}
 </div>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
 // ---- Control de acceso (Academia DG) ----
 // Esta app le habla a la base por llamadas directas, no por el SDK.
@@ -1383,14 +1384,35 @@ document.getElementById("genIds").onclick=()=>{
 };
 document.getElementById("gvizSave").onclick=()=>{ cfg.gviz=document.getElementById("gvizUrl").value.trim(); save(K_LS.cfg,cfg); toast("URL guardada") };
 document.getElementById("gvizLoad").onclick=()=>leerGviz(document.getElementById("gvizUrl").value.trim());
+/* El listado ya no se baja de la planilla pública: se lee la copia que
+   el script deja en Firebase (alumnos_v1), que está cerrada por reglas.
+   Además se escuchan los alumnos nuevos (alumnos_v2), que la app de
+   Alumnos escribe al instante: aparecen sin esperar la copia. */
 async function leerGviz(url){
-  if(!url) return;
   try{
-    const r=await fetch(url); const t=await r.text();
-    const p=leerAlumnos(t);
-    if(!p||!p.length){ toast("No pude leer la hoja ALUMNOS"); return }
-    mergeAlumnos(p); toast(`${p.length} alumnos desde la planilla`);
-  }catch(e){ toast("No pude leer la hoja") }
+    const r = await fetch(FB_URL + '/alumnos_v1.json');
+    const paq = await r.json();
+    if(!paq || !paq.csv){ toast("No encontré la copia de alumnos en Firebase"); return }
+    const p = leerAlumnos(paq.csv);
+    if(!p || !p.length){ toast("La copia vino sin alumnos"); return }
+    mergeAlumnos(p); toast(`${p.length} alumnos`);
+  }catch(e){ toast("No pude leer los alumnos") }
+}
+
+/* Alumnos creados recién, todavía no incluidos en la copia */
+function escucharAlumnosNuevos(){
+  try{
+    firebase.database().ref('alumnos_v2').on('value', function(snap){
+      const v = snap.val() || {};
+      const nuevos = Object.keys(v).map(function(k){
+        const a = v[k];
+        return { nombre: a.nombre||'', categoria: a.cat||'', titular: a.profe||'', id_alumno: '' };
+      }).filter(function(a){ return a.nombre; });
+      if(nuevos.length){
+        try{ mergeAlumnos(nuevos); reindexar(); renderFilters(); renderList(); }catch(e){}
+      }
+    }, function(err){ console.warn('alumnos_v2:', err.message); });
+  }catch(e){ console.warn('No pude escuchar alumnos_v2:', e.message); }
 }
 document.getElementById("fbPush").onclick=async()=>{
   const pend=evals.filter(e=>!e.sincronizado);
@@ -1488,6 +1510,7 @@ leerGviz(cfg.gviz||GVIZ_ALUMNOS);
         window.ADG.token=t; window.ADG.listo=true;
         hide(); arrancarSync();
         aplicarPermisos(u.email);
+        escucharAlumnosNuevos();
       });
     });
   }catch(e){ show('Firebase no inició: '+e.message); }
