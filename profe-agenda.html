@@ -229,7 +229,7 @@
       <div id="fSug"></div>
       <div id="fEsNuevo" style="font-size:12px;color:var(--sec);margin-top:5px"></div></div>
 
-    <div class="campo"><label>Teléfono</label>
+    <div class="campo"><label>Teléfono <span id="fTelOpc" style="color:var(--sec);font-weight:400"></span></label>
       <input id="fTel" type="tel" inputmode="tel" autocomplete="off" placeholder="0981 445210"></div>
 
     <div class="campo"><label>Tipo de clase</label>
@@ -237,12 +237,6 @@
         <button data-v="G">G<small>grupal</small></button>
         <button data-v="D">D<small>dual</small></button>
         <button data-v="IND">IND<small>individual</small></button>
-      </div></div>
-
-    <div class="campo"><label>¿Cómo viene?</label>
-      <div class="ops" id="fFijo">
-        <button data-v="0">Prueba<small>una clase</small></button>
-        <button data-v="1">Fijo<small>todas las semanas</small></button>
       </div></div>
 
     <div class="err" id="fErr"></div>
@@ -629,6 +623,7 @@ function pintarSugerencias(){
     box.innerHTML='';
     av.textContent='✓ Alumno que ya está en el sistema';
     av.style.color='#3fb950';
+    var o=$('fTelOpc'); if(o) o.textContent='(no hace falta)';
     return;
   }
   elegido=null;
@@ -648,6 +643,7 @@ function pintarSugerencias(){
     };
   });
   av.style.color='';
+  var o=$('fTelOpc'); if(o) o.textContent='';
   av.textContent = (normNom(q).length>=3 && !res.length) ? 'Alumno nuevo: se va a crear en el sistema' : '';
 }
 
@@ -662,8 +658,9 @@ function abrirForm(s){
     ' · '+pend.dim+(nom?' ('+nom+')':'');
   $('fNom').value=''; $('fTel').value=''; $('fErr').textContent='';
   $('fSug').innerHTML=''; $('fEsNuevo').textContent=''; elegido=null;
+  var _o=$('fTelOpc'); if(_o) _o.textContent='';
   $('fNom').oninput=pintarSugerencias;
-  marcarOps('fMod', 'G'); marcarOps('fFijo', '0');
+  marcarOps('fMod', 'G');
   $('ov').classList.add('show');
   setTimeout(function(){ try{ $('fNom').focus(); }catch(e){} }, 60);
 }
@@ -675,7 +672,7 @@ function marcarOps(id, v){
 function valorOps(id){
   var b=$(id).querySelector('button.on'); return b?b.dataset.v:'';
 }
-['fMod','fFijo'].forEach(function(id){
+['fMod'].forEach(function(id){
   $(id).onclick=function(ev){
     var b=ev.target.closest('button[data-v]'); if(b) marcarOps(id, b.dataset.v);
   };
@@ -690,7 +687,10 @@ function guardarReserva(){
   var nom=$('fNom').value.trim().replace(/\s+/g,' ');
   var tel=normTel($('fTel').value);
   if(nom.length<3){ $('fErr').textContent='Poné el nombre y el apellido.'; return; }
-  if(!telOk(tel)){ $('fErr').textContent='Ese teléfono no parece válido. Ej: 0981 445210'; return; }
+  /* El teléfono solo se exige para alumnos nuevos: los que ya están en el sistema
+     ya lo tienen cargado, y obligar a reescribirlo solo genera duplicados mal escritos. */
+  if(!elegido && !telOk(tel)){ $('fErr').textContent='Es un alumno nuevo: poné el teléfono. Ej: 0981 445210'; return; }
+  if(tel && !telOk(tel)){ $('fErr').textContent='Ese teléfono no parece válido. Ej: 0981 445210'; return; }
 
   var b=$('fGuardar'), b2=$('fGuardar2');
   b.disabled=true; b.textContent='Guardando…'; b2.disabled=true; b2.textContent='…'; $('fErr').textContent='';
@@ -698,7 +698,6 @@ function guardarReserva(){
   firebase.database().ref('reservas_v1/'+nodoReservas()+'/'+k).set({
     alumno: nom, tel: tel,
     mod: valorOps('fMod'),
-    fijo: valorOps('fFijo')==='1',
     profe: pend.dim, sede: pend.sede, horaIdx: pend.hi, dia: pend.dia,
     porCorreo: miCorreo, porNombre: miNombre || miCorreo,
     nuevo: !elegido, tipo: 'agregar',
