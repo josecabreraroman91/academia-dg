@@ -490,9 +490,10 @@ function abrirAcciones(d){
   $('aDonde').textContent=dondeTxt(slot)+' · '+accDim+(_c?' · categoría '+_c:'');
   $('aTipoOps').style.display='none'; $('aErr').textContent='';
   $('ovAcc').style.display='flex';
+  ventanaAbierta(cerrarAcciones);
   ajustarVentanas();
 }
-function cerrarAcciones(){ $('ovAcc').style.display='none'; accSlot=null; }
+function cerrarAcciones(){ ventanaCerrada(); $('ovAcc').style.display='none'; accSlot=null; }
 
 $('aCancel').onclick=cerrarAcciones;
 $('ovAcc').onclick=function(e){ if(e.target===$('ovAcc')) cerrarAcciones(); };
@@ -718,10 +719,11 @@ function abrirForm(s){
   modoBuscar();
   $('fNom').oninput=pintarSugerencias;
   $('ov').classList.add('show');
+  ventanaAbierta(cerrarForm);
   ajustarVentanas();
   setTimeout(function(){ try{ $('fNom').focus(); }catch(e){} }, 60);
 }
-function cerrarForm(){ $('ov').classList.remove('show'); pend=null; }
+function cerrarForm(){ ventanaCerrada(); $('ov').classList.remove('show'); pend=null; }
 $('fCancel').onclick=cerrarForm;
 $('fCancel2').onclick=cerrarForm;
 $('ov').onclick=function(e){ if(e.target===$('ov')){ $('ov').classList.remove('show'); pend=null; } };
@@ -749,7 +751,7 @@ function guardarReserva(){
     nuevo: !elegido, tipo: 'agregar',
     ts: Date.now(), estado: 'pendiente'
   }).then(function(){
-    $('ov').classList.remove('show'); pend=null;
+    ventanaCerrada(); $('ov').classList.remove('show'); pend=null;
     b.disabled=false; b.textContent='Agendar'; b2.disabled=false; b2.textContent='Agendar';
     toast('✅ '+nom+' quedó agendado');
   }).catch(function(e){
@@ -816,6 +818,21 @@ if(window.visualViewport){
 /* Al enfocar un campo, el navegador tarda en abrir el teclado: se reajusta después */
 document.addEventListener('focusin', function(e){
   if(e.target && e.target.tagName==='INPUT'){ setTimeout(ajustarVentanas, 250); }
+});
+
+/* El botón "atrás" del celular sacaba la app del recuadro donde vive y dejaba la
+   pantalla en blanco. Ahora, si hay una ventana abierta, "atrás" la cierra y no
+   navega a ningún lado. */
+var _cerrarVentana=null;
+function ventanaAbierta(cerrarFn){
+  _cerrarVentana=cerrarFn;
+  try{ history.pushState({v:1}, ''); }catch(e){}
+}
+function ventanaCerrada(){
+  if(_cerrarVentana){ _cerrarVentana=null; try{ history.back(); }catch(e){} }
+}
+window.addEventListener('popstate', function(){
+  if(_cerrarVentana){ var f=_cerrarVentana; _cerrarVentana=null; try{ f(); }catch(e){} }
 });
 
 /* ---------- Entrada ---------- */
