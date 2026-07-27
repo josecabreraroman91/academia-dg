@@ -58,6 +58,17 @@
   .vacio{color:var(--sec);font-size:14px;text-align:center;padding:34px 10px}
 
   /* ---- Grilla, como el calendario ---- */
+  .libros{display:flex;gap:7px;margin:0 0 12px}
+  .libros button{flex:1;font-family:inherit;font-size:13px;padding:9px 8px;border-radius:11px;
+    border:1px solid var(--linea);background:transparent;color:var(--sec);cursor:pointer;line-height:1.25}
+  .libros button small{display:block;font-size:10px;color:var(--sec);font-weight:400;margin-top:1px}
+  .libros button.on{border-color:var(--azul);background:#12283f;color:#cfe4ff;font-weight:600}
+  .libros button.on small{color:#8fbdf0}
+  .libros button.on[data-l="madre"]{border-color:var(--ambar);background:#3a2f12;color:#f5d98a}
+  .libros button.on[data-l="madre"] small{color:#d29922}
+  #avisoMadre{display:none;background:#3a2f12;border:1px solid #6b4a12;border-radius:10px;
+    padding:10px 12px;font-size:12.5px;color:#f5d98a;margin-bottom:12px}
+  body.enMadre #avisoMadre{display:block}
   .vista{display:flex;gap:6px;margin-bottom:14px}
   .vista button{flex:1;font-family:inherit;font-size:13px;padding:8px;border-radius:10px;
     border:1px solid var(--linea);background:transparent;color:var(--sec);cursor:pointer}
@@ -88,7 +99,6 @@
   .sl.ocupado{color:var(--txt)}
   .sl.reserva{background:#12283f;color:#8fbdf0}
   .sl.libre{color:#2c5c3a;cursor:pointer;text-align:center;font-size:13px;font-weight:600}
-  .sl.libre.prestado{color:#8a6d1f}
   .sl.libre:active{background:#12283f}
   .leyenda{font-size:11.5px;color:var(--sec);margin:-6px 0 16px;display:flex;gap:14px;flex-wrap:wrap}
   .leyenda span{display:flex;align-items:center;gap:5px}
@@ -166,17 +176,21 @@
   <header><h1>Agendar</h1></header>
   <div class="yo"><b id="yoNom"></b><span id="semTxt" style="margin-left:10px"></span><a href="#" id="btnSalir">Salir</a></div>
 
+  <div class="libros">
+    <button data-l="semana" class="on">🗓️ Esta semana<small>los cambios entran solos</small></button>
+    <button data-l="madre">📋 MADRE<small>los cambios los aprueba José</small></button>
+  </div>
   <div class="dias" id="dias"></div>
   <div class="vista">
     <button data-v="grilla" class="on">Grilla</button>
     <button data-v="lista">Solo libres</button>
   </div>
+  <div id="avisoMadre">📋 Estás en la <b>MADRE</b>, la plantilla de todas las semanas. Lo que cambies acá <b>no se aplica solo</b>: queda esperando que lo apruebe José.</div>
   <div class="filtros" id="filtros"></div>
   <div class="leyenda" id="leyenda" style="display:none">
     <span><i style="background:#2c5c3a"></i>libre</span>
     <span><i style="background:#e6edf3"></i>alumno</span>
     <span><i style="background:#12283f;border:1px solid #2f81f7"></i>agendado por un profe</span>
-    <span><i style="background:#8a6d1f"></i>libre solo esta semana</span>
     <span><i style="background:#20242b"></i>no da clase</span>
   </div>
 
@@ -206,8 +220,14 @@
 
 <div id="ov">
   <div class="hoja">
-    <h3>Alumno nuevo</h3>
-    <div class="donde" id="fDonde"></div>
+    <div style="position:sticky;top:0;background:var(--panel);z-index:3;padding-bottom:10px;margin:-18px -16px 0;padding:14px 16px 10px;border-bottom:1px solid var(--linea);display:flex;align-items:center;gap:10px">
+      <div style="flex:1;min-width:0">
+        <h3 style="margin:0">Alumno</h3>
+        <div class="donde" id="fDonde" style="margin:0"></div>
+      </div>
+      <button class="b" id="fCancel2" style="padding:9px 12px">✕</button>
+      <button class="b pri" id="fGuardar2" style="padding:9px 16px">Agendar</button>
+    </div>
 
     <div class="campo"><label>Nombre y apellido</label>
       <input id="fNom" type="text" autocomplete="off" placeholder="Escribí para buscar o cargar uno nuevo">
@@ -264,7 +284,10 @@ var NO_PROFE = {'':1, '—':1, 'SP':1};
 
 var $ = function(id){ return document.getElementById(id); };
 var miCorreo=null, miNombre='', miDim='', puedeEscribir=false;
-var cal=null, reservas={}, lunes='', diaSel=null, sedeSel='todas', vistaSel='grilla';
+var cal=null, reservas={}, lunes='', diaSel=null, sedeSel='todas', vistaSel='grilla', libroSel='semana';
+function libro(){ return (libroSel==='madre' ? (cal&&cal.madre) : (cal&&cal.semana)) || {alumnos:{},libres:{}}; }
+/* Las propuestas de la MADRE viven aparte y no caducan con la semana. */
+function nodoReservas(){ return libroSel==='madre' ? 'madre' : lunes; }
 var pend=null;   // slot elegido
 
 function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
@@ -293,7 +316,7 @@ function slotKey(dia,sk,pi,hi,si){ return dia+'|'+sk+'|'+pi+'|'+hi+'|'+si; }
 
 function sedesDe(dia){
   if(!cal) return [];
-  var b = cal.semana || {};
+  var b = libro();
   var m = b.sedesPorDia || cal.sedesPorDia || {};
   return m[dia] || [];
 }
@@ -306,7 +329,7 @@ function nombreProfe(dim){
 /* Rango de horas con actividad de esa sede ese día: evita ofrecer las 6 de la
    mañana en una sede que arranca a las 14. */
 function rangoHoras(dia, s, pi0){
-  var A=(cal.semana&&cal.semana.alumnos)||{}, min=99, max=-1;
+  var A=libro().alumnos||{}, min=99, max=-1;
   s.profes.forEach(function(dim,pi){
     if(NO_PROFE[dim]) return;
     for(var hi=0;hi<HORAS.length;hi++){
@@ -323,7 +346,7 @@ function rangoHoras(dia, s, pi0){
 /* Todos los lugares de un día: libres y tomados */
 function lugaresDe(dia){
   if(!cal) return [];
-  var A=(cal.semana&&cal.semana.alumnos)||{}, L=(cal.semana&&cal.semana.libres)||{};
+  var Bk=libro(), A=Bk.alumnos||{}, L=Bk.libres||{};
   var out=[];
   sedesDe(dia).forEach(function(s){
     if(s.key==='adefinir') return;
@@ -383,8 +406,8 @@ function pintarFiltros(){
 }
 /* ---------- Grilla, igual al calendario ---------- */
 function pintarGrilla(){
-  var A=(cal.semana&&cal.semana.alumnos)||{}, L=(cal.semana&&cal.semana.libres)||{};
-  var M=(cal.madre&&cal.madre.alumnos)||{};
+  var Bk=libro();
+  var A=Bk.alumnos||{}, L=Bk.libres||{};
   var sedes=sedesDe(diaSel).filter(function(s){
     return s.key!=='adefinir' && (sedeSel==='todas' || s.key===sedeSel);
   });
@@ -434,12 +457,8 @@ function pintarGrilla(){
 
                Si en la MADRE ese lugar tiene dueño, está libre SOLO esta semana:
                se marca distinto para que nadie lo agende como fijo. */
-            var due = M[k];
-            var soloEstaSem = !!(due && due.nombre);
-            html+='<div class="sl libre'+(soloEstaSem?' prestado':'')+'" data-slot="'+
-                  esc(diaSel+'|'+s.key+'|'+c.pi+'|'+hi+'|'+si+'|'+c.dim)+'"'+
-                  (soloEstaSem?' title="Libre solo esta semana · el lugar es de '+esc(due.nombre)+'"':'')+
-                  '>'+(soloEstaSem?'~':'+')+'</div>';
+            html+='<div class="sl libre" data-slot="'+
+                  esc(diaSel+'|'+s.key+'|'+c.pi+'|'+hi+'|'+si+'|'+c.dim)+'">+</div>';
           } else {
             html+='<div class="sl"></div>';
           }
@@ -504,6 +523,19 @@ function pintar(){
   });
 }
 
+Array.prototype.forEach.call(document.querySelectorAll('.libros button[data-l]'), function(b){
+  b.onclick=function(){
+    if(moviendo){ moviendo=null; document.body.classList.remove('moviendo'); }
+    libroSel=b.dataset.l;
+    Array.prototype.forEach.call(document.querySelectorAll('.libros button'), function(x){
+      x.classList.toggle('on', x.dataset.l===libroSel);
+    });
+    document.body.classList.toggle('enMadre', libroSel==='madre');
+    escucharReservas();
+    if(cal) pintar();
+  };
+});
+
 Array.prototype.forEach.call(document.querySelectorAll('.vista button[data-v]'), function(b){
   b.onclick=function(){
     vistaSel=b.dataset.v;
@@ -524,9 +556,9 @@ Array.prototype.forEach.call(document.querySelectorAll('.vista button[data-v]'),
 var moviendo=null, accSlot=null, accNom=null, accDim=null;
 
 function guardarOp(slotDestino, datos, opHist){
-  var refR = firebase.database().ref('reservas_v1/'+lunes+'/'+slotDestino);
+  var refR = firebase.database().ref('reservas_v1/'+nodoReservas()+'/'+slotDestino);
   return refR.set(datos).then(function(){
-    return firebase.database().ref('ops_v1/'+lunes).push(opHist).catch(function(e){
+    return firebase.database().ref('ops_v1/'+nodoReservas()).push(opHist).catch(function(e){
       console.warn('historial:', e.message);       // el historial no bloquea la operación
     });
   });
@@ -743,19 +775,22 @@ function valorOps(id){
     var b=ev.target.closest('button[data-v]'); if(b) marcarOps(id, b.dataset.v);
   };
 });
-$('fCancel').onclick=function(){ $('ov').classList.remove('show'); pend=null; };
+function cerrarForm(){ $('ov').classList.remove('show'); pend=null; }
+$('fCancel').onclick=cerrarForm;
+$('fCancel2').onclick=cerrarForm;
 $('ov').onclick=function(e){ if(e.target===$('ov')){ $('ov').classList.remove('show'); pend=null; } };
 
-$('fGuardar').onclick=function(){
+function guardarReserva(){
   if(!pend) return;
   var nom=$('fNom').value.trim().replace(/\s+/g,' ');
   var tel=normTel($('fTel').value);
   if(nom.length<3){ $('fErr').textContent='Poné el nombre y el apellido.'; return; }
   if(!telOk(tel)){ $('fErr').textContent='Ese teléfono no parece válido. Ej: 0981 445210'; return; }
 
-  var b=$('fGuardar'); b.disabled=true; b.textContent='Guardando…'; $('fErr').textContent='';
+  var b=$('fGuardar'), b2=$('fGuardar2');
+  b.disabled=true; b.textContent='Guardando…'; b2.disabled=true; b2.textContent='…'; $('fErr').textContent='';
   var k=slotKey(pend.dia, pend.sede, pend.pi, pend.hi, pend.si);
-  firebase.database().ref('reservas_v1/'+lunes+'/'+k).set({
+  firebase.database().ref('reservas_v1/'+nodoReservas()+'/'+k).set({
     alumno: nom, tel: tel,
     mod: valorOps('fMod'),
     fijo: valorOps('fFijo')==='1',
@@ -765,15 +800,17 @@ $('fGuardar').onclick=function(){
     ts: Date.now(), estado: 'pendiente'
   }).then(function(){
     $('ov').classList.remove('show'); pend=null;
-    b.disabled=false; b.textContent='Agendar';
+    b.disabled=false; b.textContent='Agendar'; b2.disabled=false; b2.textContent='Agendar';
     toast('✅ '+nom+' quedó agendado');
   }).catch(function(e){
-    b.disabled=false; b.textContent='Agendar';
+    b.disabled=false; b.textContent='Agendar'; b2.disabled=false; b2.textContent='Agendar';
     $('fErr').textContent = /permission/i.test(e.message)
       ? 'Ese lugar lo acaba de tomar otro profe. Cerrá y elegí otro.'
       : 'No se pudo guardar: '+e.message;
   });
-};
+}
+$('fGuardar').onclick=guardarReserva;
+$('fGuardar2').onclick=guardarReserva;
 
 /* ---------- Datos ---------- */
 /* Las reservas se leen de la semana que diga el CALENDARIO, no la que calcule el
@@ -781,7 +818,7 @@ $('fGuardar').onclick=function(){
    alumno se guarda y no aparece nunca. Por eso se vuelve a enganchar al cambiar. */
 var _resRef=null;
 function escucharReservas(){
-  var ref = firebase.database().ref('reservas_v1/'+lunes);
+  var ref = firebase.database().ref('reservas_v1/'+nodoReservas());
   if(_resRef){ _resRef.off(); }
   _resRef = ref;
   reservas = {};
