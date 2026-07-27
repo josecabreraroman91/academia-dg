@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Libreta · Academia DG</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --linea:#30363d; --txt:#e6edf3;
+    --sec:#8b949e; --azul:#2f81f7; --verde:#3fb950; --rojo:#f85149;
+    --ambar:#d29922; --violeta:#a371f7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5}
+  .wrap{max-width:820px;margin:0 auto;padding:18px 14px 60px}
+
+  header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+  h1{font-size:21px;margin:0;letter-spacing:-.3px}
+  .sub{color:var(--sec);font-size:13px}
+  .yo{color:var(--sec);font-size:12px;margin:10px 0 18px}
+  .yo a{color:var(--azul);text-decoration:none;margin-left:8px}
+
+  .nums{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:22px}
+  .num{flex:1;min-width:96px;background:var(--panel);border:1px solid var(--linea);
+    border-radius:12px;padding:12px 14px}
+  .num .n{font-size:24px;font-weight:600;line-height:1.2}
+  .num .l{font-size:12px;color:var(--sec)}
+  .num.alerta .n{color:var(--ambar)}
+
+  h2.secc{font-size:14px;margin:26px 0 10px;font-weight:600;
+    display:flex;align-items:center;gap:8px}
+  h2.secc .cnt{color:var(--sec);font-weight:400;font-size:13px}
+  .ayuda{font-size:12.5px;color:var(--sec);margin:-4px 0 12px}
+
+  .fila{background:var(--panel);border:1px solid var(--linea);border-radius:12px;
+    padding:12px 14px;margin-bottom:10px;display:flex;gap:12px;align-items:flex-start}
+  .fila.viejo{border-color:#6b4a12}
+  .punto{width:26px;height:26px;border-radius:50%;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:14px}
+  .p-confirma{background:#12331f;color:var(--verde)}
+  .p-cancela{background:#3a1a1a;color:var(--rojo)}
+  .p-pedido{background:#12283f;color:var(--azul)}
+  .p-ausencia{background:#2b2340;color:var(--violeta)}
+  .p-nada{background:#3a2f12;color:var(--ambar)}
+  .cuerpo{flex:1;min-width:0}
+  .nom{font-weight:600;font-size:14.5px}
+  .nom span{font-weight:400;color:var(--sec)}
+  .meta{font-size:13px;color:var(--sec);margin-top:1px}
+  .cita{font-size:13px;color:var(--sec);font-style:italic;margin-top:4px;
+    word-break:break-word}
+  .espera{color:var(--ambar);font-weight:600}
+  .der{text-align:right;flex-shrink:0;display:flex;flex-direction:column;
+    align-items:flex-end;gap:6px}
+  .hora{font-size:12px;color:var(--sec)}
+
+  button.b{font-family:inherit;font-size:12.5px;padding:5px 12px;border-radius:8px;
+    border:1px solid var(--linea);background:transparent;color:var(--txt);cursor:pointer;
+    white-space:nowrap}
+  button.b:hover{border-color:var(--sec)}
+  button.b.pri{background:var(--azul);border-color:var(--azul);color:#fff;font-weight:600}
+  button.b.gr{font-size:13.5px;padding:9px 16px}
+
+  .cerrado{background:transparent;border:0;border-bottom:1px solid var(--linea);
+    border-radius:0;padding:9px 2px;margin:0;display:flex;gap:10px;align-items:center;
+    font-size:13px;color:var(--sec)}
+  .cerrado .nom{font-weight:400;font-size:13px;color:var(--txt)}
+
+  .vacio{color:var(--sec);font-size:13.5px;padding:14px 0}
+  .aviso{background:#12283f;border:1px solid #1f4b7a;border-radius:10px;
+    padding:11px 13px;font-size:13px;margin-bottom:16px}
+
+  #demoBar{background:#3a2f12;border:1px solid #6b4a12;border-radius:10px;
+    padding:10px 13px;font-size:13px;margin-bottom:18px;display:none;
+    align-items:center;gap:10px;flex-wrap:wrap}
+  #demoBar b{color:var(--ambar)}
+
+  #login,#nopuede{position:fixed;inset:0;z-index:99;background:var(--bg);
+    display:none;align-items:center;justify-content:center;flex-direction:column;
+    padding:24px;text-align:center}
+  #login h2,#nopuede h2{margin:0 0 8px;font-size:20px}
+  #login p,#nopuede p{color:var(--sec);max-width:340px;margin:0 0 22px}
+  .err{color:var(--rojo);font-size:13px;margin-top:8px}
+  #cargando{color:var(--sec);text-align:center;padding:40px 0}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h2>Libreta · Academia DG</h2>
+  <p>Lo que anota el agente de WhatsApp.</p>
+  <button class="b pri gr" id="btnEntrar">Entrar con Google</button>
+  <div class="err" id="errLogin"></div>
+</div>
+
+<div id="nopuede">
+  <h2>No tenés acceso a la libreta</h2>
+  <p id="nopuedeTxt"></p>
+  <button class="b gr" id="btnSalir2">Salir</button>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <header>
+    <h1>Libreta</h1>
+    <span class="sub">Lo que anotó el agente</span>
+  </header>
+  <div class="yo">Conectado como <b id="yoMail"></b>
+    <a href="#" id="btnDemo">Ver ejemplo</a>
+    <a href="cal-unif.html">Calendario</a>
+    <a href="#" id="btnSalir">Salir</a>
+  </div>
+
+  <div id="demoBar">
+    <b>Modo ejemplo.</b> Estos renglones son inventados: no están en Firebase y nada de lo que toques se guarda.
+    <button class="b" id="btnSalirDemo">Salir del ejemplo</button>
+  </div>
+
+  <div class="nums">
+    <div class="num alerta"><div class="n" id="nPend">0</div><div class="l">Pendientes</div></div>
+    <div class="num"><div class="n" id="nApli">0</div><div class="l">Aplicados hoy</div></div>
+    <div class="num"><div class="n" id="nIgno">0</div><div class="l">Ignorados</div></div>
+    <div class="num"><div class="n" id="nSalud">—</div><div class="l">Última corrida</div></div>
+  </div>
+
+  <div id="cargando">Cargando…</div>
+  <div id="todo" style="display:none">
+
+    <h2 class="secc">Pedidos de cambio abiertos <span class="cnt" id="cPed"></span></h2>
+    <div class="ayuda">No se archivan solos. Salen de acá cuando alguien los resuelve.</div>
+    <div id="pedidos"></div>
+
+    <h2 class="secc">Pendientes de aplicar <span class="cnt" id="cPen"></span></h2>
+    <div class="aviso">Estos se aplican solos al abrir el calendario. Acá se ven y se pueden descartar si el agente entendió mal.</div>
+    <div id="pendientes"></div>
+
+    <h2 class="secc">No entendió <span class="cnt" id="cNada"></span></h2>
+    <div class="ayuda">Mensajes que el agente no supo clasificar. Es la lista de qué falta enseñarle.</div>
+    <div id="nada"></div>
+
+    <h2 class="secc">Cerrados hoy <span class="cnt" id="cCer"></span></h2>
+    <div id="cerrados"></div>
+
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain: "academia-dg.firebaseapp.com",
+  databaseURL: "https://academia-dg-default-rtdb.firebaseio.com",
+  projectId: "academia-dg",
+  storageBucket: "academia-dg.firebasestorage.app",
+  messagingSenderId: "623967243039",
+  appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
+});
+
+/* Las mismas horas y sedes que usa el calendario. Si allá cambian, acá también. */
+var HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00',
+             '14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+var SEDE_NICE = {lomas:'LOMAS', elite:'ELITE', segurola:'SEGUROLA', adefinir:'A DEFINIR'};
+
+var TIPO_TXT = {
+  confirma:'confirmó', cancela:'canceló', pedido:'pidió cambio',
+  ausencia:'no entrena por un tiempo', nada:'sin clasificar'
+};
+var TIPO_ICO = {confirma:'✓', cancela:'✕', pedido:'⇄', ausencia:'⏸', nada:'?'};
+
+var $ = function(id){ return document.getElementById(id); };
+var miCorreo = null, puedeEscribir = false, demo = false;
+var anot = {};          // id -> renglón
+var refAnot = null;
+
+function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
+function aClave(m){ return String(m).trim().toLowerCase().replace(/\./g, ','); }
+function hhmm(ts){
+  if(!ts) return '';
+  var d=new Date(ts);
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+function diasDesde(ts){
+  if(!ts) return 0;
+  return Math.floor((Date.now()-ts)/86400000);
+}
+function esperaTxt(ts){
+  var d=diasDesde(ts);
+  if(d<=0) return 'hoy';
+  if(d===1) return 'hace 1 día';
+  return 'hace '+d+' días';
+}
+function esHoy(ts){
+  if(!ts) return false;
+  var a=new Date(ts), b=new Date();
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+/* Dónde es la clase, en palabras */
+function dondeTxt(r){
+  var p=[];
+  if(r.fecha){
+    var d=new Date(r.fecha+'T00:00:00');
+    var DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+    p.push(DIAS[d.getDay()]+' '+d.getDate());
+  }
+  if(r.horaIdx!=null && HORAS[r.horaIdx]) p.push(HORAS[r.horaIdx]);
+  if(r.sede) p.push(SEDE_NICE[r.sede]||r.sede);
+  if(r.profe) p.push(r.profe);
+  return p.join(' · ');
+}
+function ausenciaTxt(r){
+  var t='';
+  if(r.motivo) t += (r.motivo==='lesion'?'Lesión':r.motivo==='viaje'?'Viaje':'Otro');
+  if(r.hasta){
+    var d=new Date(r.hasta+'T00:00:00');
+    t += (t?' · ':'') + 'vuelve el '+d.getDate()+'/'+(d.getMonth()+1);
+  } else {
+    t += (t?' · ':'') + 'sin fecha de vuelta';
+  }
+  return t;
+}
+
+/* ---------- Pintar ---------- */
+function filaHTML(r, botones){
+  var tipo = r.tipo||'nada';
+  var quien = r.alumno || r.tel || 'Sin identificar';
+  var sub = '';
+  if(tipo==='ausencia')      sub = ausenciaTxt(r);
+  else if(tipo==='nada')     sub = r.tel ? ('de '+r.tel) : '';
+  else                       sub = dondeTxt(r);
+  if(r.estado==='esperando' && r.candidatos){
+    sub = 'Número compartido: '+r.candidatos+' · el agente preguntó';
+  }
+  return '<div class="fila'+(diasDesde(r.ts)>=7?' viejo':'')+'" data-id="'+esc(r.id)+'">'+
+    '<div class="punto p-'+esc(tipo)+'">'+(TIPO_ICO[tipo]||'?')+'</div>'+
+    '<div class="cuerpo">'+
+      '<div class="nom">'+esc(quien)+' <span>'+esc(TIPO_TXT[tipo]||'')+'</span></div>'+
+      (sub?'<div class="meta">'+esc(sub)+'</div>':'')+
+      (r.texto?'<div class="cita">"'+esc(r.texto)+'"</div>':'')+
+      (r.cierre?'<div class="meta">Se resolvió: '+esc(r.cierre)+'</div>':'')+
+    '</div>'+
+    '<div class="der"><div class="hora">'+esc(hhmm(r.ts))+'</div>'+botones+'</div>'+
+  '</div>';
+}
+
+function pintar(){
+  var todos = Object.keys(anot).map(function(k){
+    var r = anot[k] || {}; r.id = k; return r;
+  });
+
+  var pedidos = todos.filter(function(r){
+    return r.tipo==='pedido' && (r.estado==='pendiente' || r.estado==='esperando');
+  }).sort(function(a,b){ return (a.ts||0)-(b.ts||0); });          // el más viejo arriba
+
+  var pendientes = todos.filter(function(r){
+    return r.tipo!=='pedido' && r.tipo!=='nada' &&
+           (r.estado==='pendiente' || r.estado==='esperando');
+  }).sort(function(a,b){ return (a.ts||0)-(b.ts||0); });          // por hora, mezclados
+
+  var nada = todos.filter(function(r){
+    return r.tipo==='nada' && r.estado!=='ignorado' && r.estado!=='aplicado';
+  }).sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+
+  var cerrados = todos.filter(function(r){
+    return (r.estado==='aplicado' || r.estado==='ignorado') && esHoy(r.aplicadoTs||r.ts);
+  }).sort(function(a,b){ return (b.aplicadoTs||0)-(a.aplicadoTs||0); });
+
+  $('nPend').textContent = pedidos.length + pendientes.length + nada.length;
+  $('nApli').textContent = todos.filter(function(r){
+    return r.estado==='aplicado' && esHoy(r.aplicadoTs);
+  }).length;
+  $('nIgno').textContent = todos.filter(function(r){ return r.estado==='ignorado'; }).length;
+
+  var bIgn = puedeEscribir ? '<button class="b" data-acc="ignorar">Ignorar</button>' : '';
+  var bRes = puedeEscribir ? '<button class="b pri" data-acc="resolver">Resuelto</button>' : '';
+
+  $('cPed').textContent = pedidos.length ? '('+pedidos.length+')' : '';
+  $('pedidos').innerHTML = pedidos.length
+    ? pedidos.map(function(r){
+        var b = bRes + '<div class="hora espera">'+esc(esperaTxt(r.ts))+'</div>';
+        return filaHTML(r, b);
+      }).join('')
+    : '<div class="vacio">No hay pedidos esperando. 👌</div>';
+
+  $('cPen').textContent = pendientes.length ? '('+pendientes.length+')' : '';
+  $('pendientes').innerHTML = pendientes.length
+    ? pendientes.map(function(r){ return filaHTML(r, bIgn); }).join('')
+    : '<div class="vacio">Nada pendiente.</div>';
+
+  $('cNada').textContent = nada.length ? '('+nada.length+')' : '';
+  $('nada').innerHTML = nada.length
+    ? nada.map(function(r){ return filaHTML(r, bIgn); }).join('')
+    : '<div class="vacio">El agente entendió todo lo que le llegó.</div>';
+
+  $('cCer').textContent = cerrados.length ? '('+cerrados.length+')' : '';
+  $('cerrados').innerHTML = cerrados.length
+    ? cerrados.map(function(r){
+        return '<div class="cerrado">'+
+          '<span>'+(TIPO_ICO[r.tipo]||'?')+'</span>'+
+          '<span class="nom">'+esc(r.alumno||r.tel||'—')+'</span>'+
+          '<span>'+esc(TIPO_TXT[r.tipo]||'')+'</span>'+
+          '<span style="flex:1"></span>'+
+          '<span>'+(r.estado==='ignorado'?'ignorado':'aplicado')+' '+esc(hhmm(r.aplicadoTs))+'</span>'+
+        '</div>';
+      }).join('')
+    : '<div class="vacio">Todavía no se cerró nada hoy.</div>';
+
+  $('cargando').style.display='none';
+  $('todo').style.display='block';
+}
+
+/* ---------- Acciones ---------- */
+function guardar(id, campos){
+  if(demo){
+    Object.keys(campos).forEach(function(c){ anot[id][c]=campos[c]; });
+    pintar(); return;
+  }
+  var ref = firebase.database().ref('agente_v1/anotaciones/'+id);
+  var pend = Object.keys(campos).length, falló = false;
+  Object.keys(campos).forEach(function(c){
+    ref.child(c).set(campos[c]).catch(function(e){
+      falló = true;
+      alert('No se pudo guardar el cambio en "'+c+'".\n\n'+e.message+
+            '\n\nRevisá las reglas de Firebase: si el campo no está declarado, se rechaza.');
+    });
+  });
+}
+
+document.addEventListener('click', function(ev){
+  var b = ev.target.closest ? ev.target.closest('button[data-acc]') : null;
+  if(!b) return;
+  var fila = b.closest('.fila'); if(!fila) return;
+  var id = fila.dataset.id;
+  var r = anot[id]; if(!r) return;
+
+  if(b.dataset.acc==='ignorar'){
+    if(!confirm('¿Descartar esta anotación?\n\n'+(r.alumno||r.tel||'')+
+                '\n\nUsalo cuando el agente entendió mal. No se aplica nunca y queda registrada.')) return;
+    guardar(id, {estado:'ignorado', aplicadoTs:Date.now(), aplicadoPor:miCorreo||'demo'});
+  }
+
+  if(b.dataset.acc==='resolver'){
+    var t = prompt('¿Qué pasó con este pedido?\n\nPor ejemplo: "lo pasé al jueves 18" o "habló conmigo, se queda igual".');
+    if(t===null) return;
+    t = String(t).trim();
+    if(!t){ alert('Poné aunque sea unas palabras. Es lo que vas a leer dentro de tres meses.'); return; }
+    guardar(id, {estado:'aplicado', cierre:t, aplicadoTs:Date.now(), aplicadoPor:miCorreo||'demo'});
+  }
+});
+
+/* ---------- Datos ---------- */
+function escuchar(){
+  refAnot = firebase.database().ref('agente_v1/anotaciones');
+  refAnot.on('value', function(s){
+    anot = s.val() || {};
+    pintar();
+  }, function(e){
+    $('cargando').textContent = 'No se pudo leer la libreta: '+e.message;
+  });
+  firebase.database().ref('agente_v1/salud').on('value', function(s){
+    var v = s.val();
+    $('nSalud').textContent = (v && v.ts) ? hhmm(v.ts) : '—';
+  }, function(){});
+}
+
+/* ---------- Modo ejemplo ---------- */
+function datosDemo(){
+  var h = 3600000, hoy = new Date(), maniana = new Date(hoy.getTime()+86400000);
+  var iso = function(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+  return {
+    d1:{tipo:'cancela', alumno:'Pedro Gómez', tel:'595981445210',
+        texto:'mañana no puedo, tengo examen', ts:Date.now()-2*h,
+        fecha:iso(maniana), sede:'lomas', horaIdx:10, profe:'RG',
+        diaKey:'10_RG_0_pedro_gomez', estado:'pendiente'},
+    d2:{tipo:'confirma', alumno:'Sofía Ramírez', tel:'595971220188',
+        texto:'dale, ahí estoy', ts:Date.now()-1.8*h,
+        fecha:iso(maniana), sede:'elite', horaIdx:11, profe:'MC',
+        diaKey:'11_MC_1_sofia_ramirez', estado:'pendiente'},
+    d3:{tipo:'ausencia', alumno:'Andrés Vera', tel:'595985667341',
+        texto:'me lesioné el hombro, no voy a poder por un tiempo', ts:Date.now()-5*h,
+        fecha:iso(hoy), hasta:iso(new Date(hoy.getTime()+14*86400000)),
+        motivo:'lesion', estado:'pendiente'},
+    d4:{tipo:'pedido', alumno:'Martín Duarte', tel:'595961778420',
+        texto:'la próxima semana puedo lunes o jueves temprano porfis',
+        ts:Date.now()-23*86400000,
+        fecha:iso(hoy), sede:'segurola', horaIdx:12, profe:'LF', estado:'pendiente'},
+    d5:{tipo:'pedido', alumno:'Lucía Benítez', tel:'595983110265',
+        texto:'se puede mover mi clase a la tarde?', ts:Date.now()-6*86400000,
+        fecha:iso(hoy), sede:'lomas', horaIdx:9, profe:'RG', estado:'pendiente'},
+    d6:{tipo:'nada', alumno:'', tel:'595992004417',
+        texto:'hola buenas, cuánto sale la clase para adultos principiantes?',
+        ts:Date.now()-0.7*h, estado:'pendiente'},
+    d7:{tipo:'cancela', alumno:'', tel:'595981333090',
+        texto:'mañana no llega', ts:Date.now()-0.4*h,
+        fecha:iso(maniana), estado:'esperando',
+        candidatos:'Sofía Ramírez, Tomás Ramírez'},
+    d8:{tipo:'confirma', alumno:'Camila Ortiz', tel:'595975882301',
+        texto:'confirmado 💪', ts:Date.now()-7*h,
+        fecha:iso(maniana), sede:'elite', horaIdx:13, profe:'MC',
+        estado:'aplicado', aplicadoTs:Date.now()-1*h, aplicadoPor:'demo'}
+  };
+}
+function entrarDemo(){
+  demo = true; puedeEscribir = true;
+  if(refAnot){ refAnot.off(); refAnot=null; }
+  anot = datosDemo();
+  $('demoBar').style.display='flex';
+  $('nSalud').textContent = hhmm(Date.now()-3600000);
+  pintar();
+}
+function salirDemo(){
+  demo = false;
+  $('demoBar').style.display='none';
+  anot = {}; pintar();
+  $('cargando').style.display='block'; $('todo').style.display='none';
+  escuchar();
+}
+
+/* ---------- Entrada ---------- */
+$('btnEntrar').onclick = function(){
+  var p = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(p).catch(function(e){
+    $('errLogin').textContent = e.message;
+  });
+};
+$('btnSalir').onclick  = function(e){ e.preventDefault(); firebase.auth().signOut(); };
+$('btnSalir2').onclick = function(){ firebase.auth().signOut(); };
+$('btnDemo').onclick   = function(e){ e.preventDefault(); demo ? salirDemo() : entrarDemo(); };
+$('btnSalirDemo').onclick = salirDemo;
+
+/* Nada que lea Firebase corre antes del login. */
+firebase.auth().onAuthStateChanged(function(u){
+  if(!u){ $('login').style.display='flex'; $('nopuede').style.display='none'; $('app').style.display='none'; return; }
+  miCorreo = u.email.toLowerCase();
+  firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
+    var f = s.val() || {}, p = f.permisos || {};
+    var admin = p.admin === true;
+    var ag = p.agente || 'no';
+    var cal = p.calendario || 'no';
+    var puedeVer = admin || ag==='leer' || ag==='escribir' || cal==='leer' || cal==='escribir';
+    puedeEscribir = admin || ag==='escribir' || cal==='escribir';
+
+    if(f.activo!==true || !puedeVer){
+      $('login').style.display='none';
+      $('nopuedeTxt').textContent = miCorreo;
+      $('nopuede').style.display='flex';
+      return;
+    }
+    $('login').style.display='none'; $('nopuede').style.display='none';
+    $('app').style.display='block';
+    $('yoMail').textContent = miCorreo;
+    escuchar();
+  }).catch(function(e){
+    $('login').style.display='none';
+    $('nopuedeTxt').textContent = 'No se pudo verificar tu acceso. '+e.message;
+    $('nopuede').style.display='flex';
+  });
+});
+</script>
+</body>
+</html>
