@@ -29,10 +29,6 @@
   .dias button.on b{color:#cfe4ff}
   .dias button:disabled{opacity:.35}
 
-  .filtros{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
-  .filtros button{font-family:inherit;font-size:12.5px;padding:6px 11px;border-radius:20px;
-    border:1px solid var(--linea);background:transparent;color:var(--sec);cursor:pointer}
-  .filtros button.on{border-color:var(--azul);color:var(--azul)}
 
   .hbloque{margin-bottom:16px}
   .hh{font-size:14px;font-weight:600;margin:0 0 6px;display:flex;align-items:center;gap:10px}
@@ -74,31 +70,35 @@
     border:1px solid var(--linea);background:transparent;color:var(--sec);cursor:pointer}
   .vista button.on{border-color:var(--azul);color:var(--azul);font-weight:600}
 
-  .sedebloque{margin-bottom:22px}
-  .sedetit{font-size:13px;font-weight:600;letter-spacing:.4px;padding:5px 10px;
-    border-radius:8px 8px 0 0;display:inline-block}
   .s-lomas{background:#FFD966;color:#4a3c00}
   .s-elite{background:#9F82BE;color:#fff}
   .s-segurola{background:#FF9900;color:#4a2c00}
+  .s-adefinir{background:#555;color:#fff}
+  td.col-lomas{background:#2a2718}
+  td.col-elite{background:#241f2e}
+  td.col-segurola{background:#2b2114}
   .scr{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--linea);
-    border-radius:0 10px 10px 10px}
+    border-radius:10px}
   table.g{border-collapse:collapse;width:max-content;min-width:100%}
   table.g th,table.g td{border:1px solid var(--linea);padding:0;vertical-align:top}
   table.g thead th{background:var(--panel);position:sticky;top:0;z-index:2;
-    font-size:11.5px;font-weight:600;padding:5px 4px;min-width:88px;line-height:1.25}
-  table.g thead th small{display:block;font-size:9.5px;color:var(--sec);font-weight:400;
+    font-size:10.5px;font-weight:600;padding:2px 3px;min-width:74px;line-height:1.15}
+  table.g thead th small{display:block;font-size:9px;color:var(--sec);font-weight:400;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  th.hcol{position:sticky;left:0;z-index:3;background:var(--bg);min-width:46px;width:46px;
-    font-size:11.5px;font-weight:600;color:var(--sec);padding:4px 2px;text-align:center}
+  table.g thead th.sedeh{position:sticky;top:0;z-index:2;font-size:10px;letter-spacing:.4px;
+    padding:3px 4px;text-align:center}
+  table.g thead tr.r2 th{top:20px}
+  th.hcol{position:sticky;left:0;z-index:3;background:var(--bg);min-width:38px;width:38px;
+    font-size:10px;font-weight:600;color:var(--sec);padding:2px 1px;text-align:center}
   thead th.hcol{z-index:4}
   td.bloq{background:#20242b}
-  td.bloq .x{color:var(--sec);font-size:10px;text-align:center;padding:8px 0}
-  .sl{font-size:10.5px;line-height:1.3;padding:3px 4px;min-height:21px;
+  td.bloq .x{color:var(--sec);font-size:9px;text-align:center;padding:4px 0}
+  .sl{font-size:9.5px;line-height:1.2;padding:1px 3px;min-height:15px;
     border-bottom:1px solid #23282f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sl:last-child{border-bottom:0}
   .sl.ocupado{color:var(--txt)}
   .sl.reserva{background:#12283f;color:#8fbdf0}
-  .sl.libre{color:#2c5c3a;cursor:pointer;text-align:center;font-size:13px;font-weight:600}
+  .sl.libre{color:#2c5c3a;cursor:pointer;text-align:center;font-size:11px;font-weight:600}
   .sl.libre:active{background:#12283f}
   .leyenda{font-size:11.5px;color:var(--sec);margin:-6px 0 16px;display:flex;gap:14px;flex-wrap:wrap}
   .leyenda span{display:flex;align-items:center;gap:5px}
@@ -178,15 +178,10 @@
 
   <div class="libros">
     <button data-l="semana" class="on">🗓️ Esta semana<small>los cambios entran solos</small></button>
-    <button data-l="madre">📋 MADRE<small>los cambios los aprueba José</small></button>
+    <button data-l="madre">📋 MADRE<small>los cambios se aprueban antes</small></button>
   </div>
   <div class="dias" id="dias"></div>
-  <div class="vista">
-    <button data-v="grilla" class="on">Grilla</button>
-    <button data-v="lista">Solo libres</button>
-  </div>
-  <div id="avisoMadre">📋 Estás en la <b>MADRE</b>, la plantilla de todas las semanas. Lo que cambies acá <b>no se aplica solo</b>: queda esperando que lo apruebe José.</div>
-  <div class="filtros" id="filtros"></div>
+  <div id="avisoMadre">📋 Estás en la <b>MADRE</b>, la plantilla de todas las semanas. Lo que cambies acá <b>no se aplica solo</b>: queda esperando aprobación.</div>
   <div class="leyenda" id="leyenda" style="display:none">
     <span><i style="background:#2c5c3a"></i>libre</span>
     <span><i style="background:#e6edf3"></i>alumno</span>
@@ -284,7 +279,7 @@ var NO_PROFE = {'':1, '—':1, 'SP':1};
 
 var $ = function(id){ return document.getElementById(id); };
 var miCorreo=null, miNombre='', miDim='', puedeEscribir=false;
-var cal=null, reservas={}, lunes='', diaSel=null, sedeSel='todas', vistaSel='grilla', libroSel='semana';
+var cal=null, reservas={}, lunes='', diaSel=null, libroSel='semana';
 function libro(){ return (libroSel==='madre' ? (cal&&cal.madre) : (cal&&cal.semana)) || {alumnos:{},libres:{}}; }
 /* Las propuestas de la MADRE viven aparte y no caducan con la semana. */
 function nodoReservas(){ return libroSel==='madre' ? 'madre' : lunes; }
@@ -343,36 +338,6 @@ function rangoHoras(dia, s, pi0){
   return {min:min, max:Math.min(HORAS.length-1, max+1)};   // una hora más al final
 }
 
-/* Todos los lugares de un día: libres y tomados */
-function lugaresDe(dia){
-  if(!cal) return [];
-  var Bk=libro(), A=Bk.alumnos||{}, L=Bk.libres||{};
-  var out=[];
-  sedesDe(dia).forEach(function(s){
-    if(s.key==='adefinir') return;
-    var rango=rangoHoras(dia,s); if(!rango) return;
-    s.profes.forEach(function(dim,pi){
-      if(NO_PROFE[dim]) return;
-      for(var hi=rango.min; hi<=rango.max; hi++){
-        if(L[dia+'|'+s.key+'|'+pi+'|'+hi]) continue;      // el profe no da clase esa hora
-        var libres=[], ocup=0, resv=[];
-        for(var si=0; si<SLOTS_POR_HORA; si++){
-          var k=slotKey(dia,s.key,pi,hi,si);
-          var al=A[k];
-          var r=reservas[k];
-          if(al && al.nombre) ocup++;
-          else if(r && r.estado==='pendiente'){ resv.push(r); ocup++; }
-          else libres.push(si);
-        }
-        if(!libres.length && !resv.length) continue;       // hora llena y sin novedad
-        out.push({dia:dia, sede:s.key, sedeNom:SEDE_NICE[s.key]||s.key,
-                  pi:pi, dim:dim, hi:hi, libres:libres, resv:resv});
-      }
-    });
-  });
-  out.sort(function(a,b){ return (a.hi-b.hi) || a.sedeNom.localeCompare(b.sedeNom); });
-  return out;
-}
 
 /* ---------- Pintar ---------- */
 function pintarDias(){
@@ -393,83 +358,72 @@ function pintarDias(){
     b.onclick=function(){ diaSel=b.dataset.d; pintarDias(); pintar(); };
   });
 }
-function pintarFiltros(){
-  var ss=['todas'].concat(sedesDe(diaSel).map(function(s){return s.key;})
-          .filter(function(k){ return k!=='adefinir'; }));
-  $('filtros').innerHTML = ss.map(function(k){
-    return '<button data-s="'+k+'"'+(k===sedeSel?' class="on"':'')+'>'+
-      (k==='todas'?'Todas las sedes':(SEDE_NICE[k]||k))+'</button>';
-  }).join('');
-  Array.prototype.forEach.call($('filtros').querySelectorAll('button[data-s]'), function(b){
-    b.onclick=function(){ sedeSel=b.dataset.s; pintarFiltros(); pintar(); };
-  });
-}
 /* ---------- Grilla, igual al calendario ---------- */
 function pintarGrilla(){
   var Bk=libro();
   var A=Bk.alumnos||{}, L=Bk.libres||{};
-  var sedes=sedesDe(diaSel).filter(function(s){
-    return s.key!=='adefinir' && (sedeSel==='todas' || s.key===sedeSel);
-  });
-  var html='';
+  var sedes=sedesDe(diaSel).filter(function(s){ return s.key!=='adefinir'; });
+  if(!sedes.length){ $('lista').innerHTML='<div class="vacio">No hay clases cargadas ese día.</div>'; return; }
+
+  /* Una sola tabla con TODAS las sedes, una al lado de la otra: el mismo dibujo
+     que el calendario grande. Las horas van a la izquierda y quedan fijas. */
+  var cols=[], minH=99, maxH=-1;
   sedes.forEach(function(s){
-    var rango=rangoHoras(diaSel,s); if(!rango) return;
-    var cols=[];
-    s.profes.forEach(function(dim,pi){ if(!NO_PROFE[dim]) cols.push({dim:dim,pi:pi}); });
-    if(!cols.length) return;
-
-    html+='<div class="sedebloque"><div class="sedetit s-'+esc(s.key)+'">'+
-          esc(SEDE_NICE[s.key]||s.key)+'</div><div class="scr"><table class="g"><thead><tr>'+
-          '<th class="hcol"></th>';
-    cols.forEach(function(c){
-      var n=nombreProfe(c.dim);
-      html+='<th>'+esc(c.dim)+(n?'<small>'+esc(n.split(' ')[0])+'</small>':'<small>&nbsp;</small>')+'</th>';
-    });
-    html+='</tr></thead><tbody>';
-
-    for(var hi=rango.min; hi<=rango.max; hi++){
-      html+='<tr><th class="hcol">'+esc(HORAS[hi])+'</th>';
-      cols.forEach(function(c){
-        if(L[diaSel+'|'+s.key+'|'+c.pi+'|'+hi]){
-          html+='<td class="bloq"><div class="x">—</div></td>'; return;
-        }
-        html+='<td>';
-        for(var si=0; si<SLOTS_POR_HORA; si++){
-          var k=slotKey(diaSel,s.key,c.pi,hi,si);
-          var al=A[k], r=reservas[k];
-          var pend = (r && r.estado==='pendiente') ? r : null;
-          if(al && al.nombre){
-            if(pend && pend.tipo==='sacar'){
-              html+='<div class="sl ocupado sacado" data-al="'+esc(k+'|'+c.dim+'|'+esc(al.nombre))+'">'+esc(al.nombre)+'</div>';
-            } else if(pend && pend.tipo==='mover'){
-              html+='<div class="sl ocupado sacado" data-al="'+esc(k+'|'+c.dim+'|'+esc(al.nombre))+'">'+esc(al.nombre)+'</div>';
-            } else if(puedeEscribir){
-              html+='<div class="sl ocupado" data-al="'+esc(k+'|'+c.dim+'|'+al.nombre)+'">'+esc(al.nombre)+'</div>';
-            } else {
-              html+='<div class="sl ocupado">'+esc(al.nombre)+'</div>';
-            }
-          } else if(pend){
-            html+='<div class="sl destino">'+esc(pend.alumno)+'</div>';
-          } else if(puedeEscribir){
-            /* Una reserva ya aplicada o descartada NO tapa el casillero: si puso a
-               alguien, ese alguien ya está en la grilla; si lo sacó, el lugar quedó
-               libre de verdad y tiene que poder volver a usarse.
-
-               Si en la MADRE ese lugar tiene dueño, está libre SOLO esta semana:
-               se marca distinto para que nadie lo agende como fijo. */
-            html+='<div class="sl libre" data-slot="'+
-                  esc(diaSel+'|'+s.key+'|'+c.pi+'|'+hi+'|'+si+'|'+c.dim)+'">+</div>';
-          } else {
-            html+='<div class="sl"></div>';
-          }
-        }
-        html+='</td>';
-      });
-      html+='</tr>';
-    }
-    html+='</tbody></table></div></div>';
+    var r=rangoHoras(diaSel,s);
+    if(r){ if(r.min<minH) minH=r.min; if(r.max>maxH) maxH=r.max; }
+    var n=0;
+    s.profes.forEach(function(dim,pi){ if(!NO_PROFE[dim]){ cols.push({sede:s.key, dim:dim, pi:pi}); n++; } });
+    s._n=n;
   });
-  $('lista').innerHTML = html || '<div class="vacio">No hay clases cargadas ese día.</div>';
+  if(maxH<0 || !cols.length){ $('lista').innerHTML='<div class="vacio">No hay clases cargadas ese día.</div>'; return; }
+
+  var html='<div class="scr"><table class="g"><thead><tr><th class="hcol"></th>';
+  sedes.forEach(function(s){
+    if(!s._n) return;
+    html+='<th class="sedeh s-'+esc(s.key)+'" colspan="'+s._n+'">'+esc(SEDE_NICE[s.key]||s.key)+'</th>';
+  });
+  html+='</tr><tr class="r2"><th class="hcol"></th>';
+  cols.forEach(function(c){
+    var n=nombreProfe(c.dim);
+    html+='<th>'+esc(c.dim)+(n?'<small>'+esc(n.split(' ')[0])+'</small>':'<small>&nbsp;</small>')+'</th>';
+  });
+  html+='</tr></thead><tbody>';
+
+  for(var hi=minH; hi<=maxH; hi++){
+    html+='<tr><th class="hcol">'+esc((HORAS[hi]||'').replace(':00',''))+'</th>';
+    cols.forEach(function(c){
+      var cls='col-'+c.sede;
+      if(L[diaSel+'|'+c.sede+'|'+c.pi+'|'+hi]){
+        html+='<td class="bloq"><div class="x">—</div></td>'; return;
+      }
+      html+='<td class="'+cls+'">';
+      for(var si=0; si<SLOTS_POR_HORA; si++){
+        var k=slotKey(diaSel,c.sede,c.pi,hi,si);
+        var al=A[k], r=reservas[k];
+        var pend=(r && r.estado==='pendiente') ? r : null;
+        if(al && al.nombre){
+          if(pend && (pend.tipo==='sacar'||pend.tipo==='mover')){
+            html+='<div class="sl ocupado sacado" data-al="'+esc(k+'|'+c.dim+'|'+al.nombre)+'">'+esc(al.nombre)+'</div>';
+          } else if(puedeEscribir){
+            html+='<div class="sl ocupado" data-al="'+esc(k+'|'+c.dim+'|'+al.nombre)+'">'+esc(al.nombre)+'</div>';
+          } else {
+            html+='<div class="sl ocupado">'+esc(al.nombre)+'</div>';
+          }
+        } else if(pend){
+          html+='<div class="sl destino">'+esc(pend.alumno)+'</div>';
+        } else if(puedeEscribir){
+          html+='<div class="sl libre" data-slot="'+esc(diaSel+'|'+c.sede+'|'+c.pi+'|'+hi+'|'+si+'|'+c.dim)+'">+</div>';
+        } else {
+          html+='<div class="sl"></div>';
+        }
+      }
+      html+='</td>';
+    });
+    html+='</tr>';
+  }
+  html+='</tbody></table></div>';
+
+  $('lista').innerHTML=html;
   Array.prototype.forEach.call($('lista').querySelectorAll('.sl.libre[data-slot]'), function(b){
     b.onclick=function(){ moviendo ? soltarMovido(b.dataset.slot) : abrirForm(b.dataset.slot); };
   });
@@ -480,71 +434,9 @@ function pintarGrilla(){
 
 function pintar(){
   $('cargando').style.display='none';
-  pintarFiltros();
-  $('leyenda').style.display = (vistaSel==='grilla') ? 'flex' : 'none';
-  if(vistaSel==='grilla'){ pintarGrilla(); return; }
-  var todos=lugaresDe(diaSel).filter(function(g){
-    return sedeSel==='todas' || g.sede===sedeSel;
-  });
-  if(!todos.length){
-    $('lista').innerHTML='<div class="vacio">No hay lugares libres ese día'+
-      (sedeSel==='todas'?'':' en esa sede')+'.</div>'; return;
-  }
-  var html='', hAct=-1;
-  todos.forEach(function(g){
-    if(g.hi!==hAct){
-      if(hAct>=0) html+='</div>';
-      html+='<div class="hbloque"><div class="hh">'+esc(HORAS[g.hi])+'<span class="ln"></span></div>';
-      hAct=g.hi;
-    }
-    var nom=nombreProfe(g.dim);
-    g.resv.forEach(function(r){
-      html+='<div class="slot tomado"><div class="info">'+
-        '<div class="l1">'+esc(r.alumno)+'</div>'+
-        '<div class="l2">'+esc(g.sedeNom)+' · '+esc(g.dim)+(nom?' '+esc(nom):'')+
-        ' · lo agendó '+esc(r.porNombre||r.porCorreo||'alguien')+'</div>'+
-        '</div></div>';
-    });
-    if(g.libres.length){
-      html+='<div class="slot"><div class="info">'+
-        '<div class="l1">'+esc(g.sedeNom)+' · '+esc(g.dim)+(nom?' <span style="font-weight:400">'+esc(nom)+'</span>':'')+'</div>'+
-        '<div class="l2">'+g.libres.length+' lugar'+(g.libres.length>1?'es':'')+' libre'+(g.libres.length>1?'s':'')+'</div>'+
-        '</div>'+
-        (puedeEscribir
-          ? '<button class="b pri" data-slot="'+esc(g.dia+'|'+g.sede+'|'+g.pi+'|'+g.hi+'|'+g.libres[0]+'|'+g.dim)+'">Agendar</button>'
-          : '<span class="cupos">'+g.libres.length+'</span>')+
-        '</div>';
-    }
-  });
-  if(hAct>=0) html+='</div>';
-  $('lista').innerHTML=html;
-  Array.prototype.forEach.call($('lista').querySelectorAll('button[data-slot]'), function(b){
-    b.onclick=function(){ abrirForm(b.dataset.slot); };
-  });
+  $('leyenda').style.display='flex';
+  pintarGrilla();
 }
-
-Array.prototype.forEach.call(document.querySelectorAll('.libros button[data-l]'), function(b){
-  b.onclick=function(){
-    if(moviendo){ moviendo=null; document.body.classList.remove('moviendo'); }
-    libroSel=b.dataset.l;
-    Array.prototype.forEach.call(document.querySelectorAll('.libros button'), function(x){
-      x.classList.toggle('on', x.dataset.l===libroSel);
-    });
-    document.body.classList.toggle('enMadre', libroSel==='madre');
-    escucharReservas();
-    if(cal) pintar();
-  };
-});
-
-Array.prototype.forEach.call(document.querySelectorAll('.vista button[data-v]'), function(b){
-  b.onclick=function(){
-    vistaSel=b.dataset.v;
-    Array.prototype.forEach.call(document.querySelectorAll('.vista button'), function(x){
-      x.classList.toggle('on', x.dataset.v===vistaSel);
-    });
-    if(cal) pintar();
-  };
-});
 
 /* ============================================================
    MOVER · SACAR · CAMBIAR TIPO
