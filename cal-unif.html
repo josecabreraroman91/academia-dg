@@ -11,7 +11,7 @@
 <style>
   :root{
     --bg:#e9ebee; --panel:#ffffff; --line:#c9ced4; --txt:#1f2329; --muted:#6b7280;
-    --lomas:#FFD966; --elite:#93C47D; --segurola:#FF9900; --adefinir:#9F82BE;
+    --lomas:#FFD966; --elite:#9F82BE; --segurola:#FF9900; --adefinir:#9F82BE;
     --libre:#FF2D20; --cell:#ffffff; --accent:#1080A5; --madre:#c0398a;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -43,6 +43,7 @@
   .sub{margin-top:8px}
   .toolbar{display:flex;gap:4px;margin-top:2px;flex-wrap:wrap}
   .btn{padding:5px 9px;border-radius:7px;border:1px solid var(--line);background:var(--cell);color:var(--txt);font-size:10.5px;font-weight:600;cursor:pointer}
+  #btnSave.listo{box-shadow:0 0 0 3px rgba(47,129,247,.45)}
   .zoomctl{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--cell)}
   .zoomctl button{background:transparent;border:none;color:var(--txt);font-weight:800;cursor:pointer;padding:3px 8px;font-size:13px;line-height:1}
   .zoomctl button:active{background:#ffffff1a}
@@ -83,7 +84,7 @@
   /* fila de sedes (agrupador) */
   thead .row-sede th.sedehead{position:sticky;top:0;z-index:7;background:#10131a;font-size:11.5px;font-weight:800;text-align:center;padding:5px 6px;white-space:nowrap;letter-spacing:.2px}
   .sedehead.sede-lomas{color:#8fb6ff;border-bottom:2px solid var(--lomas)}
-  .sedehead.sede-elite{color:#6fe0a0;border-bottom:2px solid var(--elite)}
+  .sedehead.sede-elite{color:#c9a8ff;border-bottom:2px solid var(--elite)}
   .sedehead.sede-segurola{color:#ffb27a;border-bottom:2px solid var(--segurola)}
   .sedehead.sede-adefinir{color:#c9a8ff;border-bottom:2px solid var(--adefinir)}
   .sede-addcol{margin-left:5px;background:#ffffff14;border:1px solid #ffffff2a;color:inherit;border-radius:5px;width:18px;height:18px;font-size:12px;line-height:1;cursor:pointer;padding:0;vertical-align:middle}
@@ -236,13 +237,13 @@
   /* encabezados de sede: banda llena */
   thead .row-sede th.sedehead{background:#dfe3e7;color:#1f2329;border-bottom:none}
   thead .row-sede th.sedehead.sede-lomas{background:#FFD966;color:#5a4500}
-  thead .row-sede th.sedehead.sede-elite{background:#93C47D;color:#214a21}
+  thead .row-sede th.sedehead.sede-elite{background:#9F82BE;color:#ffffff}
   thead .row-sede th.sedehead.sede-segurola{background:#FF9900;color:#5a3300}
   thead .row-sede th.sedehead.sede-adefinir{background:#9F82BE;color:#ffffff}
   /* fila de profesores: banda más clara por sede */
   th.profhead{background:#eef0f2}
   th.profhead.sede-col-lomas{background:#FFE599}
-  th.profhead.sede-col-elite{background:#C6E0B4}
+  th.profhead.sede-col-elite{background:#C9BEE0}
   th.profhead.sede-col-segurola{background:#FCD5A5}
   th.profhead.sede-col-adefinir{background:#C9BEE0}
   th.profhead select{background:#ffffffd9;color:#1f2329;border-color:#0000001f;font-weight:700}
@@ -251,7 +252,7 @@
   .sede-start{border-left:2px solid #b9c0c7}
   /* celdas por sede (tinte de la planilla) */
   td.cell.sede-col-lomas{background:#FFF2CC}
-  td.cell.sede-col-elite{background:#D9EAD3}
+  td.cell.sede-col-elite{background:#E2DCEF}
   td.cell.sede-col-segurola{background:#FCE5CD}
   td.cell.sede-col-adefinir{background:#E2DCEF}
   /* celda libre: roja */
@@ -625,12 +626,76 @@ function isoDe(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,
 function lunesDeHoy(){ const d=new Date(); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return isoDe(d); }
 function isoMas(iso,n){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d; }
 function ddmm(d){ return d.getDate()+'/'+(d.getMonth()+1); }
+/* ============================================================
+   LA MADRE BAJA SOLA A LA SEMANA
+
+   Cuando se agrega un alumno en la MADRE, aparece también en la semana
+   editable sin tener que cargarlo dos veces.
+
+   Tres reglas para que no rompa nada:
+   · Nunca pisa una celda ocupada en la semana. Si ahí ya hay alguien,
+     se respeta lo que está.
+   · Nunca borra. Si sacaste a un alumno de la semana a propósito, no
+     vuelve solo.
+   · La primera vez no toca nada: solo toma nota de cómo está la MADRE
+     hoy. De ahí en adelante bajan únicamente los cambios nuevos.
+   ============================================================ */
+function propagarMadreASemana(){
+  const M = state.madre && state.madre.alumnos;
+  if(!M || !state.semana || !state.semana.alumnos) return 0;
+
+  // Primera vez: solo se registra el estado actual, sin tocar la semana
+  if(!state.madreSync){
+    state.madreSync = {};
+    Object.keys(M).forEach(k=>{ if(M[k] && M[k].nombre) state.madreSync[k]=M[k].nombre; });
+    return 0;
+  }
+
+  let bajaron = 0;
+  const chocaron = [];      // no bajaron porque la celda estaba ocupada
+
+  Object.keys(M).forEach(k=>{
+    const al = M[k];
+    if(!al || !al.nombre) return;
+    if(state.madreSync[k] === al.nombre) return;      // ya estaba, no es nuevo
+
+    const enSemana = state.semana.alumnos[k];
+
+    if(!enSemana || !enSemana.nombre){                // celda libre: baja
+      state.semana.alumnos[k] = JSON.parse(JSON.stringify(al));
+      bajaron++;
+      state.madreSync[k] = al.nombre;
+      return;
+    }
+
+    if(normName(enSemana.nombre) === normName(al.nombre)){
+      state.madreSync[k] = al.nombre;                 // ya es la misma persona
+      return;
+    }
+
+    /* La celda está ocupada por otro. No se pisa. Y NO se marca como
+       procesado a propósito: si mañana se libera ese lugar en la semana,
+       el alumno de la MADRE baja solo. Mientras tanto, se avisa. */
+    chocaron.push(al.nombre + ' (ahí está ' + enSemana.nombre + ')');
+  });
+
+  window._madreChoques = chocaron;
+
+  // Lo que se sacó de la MADRE deja de estar registrado, sin tocar la semana
+  Object.keys(state.madreSync).forEach(k=>{
+    if(!M[k] || !M[k].nombre) delete state.madreSync[k];
+  });
+
+  return bajaron;
+}
+
 function asegurarSemanas(){
   const vacia={alumnos:{},libres:{}};
   if(!state.lunesActual) state.lunesActual=lunesDeHoy();
   if(!state.semana) state.semana=JSON.parse(JSON.stringify(state.madre||vacia));
   if(!state.semanaProxima) state.semanaProxima=JSON.parse(JSON.stringify(state.madre||vacia));
   if(!state.semActiva) state.semActiva='actual';
+  if(!state.madreSync) propagarMadreASemana();   // primera vez: toma la referencia
 }
 function avanzarSemana(){
   if(!confirm('▸ Avanzar de semana.\n\n"La que viene" pasa a ser "ESTA semana", se genera una nueva próxima desde la MADRE, y la semana que pasó se descarta.\n\n¿Confirmás?')) return;
@@ -1044,9 +1109,10 @@ function renderDayTabs(){
     b.onclick=()=>{ state.dia=dia; state.semActiva=week; ajustarSede(); saveState(); renderAll(); };
     return b;
   };
+  /* Solo se muestra la semana actual. La próxima sigue existiendo por
+     detrás (la usa "Avanzar semana"), pero ya no se navega desde acá. */
+  state.semActiva='actual';
   DAYS.forEach((d,i)=>el.appendChild(mk(d,i,'actual')));
-  const sep=document.createElement('span'); sep.className='wk-sep'; sep.title='la que viene'; sep.textContent='▸'; el.appendChild(sep);
-  DAYS.forEach((d,i)=>el.appendChild(mk(d,i,'proxima')));
 }
 function renderSedeTabs(){
   // Vista unificada: ya no se usan pestañas de sede (todas las sedes se ven juntas en la grilla)
@@ -1264,7 +1330,34 @@ function openEditor(cellId){
   if(al.nombre){ fr.style.display=''; actualizarBtnRevisar(sk,+pi,+hi,+si); }
   else { fr.style.display='none'; }
   inp.oninput=()=>{ actualizarHintTel(); autocompletarDesdeNube(); };
-  document.getElementById('overlay').classList.add('show');
+
+  /* Teclado: el campo queda listo para escribir apenas se abre, y con Enter
+     se confirma el nombre; el segundo Enter guarda. Así no hay que tocar
+     el campo ni buscar el botón. */
+  inp.onkeydown=(ev)=>{
+    if(ev.key!=='Enter') return;
+    ev.preventDefault();
+    if(!inp.dataset.confirmado){
+      inp.dataset.confirmado='1';
+      actualizarHintTel();
+      const g=document.getElementById('btnSave');
+      if(g){ g.classList.add('listo'); g.focus(); }
+    } else {
+      const g=document.getElementById('btnSave');
+      if(g) g.click();
+    }
+  };
+  /* Si vuelve a escribir, el próximo Enter confirma de nuevo en vez de guardar */
+  inp.addEventListener('input',()=>{
+    delete inp.dataset.confirmado;
+    const g=document.getElementById('btnSave'); if(g) g.classList.remove('listo');
+  });
+
+  const ov=document.getElementById('overlay');
+  ov.classList.add('show');
+  delete inp.dataset.confirmado;
+  const g0=document.getElementById('btnSave'); if(g0) g0.classList.remove('listo');
+  setTimeout(()=>{ try{ inp.focus(); inp.select(); }catch(e){} }, 40);
 }
 // Muestra si el alumno escrito tiene teléfono en la base sincronizada
 function actualizarHintTel(){
@@ -1392,6 +1485,20 @@ function saveEditor(){
     book().alumnos[k]=nuevo;
   }
   guardarRevisar();
+  if(state.mode==='madre'){
+    const n = propagarMadreASemana();
+    const ch = window._madreChoques || [];
+    if(n || ch.length){
+      let msg = '✅ Guardado en la MADRE.\n';
+      if(n) msg += '\n' + n + ' alumno(s) también quedaron cargados en la semana.\n';
+      if(ch.length){
+        msg += '\n⚠️ Estos NO bajaron porque ese lugar ya está ocupado en la semana:\n\n· '
+             + ch.join('\n· ')
+             + '\n\nSi liberás ese lugar, bajan solos.';
+      }
+      setTimeout(()=>alert(msg), 200);
+    }
+  }
   saveState(); closeEditor(); renderGrid();
 }
 function guardarBloque(nombre){
@@ -2342,8 +2449,8 @@ function ajustarZoomPantalla(){
   _zoom=Math.max(0.5, Math.min(1.8, Math.floor((disponible/ancho)*100)/100));
   aplicarZoom();
 }
-document.getElementById('zIn').onclick=()=>{ _zoom=Math.min(1.8, Math.round((_zoom+0.1)*10)/10); aplicarZoom(); };
-document.getElementById('zOut').onclick=()=>{ _zoom=Math.max(0.5, Math.round((_zoom-0.1)*10)/10); aplicarZoom(); };
+document.getElementById('zIn').onclick=()=>{ _zoom=Math.min(1.8, Math.round((_zoom+0.05)*100)/100); aplicarZoom(); };
+document.getElementById('zOut').onclick=()=>{ _zoom=Math.max(0.5, Math.round((_zoom-0.05)*100)/100); aplicarZoom(); };
 document.getElementById('zReset').onclick=()=>{ _zoom=1; aplicarZoom(); };
 document.getElementById('zFit').onclick=ajustarZoomPantalla;
 // Al abrir: usa el zoom recordado de este dispositivo, o ajusta solo la primera vez
