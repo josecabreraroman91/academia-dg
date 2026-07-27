@@ -111,8 +111,7 @@
   #ov.show{display:flex}
   .hoja{background:var(--panel);border-top:1px solid var(--linea);width:100%;
     max-width:620px;border-radius:16px 16px 0 0;padding:18px 16px 0;
-    max-height:88dvh;overflow-y:auto;overscroll-behavior:contain}
-  @supports not (height: 1dvh){ .hoja{max-height:88vh} }
+    max-height:100%;overflow-y:auto;overscroll-behavior:contain}
   .hoja h3{margin:0 0 2px;font-size:17px}
   .hoja .donde{color:var(--sec);font-size:13.5px;margin-bottom:16px}
   .campo{margin-bottom:12px}
@@ -234,6 +233,13 @@
 
     <div class="campo" id="campoTel" style="display:none"><label>Teléfono</label>
       <input id="fTel" type="tel" inputmode="tel" autocomplete="off" placeholder="0981 445210"></div>
+
+    <div class="campo" id="campoMod" style="display:none"><label>Tipo de clase</label>
+      <div class="ops" id="fMod">
+        <button data-v="G" class="on">G<small>grupal</small></button>
+        <button data-v="D">D<small>dual</small></button>
+        <button data-v="IND">IND<small>individual</small></button>
+      </div></div>
 
     <div class="err" id="fErr"></div>
     <div class="acc">
@@ -484,6 +490,7 @@ function abrirAcciones(d){
   $('aDonde').textContent=dondeTxt(slot)+' · '+accDim+(_c?' · categoría '+_c:'');
   $('aTipoOps').style.display='none'; $('aErr').textContent='';
   $('ovAcc').style.display='flex';
+  ajustarVentanas();
 }
 function cerrarAcciones(){ $('ovAcc').style.display='none'; accSlot=null; }
 
@@ -628,12 +635,25 @@ function buscarAlumnos(q){
   }
   return pre.concat(med).slice(0,6);
 }
+function marcarMod(v){
+  Array.prototype.forEach.call($('fMod').querySelectorAll('button'), function(b){
+    b.classList.toggle('on', b.dataset.v===v);
+  });
+}
+function modDelForm(){
+  var b=$('fMod').querySelector('button.on'); return b?b.dataset.v:'';
+}
+$('fMod').onclick=function(ev){
+  var b=ev.target.closest('button[data-v]'); if(b) marcarMod(b.dataset.v);
+};
+
 function modoBuscar(){
   modoNuevo=false; elegido=null;
   $('fNomLbl').textContent='Buscar alumno';
   $('fNom').placeholder='Escribí las primeras letras';
   $('btnNuevo').style.display='block';
   $('campoTel').style.display='none';
+  $('campoMod').style.display='none';
   $('fTel').value='';
   $('fSug').innerHTML=''; $('fEsNuevo').textContent='';
   $('fErr').textContent='';
@@ -644,6 +664,8 @@ function modoAlumnoNuevo(){
   $('fNom').placeholder='Pedro Gómez';
   $('btnNuevo').style.display='none';
   $('campoTel').style.display='block';
+  $('campoMod').style.display='block';
+  marcarMod('G');
   $('fSug').innerHTML='';
   $('fEsNuevo').style.color='';
   $('fEsNuevo').textContent='Se va a crear en el sistema con este nombre y teléfono.';
@@ -696,6 +718,7 @@ function abrirForm(s){
   modoBuscar();
   $('fNom').oninput=pintarSugerencias;
   $('ov').classList.add('show');
+  ajustarVentanas();
   setTimeout(function(){ try{ $('fNom').focus(); }catch(e){} }, 60);
 }
 function cerrarForm(){ $('ov').classList.remove('show'); pend=null; }
@@ -720,7 +743,7 @@ function guardarReserva(){
   var k=slotKey(pend.dia, pend.sede, pend.pi, pend.hi, pend.si);
   firebase.database().ref('reservas_v1/'+nodoReservas()+'/'+k).set({
     alumno: nom, tel: tel,
-    mod: (elegido && elegido.mod) || '',
+    mod: modoNuevo ? modDelForm() : ((elegido && elegido.mod) || ''),
     profe: pend.dim, sede: pend.sede, horaIdx: pend.hi, dia: pend.dia,
     porCorreo: miCorreo, porNombre: miNombre || miCorreo,
     nuevo: !elegido, tipo: 'agregar',
@@ -772,6 +795,28 @@ function arrancar(){
     pintar();
   }, function(e){ $('cargando').textContent='No pude leer el calendario: '+e.message; });
 }
+
+/* En el celular, cuando se abre el teclado la pantalla se achica pero las ventanas
+   flotantes no se enteran: quedan ancladas al tamaño original y el pie se va abajo
+   del teclado. Esto las ajusta a lo que realmente se ve. */
+function ajustarVentanas(){
+  var vv = window.visualViewport;
+  if(!vv) return;
+  ['ov','ovAcc'].forEach(function(id){
+    var e=$(id); if(!e) return;
+    e.style.height = vv.height + 'px';
+    e.style.top    = (vv.offsetTop || 0) + 'px';
+    e.style.bottom = 'auto';
+  });
+}
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', ajustarVentanas);
+  window.visualViewport.addEventListener('scroll', ajustarVentanas);
+}
+/* Al enfocar un campo, el navegador tarda en abrir el teclado: se reajusta después */
+document.addEventListener('focusin', function(e){
+  if(e.target && e.target.tagName==='INPUT'){ setTimeout(ajustarVentanas, 250); }
+});
 
 /* ---------- Entrada ---------- */
 $('btnEntrar').onclick=function(){
