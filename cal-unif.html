@@ -689,6 +689,23 @@ function propagarMadreASemana(){
   return bajaron;
 }
 
+/* Corre la revisión y avisa. Se llama después de cualquier guardado:
+   así, cuando se libera un lugar en la semana, el alumno que estaba
+   esperando en la MADRE baja en ese mismo momento. */
+function revisarMadre(){
+  const n = propagarMadreASemana();
+  const ch = window._madreChoques || [];
+  if(!n && !ch.length) return;
+  let msg = '';
+  if(n) msg += '✅ ' + n + ' alumno(s) de la MADRE quedaron cargados en la semana.\n';
+  if(ch.length){
+    msg += (msg?'\n':'') + '⚠️ Estos siguen esperando porque ese lugar está ocupado:\n\n· '
+         + ch.join('\n· ')
+         + '\n\nBajan solos cuando se libere.';
+  }
+  setTimeout(()=>alert(msg), 200);
+}
+
 function asegurarSemanas(){
   const vacia={alumnos:{},libres:{}};
   if(!state.lunesActual) state.lunesActual=lunesDeHoy();
@@ -1485,20 +1502,7 @@ function saveEditor(){
     book().alumnos[k]=nuevo;
   }
   guardarRevisar();
-  if(state.mode==='madre'){
-    const n = propagarMadreASemana();
-    const ch = window._madreChoques || [];
-    if(n || ch.length){
-      let msg = '✅ Guardado en la MADRE.\n';
-      if(n) msg += '\n' + n + ' alumno(s) también quedaron cargados en la semana.\n';
-      if(ch.length){
-        msg += '\n⚠️ Estos NO bajaron porque ese lugar ya está ocupado en la semana:\n\n· '
-             + ch.join('\n· ')
-             + '\n\nSi liberás ese lugar, bajan solos.';
-      }
-      setTimeout(()=>alert(msg), 200);
-    }
-  }
+  revisarMadre();
   saveState(); closeEditor(); renderGrid();
 }
 function guardarBloque(nombre){
@@ -1521,6 +1525,7 @@ function deleteEditor(){
   if(!confirmarSiMadre()) return;
   const [sk,pi,hi,si]=editingCell.split('|');
   delete book().alumnos[cellKey(sk,+pi,+hi,+si)];
+  revisarMadre();      // se liberó un lugar: puede haber alguien esperando
   saveState(); closeEditor(); renderGrid();
 }
 
