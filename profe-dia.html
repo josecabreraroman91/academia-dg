@@ -133,6 +133,10 @@
   /* modal acople */
   .modal{position:fixed;inset:0;z-index:40;background:rgba(0,0,0,.6);display:none;align-items:flex-start;justify-content:center;padding:10px;overflow-y:auto}
   .modal.show{display:flex}
+  #acSug{margin-top:5px;max-height:180px;overflow-y:auto}
+  #acSug .sg{padding:9px 11px;border:1px solid var(--line);border-radius:8px;margin-bottom:4px;
+    font-size:13px;cursor:pointer;background:var(--panel)}
+  #acSug .sg:active{background:#1d3a4a}
   @media(min-width:640px){ .modal{align-items:center} }
   .sheet{background:var(--panel);width:100%;max-width:480px;border-radius:16px;padding:18px 16px;border:1px solid var(--line);max-height:94dvh;overflow:auto;display:flex;flex-direction:column}
   .sheet h3{font-size:17px;font-weight:800;margin-bottom:14px}
@@ -236,8 +240,9 @@
 <div class="modal" id="mAcople">
   <div class="sheet">
     <h3>➕ Agregar alumno (acople)</h3>
-    <div class="fld"><label>Nombre</label><input id="acNom" list="alumnosList" autocomplete="off" placeholder="Escribí y elegí de la lista…"><datalist id="alumnosList"></datalist>
-    <div style="font-size:11px;color:var(--muted);margin-top:4px">Solo alumnos que ya están cargados en el sistema.</div></div>
+    <div class="fld"><label>Nombre</label><input id="acNom" autocomplete="off" placeholder="Escribí las primeras letras…">
+    <div id="acSug"></div>
+    <div id="acAviso" style="font-size:11px;color:var(--muted);margin-top:4px">Solo alumnos que ya están cargados en el sistema.</div></div>
     <div class="fld"><label>Hora</label><select id="acHora"></select></div>
     <div class="fld"><label>Sede</label><select id="acSede"></select></div>
     <div class="fld"><label>Profe</label><select id="acProfe"></select></div>
@@ -316,15 +321,46 @@ function normNombre(s){ return String(s||'').toLowerCase().normalize('NFD').repl
    alumno nuevo al instante: aparece sin esperar la copia. */
 let _nombresBase=[], _nombresVivo=[];
 
+let _listaAl=[];
+/* Antes esto llenaba un <datalist> con cientos de nombres. En el celular ese
+   desplegable del navegador se pone pesado; ahora la lista es propia y solo
+   muestra lo que coincide con lo que se escribe. */
 function pintarAutocompletado(){
-  const dl=document.getElementById('alumnosList'); if(!dl) return;
   const set=new Set();
   _nombresBase.concat(_nombresVivo).forEach(nom=>{
     const n=normNombre(nom);
     if(nom && n!=='alumnos' && n.length>1 && !/^(alto rendimiento|almuerzo|bloque)/.test(n)) set.add(nom);
   });
-  dl.innerHTML=[...set].sort((a,b)=>a.localeCompare(b)).map(n=>`<option value="${n.replace(/"/g,'&quot;')}">`).join('');
-  console.log('Autocompletado: '+set.size+' alumnos');
+  _listaAl=[...set].sort((a,b)=>a.localeCompare(b));
+}
+let _acElegido=null;
+function acBuscar(){
+  const inp=document.getElementById('acNom'), box=document.getElementById('acSug');
+  const av=document.getElementById('acAviso');
+  if(!inp||!box) return;
+  const q=normNombre(inp.value||'');
+  _acElegido=null;
+  if(q.length<2){ box.innerHTML=''; av.textContent='Solo alumnos que ya están cargados en el sistema.'; av.style.color=''; return; }
+  const pre=[], med=[];
+  for(let i=0;i<_listaAl.length;i++){
+    const n=normNombre(_listaAl[i]);
+    if(n.indexOf(q)===0) pre.push(_listaAl[i]);
+    else if(n.indexOf(q)>0) med.push(_listaAl[i]);
+    if(pre.length>=8) break;
+  }
+  const res=pre.concat(med).slice(0,8);
+  box.innerHTML=res.map((n,i)=>`<div class="sg" data-i="${i}">${escapeHtml(n)}</div>`).join('');
+  box.querySelectorAll('.sg').forEach(d=>{
+    d.onclick=()=>{
+      _acElegido=res[+d.dataset.i];
+      inp.value=_acElegido;
+      box.innerHTML='';
+      av.textContent='✓ '+_acElegido;
+      av.style.color='var(--court, #3fb950)';
+    };
+  });
+  if(!res.length){ av.textContent='No hay ningún alumno con ese nombre.'; av.style.color='#f2777a'; }
+  else { av.textContent='Tocá el alumno de la lista.'; av.style.color=''; }
 }
 
 async function cargarAlumnosPlanilla(){
@@ -556,6 +592,10 @@ const mAc=document.getElementById('mAcople');
    preseleccionada la sede, el profe y la hora de donde se tocó. */
 function abrirAcople(sede, profe, horaIdx){
   document.getElementById('acNom').value='';
+  const _s=document.getElementById('acSug'); if(_s) _s.innerHTML='';
+  const _a=document.getElementById('acAviso');
+  if(_a){ _a.textContent='Solo alumnos que ya están cargados en el sistema.'; _a.style.color=''; }
+  _acElegido=null;
   const selP=document.getElementById('acProfe');
   selP.innerHTML=listaProfesSync().map(p=>optProfe(p.dim, p.dim===profe)).join('');
   const selH=document.getElementById('acHora'); if(selH && horaIdx!=null) selH.value=String(horaIdx);
@@ -564,16 +604,25 @@ function abrirAcople(sede, profe, horaIdx){
   setTimeout(()=>{ try{ document.getElementById('acNom').focus(); }catch(e){} }, 60);
 }
 document.addEventListener('click', (ev)=>{
-  const el = ev.target.closest ? ev.target.closest('[data-add]') : null;
-  if(!el) return;
-  if(ev.target.closest('.al')) return;          // tocó un alumno: eso abre su menú
-  const p=String(el.dataset.add).split('|');
-  abrirAcople(p[0], p[1], +p[2]);
+  try{
+    const el = ev.target.closest ? ev.target.closest('[data-add]') : null;
+    if(!el) return;
+    if(ev.target.closest('.al')) return;          // tocó un alumno: eso abre su menú
+    const p=String(el.dataset.add).split('|');
+    abrirAcople(p[0], p[1], +p[2]);
+  }catch(e){ console.warn('acople:', e.message); }
 });
-document.getElementById('acCancel').onclick=()=>mAc.classList.remove('show');
+document.getElementById('acNom').oninput=acBuscar;
+function cerrarAcople(){
+  mAc.classList.remove('show');
+  const s=document.getElementById('acSug'); if(s) s.innerHTML='';
+  _acElegido=null;
+  try{ render(); }catch(e){ console.warn('render:', e.message); }
+}
+document.getElementById('acCancel').onclick=cerrarAcople;
 document.getElementById('meCancel').onclick=cerrarMenuEstado;
 document.getElementById('ovEstado').onclick=(e)=>{ if(e.target.id==='ovEstado') cerrarMenuEstado(); };
-mAc.onclick=(e)=>{ if(e.target===mAc) mAc.classList.remove('show'); };
+mAc.onclick=(e)=>{ if(e.target===mAc) cerrarAcople(); };
 /* Solo alumnos que ya existen. Escribir un nombre libre creaba gente nueva sin
    teléfono ni categoría, y después nadie sabía quién era. */
 function normNom_(s){
@@ -589,8 +638,8 @@ function nombreDeLaLista(nom){
 document.getElementById('acGuardar').onclick=()=>{
   const escrito=document.getElementById('acNom').value.trim();
   if(!escrito){ toast('Poné un nombre'); return; }
-  const nom=nombreDeLaLista(escrito);
-  if(!nom){ toast('⚠️ Ese alumno no está en la lista. Elegí uno del desplegable.'); return; }
+  const nom = _acElegido || nombreDeLaLista(escrito);
+  if(!nom){ toast('⚠️ Ese alumno no está en la lista. Tocalo en la lista de abajo.'); return; }
   const horaIdx=+document.getElementById('acHora').value;
   const profe=document.getElementById('acProfe').value;
   const selS=document.getElementById('acSede'); const sk=selS?selS.value:miSede;
