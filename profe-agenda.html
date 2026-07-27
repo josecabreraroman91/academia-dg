@@ -88,6 +88,7 @@
   .sl.ocupado{color:var(--txt)}
   .sl.reserva{background:#12283f;color:#8fbdf0}
   .sl.libre{color:#2c5c3a;cursor:pointer;text-align:center;font-size:13px;font-weight:600}
+  .sl.libre.prestado{color:#8a6d1f}
   .sl.libre:active{background:#12283f}
   .leyenda{font-size:11.5px;color:var(--sec);margin:-6px 0 16px;display:flex;gap:14px;flex-wrap:wrap}
   .leyenda span{display:flex;align-items:center;gap:5px}
@@ -175,6 +176,7 @@
     <span><i style="background:#2c5c3a"></i>libre</span>
     <span><i style="background:#e6edf3"></i>alumno</span>
     <span><i style="background:#12283f;border:1px solid #2f81f7"></i>agendado por un profe</span>
+    <span><i style="background:#8a6d1f"></i>libre solo esta semana</span>
     <span><i style="background:#20242b"></i>no da clase</span>
   </div>
 
@@ -382,6 +384,7 @@ function pintarFiltros(){
 /* ---------- Grilla, igual al calendario ---------- */
 function pintarGrilla(){
   var A=(cal.semana&&cal.semana.alumnos)||{}, L=(cal.semana&&cal.semana.libres)||{};
+  var M=(cal.madre&&cal.madre.alumnos)||{};
   var sedes=sedesDe(diaSel).filter(function(s){
     return s.key!=='adefinir' && (sedeSel==='todas' || s.key===sedeSel);
   });
@@ -427,9 +430,16 @@ function pintarGrilla(){
           } else if(puedeEscribir){
             /* Una reserva ya aplicada o descartada NO tapa el casillero: si puso a
                alguien, ese alguien ya está en la grilla; si lo sacó, el lugar quedó
-               libre de verdad y tiene que poder volver a usarse. */
-            html+='<div class="sl libre" data-slot="'+
-                  esc(diaSel+'|'+s.key+'|'+c.pi+'|'+hi+'|'+si+'|'+c.dim)+'">+</div>';
+               libre de verdad y tiene que poder volver a usarse.
+
+               Si en la MADRE ese lugar tiene dueño, está libre SOLO esta semana:
+               se marca distinto para que nadie lo agende como fijo. */
+            var due = M[k];
+            var soloEstaSem = !!(due && due.nombre);
+            html+='<div class="sl libre'+(soloEstaSem?' prestado':'')+'" data-slot="'+
+                  esc(diaSel+'|'+s.key+'|'+c.pi+'|'+hi+'|'+si+'|'+c.dim)+'"'+
+                  (soloEstaSem?' title="Libre solo esta semana · el lugar es de '+esc(due.nombre)+'"':'')+
+                  '>'+(soloEstaSem?'~':'+')+'</div>';
           } else {
             html+='<div class="sl"></div>';
           }
