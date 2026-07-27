@@ -144,7 +144,7 @@
 
 <div class="wrap" id="app" style="display:none">
   <header><h1>Agendar</h1></header>
-  <div class="yo"><b id="yoNom"></b><a href="#" id="btnSalir">Salir</a></div>
+  <div class="yo"><b id="yoNom"></b><span id="semTxt" style="margin-left:10px"></span><a href="#" id="btnSalir">Salir</a></div>
 
   <div class="dias" id="dias"></div>
   <div class="vista">
@@ -310,6 +310,11 @@ function lugaresDe(dia){
 
 /* ---------- Pintar ---------- */
 function pintarDias(){
+  var t=$('semTxt');
+  if(t){
+    var l=masDias(lunes,0), s=masDias(lunes,5);
+    t.textContent='· semana del '+ddmm(l)+' al '+ddmm(s);
+  }
   var hoy=hoyDiaIdx();
   $('dias').innerHTML = DAYS.map(function(d,i){
     var f=masDias(lunes,i);
@@ -502,20 +507,36 @@ $('fGuardar').onclick=function(){
 };
 
 /* ---------- Datos ---------- */
+/* Las reservas se leen de la semana que diga el CALENDARIO, no la que calcule el
+   celular. Si no coinciden, el profe agenda en una semana y la app mira otra: el
+   alumno se guarda y no aparece nunca. Por eso se vuelve a enganchar al cambiar. */
+var _resRef=null;
+function escucharReservas(){
+  var ref = firebase.database().ref('reservas_v1/'+lunes);
+  if(_resRef){ _resRef.off(); }
+  _resRef = ref;
+  reservas = {};
+  ref.on('value', function(s){
+    reservas = s.val() || {};
+    if(cal) pintar();
+  }, function(){});
+}
+
 function arrancar(){
   lunes = lunesDeHoy();
   var h=hoyDiaIdx();
   diaSel = DAYS[h>=0?h:0];
   pintarDias();
+  escucharReservas();
   firebase.database().ref('calendario_v2').on('value', function(s){
     cal = s.val();
-    if(cal && cal.lunesActual) { lunes = cal.lunesActual; pintarDias(); }
+    if(cal && cal.lunesActual && cal.lunesActual!==lunes){
+      lunes = cal.lunesActual;                 // manda el calendario
+      pintarDias();
+      escucharReservas();
+    }
     pintar();
   }, function(e){ $('cargando').textContent='No pude leer el calendario: '+e.message; });
-  firebase.database().ref('reservas_v1/'+lunes).on('value', function(s){
-    reservas = s.val() || {};
-    if(cal) pintar();
-  }, function(){});
 }
 
 /* ---------- Entrada ---------- */
