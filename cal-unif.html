@@ -673,10 +673,34 @@ function propagarMadreASemana(){
       return;
     }
 
-    /* La celda está ocupada por otro. No se pisa. Y NO se marca como
-       procesado a propósito: si mañana se libera ese lugar en la semana,
-       el alumno de la MADRE baja solo. Mientras tanto, se avisa. */
-    chocaron.push(al.nombre + ' (ahí está ' + enSemana.nombre + ')');
+    /* Ese lugar exacto está ocupado por otro. En vez de avisar y no hacer nada,
+       se busca un casillero libre en la MISMA hora y el MISMO profe: el alumno
+       baja una casilla más abajo. Nunca se pisa a nadie. */
+    const p = k.split('|');                            // dia|sede|pi|hi|si
+    if(p.length === 5){
+      for(let si=0; si<SLOTS_POR_HORA; si++){
+        const k2 = p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]+'|'+si;
+        const oc = state.semana.alumnos[k2];
+        if(oc && oc.nombre && normName(oc.nombre)===normName(al.nombre)){
+          state.madreSync[k] = al.nombre;              // ya está en esa hora, en otro casillero
+          return;
+        }
+      }
+      for(let si=0; si<SLOTS_POR_HORA; si++){
+        const k2 = p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]+'|'+si;
+        const oc = state.semana.alumnos[k2];
+        if(!oc || !oc.nombre){
+          state.semana.alumnos[k2] = JSON.parse(JSON.stringify(al));
+          bajaron++;
+          state.madreSync[k] = al.nombre;
+          return;
+        }
+      }
+    }
+
+    /* Los cuatro casilleros de esa hora están llenos. No se marca como procesado:
+       cuando se libere alguno, baja solo. */
+    chocaron.push(al.nombre + ' (' + (HORAS[+p[3]]||'') + ' sin lugar)');
   });
 
   window._madreChoques = chocaron;
@@ -695,17 +719,14 @@ function propagarMadreASemana(){
 function revisarMadre(){
   const n = propagarMadreASemana();
   const ch = window._madreChoques || [];
-  if(!n && !ch.length) return;
-  /* En la semana editable NO se muestra ningún cartel. La bajada sigue pasando
-     igual, en silencio: lo que cambia es que no interrumpe. Los avisos son de la
-     MADRE, así que aparecen cuando se está trabajando la MADRE. */
-  if(state.mode!=='madre') return;
-  let msg = '';
-  if(n) msg += '✅ ' + n + ' alumno(s) de la MADRE quedaron cargados en la semana.\n';
+  /* Solo se avisa cuando BAJÓ alguien. Si no bajó nadie no hay nada que contar,
+     así que borrar en la MADRE ya no dispara ningún cartel. */
+  if(!n) return;
+  if(state.mode!=='madre') return;                    // en la semana editable, nunca
+  let msg = '✅ ' + n + ' alumno(s) de la MADRE quedaron cargados en la semana.';
   if(ch.length){
-    msg += (msg?'\n':'') + '⚠️ Estos siguen esperando porque ese lugar está ocupado:\n\n· '
-         + ch.join('\n· ')
-         + '\n\nBajan solos cuando se libere.';
+    msg += '\n\n⚠️ Estos no entraron porque esa hora está completa:\n\n· ' + ch.join('\n· ') +
+           '\n\nBajan solos cuando se libere un lugar.';
   }
   setTimeout(()=>alert(msg), 200);
 }
