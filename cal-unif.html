@@ -320,6 +320,7 @@
     </div>
     <button class="btn profs" id="btnProfs" style="display:none">👥 Profesores</button>
     <button class="btn" id="btnAddProf" style="display:none">+ Columna profe</button>
+    <button class="btn" id="btnReservas" style="display:none;background:#12283f;border-color:#2f81f7;color:#cfe4ff;font-weight:700">➕ Cambios de profes <span id="resvN"></span></button>
     <button class="btn" id="btnAvanzar">▸ Avanzar semana</button>
     <button class="btn" id="btnCerrarDia">💾 Cerrar y guardar día</button>
     <div class="dropdown" id="ddAcciones">
@@ -404,6 +405,19 @@
       <button class="btn danger" id="btnDelete">Borrar</button>
       <button class="btn" id="btnCancel">Cancelar</button>
       <button class="btn primary" id="btnSave">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal alumnos agendados por los profes -->
+<div class="overlay" id="overlayResv">
+  <div class="sheet">
+    <h3>➕ Cambios de los profes</h3>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:12px">Los hicieron desde el celular. Al aplicar se reflejan en la semana editable. La MADRE no se toca nunca. Todo queda registrado con quién lo hizo.</p>
+    <div id="resvLista" style="max-height:52vh;overflow-y:auto"></div>
+    <div class="sheet-actions">
+      <button class="btn" id="btnResvCerrar">Cerrar</button>
+      <button class="btn primary" id="btnResvAplicar">Aplicar todos</button>
     </div>
   </div>
 </div>
@@ -731,6 +745,196 @@ function revisarMadre(){
   setTimeout(()=>alert(msg), 200);
 }
 
+/* ============================================================
+   ALUMNOS AGENDADOS POR LOS PROFES
+
+   Los profes no escriben en el calendario: dejan la reserva en
+   reservas_v1 y acá se aplica. Mismo camino que va a usar la
+   libreta del agente.
+
+   · Solo llena casilleros vacíos. Nunca pisa a nadie.
+   · Si el casillero exacto se ocupó, prueba los otros de esa hora.
+   · Entra SIEMPRE en la semana editable, nunca en la MADRE.
+   ============================================================ */
+let _resvRef=null, _resvSem='', reservasProfes={};
+
+function escucharReservasProfes(){
+  if(!_fbdb) return;
+  const sem = state.lunesActual || lunesDeHoy();
+  if(_resvRef && _resvSem===sem) return;
+  if(_resvRef) _resvRef.off();
+  _resvSem = sem;
+  _resvRef = _fbdb.ref('reservas_v1/'+sem);
+  _resvRef.on('value', snap=>{
+    reservasProfes = snap.val() || {};
+    pintarBotonResv();
+  }, e=>console.warn('reservas_v1:', e.message));
+}
+function resvPendientes(){
+  return Object.keys(reservasProfes)
+    .map(k=>({k, ...(reservasProfes[k]||{})}))
+    .filter(r=>r && r.alumno && r.estado==='pendiente')
+    .sort((a,b)=>(a.ts||0)-(b.ts||0));
+}
+function pintarBotonResv(){
+  const b=document.getElementById('btnReservas'); if(!b) return;
+  const n=resvPendientes().length;
+  b.style.display = n ? 'inline-block' : 'none';
+  const s=document.getElementById('resvN'); if(s) s.textContent = n ? '('+n+')' : '';
+}
+function abrirResv(){
+  const box=document.getElementById('resvLista');
+  const lista=resvPendientes();
+  if(!lista.length){ box.innerHTML='<p style="font-size:12px;color:var(--muted)">No hay nada para aplicar.</p>'; }
+  else{
+    box.innerHTML = lista.map(r=>{
+      const tipo=r.tipo||'agregar';
+      const ICO={agregar:'➕', mover:'↔️', sacar:'➖', editar:'✏️'};
+      const QUE={agregar:'entra', mover:'se mueve', sacar:'sale', editar:'cambia de tipo'};
+      let detalle='';
+      if(tipo==='mover')        detalle=lugarTxt(r.desde)+' → '+lugarTxt(r.k);
+      else if(tipo==='sacar')   detalle=lugarTxt(r.desde);
+      else if(tipo==='editar')  detalle=lugarTxt(r.desde)+' · pasa a '+(r.mod||'—');
+      else                      detalle=lugarTxt(r.k)+' · '+(r.profe||'')+(r.mod?' · '+r.mod:'');
+      return '<div style="border:1px solid var(--line);border-radius:10px;padding:9px 11px;margin-bottom:7px;display:flex;gap:10px;align-items:center">'+
+        '<div style="font-size:16px">'+ICO[tipo]+'</div>'+
+        '<div style="flex:1;min-width:0">'+
+          '<div style="font-weight:700;font-size:13px">'+esc(r.alumno)+
+            ' <span style="font-weight:400;color:var(--muted)">'+QUE[tipo]+'</span>'+
+            (tipo==='agregar'&&r.fijo?' <span style="font-size:10px;background:#12283f;color:#8fbdf0;padding:1px 6px;border-radius:10px">FIJO</span>':'')+'</div>'+
+          '<div style="font-size:11.5px;color:var(--muted)">'+esc(detalle)+'</div>'+
+          '<div style="font-size:11.5px;color:var(--muted)">'+(r.tel?esc(r.tel)+' · ':'')+'lo hizo '+esc(r.porNombre||r.porCorreo||'')+'</div>'+
+        '</div>'+
+        '<button class="btn" data-resv-desc="'+esc(r.k)+'" style="font-size:11px;padding:5px 10px">Descartar</button>'+
+      '</div>';
+    }).join('');
+    box.querySelectorAll('button[data-resv-desc]').forEach(b=>{
+      b.onclick=()=>{
+        const k=b.dataset.resvDesc;
+        const r=reservasProfes[k]||{};
+        if(!confirm('¿Descartar a '+(r.alumno||'este alumno')+'?\n\nNo entra en la semana. El profe no recibe aviso.')) return;
+        _fbdb.ref('reservas_v1/'+_resvSem+'/'+k+'/estado').set('cancelado')
+          .catch(e=>alert('No se pudo descartar: '+e.message));
+        abrirResv();
+      };
+    });
+  }
+  document.getElementById('overlayResv').classList.add('show');
+}
+function cerrarResv(){ document.getElementById('overlayResv').classList.remove('show'); }
+
+function aplicarReservas(){
+  const lista=resvPendientes();
+  if(!lista.length){ cerrarResv(); return; }
+  const B=state.semana; if(!B){ alert('No hay semana cargada.'); return; }
+  if(!B.alumnos) B.alumnos={};
+
+  const hechos=[], fallaron=[], fijos=[];
+
+  lista.forEach(r=>{
+    const tipo = r.tipo || 'agregar';
+
+    /* SACAR: el alumno no viene a ese horario esta semana */
+    if(tipo==='sacar'){
+      const o=B.alumnos[r.desde];
+      if(o && o.nombre && normName(o.nombre)===normName(r.alumno)){
+        delete B.alumnos[r.desde];
+        hechos.push('➖ '+r.alumno+' salió de '+lugarTxt(r.desde)+' — '+(r.porNombre||''));
+      } else {
+        fallaron.push(r.alumno+' — ya no estaba en '+lugarTxt(r.desde));
+      }
+      marcarResvAplicada(r.k); return;
+    }
+
+    /* EDITAR: solo cambia el tipo de clase */
+    if(tipo==='editar'){
+      const o=B.alumnos[r.desde];
+      if(o && o.nombre && normName(o.nombre)===normName(r.alumno)){
+        o.mod = r.mod || '';
+        hechos.push('✏️ '+r.alumno+' pasó a '+(r.mod||'—')+' — '+(r.porNombre||''));
+      } else {
+        fallaron.push(r.alumno+' — ya no estaba en '+lugarTxt(r.desde));
+      }
+      marcarResvAplicada(r.k); return;
+    }
+
+    /* MOVER y AGREGAR: los dos necesitan un casillero libre en el destino */
+    const p=String(r.k).split('|');
+    if(p.length!==5){ marcarResvAplicada(r.k); return; }
+
+    let previo=null;
+    if(tipo==='mover'){
+      const o=B.alumnos[r.desde];
+      if(!o || !o.nombre || normName(o.nombre)!==normName(r.alumno)){
+        fallaron.push(r.alumno+' — ya no estaba en '+lugarTxt(r.desde));
+        marcarResvAplicada(r.k); return;
+      }
+      previo=JSON.parse(JSON.stringify(o));
+    }
+
+    let destino=null, yaEsta=false;
+    for(let si=0; si<SLOTS_POR_HORA; si++){
+      const k2=p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]+'|'+si;
+      if(tipo==='mover' && k2===r.desde) continue;      // el suyo no cuenta como ocupado
+      const oc=B.alumnos[k2];
+      if(oc && oc.nombre && normName(oc.nombre)===normName(r.alumno)){ yaEsta=true; break; }
+      if((!oc || !oc.nombre) && destino===null) destino=k2;
+    }
+    if(yaEsta){ marcarResvAplicada(r.k); return; }
+    if(!destino){
+      fallaron.push(r.alumno+' — '+lugarTxt(r.k)+' está completa');
+      return;                                            // sin marcar: se reintenta
+    }
+
+    if(tipo==='mover'){
+      delete B.alumnos[r.desde];
+      B.alumnos[destino]=previo;
+      if(r.mod) B.alumnos[destino].mod=r.mod;
+      hechos.push('↔️ '+r.alumno+': '+lugarTxt(r.desde)+' → '+lugarTxt(destino)+' — '+(r.porNombre||''));
+    } else {
+      B.alumnos[destino]={ nombre:r.alumno, nivel:'', lado:'', mod:r.mod||'', nota:'' };
+      hechos.push('➕ '+r.alumno+' entró en '+lugarTxt(destino)+' — '+(r.porNombre||''));
+      if(r.fijo) fijos.push(r.alumno+' · '+lugarTxt(destino));
+      crearAlumnoSiNoEsta(r);
+    }
+    marcarResvAplicada(r.k);
+  });
+
+  if(hechos.length){ saveState(); renderGrid(); }
+  cerrarResv();
+
+  let msg='';
+  if(hechos.length)   msg+='✅ '+hechos.length+' cambio(s) aplicados:\n· '+hechos.join('\n· ');
+  if(fallaron.length) msg+=(msg?'\n\n':'')+'⚠️ Estos no se pudieron aplicar:\n· '+fallaron.join('\n· ');
+  if(fijos.length)    msg+=(msg?'\n\n':'')+'📌 Entraron como FIJOS. Si siguen, pasalos a la MADRE:\n· '+fijos.join('\n· ');
+  if(msg) setTimeout(()=>alert(msg), 150);
+}
+function lugarTxt(k){
+  const p=String(k||'').split('|');
+  if(p.length<4) return '';
+  return p[0].charAt(0)+p[0].slice(1).toLowerCase()+' '+(HORAS[+p[3]]||'')+' '+(SEDE_NICE[p[1]]||p[1]);
+}
+function marcarResvAplicada(k){
+  if(!_fbdb) return;
+  _fbdb.ref('reservas_v1/'+_resvSem+'/'+k).update({ estado:'aplicado', aplicadoTs:Date.now() })
+    .catch(e=>console.warn('No pude marcar la reserva:', e.message));
+}
+/* El alumno queda en el padrón aunque haya venido solo a probar: en unos meses
+   esa lista es a quién llamar cuando se libera un lugar. */
+function crearAlumnoSiNoEsta(r){
+  if(!_fbdb || !r.alumno) return;
+  const k=String(r.alumno).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+          .toLowerCase().replace(/\s+/g,' ').trim().replace(/[.#$/\[\]]/g,'_');
+  if(!k) return;
+  _fbdb.ref('alumnos_v2/'+k).once('value').then(s=>{
+    if(s.exists()) return;
+    return _fbdb.ref('alumnos_v2/'+k).set({
+      nombre:r.alumno, cat:'', lado:'', profe:r.profe||'', tipo:r.mod||'',
+      precio:0, tel:r.tel||'', nomHor:'', nomWpp:'', ts:Date.now()
+    });
+  }).catch(e=>console.warn('No pude crear el alumno:', e.message));
+}
+
 function asegurarSemanas(){
   const vacia={alumnos:{},libres:{}};
   if(!state.lunesActual) state.lunesActual=lunesDeHoy();
@@ -931,6 +1135,7 @@ function iniciarCalendarioCompartido(){
     // Firebase borra objetos vacíos: rehidratar para que nunca falte la estructura
     ['madre','semana','semanaProxima'].forEach(k=>{ if(state[k]){ if(!state[k].alumnos) state[k].alumnos={}; if(!state[k].libres) state[k].libres={}; } });
     if(r.lunesActual) state.lunesActual = r.lunesActual;
+    try{ escucharReservasProfes(); }catch(e){}
     // Registro de la MADRE: se UNEN el de acá y el de la nube. Marcar de más solo
     // evita que alguien baje dos veces; marcar de menos lo trae de vuelta sin querer.
     // Ante un mismo alumno con distinto nombre, manda la nube (va con la MADRE que llega).
@@ -2513,6 +2718,10 @@ document.getElementById('btnProfsMenu').onclick=openProfs;
 document.getElementById('btnCloseProfs').onclick=closeProfs;
 document.getElementById('btnAddProfesor').onclick=addProfesor;
 cerrarSoloSiTocasElFondo('overlayProfs', closeProfs);
+cerrarSoloSiTocasElFondo('overlayResv', cerrarResv);
+document.getElementById('btnReservas').onclick   = abrirResv;
+document.getElementById('btnResvCerrar').onclick = cerrarResv;
+document.getElementById('btnResvAplicar').onclick= aplicarReservas;
 document.getElementById('btnEnvios').onclick=openEnvios;
 document.getElementById('btnResumen').onclick=toggleResumen;
 document.getElementById('btnCloseTel').onclick=closeTel;
@@ -2915,6 +3124,7 @@ fillAlumnosDatalist();
         if(!_arrancado){
           _arrancado=true;
           iniciarCalendarioCompartido();   // sincroniza el calendario entre encargados (tiempo real)
+          try{ escucharReservasProfes(); }catch(e){ console.warn('reservas:', e.message); }
           escucharAlumnosVivo();           // alumnos nuevos disponibles al instante
           setTimeout(function(){ publicarDiaHoy(true); }, 1200);
         }
