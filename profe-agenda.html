@@ -88,7 +88,7 @@
   table.g thead th.sedeh{position:sticky;top:0;z-index:2;font-size:10px;letter-spacing:.4px;
     padding:3px 4px;text-align:center}
   table.g thead tr.r2 th{top:20px}
-  th.hcol{position:sticky;left:0;z-index:3;background:var(--bg);min-width:38px;width:38px;
+  th.hcol{position:sticky;left:0;z-index:3;background:var(--bg);min-width:46px;width:46px;
     font-size:10px;font-weight:600;color:var(--sec);padding:2px 1px;text-align:center}
   thead th.hcol{z-index:4}
   td.bloq{background:#20242b}
@@ -390,7 +390,7 @@ function pintarGrilla(){
   html+='</tr></thead><tbody>';
 
   for(var hi=minH; hi<=maxH; hi++){
-    html+='<tr><th class="hcol">'+esc((HORAS[hi]||'').replace(':00',''))+'</th>';
+    html+='<tr><th class="hcol">'+esc(HORAS[hi]||'')+'</th>';
     cols.forEach(function(c){
       var cls='col-'+c.sede;
       if(L[diaSel+'|'+c.sede+'|'+c.pi+'|'+hi]){
@@ -437,6 +437,19 @@ function pintar(){
   $('leyenda').style.display='flex';
   pintarGrilla();
 }
+
+Array.prototype.forEach.call(document.querySelectorAll('.libros button[data-l]'), function(b){
+  b.onclick=function(){
+    if(moviendo){ moviendo=null; document.body.classList.remove('moviendo'); }
+    libroSel=b.dataset.l;
+    Array.prototype.forEach.call(document.querySelectorAll('.libros button'), function(x){
+      x.classList.toggle('on', x.dataset.l===libroSel);
+    });
+    document.body.classList.toggle('enMadre', libroSel==='madre');
+    escucharReservas();
+    if(cal) pintar();
+  };
+});
 
 /* ============================================================
    MOVER · SACAR · CAMBIAR TIPO
