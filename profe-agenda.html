@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Agendar · Academia DG</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --linea:#30363d; --txt:#e6edf3;
+    --sec:#8b949e; --azul:#2f81f7; --verde:#3fb950; --rojo:#f85149; --ambar:#d29922;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);-webkit-text-size-adjust:100%;
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.5}
+  .wrap{max-width:620px;margin:0 auto;padding:14px 12px 90px}
+
+  header{display:flex;align-items:center;gap:10px;margin-bottom:2px}
+  h1{font-size:20px;margin:0}
+  .yo{color:var(--sec);font-size:12px;margin:6px 0 14px}
+  .yo a{color:var(--azul);text-decoration:none;margin-left:10px}
+
+  .dias{display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:10px;
+    -webkit-overflow-scrolling:touch}
+  .dias button{flex:0 0 auto;font-family:inherit;font-size:13px;padding:8px 12px;
+    border-radius:10px;border:1px solid var(--linea);background:transparent;
+    color:var(--txt);cursor:pointer;white-space:nowrap;line-height:1.2}
+  .dias button b{display:block;font-size:11px;color:var(--sec);font-weight:400}
+  .dias button.on{background:var(--azul);border-color:var(--azul);color:#fff}
+  .dias button.on b{color:#cfe4ff}
+  .dias button:disabled{opacity:.35}
+
+  .filtros{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px}
+  .filtros button{font-family:inherit;font-size:12.5px;padding:6px 11px;border-radius:20px;
+    border:1px solid var(--linea);background:transparent;color:var(--sec);cursor:pointer}
+  .filtros button.on{border-color:var(--azul);color:var(--azul)}
+
+  .hbloque{margin-bottom:16px}
+  .hh{font-size:14px;font-weight:600;margin:0 0 6px;display:flex;align-items:center;gap:10px}
+  .hh .ln{flex:1;height:1px;background:var(--linea)}
+
+  .slot{background:var(--panel);border:1px solid var(--linea);border-radius:12px;
+    padding:11px 13px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+  .slot .info{flex:1;min-width:0}
+  .slot .l1{font-size:14.5px;font-weight:600}
+  .slot .l2{font-size:12.5px;color:var(--sec)}
+  .slot.tomado{opacity:.62}
+  .slot.tomado .l1{font-weight:400}
+  .cupos{font-size:11.5px;color:var(--verde);border:1px solid #1d5a34;border-radius:20px;
+    padding:2px 8px;white-space:nowrap}
+
+  button.b{font-family:inherit;font-size:13.5px;padding:9px 15px;border-radius:10px;
+    border:1px solid var(--linea);background:transparent;color:var(--txt);cursor:pointer;
+    white-space:nowrap}
+  button.b.pri{background:var(--azul);border-color:var(--azul);color:#fff;font-weight:600}
+  button.b.full{width:100%;padding:13px}
+  button.b:disabled{opacity:.45}
+
+  .vacio{color:var(--sec);font-size:14px;text-align:center;padding:34px 10px}
+
+  /* ---- Formulario ---- */
+  #ov{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);display:none;
+    align-items:flex-end;justify-content:center}
+  #ov.show{display:flex}
+  .hoja{background:var(--panel);border-top:1px solid var(--linea);width:100%;
+    max-width:620px;border-radius:16px 16px 0 0;padding:18px 16px 26px;
+    max-height:92vh;overflow-y:auto}
+  .hoja h3{margin:0 0 2px;font-size:17px}
+  .hoja .donde{color:var(--sec);font-size:13.5px;margin-bottom:16px}
+  .campo{margin-bottom:12px}
+  .campo label{display:block;font-size:12.5px;color:var(--sec);margin-bottom:5px}
+  .campo input{width:100%;background:var(--bg);border:1px solid var(--linea);
+    border-radius:10px;color:var(--txt);padding:12px;font-family:inherit;font-size:16px}
+  .ops{display:flex;gap:7px;flex-wrap:wrap}
+  .ops button{flex:1;min-width:78px;font-family:inherit;font-size:13.5px;padding:11px 8px;
+    border-radius:10px;border:1px solid var(--linea);background:transparent;
+    color:var(--txt);cursor:pointer}
+  .ops button.on{border-color:var(--azul);background:#12283f;color:#cfe4ff;font-weight:600}
+  .ops button small{display:block;font-size:10.5px;color:var(--sec);font-weight:400}
+  .ops button.on small{color:#8fbdf0}
+  .err{color:var(--rojo);font-size:13px;margin-top:10px;min-height:18px}
+  .acc{display:flex;gap:8px;margin-top:16px}
+
+  #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:80;
+    background:#1d5a34;color:#d6ffe4;padding:11px 18px;border-radius:12px;font-size:14px;
+    display:none;max-width:90%;text-align:center}
+
+  #login,#nopuede{position:fixed;inset:0;z-index:99;background:var(--bg);display:none;
+    align-items:center;justify-content:center;flex-direction:column;padding:26px;text-align:center}
+  #login h2,#nopuede h2{margin:0 0 8px;font-size:20px}
+  #login p,#nopuede p{color:var(--sec);max-width:330px;margin:0 0 22px}
+  #cargando{color:var(--sec);text-align:center;padding:40px 0}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h2>Agendar · Academia DG</h2>
+  <p>Entrá con tu cuenta de Google para ver los lugares libres.</p>
+  <button class="b pri" id="btnEntrar">Entrar con Google</button>
+  <div class="err" id="errLogin"></div>
+</div>
+
+<div id="nopuede">
+  <h2>Todavía no tenés acceso</h2>
+  <p id="nopuedeTxt"></p>
+  <button class="b" id="btnSalir2">Salir</button>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <header><h1>Agendar</h1></header>
+  <div class="yo"><b id="yoNom"></b><a href="#" id="btnSalir">Salir</a></div>
+
+  <div class="dias" id="dias"></div>
+  <div class="filtros" id="filtros"></div>
+
+  <div id="cargando">Cargando el calendario…</div>
+  <div id="lista"></div>
+</div>
+
+<div id="ov">
+  <div class="hoja">
+    <h3>Alumno nuevo</h3>
+    <div class="donde" id="fDonde"></div>
+
+    <div class="campo"><label>Nombre y apellido</label>
+      <input id="fNom" type="text" autocomplete="off" placeholder="Pedro Gómez"></div>
+
+    <div class="campo"><label>Teléfono</label>
+      <input id="fTel" type="tel" inputmode="tel" autocomplete="off" placeholder="0981 445210"></div>
+
+    <div class="campo"><label>Tipo de clase</label>
+      <div class="ops" id="fMod">
+        <button data-v="G">G<small>grupal</small></button>
+        <button data-v="D">D<small>dual</small></button>
+        <button data-v="IND">IND<small>individual</small></button>
+      </div></div>
+
+    <div class="campo"><label>¿Cómo viene?</label>
+      <div class="ops" id="fFijo">
+        <button data-v="0">Prueba<small>una clase</small></button>
+        <button data-v="1">Fijo<small>todas las semanas</small></button>
+      </div></div>
+
+    <div class="err" id="fErr"></div>
+    <div class="acc">
+      <button class="b" id="fCancel">Cancelar</button>
+      <button class="b pri" id="fGuardar" style="flex:1">Agendar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain: "academia-dg.firebaseapp.com",
+  databaseURL: "https://academia-dg-default-rtdb.firebaseio.com",
+  projectId: "academia-dg",
+  storageBucket: "academia-dg.firebasestorage.app",
+  messagingSenderId: "623967243039",
+  appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
+});
+
+/* Las mismas constantes que el calendario. Si allá cambian, acá también. */
+var DAYS  = ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
+var HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00',
+             '14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+var SLOTS_POR_HORA = 4;
+var SEDE_NICE = {lomas:'LOMAS', elite:'ELITE', segurola:'SEGUROLA', adefinir:'A DEFINIR'};
+var NO_PROFE = {'':1, '—':1, 'SP':1};
+
+var $ = function(id){ return document.getElementById(id); };
+var miCorreo=null, miNombre='', miDim='', puedeEscribir=false;
+var cal=null, reservas={}, lunes='', diaSel=null, sedeSel='todas';
+var pend=null;   // slot elegido
+
+function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
+function aClave(m){ return String(m).trim().toLowerCase().replace(/\./g, ','); }
+function isoDe(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function lunesDeHoy(){ var d=new Date(); var wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return isoDe(d); }
+function masDias(iso,n){ var d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d; }
+function ddmm(d){ return d.getDate()+'/'+(d.getMonth()+1); }
+function hoyDiaIdx(){ var wd=new Date().getDay(); return (wd>=1&&wd<=6)?wd-1:-1; }
+function toast(t){ var e=$('toast'); e.textContent=t; e.style.display='block';
+  clearTimeout(e._t); e._t=setTimeout(function(){ e.style.display='none'; }, 3200); }
+
+/* Teléfono: acepta cualquier formato y lo deja como 595XXXXXXXXX */
+function normTel(raw){
+  var d=String(raw==null?'':raw).replace(/\D/g,'');
+  if(!d) return '';
+  if(d.slice(0,2)==='00') d=d.slice(2);
+  if(d.indexOf('595')===0){ var r=d.slice(3); while(r.charAt(0)==='0') r=r.slice(1); return '595'+r; }
+  while(d.charAt(0)==='0') d=d.slice(1);
+  return d.length<=10 ? '595'+d : d;
+}
+function telOk(t){ return t && t.length>=11 && t.length<=15; }
+
+/* Llave del lugar: es la misma dirección que usa el calendario */
+function slotKey(dia,sk,pi,hi,si){ return dia+'|'+sk+'|'+pi+'|'+hi+'|'+si; }
+
+function sedesDe(dia){
+  if(!cal) return [];
+  var b = cal.semana || {};
+  var m = b.sedesPorDia || cal.sedesPorDia || {};
+  return m[dia] || [];
+}
+function nombreProfe(dim){
+  var ps = (cal && cal.profesores) || [];
+  for(var i=0;i<ps.length;i++){ if(ps[i] && ps[i].dim===dim) return ps[i].nombre||''; }
+  return '';
+}
+
+/* Rango de horas con actividad de esa sede ese día: evita ofrecer las 6 de la
+   mañana en una sede que arranca a las 14. */
+function rangoHoras(dia, s, pi0){
+  var A=(cal.semana&&cal.semana.alumnos)||{}, min=99, max=-1;
+  s.profes.forEach(function(dim,pi){
+    if(NO_PROFE[dim]) return;
+    for(var hi=0;hi<HORAS.length;hi++){
+      for(var si=0;si<SLOTS_POR_HORA;si++){
+        var al=A[slotKey(dia,s.key,pi,hi,si)];
+        if(al && al.nombre){ if(hi<min)min=hi; if(hi>max)max=hi; }
+      }
+    }
+  });
+  if(max<0) return null;
+  return {min:min, max:Math.min(HORAS.length-1, max+1)};   // una hora más al final
+}
+
+/* Todos los lugares de un día: libres y tomados */
+function lugaresDe(dia){
+  if(!cal) return [];
+  var A=(cal.semana&&cal.semana.alumnos)||{}, L=(cal.semana&&cal.semana.libres)||{};
+  var out=[];
+  sedesDe(dia).forEach(function(s){
+    if(s.key==='adefinir') return;
+    var rango=rangoHoras(dia,s); if(!rango) return;
+    s.profes.forEach(function(dim,pi){
+      if(NO_PROFE[dim]) return;
+      for(var hi=rango.min; hi<=rango.max; hi++){
+        if(L[dia+'|'+s.key+'|'+pi+'|'+hi]) continue;      // el profe no da clase esa hora
+        var libres=[], ocup=0, resv=[];
+        for(var si=0; si<SLOTS_POR_HORA; si++){
+          var k=slotKey(dia,s.key,pi,hi,si);
+          var al=A[k];
+          var r=reservas[k];
+          if(al && al.nombre) ocup++;
+          else if(r && r.estado!=='cancelado'){ resv.push(r); ocup++; }
+          else libres.push(si);
+        }
+        if(!libres.length && !resv.length) continue;       // hora llena y sin novedad
+        out.push({dia:dia, sede:s.key, sedeNom:SEDE_NICE[s.key]||s.key,
+                  pi:pi, dim:dim, hi:hi, libres:libres, resv:resv});
+      }
+    });
+  });
+  out.sort(function(a,b){ return (a.hi-b.hi) || a.sedeNom.localeCompare(b.sedeNom); });
+  return out;
+}
+
+/* ---------- Pintar ---------- */
+function pintarDias(){
+  var hoy=hoyDiaIdx();
+  $('dias').innerHTML = DAYS.map(function(d,i){
+    var f=masDias(lunes,i);
+    var pasado = hoy>=0 && i<hoy;
+    return '<button data-d="'+d+'"'+(pasado?' disabled':'')+
+           (d===diaSel?' class="on"':'')+'>'+d.slice(0,3)+
+           '<b>'+ddmm(f)+'</b></button>';
+  }).join('');
+  Array.prototype.forEach.call($('dias').querySelectorAll('button[data-d]'), function(b){
+    b.onclick=function(){ diaSel=b.dataset.d; pintarDias(); pintar(); };
+  });
+}
+function pintarFiltros(){
+  var ss=['todas'].concat(sedesDe(diaSel).map(function(s){return s.key;})
+          .filter(function(k){ return k!=='adefinir'; }));
+  $('filtros').innerHTML = ss.map(function(k){
+    return '<button data-s="'+k+'"'+(k===sedeSel?' class="on"':'')+'>'+
+      (k==='todas'?'Todas las sedes':(SEDE_NICE[k]||k))+'</button>';
+  }).join('');
+  Array.prototype.forEach.call($('filtros').querySelectorAll('button[data-s]'), function(b){
+    b.onclick=function(){ sedeSel=b.dataset.s; pintarFiltros(); pintar(); };
+  });
+}
+function pintar(){
+  $('cargando').style.display='none';
+  pintarFiltros();
+  var todos=lugaresDe(diaSel).filter(function(g){
+    return sedeSel==='todas' || g.sede===sedeSel;
+  });
+  if(!todos.length){
+    $('lista').innerHTML='<div class="vacio">No hay lugares libres ese día'+
+      (sedeSel==='todas'?'':' en esa sede')+'.</div>'; return;
+  }
+  var html='', hAct=-1;
+  todos.forEach(function(g){
+    if(g.hi!==hAct){
+      if(hAct>=0) html+='</div>';
+      html+='<div class="hbloque"><div class="hh">'+esc(HORAS[g.hi])+'<span class="ln"></span></div>';
+      hAct=g.hi;
+    }
+    var nom=nombreProfe(g.dim);
+    g.resv.forEach(function(r){
+      html+='<div class="slot tomado"><div class="info">'+
+        '<div class="l1">'+esc(r.alumno)+'</div>'+
+        '<div class="l2">'+esc(g.sedeNom)+' · '+esc(g.dim)+(nom?' '+esc(nom):'')+
+        ' · lo agendó '+esc(r.porNombre||r.porCorreo||'alguien')+'</div>'+
+        '</div></div>';
+    });
+    if(g.libres.length){
+      html+='<div class="slot"><div class="info">'+
+        '<div class="l1">'+esc(g.sedeNom)+' · '+esc(g.dim)+(nom?' <span style="font-weight:400">'+esc(nom)+'</span>':'')+'</div>'+
+        '<div class="l2">'+g.libres.length+' lugar'+(g.libres.length>1?'es':'')+' libre'+(g.libres.length>1?'s':'')+'</div>'+
+        '</div>'+
+        (puedeEscribir
+          ? '<button class="b pri" data-slot="'+esc(g.dia+'|'+g.sede+'|'+g.pi+'|'+g.hi+'|'+g.libres[0]+'|'+g.dim)+'">Agendar</button>'
+          : '<span class="cupos">'+g.libres.length+'</span>')+
+        '</div>';
+    }
+  });
+  if(hAct>=0) html+='</div>';
+  $('lista').innerHTML=html;
+  Array.prototype.forEach.call($('lista').querySelectorAll('button[data-slot]'), function(b){
+    b.onclick=function(){ abrirForm(b.dataset.slot); };
+  });
+}
+
+/* ---------- Formulario ---------- */
+function abrirForm(s){
+  var p=s.split('|');
+  pend={dia:p[0], sede:p[1], pi:+p[2], hi:+p[3], si:+p[4], dim:p[5]};
+  var nom=nombreProfe(pend.dim);
+  var f=masDias(lunes, DAYS.indexOf(pend.dia));
+  $('fDonde').textContent = pend.dia.charAt(0)+pend.dia.slice(1).toLowerCase()+' '+ddmm(f)+
+    ' · '+HORAS[pend.hi]+' · '+(SEDE_NICE[pend.sede]||pend.sede)+
+    ' · '+pend.dim+(nom?' ('+nom+')':'');
+  $('fNom').value=''; $('fTel').value=''; $('fErr').textContent='';
+  marcarOps('fMod', 'G'); marcarOps('fFijo', '0');
+  $('ov').classList.add('show');
+  setTimeout(function(){ try{ $('fNom').focus(); }catch(e){} }, 60);
+}
+function marcarOps(id, v){
+  Array.prototype.forEach.call($(id).querySelectorAll('button'), function(b){
+    b.classList.toggle('on', b.dataset.v===v);
+  });
+}
+function valorOps(id){
+  var b=$(id).querySelector('button.on'); return b?b.dataset.v:'';
+}
+['fMod','fFijo'].forEach(function(id){
+  $(id).onclick=function(ev){
+    var b=ev.target.closest('button[data-v]'); if(b) marcarOps(id, b.dataset.v);
+  };
+});
+$('fCancel').onclick=function(){ $('ov').classList.remove('show'); pend=null; };
+$('ov').onclick=function(e){ if(e.target===$('ov')){ $('ov').classList.remove('show'); pend=null; } };
+
+$('fGuardar').onclick=function(){
+  if(!pend) return;
+  var nom=$('fNom').value.trim().replace(/\s+/g,' ');
+  var tel=normTel($('fTel').value);
+  if(nom.length<3){ $('fErr').textContent='Poné el nombre y el apellido.'; return; }
+  if(!telOk(tel)){ $('fErr').textContent='Ese teléfono no parece válido. Ej: 0981 445210'; return; }
+
+  var b=$('fGuardar'); b.disabled=true; b.textContent='Guardando…'; $('fErr').textContent='';
+  var k=slotKey(pend.dia, pend.sede, pend.pi, pend.hi, pend.si);
+  firebase.database().ref('reservas_v1/'+lunes+'/'+k).set({
+    alumno: nom, tel: tel,
+    mod: valorOps('fMod'),
+    fijo: valorOps('fFijo')==='1',
+    profe: pend.dim, sede: pend.sede, horaIdx: pend.hi, dia: pend.dia,
+    porCorreo: miCorreo, porNombre: miNombre || miCorreo,
+    ts: Date.now(), estado: 'pendiente'
+  }).then(function(){
+    $('ov').classList.remove('show'); pend=null;
+    b.disabled=false; b.textContent='Agendar';
+    toast('✅ '+nom+' quedó agendado');
+  }).catch(function(e){
+    b.disabled=false; b.textContent='Agendar';
+    $('fErr').textContent = /permission/i.test(e.message)
+      ? 'Ese lugar lo acaba de tomar otro profe. Cerrá y elegí otro.'
+      : 'No se pudo guardar: '+e.message;
+  });
+};
+
+/* ---------- Datos ---------- */
+function arrancar(){
+  lunes = lunesDeHoy();
+  var h=hoyDiaIdx();
+  diaSel = DAYS[h>=0?h:0];
+  pintarDias();
+  firebase.database().ref('calendario_v2').on('value', function(s){
+    cal = s.val();
+    if(cal && cal.lunesActual) { lunes = cal.lunesActual; pintarDias(); }
+    pintar();
+  }, function(e){ $('cargando').textContent='No pude leer el calendario: '+e.message; });
+  firebase.database().ref('reservas_v1/'+lunes).on('value', function(s){
+    reservas = s.val() || {};
+    if(cal) pintar();
+  }, function(){});
+}
+
+/* ---------- Entrada ---------- */
+$('btnEntrar').onclick=function(){
+  firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(function(e){ $('errLogin').textContent=e.message; });
+};
+$('btnSalir').onclick=function(e){ e.preventDefault(); firebase.auth().signOut(); };
+$('btnSalir2').onclick=function(){ firebase.auth().signOut(); };
+
+/* Nada que lea Firebase corre antes del login. */
+firebase.auth().onAuthStateChanged(function(u){
+  if(!u){ $('login').style.display='flex'; $('nopuede').style.display='none'; $('app').style.display='none'; return; }
+  miCorreo=u.email.toLowerCase();
+  firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
+    var f=s.val()||{}, p=f.permisos||{};
+    var admin=p.admin===true, ag=p.agenda||'no', cal_=p.calendario||'no';
+    var puedeVer = admin || ag==='leer' || ag==='escribir' || cal_==='leer' || cal_==='escribir';
+    puedeEscribir = admin || ag==='escribir' || cal_==='escribir';
+    if(f.activo!==true || !puedeVer){
+      $('login').style.display='none';
+      $('nopuedeTxt').textContent = miCorreo+'\n\nPedile a José que te habilite.';
+      $('nopuede').style.display='flex';
+      return;
+    }
+    miNombre = f.nombre || '';
+    miDim = f.dim || '';
+    $('login').style.display='none'; $('nopuede').style.display='none';
+    $('app').style.display='block';
+    $('yoNom').textContent = miNombre || miCorreo;
+    arrancar();
+  }).catch(function(e){
+    $('login').style.display='none';
+    $('nopuedeTxt').textContent='No se pudo verificar tu acceso. '+e.message;
+    $('nopuede').style.display='flex';
+  });
+});
+</script>
+</body>
+</html>
