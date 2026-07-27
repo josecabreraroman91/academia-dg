@@ -551,8 +551,9 @@ function abrirMenuEstado(id){
     }
   };
   ov.classList.add('show');
+  ventanaAbierta(cerrarMenuEstado);
 }
-function cerrarMenuEstado(){ document.getElementById('ovEstado').classList.remove('show'); }
+function cerrarMenuEstado(){ ventanaCerrada(); document.getElementById('ovEstado').classList.remove('show'); }
 
 // ---- Mover alumno a otro profe/hora (solo el día de hoy) ----
 let _moverId=null;
@@ -563,8 +564,9 @@ function abrirMover(id){
   document.getElementById('mvProfe').innerHTML=lista.map(dd=>optProfe(dd, dd===rec.profe)).join('');
   document.getElementById('mvHora').innerHTML=HORAS.map((h,i)=>`<option value="${i}"${i===rec.horaIdx?' selected':''}>${h}</option>`).join('');
   document.getElementById('ovMover').classList.add('show');
+  ventanaAbierta(cerrarMover);
 }
-function cerrarMover(){ document.getElementById('ovMover').classList.remove('show'); _moverId=null; }
+function cerrarMover(){ ventanaCerrada(); document.getElementById('ovMover').classList.remove('show'); _moverId=null; }
 // ¿en qué sede trabaja este profe? (según lo publicado) — para que el alumno movido caiga en su columna
 function sedeDeProfe(dim){
   for(const sk of SEDES_ORDEN){ if(cacheDispo[sk] && cacheDispo[sk][dim]) return sk; }
@@ -585,6 +587,21 @@ document.getElementById('mvConfirm').onclick=confirmarMover;
 document.getElementById('ovMover').onclick=(e)=>{ if(e.target.id==='ovMover') cerrarMover(); };
 function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 
+/* El botón "atrás" del celular sacaba la app del recuadro donde vive y dejaba la
+   pantalla en blanco. Ahora, si hay una ventana abierta, "atrás" la cierra y no
+   navega a ningún lado. */
+let _cerrarVentana=null;
+function ventanaAbierta(cerrarFn){
+  _cerrarVentana=cerrarFn;
+  try{ history.pushState({v:1}, ''); }catch(e){}
+}
+function ventanaCerrada(){
+  if(_cerrarVentana){ _cerrarVentana=null; try{ history.back(); }catch(e){} }
+}
+window.addEventListener('popstate', function(){
+  if(_cerrarVentana){ const f=_cerrarVentana; _cerrarVentana=null; try{ f(); }catch(e){} }
+});
+
 // ---- Acople ----
 const mAc=document.getElementById('mAcople');
 
@@ -601,6 +618,7 @@ function abrirAcople(sede, profe, horaIdx){
   const selH=document.getElementById('acHora'); if(selH && horaIdx!=null) selH.value=String(horaIdx);
   const selS=document.getElementById('acSede'); if(selS && sede) selS.value=sede;
   mAc.classList.add('show');
+  ventanaAbierta(cerrarAcople);
   setTimeout(()=>{ try{ document.getElementById('acNom').focus(); }catch(e){} }, 60);
 }
 document.addEventListener('click', (ev)=>{
@@ -614,6 +632,7 @@ document.addEventListener('click', (ev)=>{
 });
 document.getElementById('acNom').oninput=acBuscar;
 function cerrarAcople(){
+  ventanaCerrada();
   mAc.classList.remove('show');
   const s=document.getElementById('acSug'); if(s) s.innerHTML='';
   _acElegido=null;
