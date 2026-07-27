@@ -852,6 +852,10 @@ function empujarCalendario(){
       semana: state.semana || {alumnos:{},libres:{}},
       semanaProxima: state.semanaProxima || {alumnos:{},libres:{}},
       lunesActual: state.lunesActual || '',
+      // Registro de qué alumnos de la MADRE ya bajaron a la semana. Tiene que viajar
+      // con el calendario: si vive solo en un dispositivo, otro que estuvo cerrado no
+      // se entera y vuelve a bajar a alguien que se sacó de la semana a propósito.
+      madreSync: state.madreSync || {},
       // La marca ya viaja DENTRO de cada alumno (al.revisar). Este mapa se sigue
       // publicando solo para que un dispositivo con la versión anterior siga viendo
       // los celestes; "enAlumno" avisa a los dispositivos nuevos que lo ignoren.
@@ -902,6 +906,10 @@ function iniciarCalendarioCompartido(){
     // Firebase borra objetos vacíos: rehidratar para que nunca falte la estructura
     ['madre','semana','semanaProxima'].forEach(k=>{ if(state[k]){ if(!state[k].alumnos) state[k].alumnos={}; if(!state[k].libres) state[k].libres={}; } });
     if(r.lunesActual) state.lunesActual = r.lunesActual;
+    // Registro de la MADRE: se UNEN el de acá y el de la nube. Marcar de más solo
+    // evita que alguien baje dos veces; marcar de menos lo trae de vuelta sin querer.
+    // Ante un mismo alumno con distinto nombre, manda la nube (va con la MADRE que llega).
+    if(r.madreSync) state.madreSync = Object.assign({}, state.madreSync || {}, r.madreSync);
     // Marcas "para revisar": si el que publicó ya usa el formato nuevo, las marcas vienen
     // dentro de cada alumno y el mapa se ignora. Si publicó un dispositivo con la versión
     // anterior, se importa su mapa hacia adentro de los alumnos (una sola vez).
