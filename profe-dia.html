@@ -57,7 +57,7 @@
   .pill{width:12px;height:12px;border-radius:50%;display:inline-block}
   .pill.sin{background:var(--sin)} .pill.pres{background:var(--pres)} .pill.aus{background:var(--aus)}
 
-  .wrap{flex:1;padding:12px;padding-bottom:96px}
+  .wrap{flex:1;padding:12px;padding-bottom:70px}
   .hora-block{margin-bottom:7px}
   .hora-h{font-size:1.15em;font-weight:800;color:var(--brand);margin:0 2px 4px;display:flex;align-items:center;gap:8px}
   .hora-h .hnum{background:#C8FF4D;color:#0a2a33;font-weight:900;padding:2px 11px;border-radius:8px;letter-spacing:.3px}
@@ -65,8 +65,10 @@
   /* formato lista compacto: una línea por profe. Todo en 'em' para que el zoom escale */
   #wrap{font-size:13px}                      /* <- variable de zoom: cambia esto y escala todo */
   .slot{padding:.12em .5em;border-radius:6px;background:var(--panel);border:1px solid var(--line);margin-bottom:2px;font-size:.95em;line-height:1.2}
-  .slot.vacio{opacity:.5;font-style:italic}
+  .slot.vacio .disp{font-style:italic}
   .slot .prof{font-weight:800;color:var(--brand)}
+  .slot .prof.addp{cursor:pointer;text-decoration:underline;text-decoration-style:dotted;text-underline-offset:2px}
+  .slot.vacio{cursor:pointer}
   .slot .disp{color:var(--muted);font-size:.85em}
   .slot .sep{color:var(--muted);margin:0 1px}
   .slot .al{display:inline-block;padding:.06em .4em;min-height:0;border:0;border-radius:5px;background:transparent;cursor:pointer;user-select:none;line-height:1.3;vertical-align:middle;font-weight:600}
@@ -228,16 +230,14 @@
 
   <div class="wrap" id="wrap"><div class="empty">Cargando el día…</div></div>
 
-  <div class="bottom">
-    <button class="btn court" id="btnAcople">➕ Agregar alumno que vino sin estar en la lista</button>
-  </div>
 </div>
 
 <!-- MODAL ACOPLE -->
 <div class="modal" id="mAcople">
   <div class="sheet">
     <h3>➕ Agregar alumno (acople)</h3>
-    <div class="fld"><label>Nombre</label><input id="acNom" list="alumnosList" autocomplete="off" placeholder="Escribí para buscar…"><datalist id="alumnosList"></datalist></div>
+    <div class="fld"><label>Nombre</label><input id="acNom" list="alumnosList" autocomplete="off" placeholder="Escribí y elegí de la lista…"><datalist id="alumnosList"></datalist>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px">Solo alumnos que ya están cargados en el sistema.</div></div>
     <div class="fld"><label>Hora</label><select id="acHora"></select></div>
     <div class="fld"><label>Sede</label><select id="acSede"></select></div>
     <div class="fld"><label>Profe</label><select id="acProfe"></select></div>
@@ -471,14 +471,14 @@ function render(){
       const em=SEDE_EMOJI[f.sede]||'';
       const cab=`<span class="prof">(${escapeHtml(f.profe)}${em?' '+em:''})</span>`;
       if(!f.alumnos.length){
-        html+=`<div class="slot vacio">${cab} <span class="disp">— disponible —</span></div>`;
+        html+=`<div class="slot vacio" data-add="${f.sede}|${f.profe}|${h}">${cab} <span class="disp">— disponible · tocá para agregar —</span></div>`;
       } else {
         const partes=f.alumnos.sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(a=>{
           if(esBloque(a)) return `<span class="blk">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}</span>`;
           const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';   // 👀 = no confirmó. Los acoples ya están presentes
           return `<span class="al presente${a.acople?' acople':''}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
         });
-        html+=`<div class="slot">${cab} ${partes.join(' <span class="sep">·</span> ')}</div>`;
+        html+=`<div class="slot">${`<span class="prof addp" data-add="${f.sede}|${f.profe}|${h}">(${escapeHtml(f.profe)}${em?' '+em:''})</span>`} ${partes.join(' <span class="sep">·</span> ')}</div>`;
       }
     });
     html+='</div>';
@@ -551,17 +551,46 @@ function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':
 
 // ---- Acople ----
 const mAc=document.getElementById('mAcople');
-document.getElementById('btnAcople').onclick=()=>{
+
+/* El acople se abre tocando el profe en su fila, no desde un botón abajo: así queda
+   preseleccionada la sede, el profe y la hora de donde se tocó. */
+function abrirAcople(sede, profe, horaIdx){
   document.getElementById('acNom').value='';
-  const selP=document.getElementById('acProfe'); selP.innerHTML=listaProfesSync().map(p=>optProfe(p.dim,false)).join('');
+  const selP=document.getElementById('acProfe');
+  selP.innerHTML=listaProfesSync().map(p=>optProfe(p.dim, p.dim===profe)).join('');
+  const selH=document.getElementById('acHora'); if(selH && horaIdx!=null) selH.value=String(horaIdx);
+  const selS=document.getElementById('acSede'); if(selS && sede) selS.value=sede;
   mAc.classList.add('show');
-};
+  setTimeout(()=>{ try{ document.getElementById('acNom').focus(); }catch(e){} }, 60);
+}
+document.addEventListener('click', (ev)=>{
+  const el = ev.target.closest ? ev.target.closest('[data-add]') : null;
+  if(!el) return;
+  if(ev.target.closest('.al')) return;          // tocó un alumno: eso abre su menú
+  const p=String(el.dataset.add).split('|');
+  abrirAcople(p[0], p[1], +p[2]);
+});
 document.getElementById('acCancel').onclick=()=>mAc.classList.remove('show');
 document.getElementById('meCancel').onclick=cerrarMenuEstado;
 document.getElementById('ovEstado').onclick=(e)=>{ if(e.target.id==='ovEstado') cerrarMenuEstado(); };
 mAc.onclick=(e)=>{ if(e.target===mAc) mAc.classList.remove('show'); };
+/* Solo alumnos que ya existen. Escribir un nombre libre creaba gente nueva sin
+   teléfono ni categoría, y después nadie sabía quién era. */
+function normNom_(s){
+  return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/\s+/g,' ').trim();
+}
+function nombreDeLaLista(nom){
+  const k=normNom_(nom);
+  const todos=_nombresBase.concat(_nombresVivo);
+  for(let i=0;i<todos.length;i++){ if(normNom_(todos[i])===k) return todos[i]; }
+  return null;
+}
 document.getElementById('acGuardar').onclick=()=>{
-  const nom=document.getElementById('acNom').value.trim(); if(!nom){ toast('Poné un nombre'); return; }
+  const escrito=document.getElementById('acNom').value.trim();
+  if(!escrito){ toast('Poné un nombre'); return; }
+  const nom=nombreDeLaLista(escrito);
+  if(!nom){ toast('⚠️ Ese alumno no está en la lista. Elegí uno del desplegable.'); return; }
   const horaIdx=+document.getElementById('acHora').value;
   const profe=document.getElementById('acProfe').value;
   const selS=document.getElementById('acSede'); const sk=selS?selS.value:miSede;
