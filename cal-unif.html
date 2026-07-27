@@ -696,6 +696,10 @@ function revisarMadre(){
   const n = propagarMadreASemana();
   const ch = window._madreChoques || [];
   if(!n && !ch.length) return;
+  /* En la semana editable NO se muestra ningún cartel. La bajada sigue pasando
+     igual, en silencio: lo que cambia es que no interrumpe. Los avisos son de la
+     MADRE, así que aparecen cuando se está trabajando la MADRE. */
+  if(state.mode!=='madre') return;
   let msg = '';
   if(n) msg += '✅ ' + n + ' alumno(s) de la MADRE quedaron cargados en la semana.\n';
   if(ch.length){
@@ -1578,9 +1582,20 @@ function renderProfList(){
   });
   el.querySelectorAll('.pnom-edit').forEach(inp=>{
     const i=+inp.dataset.i; inp.value=state.profesores[i].nombre;
-    inp.onchange=()=>{ const v=inp.value.trim();
-      if(v){ state.profesores[i].nombre=v; saveState(); renderGrid(); }
-      else { inp.value=state.profesores[i].nombre; } };
+    /* Guarda mientras se escribe, no solo al salir del casillero. Con onchange solo,
+       si se cerraba el panel sin tocar afuera, el nombre nuevo se perdía sin avisar. */
+    let t=null;
+    const guardarNom=()=>{
+      const v=inp.value.trim();
+      if(!v) return;                                   // vacío: no se pisa el nombre anterior
+      if(v===state.profesores[i].nombre) return;
+      state.profesores[i].nombre=v; saveState(); renderGrid();
+    };
+    inp.oninput=()=>{ clearTimeout(t); t=setTimeout(guardarNom, 600); };
+    inp.onchange=()=>{ clearTimeout(t); guardarNom();
+      if(!inp.value.trim()) inp.value=state.profesores[i].nombre; };
+    inp.onblur=()=>{ clearTimeout(t); guardarNom();
+      if(!inp.value.trim()) inp.value=state.profesores[i].nombre; };
   });
   el.querySelectorAll('.pdel').forEach(b=>{
     b.onclick=()=>{
