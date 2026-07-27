@@ -95,11 +95,12 @@
 
   /* ---- Formulario ---- */
   #ov{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);display:none;
-    align-items:flex-end;justify-content:center}
+    align-items:flex-end;justify-content:center;overflow:hidden}
   #ov.show{display:flex}
   .hoja{background:var(--panel);border-top:1px solid var(--linea);width:100%;
-    max-width:620px;border-radius:16px 16px 0 0;padding:18px 16px 26px;
-    max-height:92vh;overflow-y:auto}
+    max-width:620px;border-radius:16px 16px 0 0;padding:18px 16px 0;
+    max-height:88dvh;overflow-y:auto;overscroll-behavior:contain}
+  @supports not (height: 1dvh){ .hoja{max-height:88vh} }
   .hoja h3{margin:0 0 2px;font-size:17px}
   .hoja .donde{color:var(--sec);font-size:13.5px;margin-bottom:16px}
   .campo{margin-bottom:12px}
@@ -129,7 +130,10 @@
   body.moviendo #barraMover{display:flex}
   #barraMover button{font-family:inherit;font-size:12px;padding:4px 10px;border-radius:8px;
     border:1px solid #ffffff66;background:transparent;color:#fff;cursor:pointer}
-  .acc{display:flex;gap:8px;margin-top:16px}
+  .acc{display:flex;gap:8px;margin-top:16px;position:sticky;bottom:0;
+    background:var(--panel);padding:12px 0 calc(16px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--linea)}
+  .acc button{padding:13px 15px}
 
   #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:80;
     background:#1d5a34;color:#d6ffe4;padding:11px 18px;border-radius:12px;font-size:14px;
@@ -332,7 +336,7 @@ function lugaresDe(dia){
           var al=A[k];
           var r=reservas[k];
           if(al && al.nombre) ocup++;
-          else if(r && r.estado!=='cancelado'){ resv.push(r); ocup++; }
+          else if(r && r.estado==='pendiente'){ resv.push(r); ocup++; }
           else libres.push(si);
         }
         if(!libres.length && !resv.length) continue;       // hora llena y sin novedad
@@ -420,9 +424,10 @@ function pintarGrilla(){
             }
           } else if(pend){
             html+='<div class="sl destino">'+esc(pend.alumno)+'</div>';
-          } else if(r && r.estado==='aplicado'){
-            html+='<div class="sl"></div>';
           } else if(puedeEscribir){
+            /* Una reserva ya aplicada o descartada NO tapa el casillero: si puso a
+               alguien, ese alguien ya está en la grilla; si lo sacó, el lugar quedó
+               libre de verdad y tiene que poder volver a usarse. */
             html+='<div class="sl libre" data-slot="'+
                   esc(diaSel+'|'+s.key+'|'+c.pi+'|'+hi+'|'+si+'|'+c.dim)+'">+</div>';
           } else {
