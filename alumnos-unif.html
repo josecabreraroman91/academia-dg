@@ -761,6 +761,53 @@ load(); render();
     }, function(err){
       console.warn('No pude leer la MADRE:', err.message);
     });
+
+    /* Alumnos que crean otras personas (la app de Alumnos en otro dispositivo, o
+       un profe desde Agendar) aparecen solos. Antes había que tocar "Importar de
+       planilla" cada vez.
+
+       Dos cuidados:
+       · Nunca pisa un alumno con cambios sin guardar (_dirty).
+       · De los que ya están, solo completa los campos vacíos. Lo que se escribió
+         a mano en este dispositivo manda. */
+    firebase.database().ref('alumnos_v2').on('value', function(snap){
+      try{
+        var v = snap.val() || {};
+        var porNombre = {};
+        alumnos.forEach(function(a){ if(a && a.nombre) porNombre[claveAlumno_(a.nombre)] = a; });
+
+        var nuevos = 0, completados = 0;
+        Object.keys(v).forEach(function(k){
+          var r = v[k]; if(!r || !r.nombre) return;
+          var ex = porNombre[claveAlumno_(r.nombre)];
+          if(!ex){
+            alumnos.push({
+              id: uid(), nombre: r.nombre,
+              cat: r.cat||'', lado: r.lado||'', tipo: r.tipo||'',
+              precio: Number(r.precio)||0,
+              telRaw: r.tel||'', tel: normPhone(r.tel||''),
+              nomHor: r.nomHor||'', nomWpp: r.nomWpp||'',
+              comentarios: '', horarios: [], _dirty: false
+            });
+            nuevos++;
+            return;
+          }
+          if(ex._dirty) return;                       // tiene cambios sin guardar: no se toca
+          var cambio = false;
+          ['cat','lado','tipo','nomHor','nomWpp'].forEach(function(c){
+            if(!ex[c] && r[c]){ ex[c]=r[c]; cambio=true; }
+          });
+          if(!ex.tel && r.tel){ ex.tel=normPhone(r.tel); ex.telRaw=r.tel; cambio=true; }
+          if(!ex.precio && Number(r.precio)){ ex.precio=Number(r.precio); cambio=true; }
+          if(cambio) completados++;
+        });
+
+        if(nuevos || completados){
+          save(); render();
+          if(nuevos) toast('👥 '+nuevos+' alumno(s) nuevo(s) de otro dispositivo');
+        }
+      }catch(e){ console.warn('alumnos_v2:', e.message); }
+    }, function(err){ console.warn('No pude escuchar alumnos_v2:', err.message); });
   });
 })();
 
