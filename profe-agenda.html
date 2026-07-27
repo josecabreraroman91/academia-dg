@@ -114,6 +114,21 @@
   .ops button small{display:block;font-size:10.5px;color:var(--sec);font-weight:400}
   .ops button.on small{color:#8fbdf0}
   .err{color:var(--rojo);font-size:13px;margin-top:10px;min-height:18px}
+  #fSug{margin-top:5px}
+  #fSug .sug{padding:9px 11px;border:1px solid var(--linea);border-radius:9px;
+    margin-bottom:5px;font-size:13.5px;cursor:pointer;background:var(--bg)}
+  #fSug .sug:active{background:#12283f}
+  #fSug .sug small{display:block;font-size:11.5px;color:var(--sec)}
+  .sl.ocupado{cursor:pointer}
+  .sl.sacado{text-decoration:line-through;color:var(--rojo);opacity:.75}
+  .sl.destino{background:#12283f;color:#8fbdf0}
+  body.moviendo .sl.libre{background:#12283f;color:#cfe4ff;border:1px dashed var(--azul)}
+  #barraMover{display:none;position:sticky;top:0;z-index:20;background:var(--azul);
+    color:#fff;font-size:13px;font-weight:600;padding:9px 12px;border-radius:10px;
+    margin-bottom:10px;align-items:center;gap:10px}
+  body.moviendo #barraMover{display:flex}
+  #barraMover button{font-family:inherit;font-size:12px;padding:4px 10px;border-radius:8px;
+    border:1px solid #ffffff66;background:transparent;color:#fff;cursor:pointer}
   .acc{display:flex;gap:8px;margin-top:16px}
 
   #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:80;
@@ -159,8 +174,28 @@
     <span><i style="background:#20242b"></i>no da clase</span>
   </div>
 
+  <div id="barraMover"><span id="barraTxt"></span><span style="flex:1"></span><button id="barraCancel">Cancelar</button></div>
   <div id="cargando">Cargando el calendario…</div>
   <div id="lista"></div>
+</div>
+
+<div id="ovAcc" style="position:fixed;inset:0;z-index:55;background:rgba(0,0,0,.72);display:none;align-items:flex-end;justify-content:center">
+  <div class="hoja">
+    <h3 id="aNom">Alumno</h3>
+    <div class="donde" id="aDonde"></div>
+    <div class="ops" style="flex-direction:column">
+      <button id="aMover" style="text-align:left">Mover a otro horario<small>elegís el lugar nuevo en la grilla</small></button>
+      <button id="aTipo" style="text-align:left">Cambiar tipo de clase<small>grupal, dual o individual</small></button>
+      <button id="aSacar" style="text-align:left;border-color:#5a2a2a;color:#f85149">Sacar del día<small>no viene esta semana a ese horario</small></button>
+    </div>
+    <div class="ops" id="aTipoOps" style="display:none;margin-top:10px">
+      <button data-t="G">G<small>grupal</small></button>
+      <button data-t="D">D<small>dual</small></button>
+      <button data-t="IND">IND<small>individual</small></button>
+    </div>
+    <div class="err" id="aErr"></div>
+    <div class="acc"><button class="b" id="aCancel" style="flex:1">Cerrar</button></div>
+  </div>
 </div>
 
 <div id="ov">
@@ -169,7 +204,9 @@
     <div class="donde" id="fDonde"></div>
 
     <div class="campo"><label>Nombre y apellido</label>
-      <input id="fNom" type="text" autocomplete="off" placeholder="Pedro Gómez"></div>
+      <input id="fNom" type="text" autocomplete="off" placeholder="Escribí para buscar o cargar uno nuevo">
+      <div id="fSug"></div>
+      <div id="fEsNuevo" style="font-size:12px;color:var(--sec);margin-top:5px"></div></div>
 
     <div class="campo"><label>Teléfono</label>
       <input id="fTel" type="tel" inputmode="tel" autocomplete="off" placeholder="0981 445210"></div>
@@ -370,10 +407,21 @@ function pintarGrilla(){
         for(var si=0; si<SLOTS_POR_HORA; si++){
           var k=slotKey(diaSel,s.key,c.pi,hi,si);
           var al=A[k], r=reservas[k];
+          var pend = (r && r.estado==='pendiente') ? r : null;
           if(al && al.nombre){
-            html+='<div class="sl ocupado">'+esc(al.nombre)+'</div>';
-          } else if(r && r.estado!=='cancelado'){
-            html+='<div class="sl reserva">'+esc(r.alumno)+'</div>';
+            if(pend && pend.tipo==='sacar'){
+              html+='<div class="sl ocupado sacado" data-al="'+esc(k+'|'+c.dim+'|'+esc(al.nombre))+'">'+esc(al.nombre)+'</div>';
+            } else if(pend && pend.tipo==='mover'){
+              html+='<div class="sl ocupado sacado" data-al="'+esc(k+'|'+c.dim+'|'+esc(al.nombre))+'">'+esc(al.nombre)+'</div>';
+            } else if(puedeEscribir){
+              html+='<div class="sl ocupado" data-al="'+esc(k+'|'+c.dim+'|'+al.nombre)+'">'+esc(al.nombre)+'</div>';
+            } else {
+              html+='<div class="sl ocupado">'+esc(al.nombre)+'</div>';
+            }
+          } else if(pend){
+            html+='<div class="sl destino">'+esc(pend.alumno)+'</div>';
+          } else if(r && r.estado==='aplicado'){
+            html+='<div class="sl"></div>';
           } else if(puedeEscribir){
             html+='<div class="sl libre" data-slot="'+
                   esc(diaSel+'|'+s.key+'|'+c.pi+'|'+hi+'|'+si+'|'+c.dim)+'">+</div>';
@@ -389,7 +437,10 @@ function pintarGrilla(){
   });
   $('lista').innerHTML = html || '<div class="vacio">No hay clases cargadas ese día.</div>';
   Array.prototype.forEach.call($('lista').querySelectorAll('.sl.libre[data-slot]'), function(b){
-    b.onclick=function(){ abrirForm(b.dataset.slot); };
+    b.onclick=function(){ moviendo ? soltarMovido(b.dataset.slot) : abrirForm(b.dataset.slot); };
+  });
+  Array.prototype.forEach.call($('lista').querySelectorAll('.sl.ocupado[data-al]'), function(b){
+    b.onclick=function(){ if(!moviendo) abrirAcciones(b.dataset.al); };
   });
 }
 
@@ -448,6 +499,159 @@ Array.prototype.forEach.call(document.querySelectorAll('.vista button[data-v]'),
   };
 });
 
+/* ============================================================
+   MOVER · SACAR · CAMBIAR TIPO
+
+   El profe no escribe en el calendario: deja la operación anotada.
+   Cada una queda con su correo, su nombre y la hora, y el historial
+   (ops_v1) no se sobrescribe nunca.
+   ============================================================ */
+var moviendo=null, accSlot=null, accNom=null, accDim=null;
+
+function guardarOp(slotDestino, datos, opHist){
+  var refR = firebase.database().ref('reservas_v1/'+lunes+'/'+slotDestino);
+  return refR.set(datos).then(function(){
+    return firebase.database().ref('ops_v1/'+lunes).push(opHist).catch(function(e){
+      console.warn('historial:', e.message);       // el historial no bloquea la operación
+    });
+  });
+}
+function baseOp(){
+  return { porCorreo: miCorreo, porNombre: miNombre || miCorreo, ts: Date.now() };
+}
+function dondeTxt(slot){
+  var p=String(slot).split('|');
+  var f=masDias(lunes, DAYS.indexOf(p[0]));
+  return p[0].charAt(0)+p[0].slice(1).toLowerCase()+' '+ddmm(f)+' · '+
+         (HORAS[+p[3]]||'')+' · '+(SEDE_NICE[p[1]]||p[1]);
+}
+
+function abrirAcciones(d){
+  var i=d.indexOf('|', d.indexOf('|', d.indexOf('|', d.indexOf('|', d.indexOf('|')+1)+1)+1)+1);
+  var slot=d.slice(0,i);
+  var resto=d.slice(i+1), j=resto.indexOf('|');
+  accSlot=slot; accDim=resto.slice(0,j); accNom=resto.slice(j+1);
+  $('aNom').textContent=accNom;
+  $('aDonde').textContent=dondeTxt(slot)+' · '+accDim;
+  $('aTipoOps').style.display='none'; $('aErr').textContent='';
+  $('ovAcc').style.display='flex';
+}
+function cerrarAcciones(){ $('ovAcc').style.display='none'; accSlot=null; }
+
+$('aCancel').onclick=cerrarAcciones;
+$('ovAcc').onclick=function(e){ if(e.target===$('ovAcc')) cerrarAcciones(); };
+
+$('aSacar').onclick=function(){
+  if(!accSlot) return;
+  if(!confirm('¿Sacar a '+accNom+' de '+dondeTxt(accSlot)+'?\n\nQueda anotado que lo sacaste vos.')) return;
+  var slot=accSlot, nom=accNom;
+  var datos=Object.assign(baseOp(), {tipo:'sacar', alumno:nom, tel:'', desde:slot, estado:'pendiente',
+    profe:accDim, sede:slot.split('|')[1], dia:slot.split('|')[0], horaIdx:+slot.split('|')[3]});
+  guardarOp(slot, datos, Object.assign(baseOp(), {tipo:'sacar', alumno:nom, desde:slot,
+    detalle:'lo sacó de '+dondeTxt(slot)}))
+    .then(function(){ cerrarAcciones(); toast('✅ '+nom+' sale de ese horario'); })
+    .catch(function(e){ $('aErr').textContent=/permission/i.test(e.message)
+      ? 'Otro profe ya hizo un cambio en ese lugar. Cerrá y volvé a mirar.' : 'No se pudo: '+e.message; });
+};
+
+$('aTipo').onclick=function(){ $('aTipoOps').style.display='flex'; };
+$('aTipoOps').onclick=function(ev){
+  var b=ev.target.closest('button[data-t]'); if(!b || !accSlot) return;
+  var slot=accSlot, nom=accNom, t=b.dataset.t;
+  var datos=Object.assign(baseOp(), {tipo:'editar', alumno:nom, tel:'', desde:slot, mod:t, estado:'pendiente',
+    profe:accDim, sede:slot.split('|')[1], dia:slot.split('|')[0], horaIdx:+slot.split('|')[3]});
+  guardarOp(slot, datos, Object.assign(baseOp(), {tipo:'editar', alumno:nom, desde:slot, mod:t,
+    detalle:'le puso tipo '+t}))
+    .then(function(){ cerrarAcciones(); toast('✅ '+nom+' queda como '+t); })
+    .catch(function(e){ $('aErr').textContent='No se pudo: '+e.message; });
+};
+
+$('aMover').onclick=function(){
+  if(!accSlot) return;
+  moviendo={slot:accSlot, nom:accNom, dim:accDim};
+  $('barraTxt').textContent='Moviendo a '+accNom+' — tocá el lugar nuevo';
+  document.body.classList.add('moviendo');
+  cerrarAcciones();
+};
+$('barraCancel').onclick=function(){ moviendo=null; document.body.classList.remove('moviendo'); };
+
+function soltarMovido(s){
+  if(!moviendo) return;
+  var p=s.split('|');
+  var destino=p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]+'|'+p[4];
+  var nom=moviendo.nom, origen=moviendo.slot;
+  if(destino===origen){ moviendo=null; document.body.classList.remove('moviendo'); return; }
+  if(!confirm('¿Mover a '+nom+'?\n\nDe: '+dondeTxt(origen)+'\nA: '+dondeTxt(destino)+' · '+p[5])) return;
+  var datos=Object.assign(baseOp(), {tipo:'mover', alumno:nom, tel:'', desde:origen, estado:'pendiente',
+    profe:p[5], sede:p[1], dia:p[0], horaIdx:+p[3]});
+  guardarOp(destino, datos, Object.assign(baseOp(), {tipo:'mover', alumno:nom, desde:origen, hasta:destino,
+    detalle:'de '+dondeTxt(origen)+' a '+dondeTxt(destino)}))
+    .then(function(){
+      moviendo=null; document.body.classList.remove('moviendo');
+      toast('✅ '+nom+' movido');
+    })
+    .catch(function(e){
+      moviendo=null; document.body.classList.remove('moviendo');
+      alert(/permission/i.test(e.message)
+        ? 'Ese lugar lo acaba de tomar otro profe. Probá con otro.' : 'No se pudo mover: '+e.message);
+    });
+}
+
+/* ---------- Alumnos que ya existen ---------- */
+var alumnos=[], elegido=null;
+
+function normNom(s){
+  return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/\s+/g,' ').trim();
+}
+function escucharAlumnos(){
+  firebase.database().ref('alumnos_v2').on('value', function(s){
+    var v=s.val()||{}; alumnos=[];
+    Object.keys(v).forEach(function(k){
+      var a=v[k]; if(a && a.nombre) alumnos.push({nombre:a.nombre, tel:a.tel||'', mod:a.tipo||''});
+    });
+    alumnos.sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
+  }, function(){});
+}
+function buscarAlumnos(q){
+  var t=normNom(q); if(t.length<2) return [];
+  var pre=[], med=[];
+  for(var i=0;i<alumnos.length;i++){
+    var n=normNom(alumnos[i].nombre);
+    if(n.indexOf(t)===0) pre.push(alumnos[i]);
+    else if(n.indexOf(t)>0) med.push(alumnos[i]);
+    if(pre.length>=6) break;
+  }
+  return pre.concat(med).slice(0,6);
+}
+function pintarSugerencias(){
+  var q=$('fNom').value, box=$('fSug'), av=$('fEsNuevo');
+  if(elegido && normNom(elegido.nombre)===normNom(q)){
+    box.innerHTML='';
+    av.textContent='✓ Alumno que ya está en el sistema';
+    av.style.color='#3fb950';
+    return;
+  }
+  elegido=null;
+  var res=buscarAlumnos(q);
+  box.innerHTML=res.map(function(a,i){
+    return '<div class="sug" data-i="'+i+'">'+esc(a.nombre)+
+           (a.tel?'<small>'+esc(a.tel)+'</small>':'<small>sin teléfono</small>')+'</div>';
+  }).join('');
+  Array.prototype.forEach.call(box.querySelectorAll('.sug'), function(d){
+    d.onclick=function(){
+      var a=res[+d.dataset.i];
+      elegido=a;
+      $('fNom').value=a.nombre;
+      if(a.tel) $('fTel').value=a.tel;
+      if(a.mod==='G'||a.mod==='D'||a.mod==='IND') marcarOps('fMod', a.mod);
+      pintarSugerencias();
+    };
+  });
+  av.style.color='';
+  av.textContent = (normNom(q).length>=3 && !res.length) ? 'Alumno nuevo: se va a crear en el sistema' : '';
+}
+
 /* ---------- Formulario ---------- */
 function abrirForm(s){
   var p=s.split('|');
@@ -458,6 +662,8 @@ function abrirForm(s){
     ' · '+HORAS[pend.hi]+' · '+(SEDE_NICE[pend.sede]||pend.sede)+
     ' · '+pend.dim+(nom?' ('+nom+')':'');
   $('fNom').value=''; $('fTel').value=''; $('fErr').textContent='';
+  $('fSug').innerHTML=''; $('fEsNuevo').textContent=''; elegido=null;
+  $('fNom').oninput=pintarSugerencias;
   marcarOps('fMod', 'G'); marcarOps('fFijo', '0');
   $('ov').classList.add('show');
   setTimeout(function(){ try{ $('fNom').focus(); }catch(e){} }, 60);
@@ -493,6 +699,7 @@ $('fGuardar').onclick=function(){
     fijo: valorOps('fFijo')==='1',
     profe: pend.dim, sede: pend.sede, horaIdx: pend.hi, dia: pend.dia,
     porCorreo: miCorreo, porNombre: miNombre || miCorreo,
+    nuevo: !elegido, tipo: 'agregar',
     ts: Date.now(), estado: 'pendiente'
   }).then(function(){
     $('ov').classList.remove('show'); pend=null;
@@ -528,6 +735,7 @@ function arrancar(){
   diaSel = DAYS[h>=0?h:0];
   pintarDias();
   escucharReservas();
+  escucharAlumnos();
   firebase.database().ref('calendario_v2').on('value', function(s){
     cal = s.val();
     if(cal && cal.lunesActual && cal.lunesActual!==lunes){
