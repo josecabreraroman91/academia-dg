@@ -97,6 +97,7 @@
     border-bottom:1px solid #23282f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sl:last-child{border-bottom:0}
   .sl.ocupado{color:var(--txt)}
+  .sl .tg{color:var(--sec);font-size:8.5px;margin-left:3px}
   .sl.reserva{background:#12283f;color:#8fbdf0}
   .sl.libre{color:#2c5c3a;cursor:pointer;text-align:center;font-size:11px;font-weight:600}
   .sl.libre:active{background:#12283f}
@@ -224,12 +225,14 @@
       <button class="b pri" id="fGuardar2" style="padding:9px 16px">Agendar</button>
     </div>
 
-    <div class="campo"><label>Nombre y apellido</label>
-      <input id="fNom" type="text" autocomplete="off" placeholder="Escribí para buscar o cargar uno nuevo">
+    <div class="campo"><label id="fNomLbl">Buscar alumno</label>
+      <input id="fNom" type="text" autocomplete="off" placeholder="Escribí las primeras letras">
       <div id="fSug"></div>
       <div id="fEsNuevo" style="font-size:12px;color:var(--sec);margin-top:5px"></div></div>
 
-    <div class="campo"><label>Teléfono <span id="fTelOpc" style="color:var(--sec);font-weight:400"></span></label>
+    <button class="b" id="btnNuevo" style="width:100%;margin-bottom:12px">➕ No está en la lista · cargar alumno nuevo</button>
+
+    <div class="campo" id="campoTel" style="display:none"><label>Teléfono</label>
       <input id="fTel" type="tel" inputmode="tel" autocomplete="off" placeholder="0981 445210"></div>
 
     <div class="campo"><label>Tipo de clase</label>
@@ -396,12 +399,18 @@ function pintarGrilla(){
         var al=A[k], r=reservas[k];
         var pend=(r && r.estado==='pendiente') ? r : null;
         if(al && al.nombre){
+          /* Nivel y tipo de clase al lado del nombre: el nivel sale de la grilla y,
+             si ahí no está, del padrón. Es lo que el profe necesita para saber si
+             un alumno encaja en ese grupo. */
+          var nv = al.nivel || catDe(al.nombre);
+          var tgs = []; if(nv) tgs.push(nv); if(al.mod) tgs.push(al.mod);
+          var tg = tgs.length ? '<span class="tg">'+esc(tgs.join('·'))+'</span>' : '';
           if(pend && (pend.tipo==='sacar'||pend.tipo==='mover')){
-            html+='<div class="sl ocupado sacado" data-al="'+esc(k+'|'+c.dim+'|'+al.nombre)+'">'+esc(al.nombre)+'</div>';
+            html+='<div class="sl ocupado sacado" data-al="'+esc(k+'|'+c.dim+'|'+al.nombre)+'">'+esc(al.nombre)+tg+'</div>';
           } else if(puedeEscribir){
-            html+='<div class="sl ocupado" data-al="'+esc(k+'|'+c.dim+'|'+al.nombre)+'">'+esc(al.nombre)+'</div>';
+            html+='<div class="sl ocupado" data-al="'+esc(k+'|'+c.dim+'|'+al.nombre)+'">'+esc(al.nombre)+tg+'</div>';
           } else {
-            html+='<div class="sl ocupado">'+esc(al.nombre)+'</div>';
+            html+='<div class="sl ocupado">'+esc(al.nombre)+tg+'</div>';
           }
         } else if(pend){
           html+='<div class="sl destino">'+esc(pend.alumno)+'</div>';
@@ -478,7 +487,8 @@ function abrirAcciones(d){
   var resto=d.slice(i+1), j=resto.indexOf('|');
   accSlot=slot; accDim=resto.slice(0,j); accNom=resto.slice(j+1);
   $('aNom').textContent=accNom;
-  $('aDonde').textContent=dondeTxt(slot)+' · '+accDim;
+  var _c=catDe(accNom);
+  $('aDonde').textContent=dondeTxt(slot)+' · '+accDim+(_c?' · categoría '+_c:'');
   $('aTipoOps').style.display='none'; $('aErr').textContent='';
   $('ovAcc').style.display='flex';
 }
@@ -544,7 +554,7 @@ function soltarMovido(s){
 }
 
 /* ---------- Alumnos que ya existen ---------- */
-var alumnos=[], elegido=null;
+var alumnos=[], elegido=null, modoNuevo=false;
 
 function normNom(s){
   return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -573,10 +583,16 @@ function buscarCol(cab, nombres){
   return -1;
 }
 var _base={}, _vivo={};
+var _porNombre={};
+function catDe(nombre){
+  var a=_porNombre[normNom(nombre)];
+  return a && a.cat ? a.cat : '';
+}
 function juntarAlumnos(){
   var m={};
   Object.keys(_base).forEach(function(k){ m[k]=_base[k]; });
   Object.keys(_vivo).forEach(function(k){ m[k]=_vivo[k]; });   // el vivo pisa al de la planilla
+  _porNombre=m;
   alumnos=Object.keys(m).map(function(k){ return m[k]; })
     .sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
 }
@@ -588,12 +604,14 @@ function escucharAlumnos(){
     var iNom=buscarCol(cab,['alumno','nombre']);
     var iTel=buscarCol(cab,['telefono','celular','whatsapp','movil','numero']);
     var iTip=buscarCol(cab,['tipo de clase','tipo_clase','modalidad','tipo']);
+    var iCat=buscarCol(cab,['categoria','nivel','cat']);
     if(iNom<0) iNom=1;
     for(var i=1;i<rows.length;i++){
       var n=(rows[i][iNom]||'').trim(); if(!n) continue;
       _base[normNom(n)]={ nombre:n,
         tel: iTel>=0 ? normTel(rows[i][iTel]||'') : '',
-        mod: iTip>=0 ? (rows[i][iTip]||'').trim() : '' };
+        mod: iTip>=0 ? (rows[i][iTip]||'').trim() : '',
+        cat: iCat>=0 ? (rows[i][iCat]||'').trim() : '' };
     }
     juntarAlumnos();
   }).catch(function(e){ console.warn('alumnos_v1:', e.message); });
@@ -601,7 +619,7 @@ function escucharAlumnos(){
   firebase.database().ref('alumnos_v2').on('value', function(s){
     var v=s.val()||{}; _vivo={};
     Object.keys(v).forEach(function(k){
-      var a=v[k]; if(a && a.nombre) _vivo[normNom(a.nombre)]={nombre:a.nombre, tel:a.tel||'', mod:a.tipo||''};
+      var a=v[k]; if(a && a.nombre) _vivo[normNom(a.nombre)]={nombre:a.nombre, tel:a.tel||'', mod:a.tipo||'', cat:a.cat||''};
     });
     juntarAlumnos();
   }, function(){});
@@ -617,20 +635,45 @@ function buscarAlumnos(q){
   }
   return pre.concat(med).slice(0,6);
 }
+function modoBuscar(){
+  modoNuevo=false; elegido=null;
+  $('fNomLbl').textContent='Buscar alumno';
+  $('fNom').placeholder='Escribí las primeras letras';
+  $('btnNuevo').style.display='block';
+  $('campoTel').style.display='none';
+  $('fTel').value='';
+  $('fSug').innerHTML=''; $('fEsNuevo').textContent='';
+  $('fErr').textContent='';
+}
+function modoAlumnoNuevo(){
+  modoNuevo=true; elegido=null;
+  $('fNomLbl').textContent='Nombre y apellido del alumno nuevo';
+  $('fNom').placeholder='Pedro Gómez';
+  $('btnNuevo').style.display='none';
+  $('campoTel').style.display='block';
+  $('fSug').innerHTML='';
+  $('fEsNuevo').style.color='';
+  $('fEsNuevo').textContent='Se va a crear en el sistema con este nombre y teléfono.';
+  $('fErr').textContent='';
+  try{ $('fNom').focus(); }catch(e){}
+}
+$('btnNuevo').onclick=modoAlumnoNuevo;
+
 function pintarSugerencias(){
+  if(modoNuevo) return;                    // cargando uno nuevo: no se sugiere nada
   var q=$('fNom').value, box=$('fSug'), av=$('fEsNuevo');
   if(elegido && normNom(elegido.nombre)===normNom(q)){
     box.innerHTML='';
-    av.textContent='✓ Alumno que ya está en el sistema';
+    av.textContent='✓ '+elegido.nombre+(elegido.cat?' · categoría '+elegido.cat:'');
     av.style.color='#3fb950';
-    var o=$('fTelOpc'); if(o) o.textContent='(no hace falta)';
     return;
   }
   elegido=null;
   var res=buscarAlumnos(q);
   box.innerHTML=res.map(function(a,i){
+    var d=[]; if(a.cat) d.push('cat. '+a.cat); if(a.mod) d.push(a.mod); if(a.tel) d.push(a.tel);
     return '<div class="sug" data-i="'+i+'">'+esc(a.nombre)+
-           (a.tel?'<small>'+esc(a.tel)+'</small>':'<small>sin teléfono</small>')+'</div>';
+           '<small>'+esc(d.length?d.join(' · '):'sin datos')+'</small></div>';
   }).join('');
   Array.prototype.forEach.call(box.querySelectorAll('.sug'), function(d){
     d.onclick=function(){
@@ -643,8 +686,8 @@ function pintarSugerencias(){
     };
   });
   av.style.color='';
-  var o=$('fTelOpc'); if(o) o.textContent='';
-  av.textContent = (normNom(q).length>=3 && !res.length) ? 'Alumno nuevo: se va a crear en el sistema' : '';
+  av.textContent = (normNom(q).length>=3 && !res.length)
+    ? 'No aparece ninguno. Si es alumno nuevo, tocá el botón de abajo.' : '';
 }
 
 /* ---------- Formulario ---------- */
@@ -658,7 +701,7 @@ function abrirForm(s){
     ' · '+pend.dim+(nom?' ('+nom+')':'');
   $('fNom').value=''; $('fTel').value=''; $('fErr').textContent='';
   $('fSug').innerHTML=''; $('fEsNuevo').textContent=''; elegido=null;
-  var _o=$('fTelOpc'); if(_o) _o.textContent='';
+  modoBuscar();
   $('fNom').oninput=pintarSugerencias;
   marcarOps('fMod', 'G');
   $('ov').classList.add('show');
@@ -687,10 +730,12 @@ function guardarReserva(){
   var nom=$('fNom').value.trim().replace(/\s+/g,' ');
   var tel=normTel($('fTel').value);
   if(nom.length<3){ $('fErr').textContent='Poné el nombre y el apellido.'; return; }
-  /* El teléfono solo se exige para alumnos nuevos: los que ya están en el sistema
-     ya lo tienen cargado, y obligar a reescribirlo solo genera duplicados mal escritos. */
-  if(!elegido && !telOk(tel)){ $('fErr').textContent='Es un alumno nuevo: poné el teléfono. Ej: 0981 445210'; return; }
-  if(tel && !telOk(tel)){ $('fErr').textContent='Ese teléfono no parece válido. Ej: 0981 445210'; return; }
+  /* Buscando: hay que elegir uno de la lista. Así no se carga de nuevo alguien
+     que ya está, escrito distinto. Para cargar uno nuevo está el botón. */
+  if(!modoNuevo && !elegido){
+    $('fErr').textContent='Elegí un alumno de la lista, o tocá "cargar alumno nuevo".'; return;
+  }
+  if(modoNuevo && !telOk(tel)){ $('fErr').textContent='Poné el teléfono. Ej: 0981 445210'; return; }
 
   var b=$('fGuardar'), b2=$('fGuardar2');
   b.disabled=true; b.textContent='Guardando…'; b2.disabled=true; b2.textContent='…'; $('fErr').textContent='';
