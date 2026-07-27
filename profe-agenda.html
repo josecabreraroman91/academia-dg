@@ -604,13 +604,60 @@ function normNom(s){
   return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
     .toLowerCase().replace(/\s+/g,' ').trim();
 }
+/* La lista completa de alumnos vive en alumnos_v1/csv (la copia de la planilla,
+   que se refresca cada 15 minutos). alumnos_v2 solo tiene los creados con la app
+   de Alumnos. Se leen los dos y se juntan. */
+function parseCSV(txt){
+  var rows=[], row=[], cur='', q=false;
+  for(var i=0;i<txt.length;i++){ var c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"') q=true;
+      else if(c===','){ row.push(cur); cur=''; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(c!=='\r') cur+=c; }
+  }
+  if(cur.length||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+function buscarCol(cab, nombres){
+  for(var i=0;i<cab.length;i++){
+    var h=normNom(cab[i]);
+    for(var j=0;j<nombres.length;j++){ if(h.indexOf(nombres[j])>=0) return i; }
+  }
+  return -1;
+}
+var _base={}, _vivo={};
+function juntarAlumnos(){
+  var m={};
+  Object.keys(_base).forEach(function(k){ m[k]=_base[k]; });
+  Object.keys(_vivo).forEach(function(k){ m[k]=_vivo[k]; });   // el vivo pisa al de la planilla
+  alumnos=Object.keys(m).map(function(k){ return m[k]; })
+    .sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
+}
 function escucharAlumnos(){
+  firebase.database().ref('alumnos_v1/csv').once('value').then(function(s){
+    var csv=s.val(); if(!csv) return;
+    var rows=parseCSV(csv); if(rows.length<2) return;
+    var cab=rows[0];
+    var iNom=buscarCol(cab,['alumno','nombre']);
+    var iTel=buscarCol(cab,['telefono','celular','whatsapp','movil','numero']);
+    var iTip=buscarCol(cab,['tipo de clase','tipo_clase','modalidad','tipo']);
+    if(iNom<0) iNom=1;
+    for(var i=1;i<rows.length;i++){
+      var n=(rows[i][iNom]||'').trim(); if(!n) continue;
+      _base[normNom(n)]={ nombre:n,
+        tel: iTel>=0 ? normTel(rows[i][iTel]||'') : '',
+        mod: iTip>=0 ? (rows[i][iTip]||'').trim() : '' };
+    }
+    juntarAlumnos();
+  }).catch(function(e){ console.warn('alumnos_v1:', e.message); });
+
   firebase.database().ref('alumnos_v2').on('value', function(s){
-    var v=s.val()||{}; alumnos=[];
+    var v=s.val()||{}; _vivo={};
     Object.keys(v).forEach(function(k){
-      var a=v[k]; if(a && a.nombre) alumnos.push({nombre:a.nombre, tel:a.tel||'', mod:a.tipo||''});
+      var a=v[k]; if(a && a.nombre) _vivo[normNom(a.nombre)]={nombre:a.nombre, tel:a.tel||'', mod:a.tipo||''};
     });
-    alumnos.sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
+    juntarAlumnos();
   }, function(){});
 }
 function buscarAlumnos(q){
