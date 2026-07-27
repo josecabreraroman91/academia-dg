@@ -933,17 +933,29 @@ function marcarResvAplicada(k){
     .catch(e=>console.warn('No pude marcar la reserva:', e.message));
 }
 /* El alumno queda en el padrón aunque haya venido solo a probar: en unos meses
-   esa lista es a quién llamar cuando se libera un lugar. */
+   esa lista es a quién llamar cuando se libera un lugar.
+
+   Va a los DOS lados, y en este orden:
+   · alumnos_v2 — al instante, para que el autocompletado lo vea ya
+   · la planilla, por el puente — que es la casa real del padrón. Sin esto el
+     alumno no aparece en la app de Alumnos ni entra en la copia de 15 minutos. */
 function crearAlumnoSiNoEsta(r){
   if(!_fbdb || !r.alumno) return;
   const k=String(r.alumno).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
           .toLowerCase().replace(/\s+/g,' ').trim().replace(/[.#$/\[\]]/g,'_');
   if(!k) return;
   _fbdb.ref('alumnos_v2/'+k).once('value').then(s=>{
-    if(s.exists()) return;
+    if(s.exists()) return null;                       // ya existe: no se duplica
     return _fbdb.ref('alumnos_v2/'+k).set({
       nombre:r.alumno, cat:'', lado:'', profe:r.profe||'', tipo:r.mod||'',
       precio:0, tel:r.tel||'', nomHor:'', nomWpp:'', ts:Date.now()
+    }).then(()=>{
+      if(!PUENTE_URL) return;
+      return enviarAlPuente('alumnos', { alumnos: [{
+        nombre: r.alumno, cat:'', lado:'', tipo: r.mod||'',
+        precio: '0Gs.', coment: 'Agendado por '+(r.porNombre||r.porCorreo||'un profe'),
+        nomHor:'', nomWpp:'', tel: r.tel||''
+      }]});
     });
   }).catch(e=>console.warn('No pude crear el alumno:', e.message));
 }
