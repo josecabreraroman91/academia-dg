@@ -235,13 +235,6 @@
     <div class="campo" id="campoTel" style="display:none"><label>Teléfono</label>
       <input id="fTel" type="tel" inputmode="tel" autocomplete="off" placeholder="0981 445210"></div>
 
-    <div class="campo"><label>Tipo de clase</label>
-      <div class="ops" id="fMod">
-        <button data-v="G">G<small>grupal</small></button>
-        <button data-v="D">D<small>dual</small></button>
-        <button data-v="IND">IND<small>individual</small></button>
-      </div></div>
-
     <div class="err" id="fErr"></div>
     <div class="acc">
       <button class="b" id="fCancel">Cancelar</button>
@@ -681,7 +674,6 @@ function pintarSugerencias(){
       elegido=a;
       $('fNom').value=a.nombre;
       if(a.tel) $('fTel').value=a.tel;
-      if(a.mod==='G'||a.mod==='D'||a.mod==='IND') marcarOps('fMod', a.mod);
       pintarSugerencias();
     };
   });
@@ -703,23 +695,9 @@ function abrirForm(s){
   $('fSug').innerHTML=''; $('fEsNuevo').textContent=''; elegido=null;
   modoBuscar();
   $('fNom').oninput=pintarSugerencias;
-  marcarOps('fMod', 'G');
   $('ov').classList.add('show');
   setTimeout(function(){ try{ $('fNom').focus(); }catch(e){} }, 60);
 }
-function marcarOps(id, v){
-  Array.prototype.forEach.call($(id).querySelectorAll('button'), function(b){
-    b.classList.toggle('on', b.dataset.v===v);
-  });
-}
-function valorOps(id){
-  var b=$(id).querySelector('button.on'); return b?b.dataset.v:'';
-}
-['fMod'].forEach(function(id){
-  $(id).onclick=function(ev){
-    var b=ev.target.closest('button[data-v]'); if(b) marcarOps(id, b.dataset.v);
-  };
-});
 function cerrarForm(){ $('ov').classList.remove('show'); pend=null; }
 $('fCancel').onclick=cerrarForm;
 $('fCancel2').onclick=cerrarForm;
@@ -742,7 +720,7 @@ function guardarReserva(){
   var k=slotKey(pend.dia, pend.sede, pend.pi, pend.hi, pend.si);
   firebase.database().ref('reservas_v1/'+nodoReservas()+'/'+k).set({
     alumno: nom, tel: tel,
-    mod: valorOps('fMod'),
+    mod: (elegido && elegido.mod) || '',
     profe: pend.dim, sede: pend.sede, horaIdx: pend.hi, dia: pend.dia,
     porCorreo: miCorreo, porNombre: miNombre || miCorreo,
     nuevo: !elegido, tipo: 'agregar',
