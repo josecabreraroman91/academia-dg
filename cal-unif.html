@@ -756,6 +756,18 @@ function revisarMadre(){
    · Si el casillero exacto se ocupó, prueba los otros de esa hora.
    · Entra SIEMPRE en la semana editable, nunca en la MADRE.
    ============================================================ */
+/* Los cambios de los profes en la SEMANA se aplican solos al abrir el calendario.
+   Diego lo pidió así: que hagan lo que quieran, mientras quede registrado quién fue.
+   Solo se hace una vez al abrir, no mientras se está trabajando: que la grilla se
+   mueva sola bajo el cursor es peor que esperar. Durante la sesión queda el botón. */
+let _autoAplicado=false;
+function autoAplicarReservas(){
+  if(_autoAplicado) return;
+  if(!resvPendientes().length) return;
+  _autoAplicado=true;
+  setTimeout(()=>{ try{ aplicarReservas(); }catch(e){ console.warn('auto-aplicar:', e.message); } }, 900);
+}
+
 let _resvRef=null, _resvSem='', reservasProfes={};
 
 function escucharReservasProfes(){
@@ -768,6 +780,7 @@ function escucharReservasProfes(){
   _resvRef.on('value', snap=>{
     reservasProfes = snap.val() || {};
     pintarBotonResv();
+    if(_calListo) autoAplicarReservas();
   }, e=>console.warn('reservas_v1:', e.message));
 }
 function resvPendientes(){
@@ -1148,6 +1161,7 @@ function iniciarCalendarioCompartido(){
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
     migrarSedesPorBook();
     _aplicandoRemoto = false; _calListo = true;
+    try{ autoAplicarReservas(); }catch(e){}
     try{ sanearEstado(); }catch(e){}
     try{ reindexarAlumnos(); }catch(e){}
     try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
