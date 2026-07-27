@@ -57,6 +57,42 @@
 
   .vacio{color:var(--sec);font-size:14px;text-align:center;padding:34px 10px}
 
+  /* ---- Grilla, como el calendario ---- */
+  .vista{display:flex;gap:6px;margin-bottom:14px}
+  .vista button{flex:1;font-family:inherit;font-size:13px;padding:8px;border-radius:10px;
+    border:1px solid var(--linea);background:transparent;color:var(--sec);cursor:pointer}
+  .vista button.on{border-color:var(--azul);color:var(--azul);font-weight:600}
+
+  .sedebloque{margin-bottom:22px}
+  .sedetit{font-size:13px;font-weight:600;letter-spacing:.4px;padding:5px 10px;
+    border-radius:8px 8px 0 0;display:inline-block}
+  .s-lomas{background:#FFD966;color:#4a3c00}
+  .s-elite{background:#9F82BE;color:#fff}
+  .s-segurola{background:#FF9900;color:#4a2c00}
+  .scr{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--linea);
+    border-radius:0 10px 10px 10px}
+  table.g{border-collapse:collapse;width:max-content;min-width:100%}
+  table.g th,table.g td{border:1px solid var(--linea);padding:0;vertical-align:top}
+  table.g thead th{background:var(--panel);position:sticky;top:0;z-index:2;
+    font-size:11.5px;font-weight:600;padding:5px 4px;min-width:88px;line-height:1.25}
+  table.g thead th small{display:block;font-size:9.5px;color:var(--sec);font-weight:400;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  th.hcol{position:sticky;left:0;z-index:3;background:var(--bg);min-width:46px;width:46px;
+    font-size:11.5px;font-weight:600;color:var(--sec);padding:4px 2px;text-align:center}
+  thead th.hcol{z-index:4}
+  td.bloq{background:#20242b}
+  td.bloq .x{color:var(--sec);font-size:10px;text-align:center;padding:8px 0}
+  .sl{font-size:10.5px;line-height:1.3;padding:3px 4px;min-height:21px;
+    border-bottom:1px solid #23282f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .sl:last-child{border-bottom:0}
+  .sl.ocupado{color:var(--txt)}
+  .sl.reserva{background:#12283f;color:#8fbdf0}
+  .sl.libre{color:#2c5c3a;cursor:pointer;text-align:center;font-size:13px;font-weight:600}
+  .sl.libre:active{background:#12283f}
+  .leyenda{font-size:11.5px;color:var(--sec);margin:-6px 0 16px;display:flex;gap:14px;flex-wrap:wrap}
+  .leyenda span{display:flex;align-items:center;gap:5px}
+  .leyenda i{width:11px;height:11px;border-radius:3px;display:inline-block;font-style:normal}
+
   /* ---- Formulario ---- */
   #ov{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.72);display:none;
     align-items:flex-end;justify-content:center}
@@ -111,7 +147,17 @@
   <div class="yo"><b id="yoNom"></b><a href="#" id="btnSalir">Salir</a></div>
 
   <div class="dias" id="dias"></div>
+  <div class="vista">
+    <button data-v="grilla" class="on">Grilla</button>
+    <button data-v="lista">Solo libres</button>
+  </div>
   <div class="filtros" id="filtros"></div>
+  <div class="leyenda" id="leyenda" style="display:none">
+    <span><i style="background:#2c5c3a"></i>libre</span>
+    <span><i style="background:#e6edf3"></i>alumno</span>
+    <span><i style="background:#12283f;border:1px solid #2f81f7"></i>agendado por un profe</span>
+    <span><i style="background:#20242b"></i>no da clase</span>
+  </div>
 
   <div id="cargando">Cargando el calendario…</div>
   <div id="lista"></div>
@@ -175,7 +221,7 @@ var NO_PROFE = {'':1, '—':1, 'SP':1};
 
 var $ = function(id){ return document.getElementById(id); };
 var miCorreo=null, miNombre='', miDim='', puedeEscribir=false;
-var cal=null, reservas={}, lunes='', diaSel=null, sedeSel='todas';
+var cal=null, reservas={}, lunes='', diaSel=null, sedeSel='todas', vistaSel='grilla';
 var pend=null;   // slot elegido
 
 function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
@@ -287,9 +333,66 @@ function pintarFiltros(){
     b.onclick=function(){ sedeSel=b.dataset.s; pintarFiltros(); pintar(); };
   });
 }
+/* ---------- Grilla, igual al calendario ---------- */
+function pintarGrilla(){
+  var A=(cal.semana&&cal.semana.alumnos)||{}, L=(cal.semana&&cal.semana.libres)||{};
+  var sedes=sedesDe(diaSel).filter(function(s){
+    return s.key!=='adefinir' && (sedeSel==='todas' || s.key===sedeSel);
+  });
+  var html='';
+  sedes.forEach(function(s){
+    var rango=rangoHoras(diaSel,s); if(!rango) return;
+    var cols=[];
+    s.profes.forEach(function(dim,pi){ if(!NO_PROFE[dim]) cols.push({dim:dim,pi:pi}); });
+    if(!cols.length) return;
+
+    html+='<div class="sedebloque"><div class="sedetit s-'+esc(s.key)+'">'+
+          esc(SEDE_NICE[s.key]||s.key)+'</div><div class="scr"><table class="g"><thead><tr>'+
+          '<th class="hcol"></th>';
+    cols.forEach(function(c){
+      var n=nombreProfe(c.dim);
+      html+='<th>'+esc(c.dim)+(n?'<small>'+esc(n.split(' ')[0])+'</small>':'<small>&nbsp;</small>')+'</th>';
+    });
+    html+='</tr></thead><tbody>';
+
+    for(var hi=rango.min; hi<=rango.max; hi++){
+      html+='<tr><th class="hcol">'+esc(HORAS[hi])+'</th>';
+      cols.forEach(function(c){
+        if(L[diaSel+'|'+s.key+'|'+c.pi+'|'+hi]){
+          html+='<td class="bloq"><div class="x">—</div></td>'; return;
+        }
+        html+='<td>';
+        for(var si=0; si<SLOTS_POR_HORA; si++){
+          var k=slotKey(diaSel,s.key,c.pi,hi,si);
+          var al=A[k], r=reservas[k];
+          if(al && al.nombre){
+            html+='<div class="sl ocupado">'+esc(al.nombre)+'</div>';
+          } else if(r && r.estado!=='cancelado'){
+            html+='<div class="sl reserva">'+esc(r.alumno)+'</div>';
+          } else if(puedeEscribir){
+            html+='<div class="sl libre" data-slot="'+
+                  esc(diaSel+'|'+s.key+'|'+c.pi+'|'+hi+'|'+si+'|'+c.dim)+'">+</div>';
+          } else {
+            html+='<div class="sl"></div>';
+          }
+        }
+        html+='</td>';
+      });
+      html+='</tr>';
+    }
+    html+='</tbody></table></div></div>';
+  });
+  $('lista').innerHTML = html || '<div class="vacio">No hay clases cargadas ese día.</div>';
+  Array.prototype.forEach.call($('lista').querySelectorAll('.sl.libre[data-slot]'), function(b){
+    b.onclick=function(){ abrirForm(b.dataset.slot); };
+  });
+}
+
 function pintar(){
   $('cargando').style.display='none';
   pintarFiltros();
+  $('leyenda').style.display = (vistaSel==='grilla') ? 'flex' : 'none';
+  if(vistaSel==='grilla'){ pintarGrilla(); return; }
   var todos=lugaresDe(diaSel).filter(function(g){
     return sedeSel==='todas' || g.sede===sedeSel;
   });
@@ -329,6 +432,16 @@ function pintar(){
     b.onclick=function(){ abrirForm(b.dataset.slot); };
   });
 }
+
+Array.prototype.forEach.call(document.querySelectorAll('.vista button[data-v]'), function(b){
+  b.onclick=function(){
+    vistaSel=b.dataset.v;
+    Array.prototype.forEach.call(document.querySelectorAll('.vista button'), function(x){
+      x.classList.toggle('on', x.dataset.v===vistaSel);
+    });
+    if(cal) pintar();
+  };
+});
 
 /* ---------- Formulario ---------- */
 function abrirForm(s){
