@@ -415,6 +415,11 @@
     <h3>➕ Cambios de los profes</h3>
     <p style="font-size:11px;color:var(--muted);margin-bottom:12px">Los hicieron desde el celular. Al aplicar se reflejan en la semana editable. La MADRE no se toca nunca. Todo queda registrado con quién lo hizo.</p>
     <div id="resvLista" style="max-height:36vh;overflow-y:auto"></div>
+    <div id="madreBox" style="display:none;margin-top:12px;border-top:2px solid #d29922;padding-top:10px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:2px;color:#d29922">📋 Cambios propuestos para la MADRE</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:7px">Estos NO se aplicaron. La MADRE es la plantilla de todas las semanas: aprobalos de a uno.</div>
+      <div id="madreLista" style="max-height:30vh;overflow-y:auto"></div>
+    </div>
     <div id="fijosBox" style="display:none;margin-top:12px;border-top:1px solid var(--line);padding-top:10px">
       <div style="font-size:12px;font-weight:700;margin-bottom:6px">📌 Entraron como FIJOS — ¿los pasás a la MADRE?</div>
       <div id="fijosLista" style="max-height:26vh;overflow-y:auto"></div>
@@ -778,6 +783,7 @@ function autoAplicarReservas(){
 }
 
 let _resvRef=null, _resvSem='', reservasProfes={};
+let _madreRef=null, propuestasMadre={};
 
 function escucharReservasProfes(){
   if(!_fbdb) return;
@@ -791,6 +797,16 @@ function escucharReservasProfes(){
     pintarBotonResv();
     autoAplicarReservas();
   }, e=>console.warn('reservas_v1:', e.message));
+
+  /* Propuestas para la MADRE: viven en un nodo propio, no caducan con la semana
+     y NUNCA se aplican solas. La MADRE la cambian el dueño y Diego. */
+  if(!_madreRef){
+    _madreRef = _fbdb.ref('reservas_v1/madre');
+    _madreRef.on('value', snap=>{
+      propuestasMadre = snap.val() || {};
+      pintarBotonResv();
+    }, e=>console.warn('propuestas madre:', e.message));
+  }
 }
 function resvPendientes(){
   return Object.keys(reservasProfes)
@@ -800,9 +816,11 @@ function resvPendientes(){
 }
 function pintarBotonResv(){
   const b=document.getElementById('btnReservas'); if(!b) return;
-  const n=resvPendientes().length, f=fijosPendientes().length;
-  b.style.display = (n+f) ? 'inline-block' : 'none';
-  const s=document.getElementById('resvN'); if(s) s.textContent = (n+f) ? '('+(n+f)+')' : '';
+  const n=resvPendientes().length, f=fijosPendientes().length, m=propuestasPendientes().length;
+  const tot=n+f+m;
+  b.style.display = tot ? 'inline-block' : 'none';
+  const s=document.getElementById('resvN'); if(s) s.textContent = tot ? '('+tot+')' : '';
+  if(m && b) b.style.borderColor='#d29922';
 }
 function abrirResv(){
   const box=document.getElementById('resvLista');
@@ -841,6 +859,7 @@ function abrirResv(){
       };
     });
   }
+  pintarPropuestas();
   pintarFijos();
   document.getElementById('overlayResv').classList.add('show');
 }
@@ -935,12 +954,112 @@ function aplicarReservas(){
 /* Fijos que ya entraron en la semana y todavía no están en la MADRE.
    Se separan porque un lugar libre en la SEMANA no es un lugar libre en la MADRE:
    alguien pudo haber sido borrado solo por esta semana y seguir siendo el dueño. */
+function propuestasPendientes(){
+  return Object.keys(propuestasMadre)
+    .map(k=>({k, ...(propuestasMadre[k]||{})}))
+    .filter(r=>r && r.alumno && r.estado==='pendiente')
+    .sort((a,b)=>(a.ts||0)-(b.ts||0));
+}
 function fijosPendientes(){
   return Object.keys(reservasProfes)
     .map(k=>({k, ...(reservasProfes[k]||{})}))
     .filter(r=>r && r.alumno && r.fijo===true && r.estado==='aplicado' && r.enMadre!==true)
     .sort((a,b)=>(a.ts||0)-(b.ts||0));
 }
+/* Propuestas para la MADRE: se aprueban de a una, nunca en lote. */
+function pintarPropuestas(){
+  const box=document.getElementById('madreBox'), lista=document.getElementById('madreLista');
+  if(!box||!lista) return;
+  const ps=propuestasPendientes();
+  box.style.display = ps.length ? 'block' : 'none';
+  if(!ps.length) return;
+  const ICO={agregar:'➕', mover:'↔️', sacar:'➖', editar:'✏️'};
+  const QUE={agregar:'entra', mover:'se mueve', sacar:'sale', editar:'cambia de tipo'};
+  lista.innerHTML = ps.map(r=>{
+    const tipo=r.tipo||'agregar';
+    let det='';
+    if(tipo==='mover')       det=lugarTxt(r.desde)+' → '+lugarTxt(r.k);
+    else if(tipo==='sacar')  det=lugarTxt(r.desde);
+    else if(tipo==='editar') det=lugarTxt(r.desde)+' · pasa a '+(r.mod||'—');
+    else                     det=lugarTxt(r.k)+' · '+(r.profe||'')+(r.mod?' · '+r.mod:'');
+    return '<div style="border:1px solid #6b4a12;border-radius:10px;padding:8px 10px;margin-bottom:6px;display:flex;gap:9px;align-items:center">'+
+      '<div style="font-size:15px">'+ICO[tipo]+'</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-weight:700;font-size:12.5px">'+esc(r.alumno)+' <span style="font-weight:400;color:var(--muted)">'+QUE[tipo]+'</span></div>'+
+        '<div style="font-size:11px;color:var(--muted)">'+esc(det)+'</div>'+
+        '<div style="font-size:11px;color:var(--muted)">lo pidió '+esc(r.porNombre||r.porCorreo||'')+'</div>'+
+      '</div>'+
+      '<button class="btn" data-prop-no="'+esc(r.k)+'" style="font-size:11px;padding:5px 9px">Rechazar</button>'+
+      '<button class="btn primary" data-prop-si="'+esc(r.k)+'" style="font-size:11px;padding:5px 9px">Aprobar</button>'+
+    '</div>';
+  }).join('');
+  lista.querySelectorAll('button[data-prop-si]').forEach(b=>{ b.onclick=()=>aprobarPropuesta(b.dataset.propSi); });
+  lista.querySelectorAll('button[data-prop-no]').forEach(b=>{
+    b.onclick=()=>{
+      const r=propuestasMadre[b.dataset.propNo]||{};
+      if(!confirm('¿Rechazar el cambio de '+(r.alumno||'este alumno')+'?')) return;
+      _fbdb.ref('reservas_v1/madre/'+b.dataset.propNo+'/estado').set('cancelado')
+        .catch(e=>alert('No se pudo: '+e.message));
+      setTimeout(pintarPropuestas, 300);
+    };
+  });
+}
+function aprobarPropuesta(k){
+  const r=propuestasMadre[k]; if(!r) return;
+  const M=state.madre&&state.madre.alumnos; if(!M){ alert('No hay MADRE cargada.'); return; }
+  const tipo=r.tipo||'agregar';
+  const p=String(k).split('|');
+  let detalle='';
+
+  if(tipo==='sacar' || tipo==='editar'){
+    const o=M[r.desde];
+    if(!o || !o.nombre || normName(o.nombre)!==normName(r.alumno)){
+      alert(r.alumno+' ya no está en '+lugarTxt(r.desde)+'. El cambio no se puede aplicar.');
+      _fbdb.ref('reservas_v1/madre/'+k+'/estado').set('cancelado'); setTimeout(pintarPropuestas,300); return;
+    }
+    if(!confirm('⚠️ Vas a MODIFICAR la planilla MADRE.\n\n'+
+        (tipo==='sacar' ? 'Sale '+r.alumno+' de '+lugarTxt(r.desde) : r.alumno+' pasa a '+(r.mod||'—'))+
+        '\n\nLo pidió '+(r.porNombre||'')+'. ¿Confirmás?')) return;
+    if(tipo==='sacar'){ delete M[r.desde]; detalle='salió de '+lugarTxt(r.desde); }
+    else { o.mod=r.mod||''; detalle='pasó a '+(r.mod||'—'); }
+  } else {
+    let previo=null;
+    if(tipo==='mover'){
+      const o=M[r.desde];
+      if(!o || !o.nombre || normName(o.nombre)!==normName(r.alumno)){
+        alert(r.alumno+' ya no está en '+lugarTxt(r.desde)+'. El cambio no se puede aplicar.');
+        _fbdb.ref('reservas_v1/madre/'+k+'/estado').set('cancelado'); setTimeout(pintarPropuestas,300); return;
+      }
+      previo=JSON.parse(JSON.stringify(o));
+    }
+    let destino=null;
+    for(let si=0; si<SLOTS_POR_HORA; si++){
+      const k2=p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]+'|'+si;
+      if(tipo==='mover' && k2===r.desde) continue;
+      const oc=M[k2];
+      if(oc && oc.nombre && normName(oc.nombre)===normName(r.alumno)){ destino='ya'; break; }
+      if((!oc || !oc.nombre) && !destino) destino=k2;
+    }
+    if(destino==='ya'){ _fbdb.ref('reservas_v1/madre/'+k+'/estado').set('aplicado'); setTimeout(pintarPropuestas,300); return; }
+    if(!destino){ alert('En la MADRE esa hora está completa. Liberá un lugar primero.'); return; }
+    if(!confirm('⚠️ Vas a MODIFICAR la planilla MADRE.\n\n'+
+        (tipo==='mover' ? r.alumno+': '+lugarTxt(r.desde)+' → '+lugarTxt(destino)
+                        : 'Entra '+r.alumno+' en '+lugarTxt(destino))+
+        '\n\nLo pidió '+(r.porNombre||'')+'. ¿Confirmás?')) return;
+    if(tipo==='mover'){ delete M[r.desde]; M[destino]=previo; if(r.mod) M[destino].mod=r.mod;
+      detalle=lugarTxt(r.desde)+' → '+lugarTxt(destino); }
+    else { M[destino]={nombre:r.alumno, nivel:'', lado:'', mod:r.mod||'', nota:''};
+      detalle='entró en '+lugarTxt(destino); crearAlumnoSiNoEsta(r); }
+    if(state.madreSync) state.madreSync[destino]=r.alumno;
+  }
+
+  _fbdb.ref('reservas_v1/madre/'+k).update({estado:'aplicado', aplicadoTs:Date.now()})
+    .catch(e=>console.warn('no pude marcar la propuesta:', e.message));
+  saveState(); renderGrid();
+  setTimeout(pintarPropuestas, 300);
+  alert('✅ MADRE actualizada: '+r.alumno+' '+detalle+'.');
+}
+
 function pintarFijos(){
   const box=document.getElementById('fijosBox'), lista=document.getElementById('fijosLista');
   if(!box||!lista) return;
