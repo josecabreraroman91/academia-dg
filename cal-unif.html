@@ -3167,6 +3167,72 @@ async function asegurarHistorial(){
   if(!existe){ await sheetsAddTab(HIST_TAB); await sheetsAppend(HIST_TAB+'!A1',[HIST_HEADER]); }
 }
 // Limpia de Firebase los días anteriores (mantiene hoy + 2 previos). El historial ya quedó en la planilla.
+/* ============================================================
+   LIMPIEZA DE LOS CAJONES DE PROPUESTAS
+
+   reservas_v1 es un cajón de trabajo: una vez que un cambio se aplicó, el renglón
+   ya no sirve — lo que pasó quedó en ops_v1, que es la memoria.
+
+   ops_v1 se guarda mucho más tiempo porque ES el historial. Con 400 alumnos son
+   unas 800 asistencias por semana, pero eso pesa unos 8 MB al año: el espacio no
+   es el problema. Se limpia igual, para que la consola no tenga que revolver
+   años de datos.
+
+   Cambiar estos dos números es todo lo que hace falta para guardar más o menos.
+   ============================================================ */
+const RESERVAS_DIAS = 35;      // 5 semanas: para entonces ya se aplicó todo
+const HISTORIAL_DIAS = 730;    // 2 años de historial
+
+async function limpiarCajonesViejos(){
+  if(!_fbdb) return;
+  const RAIZ='https://academia-dg-default-rtdb.firebaseio.com';
+  const corteISO=(dias)=>{
+    const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-dias);
+    return isoDe(d);
+  };
+
+  // --- reservas_v1: semanas viejas enteras. 'madre' NO se toca acá. ---
+  try{
+    const res=await fetch(RAIZ+'/reservas_v1.json?shallow=true');
+    if(res.ok){
+      const obj=await res.json()||{};
+      const corte=corteISO(RESERVAS_DIAS);
+      const viejas=Object.keys(obj).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k) && k<corte);
+      for(const k of viejas){ await _fbdb.ref('reservas_v1/'+k).remove(); }
+      if(viejas.length) console.log('🧹 reservas_v1: '+viejas.length+' semana(s) vieja(s) borrada(s)');
+    }
+  }catch(e){ console.warn('limpieza reservas_v1:', e.message); }
+
+  // --- reservas_v1/madre: solo las ya resueltas y viejas. Las pendientes se quedan. ---
+  try{
+    const res=await fetch(RAIZ+'/reservas_v1/madre.json');
+    if(res.ok){
+      const obj=await res.json()||{};
+      const corte=Date.now()-RESERVAS_DIAS*86400000;
+      let n=0;
+      for(const k of Object.keys(obj)){
+        const r=obj[k]||{};
+        if((r.estado==='aplicado'||r.estado==='cancelado') && (r.aplicadoTs||r.ts||0)<corte){
+          await _fbdb.ref('reservas_v1/madre/'+k).remove(); n++;
+        }
+      }
+      if(n) console.log('🧹 reservas_v1/madre: '+n+' propuesta(s) resuelta(s) y vieja(s) borrada(s)');
+    }
+  }catch(e){ console.warn('limpieza propuestas madre:', e.message); }
+
+  // --- ops_v1: el historial. Solo lo que pasó el corte. ---
+  try{
+    const res=await fetch(RAIZ+'/ops_v1.json?shallow=true');
+    if(res.ok){
+      const obj=await res.json()||{};
+      const corte=corteISO(HISTORIAL_DIAS);
+      const viejos=Object.keys(obj).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k) && k<corte);
+      for(const k of viejos){ await _fbdb.ref('ops_v1/'+k).remove(); }
+      if(viejos.length) console.log('🧹 ops_v1: '+viejos.length+' grupo(s) de más de '+HISTORIAL_DIAS+' días borrado(s)');
+    }
+  }catch(e){ console.warn('limpieza ops_v1:', e.message); }
+}
+
 async function limpiarDiasViejos(){
   if(!_fbdb) return;
   try{
@@ -3268,6 +3334,7 @@ async function guardarHistorialFinal(){
     if(updates.length) await sheetsBatchUpdate(updates);
     if(nuevas.length)  await sheetsAppend(HIST_TAB+'!A1', nuevas);
     limpiarDiasViejos();
+    try{ limpiarCajonesViejos(); }catch(e){}
     cerrarClasificarAusentes(); _cierrePend=null;
     if(!nuevas.length && !updates.length){ alert('✅ Día '+fecha+' ya estaba guardado y sin cambios.'); return; }
     alert('✅ Día '+fecha+' guardado.\n\n➕ Nuevas: '+nuevas.length+'\n♻️ Actualizadas: '+updates.length+'\n✓ Sin cambios: '+iguales);
