@@ -473,11 +473,26 @@ function guardarOp(slotDestino, datos, opHist){
 function baseOp(){
   return { porCorreo: miCorreo, porNombre: miNombre || miCorreo, ts: Date.now() };
 }
+/* Qué profe está en esa columna. Sin esto, mover a alguien de un profe a otro
+   en la misma hora se leía "de Martes 7:00 LOMAS a Martes 7:00 LOMAS". */
+function profeDe(slot){
+  var p=String(slot).split('|');
+  var ss=sedesDe(p[0]);
+  for(var i=0;i<ss.length;i++){
+    if(ss[i].key===p[1]) return (ss[i].profes||[])[+p[2]] || '';
+  }
+  return '';
+}
 function dondeTxt(slot){
   var p=String(slot).split('|');
-  var f=masDias(lunes, DAYS.indexOf(p[0]));
-  return p[0].charAt(0)+p[0].slice(1).toLowerCase()+' '+ddmm(f)+' · '+
-         (HORAS[+p[3]]||'')+' · '+(SEDE_NICE[p[1]]||p[1]);
+  var dia=p[0].charAt(0)+p[0].slice(1).toLowerCase();
+  var dim=profeDe(slot);
+  var fecha='';
+  if(libroSel!=='madre'){                      // la MADRE no tiene fecha: es la plantilla
+    var f=masDias(lunes, DAYS.indexOf(p[0]));
+    fecha=' '+ddmm(f);
+  }
+  return dia+fecha+' · '+(HORAS[+p[3]]||'')+' · '+(SEDE_NICE[p[1]]||p[1])+(dim?' · '+dim:'');
 }
 
 function abrirAcciones(d){
@@ -538,6 +553,12 @@ function soltarMovido(s){
   var destino=p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]+'|'+p[4];
   var nom=moviendo.nom, origen=moviendo.slot;
   if(destino===origen){ moviendo=null; document.body.classList.remove('moviendo'); return; }
+  var o=String(origen).split('|');
+  if(o[0]===p[0] && o[1]===p[1] && o[2]===p[2] && o[3]===p[3]){
+    moviendo=null; document.body.classList.remove('moviendo');
+    toast('Ya está en esa hora con ese profe');   // los 4 casilleros son la misma clase
+    return;
+  }
   if(!confirm('¿Mover a '+nom+'?\n\nDe: '+dondeTxt(origen)+'\nA: '+dondeTxt(destino)+' · '+p[5])) return;
   var datos=Object.assign(baseOp(), {tipo:'mover', alumno:nom, tel:'', desde:origen, estado:'pendiente',
     profe:p[5], sede:p[1], dia:p[0], horaIdx:+p[3]});
