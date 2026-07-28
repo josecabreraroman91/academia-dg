@@ -173,7 +173,7 @@ var miCorreo = null, puedeEscribir = false, demo = false;
 var anot = {};          // id -> renglón
 var refAnot = null;
 
-function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
+function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function aClave(m){ return String(m).trim().toLowerCase().replace(/\./g, ','); }
 function hhmm(ts){
   if(!ts) return '';
