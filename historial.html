@@ -140,7 +140,7 @@ var $ = function(id){ return document.getElementById(id); };
 var miCorreo=null, ops=[], verTodo=false;
 var fPeriodo=7, fTipo='todos', fQuien='todos', fBusca='';
 
-function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
+function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function aClave(m){ return String(m).trim().toLowerCase().replace(/\./g, ','); }
 function hhmm(ts){
   var d=new Date(ts);
@@ -241,8 +241,11 @@ function pintar(){
 }
 
 /* ---------- Datos ---------- */
+/* Se traen solo los últimos N grupos. ops_v1 está partido por semana o por fecha,
+   y las claves ordenan bien alfabéticamente (2026-07-27 < 2026-07-28). Sin esto,
+   en unos meses cada apertura bajaría todo el historial de la academia. */
 function escuchar(){
-  firebase.database().ref('ops_v1').on('value', function(s){
+  firebase.database().ref('ops_v1').limitToLast(70).on('value', function(s){
     var v=s.val()||{}; ops=[];
     /* ops_v1 está partido por semana, por fecha o por 'madre'.
        Acá se junta todo y se ordena por hora, del más nuevo al más viejo. */
