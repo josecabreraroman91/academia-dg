@@ -195,6 +195,7 @@
 
     <div style="border-top:1px solid var(--line);margin:14px 0 10px;padding-top:12px">
       <div style="font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.4px">DATOS PARA FACTURAR</div>
+      <div id="fIdInfo" style="font-size:11.5px;color:var(--muted);margin-top:6px"></div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:2px">Si el alumno es menor, van los datos de quien paga.</div>
     </div>
 
@@ -404,6 +405,13 @@ function openEditor(id){
   document.getElementById('fTel').value = a?(a.telRaw||a.tel||''):'';
   document.getElementById('fNomHor').value = a?(a.nomHor||''):'';
   document.getElementById('fNomWpp').value = a?(a.nomWpp||''):'';
+  var _idEl=document.getElementById('fIdInfo');
+  if(_idEl){
+    var _id = a ? (idPlanillaDe(a.nombre)||'') : '';
+    _idEl.innerHTML = _id
+      ? 'ID en el sistema: <b>'+esc(_id)+'</b> — es el número con el que lo va a identificar cualquier sistema externo.'
+      : (a ? 'Todavía sin ID. Se le asigna solo dentro de los 15 minutos.' : '');
+  }
   document.getElementById('fFactNombre').value = a?(a.factNombre||''):'';
   document.getElementById('fDocTipo').value    = a?(a.docTipo||''):'';
   document.getElementById('fDocNro').value     = a?(a.docNro||''):'';
@@ -845,6 +853,7 @@ load(); render();
        · Nunca pisa un alumno con cambios sin guardar (_dirty).
        · De los que ya están, solo completa los campos vacíos. Lo que se escribió
          a mano en este dispositivo manda. */
+    cargarIdsPlanilla();
     firebase.database().ref('alumnos_v2').on('value', function(snap){
       try{
         var v = snap.val() || {};
