@@ -258,7 +258,7 @@
     appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
   };
   // Qu\u00e9 permiso necesita cada secci\u00f3n
-  var REQUIERE = { cal:'calendario', prof:'profes', alu:'alumnos', pag:'pagos', cob:'cobros',
+  var REQUIERE = { cal:'calendario', prof:'profes', alu:'alumnos', pag:'__oculto__', cob:'__oculto__',
                    niv:'nivelacion', age:'agenda', lib:'agente', his:'historial', pan:'__admin__' };
 
   function $(id){ return document.getElementById(id); }
@@ -280,6 +280,10 @@
     var esAdmin = (perm.admin === true);
     Object.keys(REQUIERE).forEach(function(go){
       var req = REQUIERE[go];
+      /* Módulos guardados: Pagos y Cobros se sacaron de la vista mientras se define
+         la integración con el sistema externo. El código sigue intacto: para volver
+         a mostrarlos, se les devuelve su permiso en REQUIERE. */
+      if(req === '__oculto__'){ ocultar(go); return; }
       if(req === '__admin__'){ if(!esAdmin) ocultar(go); return; }
       if(esAdmin) return;                    // el super administrador ve todo
       var v = perm[req];
