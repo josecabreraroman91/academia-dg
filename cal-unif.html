@@ -2703,6 +2703,20 @@ function normPhone(raw){
 }
 function phoneOk(tel){ return tel && tel.length>=8 && tel.length<=15; }
 
+/* Un número paraguayo es 595 + 9 dígitos = 12. Cualquier otra cosa puede estar
+   bien (un alumno con número del exterior) o puede estar mal cargada, y WhatsApp
+   la rechaza una por una. Se marcan para revisarlas ANTES de mandar. */
+function telRaro(tel){
+  const d=String(tel||'').replace(/\D/g,'');
+  if(!d) return '';
+  if(d.indexOf('595')===0){
+    if(d.length===12) return '';
+    if(d.length>12)  return 'le sobran '+(d.length-12)+' dígito(s)';
+    return 'le faltan '+(12-d.length)+' dígito(s)';
+  }
+  return 'no es paraguayo';
+}
+
 // Construye la lista de envío desde la SEMANA del día actual
 function buildEnvioList(){
   rebuildLocalContacts();
@@ -2795,6 +2809,19 @@ function renderEnvios(){
   document.getElementById('evTotal').textContent=s.length;
   const noTelEl=document.getElementById('evNoTel');
   if(sinTel){ noTelEl.style.display=''; noTelEl.textContent='⚠ Sin teléfono: '+sinTel; } else noTelEl.style.display='none';
+  const raros=s.filter(c=>telRaro(c.tel));
+  const raroEl=document.getElementById('evRaros');
+  if(raroEl){
+    if(raros.length){
+      raroEl.style.display='';
+      raroEl.innerHTML='<b>⚠️ '+raros.length+' teléfono(s) para revisar antes de mandar</b>'+
+        '<div style="margin-top:6px">'+raros.map(c=>
+          '<div style="font-size:12px;padding:2px 0">· '+esc(c.nombre)+
+          ' <span style="opacity:.75">+'+esc(c.tel)+'</span>'+
+          ' <span style="color:#ffcf6b">— '+esc(telRaro(c.tel))+'</span></div>').join('')+'</div>'+
+        '<div style="font-size:11.5px;opacity:.8;margin-top:6px">Corregilos en Alumnos. Si alguno es del exterior y está bien, mandalo igual.</div>';
+    } else raroEl.style.display='none';
+  }
   document.getElementById('evFill').style.width=(s.length? (sent/s.length*100):0)+'%';
 
   const body=document.getElementById('evQueue');
@@ -2802,6 +2829,7 @@ function renderEnvios(){
   if(evQueueIdx<0) evQueueIdx=0; if(evQueueIdx>=s.length) evQueueIdx=s.length-1;
 
   let html=
+    '<div id="evRaros" style="display:none;background:#3a2f12;border:1px solid #6b4a12;border-radius:10px;padding:10px 12px;margin:0 0 10px;color:#f5d98a"></div>'+
     '<div class="ev-listbar">'+
       '<button class="btn btn-wa" id="evSendNext">📲 Mandar al siguiente pendiente</button>'+
       '<button class="btn" id="evMarkAll">Marcar todos enviados</button>'+
