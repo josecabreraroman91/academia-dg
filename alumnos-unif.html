@@ -246,7 +246,23 @@ function gs(n){ n=Math.round(Number(n)||0); return n.toLocaleString('es-PY').rep
 function parseNum(v){ let s=String(v==null?'':v).replace(/[^\d]/g,''); const n=parseInt(s,10); return isNaN(n)?0:n; }
 function esc(s){ return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 function normName(s){ return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim().replace(/\s+/g,' '); }
-function normPhone(t){ let d=String(t==null?'':t).replace(/\D/g,''); if(!d) return ''; if(d.startsWith('595')) return d; if(d.startsWith('0')) d=d.slice(1); return '595'+d; }
+/* Un número paraguayo es 595 + 9 dígitos = 12. Antes esta función le pegaba 595
+   a CUALQUIER número que no empezara con 595, así que un número extranjero
+   (+34 677 871 435) quedaba guardado como 59534677871435 y WhatsApp lo rechazaba.
+   Ahora solo se agrega el 595 si el número parece local. */
+function normPhone(t){
+  let d=String(t==null?'':t).replace(/\D/g,'');
+  if(!d) return '';
+  if(d.slice(0,2)==='00') d=d.slice(2);              // 00595... → 595...
+  if(d.startsWith('595')){
+    let r=d.slice(3);
+    while(r.charAt(0)==='0') r=r.slice(1);           // 595 0981... → 595 981...
+    return '595'+r;
+  }
+  while(d.charAt(0)==='0') d=d.slice(1);             // 0981... → 981...
+  if(d.length<=10) return '595'+d;                   // local
+  return d;                                           // ya trae su propio código de país
+}
 function attachMiles(inp){ if(!inp||inp._m) return; inp._m=true; inp.addEventListener('input',()=>{ const d=inp.value.replace(/\D/g,''); inp.value=d?Number(d).toLocaleString('es-PY').replace(/,/g,'.'):''; }); }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
 
