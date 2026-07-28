@@ -245,11 +245,28 @@ function pintar(){
 }
 
 /* ---------- Datos ---------- */
-/* Se traen solo los últimos N grupos. ops_v1 está partido por semana o por fecha,
-   y las claves ordenan bien alfabéticamente (2026-07-27 < 2026-07-28). Sin esto,
-   en unos meses cada apertura bajaría todo el historial de la academia. */
+/* Se trae SOLO el período elegido, no todo el historial.
+
+   ops_v1 está partido por fecha (2026-07-28) o por semana (el lunes), y las claves
+   ordenan bien alfabéticamente. Se empieza a leer una semana ANTES del corte porque
+   un cajón de semana guarda cosas de días posteriores a su clave; el filtro fino por
+   hora lo hace después la pantalla.
+
+   Sin esto, con 400 alumnos son ~800 asistencias por semana: en un año, cada apertura
+   bajaría cuarenta mil renglones. */
+var _refOps=null;
+function isoMenos(dias){
+  var d=new Date(Date.now()-dias*86400000);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
 function escuchar(){
-  firebase.database().ref('ops_v1').limitToLast(70).on('value', function(s){
+  if(_refOps){ _refOps.off(); _refOps=null; }
+  var dias = fPeriodo ? (fPeriodo + 7) : 365;      // "Todo" = último año
+  var desde = isoMenos(dias);
+  var ref = firebase.database().ref('ops_v1').orderByKey().startAt(desde);
+  _refOps = ref;
+  $('cargando').style.display='block';
+  ref.on('value', function(s){
     var v=s.val()||{}; ops=[];
     /* ops_v1 está partido por semana, por fecha o por 'madre'.
        Acá se junta todo y se ordena por hora, del más nuevo al más viejo. */
@@ -272,7 +289,7 @@ document.querySelectorAll('.chip[data-p]').forEach(function(b){
   b.onclick=function(){
     fPeriodo=+b.dataset.p; verTodo=false;
     document.querySelectorAll('.chip[data-p]').forEach(function(x){ x.classList.toggle('on', x===b); });
-    pintar();
+    escuchar();                                     // se vuelve a consultar: cambia el rango
   };
 });
 $('fBusca').oninput=function(){ fBusca=$('fBusca').value; verTodo=false; pintar(); };
