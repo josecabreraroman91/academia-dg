@@ -193,6 +193,41 @@
       <div class="field"><label>Nombre p/ WhatsApp</label><input id="fNomWpp" placeholder="Diminutivo" autocomplete="off"></div>
     </div>
 
+    <div style="border-top:1px solid var(--line);margin:14px 0 10px;padding-top:12px">
+      <div style="font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.4px">DATOS PARA FACTURAR</div>
+      <div style="font-size:11.5px;color:var(--muted);margin-top:2px">Si el alumno es menor, van los datos de quien paga.</div>
+    </div>
+
+    <div class="field">
+      <label>A nombre de quién se factura</label>
+      <input id="fFactNombre" autocomplete="off" placeholder="Dejalo vacío si es el mismo alumno">
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label>Tipo de documento</label>
+        <select id="fDocTipo">
+          <option value="">—</option>
+          <option value="CI">Cédula</option>
+          <option value="RUC">RUC</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Número</label>
+        <input id="fDocNro" autocomplete="off" inputmode="numeric" placeholder="1234567 o 80012345-6">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Correo <span style="font-weight:400;color:var(--muted)">— ahí llega la factura electrónica</span></label>
+      <input id="fEmail" type="email" autocomplete="off" placeholder="nombre@correo.com">
+    </div>
+
+    <div class="field">
+      <label>Dirección</label>
+      <input id="fDir" autocomplete="off" placeholder="Opcional">
+    </div>
+
     <div class="field">
       <label>Comentarios</label>
       <textarea id="fComent" placeholder="Ej: ZURDO, viene con…"></textarea>
@@ -369,6 +404,11 @@ function openEditor(id){
   document.getElementById('fTel').value = a?(a.telRaw||a.tel||''):'';
   document.getElementById('fNomHor').value = a?(a.nomHor||''):'';
   document.getElementById('fNomWpp').value = a?(a.nomWpp||''):'';
+  document.getElementById('fFactNombre').value = a?(a.factNombre||''):'';
+  document.getElementById('fDocTipo').value    = a?(a.docTipo||''):'';
+  document.getElementById('fDocNro').value     = a?(a.docNro||''):'';
+  document.getElementById('fEmail').value      = a?(a.email||''):'';
+  document.getElementById('fDir').value        = a?(a.dir||''):'';
   document.getElementById('fComent').value = a?(a.comentarios||''):'';
   attachMiles(document.getElementById('fPrecio'));
   document.getElementById('btnDelete').style.display = a?'block':'none';
@@ -401,6 +441,11 @@ function saveEditor(){
     tel: normPhone(telRaw),
     nomHor: document.getElementById('fNomHor').value.trim(),
     nomWpp: document.getElementById('fNomWpp').value.trim(),
+    factNombre: document.getElementById('fFactNombre').value.trim(),
+    docTipo: document.getElementById('fDocTipo').value,
+    docNro: document.getElementById('fDocNro').value.trim().replace(/\s+/g,''),
+    email: document.getElementById('fEmail').value.trim().toLowerCase(),
+    dir: document.getElementById('fDir').value.trim(),
     comentarios: document.getElementById('fComent').value.trim(),
     horarios: prev?(prev.horarios||[]):[],
     _dirty: true
@@ -628,6 +673,11 @@ function publicarAlumnosEnVivo(lista){
         tel:    a.tel || '',
         nomHor: a.nomHor || '',
         nomWpp: a.nomWpp || '',
+        factNombre: a.factNombre || '',
+        docTipo:    a.docTipo || '',
+        docNro:     a.docNro || '',
+        email:      a.email || '',
+        dir:        a.dir || '',
         ts:     Date.now()
       };
     });
@@ -819,7 +869,7 @@ load(); render();
           }
           if(ex._dirty) return;                       // tiene cambios sin guardar: no se toca
           var cambio = false;
-          ['cat','lado','tipo','nomHor','nomWpp'].forEach(function(c){
+          ['cat','lado','tipo','nomHor','nomWpp','factNombre','docTipo','docNro','email','dir'].forEach(function(c){
             if(!ex[c] && r[c]){ ex[c]=r[c]; cambio=true; }
           });
           if(!ex.tel && r.tel){ ex.tel=normPhone(r.tel); ex.telRaw=r.tel; cambio=true; }
