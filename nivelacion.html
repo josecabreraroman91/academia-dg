@@ -683,6 +683,7 @@ function anularEval(ev, motivo){
   evals.push(rec); reindexar(); save(K_LS.ev,evals);
   pushFirebase([rec]);
   auditar("anulacion", `${ev.nombre} · se anuló ${fmtNivel(ev.nivel)} ${ev.categoria}${motivo?" · "+motivo:""}`);
+  anotarHistorial("anular", ev.nombre, `anuló la evaluación ${fmtNivel(ev.nivel)} ${ev.categoria}${motivo?" · "+motivo:""}`);
   return rec;
 }
 function diasDesde(iso){ return Math.floor((Date.now()-new Date(iso).getTime())/864e5) }
@@ -1078,6 +1079,7 @@ function guardar(){
 
   pushFirebase([rec]);
   auditar("evaluacion", `${sel.nombre} · ${modoActual} · ${fmtNivel(r.nivel)} ${r.categoria}${anterior&&anterior!==r.categoria?` (antes ${anterior})`:""}`);
+  anotarHistorial("nivelar", sel.nombre, `${fmtNivel(r.nivel)} ${r.categoria}${anterior&&anterior!==r.categoria?` · antes ${anterior}`:""} · ${modoActual}`);
   toast(`Guardado · ${fmtNivel(r.nivel)} ${r.categoria} · se aplica a la planilla`);
   renderList(); bindEditor(); pintarScore();
 }
@@ -1281,6 +1283,28 @@ async function pullAprobados(){
     aprobadosFB = r.ok ? (await r.json())||{} : {};
   }catch(e){ aprobadosFB={} }
   return aprobadosFB;
+}
+
+/* Además de la auditoría interna, cada evaluación va al historial general
+   (ops_v1), el mismo que muestra la consola de Historial. Así se ve junto a
+   las asistencias y los movimientos, sin tener que entrar a otra pantalla. */
+function anotarHistorial(tipo, alumno, detalle){
+  try{
+    if(!user || !user.email) return;
+    const hoy = new Date();
+    const dia = hoy.getFullYear()+'-'+String(hoy.getMonth()+1).padStart(2,'0')+'-'+String(hoy.getDate()).padStart(2,'0');
+    const tk = (window.ADG && window.ADG.token) || token || '';
+    const q = tk ? ('?auth='+tk) : '';
+    fetch(`${FB_URL}/ops_v1/${dia}.json${q}`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        tipo, alumno: alumno||'', detalle: detalle||'',
+        porCorreo: String(user.email).toLowerCase(),
+        porNombre: user.nombre || cfg.profe || String(user.email).toLowerCase(),
+        ts: Date.now()
+      })
+    }).catch(()=>{});
+  }catch(e){}
 }
 
 /* registro de auditoría: quién hizo qué y cuándo */
