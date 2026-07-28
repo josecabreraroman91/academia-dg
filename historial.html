@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Historial · Academia DG</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --linea:#30363d; --txt:#e6edf3;
+    --sec:#8b949e; --azul:#2f81f7; --verde:#3fb950; --rojo:#f85149;
+    --ambar:#d29922; --violeta:#a371f7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5}
+  .wrap{max-width:900px;margin:0 auto;padding:16px 14px 60px}
+
+  header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  h1{font-size:21px;margin:0}
+  .sub{color:var(--sec);font-size:13px}
+  .yo{color:var(--sec);font-size:12px;margin:6px 0 16px}
+  .yo a{color:var(--azul);text-decoration:none;margin-left:10px}
+
+  .filtros{background:var(--panel);border:1px solid var(--linea);border-radius:12px;
+    padding:12px;margin-bottom:16px}
+  .fila{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+  .fila:last-child{margin-bottom:0}
+  .fila label{font-size:11.5px;color:var(--sec);width:100%;margin-bottom:-2px}
+  .chip{font-family:inherit;font-size:12.5px;padding:6px 12px;border-radius:20px;
+    border:1px solid var(--linea);background:transparent;color:var(--sec);cursor:pointer}
+  .chip.on{border-color:var(--azul);color:var(--azul);background:#12283f;font-weight:600}
+  input.busca{flex:1;min-width:160px;background:var(--bg);border:1px solid var(--linea);
+    border-radius:9px;color:var(--txt);padding:9px 11px;font-family:inherit;font-size:14px}
+
+  .nums{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .num{background:var(--panel);border:1px solid var(--linea);border-radius:11px;
+    padding:9px 13px;font-size:13px}
+  .num b{display:block;font-size:19px;font-weight:600;line-height:1.25}
+  .num span{color:var(--sec);font-size:11.5px}
+
+  .dia{font-size:12px;font-weight:700;color:var(--sec);letter-spacing:.4px;
+    margin:18px 0 7px;text-transform:uppercase}
+  .op{display:flex;gap:11px;align-items:flex-start;padding:9px 12px;background:var(--panel);
+    border:1px solid var(--linea);border-radius:11px;margin-bottom:6px}
+  .ico{width:25px;height:25px;border-radius:50%;flex-shrink:0;display:flex;
+    align-items:center;justify-content:center;font-size:13px}
+  .t-presente{background:#12331f;color:var(--verde)}
+  .t-ausente{background:#3a1a1a;color:var(--rojo)}
+  .t-acople,.t-agregar{background:#12283f;color:var(--azul)}
+  .t-mover{background:#2b2340;color:var(--violeta)}
+  .t-sacar{background:#3a1a1a;color:var(--rojo)}
+  .t-editar{background:#3a2f12;color:var(--ambar)}
+  .cuerpo{flex:1;min-width:0}
+  .l1{font-size:14px}
+  .l1 b{font-weight:600}
+  .l2{font-size:12.5px;color:var(--sec);word-break:break-word}
+  .hora{font-size:11.5px;color:var(--sec);flex-shrink:0;white-space:nowrap}
+  .quien{color:var(--azul)}
+
+  .vacio{color:var(--sec);text-align:center;padding:40px 10px;font-size:14px}
+  #cargando{color:var(--sec);text-align:center;padding:40px 0}
+  #mas{width:100%;font-family:inherit;font-size:13.5px;padding:11px;border-radius:10px;
+    border:1px solid var(--linea);background:transparent;color:var(--txt);cursor:pointer;margin-top:12px}
+
+  #login,#nopuede{position:fixed;inset:0;z-index:99;background:var(--bg);display:none;
+    align-items:center;justify-content:center;flex-direction:column;padding:26px;text-align:center}
+  #login h2,#nopuede h2{margin:0 0 8px;font-size:20px}
+  #login p,#nopuede p{color:var(--sec);max-width:340px;margin:0 0 22px}
+  button.b{font-family:inherit;font-size:14px;padding:11px 18px;border-radius:10px;
+    border:1px solid var(--linea);background:transparent;color:var(--txt);cursor:pointer}
+  button.b.pri{background:var(--azul);border-color:var(--azul);color:#fff;font-weight:600}
+  .err{color:var(--rojo);font-size:13px;margin-top:8px}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h2>Historial · Academia DG</h2>
+  <p>Quién hizo cada cambio, y cuándo.</p>
+  <button class="b pri" id="btnEntrar">Entrar con Google</button>
+  <div class="err" id="errLogin"></div>
+</div>
+
+<div id="nopuede">
+  <h2>No tenés acceso al historial</h2>
+  <p id="nopuedeTxt"></p>
+  <button class="b" id="btnSalir2">Salir</button>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <header><h1>Historial</h1><span class="sub">Quién hizo cada cambio</span></header>
+  <div class="yo">Conectado como <b id="yoMail"></b><a href="#" id="btnSalir">Salir</a></div>
+
+  <div class="filtros">
+    <div class="fila"><label>Cuándo</label>
+      <button class="chip on" data-p="7">Últimos 7 días</button>
+      <button class="chip" data-p="1">Hoy</button>
+      <button class="chip" data-p="30">30 días</button>
+      <button class="chip" data-p="0">Todo</button>
+    </div>
+    <div class="fila"><label>Qué pasó</label><span id="fTipos"></span></div>
+    <div class="fila"><label>Quién</label><span id="fQuien"></span></div>
+    <div class="fila"><label>Buscar un alumno</label>
+      <input class="busca" id="fBusca" type="text" autocomplete="off" placeholder="Nombre del alumno…">
+    </div>
+  </div>
+
+  <div class="nums" id="nums"></div>
+  <div id="cargando">Cargando el historial…</div>
+  <div id="lista"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain: "academia-dg.firebaseapp.com",
+  databaseURL: "https://academia-dg-default-rtdb.firebaseio.com",
+  projectId: "academia-dg",
+  storageBucket: "academia-dg.firebasestorage.app",
+  messagingSenderId: "623967243039",
+  appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
+});
+
+var TIPO = {
+  presente: {ico:'✓', txt:'marcó presente a'},
+  ausente:  {ico:'✕', txt:'marcó ausente a'},
+  acople:   {ico:'➕', txt:'agregó a'},
+  agregar:  {ico:'➕', txt:'agendó a'},
+  mover:    {ico:'↔️', txt:'movió a'},
+  sacar:    {ico:'➖', txt:'sacó a'},
+  editar:   {ico:'✏️', txt:'cambió el tipo de'}
+};
+var DIAS=['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+var MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+
+var $ = function(id){ return document.getElementById(id); };
+var miCorreo=null, ops=[], verTodo=false;
+var fPeriodo=7, fTipo='todos', fQuien='todos', fBusca='';
+
+function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
+function aClave(m){ return String(m).trim().toLowerCase().replace(/\./g, ','); }
+function hhmm(ts){
+  var d=new Date(ts);
+  return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+}
+function claveDia(ts){ var d=new Date(ts); return d.getFullYear()+'-'+d.getMonth()+'-'+d.getDate(); }
+function tituloDia(ts){
+  var d=new Date(ts), h=new Date();
+  var mismo=function(a,b){ return a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); };
+  if(mismo(d,h)) return 'Hoy';
+  var ayer=new Date(h.getTime()-86400000);
+  if(mismo(d,ayer)) return 'Ayer';
+  return DIAS[d.getDay()]+' '+d.getDate()+' de '+MESES[d.getMonth()];
+}
+function normNom(s){
+  return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/\s+/g,' ').trim();
+}
+
+/* ---------- Filtrar ---------- */
+function filtradas(){
+  var corte = fPeriodo ? (Date.now() - fPeriodo*86400000) : 0;
+  var q = normNom(fBusca);
+  return ops.filter(function(o){
+    if(corte && (o.ts||0) < corte) return false;
+    if(fTipo!=='todos' && o.tipo!==fTipo) return false;
+    if(fQuien!=='todos' && (o.porNombre||o.porCorreo||'')!==fQuien) return false;
+    if(q && normNom(o.alumno||'').indexOf(q)<0) return false;
+    return true;
+  });
+}
+
+/* ---------- Pintar ---------- */
+function pintarChips(){
+  var tipos={}, quienes={};
+  ops.forEach(function(o){
+    if(o.tipo) tipos[o.tipo]=(tipos[o.tipo]||0)+1;
+    var q=o.porNombre||o.porCorreo||'';
+    if(q) quienes[q]=(quienes[q]||0)+1;
+  });
+  $('fTipos').innerHTML = '<button class="chip'+(fTipo==='todos'?' on':'')+'" data-t="todos">Todo</button>' +
+    Object.keys(tipos).sort(function(a,b){ return tipos[b]-tipos[a]; }).map(function(k){
+      return '<button class="chip'+(fTipo===k?' on':'')+'" data-t="'+esc(k)+'">'+
+        ((TIPO[k]&&TIPO[k].ico)||'')+' '+esc(k)+' <span style="opacity:.6">'+tipos[k]+'</span></button>';
+    }).join('');
+  $('fQuien').innerHTML = '<button class="chip'+(fQuien==='todos'?' on':'')+'" data-q="todos">Todos</button>' +
+    Object.keys(quienes).sort(function(a,b){ return quienes[b]-quienes[a]; }).map(function(k){
+      return '<button class="chip'+(fQuien===k?' on':'')+'" data-q="'+esc(k)+'">'+esc(k)+
+        ' <span style="opacity:.6">'+quienes[k]+'</span></button>';
+    }).join('');
+  $('fTipos').querySelectorAll('button[data-t]').forEach(function(b){
+    b.onclick=function(){ fTipo=b.dataset.t; verTodo=false; pintar(); };
+  });
+  $('fQuien').querySelectorAll('button[data-q]').forEach(function(b){
+    b.onclick=function(){ fQuien=b.dataset.q; verTodo=false; pintar(); };
+  });
+}
+
+function pintar(){
+  $('cargando').style.display='none';
+  pintarChips();
+  var fs=filtradas();
+
+  var porQuien={};
+  fs.forEach(function(o){ var q=o.porNombre||o.porCorreo||'—'; porQuien[q]=(porQuien[q]||0)+1; });
+  $('nums').innerHTML = '<div class="num"><b>'+fs.length+'</b><span>cambios</span></div>' +
+    Object.keys(porQuien).sort(function(a,b){ return porQuien[b]-porQuien[a]; }).slice(0,5).map(function(q){
+      return '<div class="num"><b>'+porQuien[q]+'</b><span>'+esc(q)+'</span></div>';
+    }).join('');
+
+  if(!fs.length){
+    $('lista').innerHTML='<div class="vacio">No hay cambios que coincidan con esos filtros.</div>';
+    return;
+  }
+
+  var tope = verTodo ? fs.length : Math.min(fs.length, 150);
+  var html='', diaAct='';
+  for(var i=0;i<tope;i++){
+    var o=fs[i];
+    var d=claveDia(o.ts);
+    if(d!==diaAct){ html+='<div class="dia">'+esc(tituloDia(o.ts))+'</div>'; diaAct=d; }
+    var T=TIPO[o.tipo]||{ico:'•', txt:o.tipo||''};
+    html+='<div class="op">'+
+      '<div class="ico t-'+esc(o.tipo||'')+'">'+T.ico+'</div>'+
+      '<div class="cuerpo">'+
+        '<div class="l1"><span class="quien">'+esc(o.porNombre||o.porCorreo||'alguien')+'</span> '+
+          esc(T.txt)+' <b>'+esc(o.alumno||'—')+'</b></div>'+
+        (o.detalle?'<div class="l2">'+esc(o.detalle)+'</div>':'')+
+      '</div>'+
+      '<div class="hora">'+esc(hhmm(o.ts))+'</div>'+
+    '</div>';
+  }
+  if(tope<fs.length){
+    html+='<button id="mas">Ver los '+(fs.length-tope)+' restantes</button>';
+  }
+  $('lista').innerHTML=html;
+  if($('mas')) $('mas').onclick=function(){ verTodo=true; pintar(); };
+}
+
+/* ---------- Datos ---------- */
+function escuchar(){
+  firebase.database().ref('ops_v1').on('value', function(s){
+    var v=s.val()||{}; ops=[];
+    /* ops_v1 está partido por semana, por fecha o por 'madre'.
+       Acá se junta todo y se ordena por hora, del más nuevo al más viejo. */
+    Object.keys(v).forEach(function(grupo){
+      var g=v[grupo]||{};
+      Object.keys(g).forEach(function(id){
+        var o=g[id];
+        if(o && o.ts) ops.push(o);
+      });
+    });
+    ops.sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+    pintar();
+  }, function(e){
+    $('cargando').textContent='No pude leer el historial: '+e.message;
+  });
+}
+
+/* ---------- Filtros ---------- */
+document.querySelectorAll('.chip[data-p]').forEach(function(b){
+  b.onclick=function(){
+    fPeriodo=+b.dataset.p; verTodo=false;
+    document.querySelectorAll('.chip[data-p]').forEach(function(x){ x.classList.toggle('on', x===b); });
+    pintar();
+  };
+});
+$('fBusca').oninput=function(){ fBusca=$('fBusca').value; verTodo=false; pintar(); };
+
+/* ---------- Entrada ---------- */
+$('btnEntrar').onclick=function(){
+  firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(function(e){ $('errLogin').textContent=e.message; });
+};
+$('btnSalir').onclick=function(e){ e.preventDefault(); firebase.auth().signOut(); };
+$('btnSalir2').onclick=function(){ firebase.auth().signOut(); };
+
+/* Nada que lea Firebase corre antes del login. */
+firebase.auth().onAuthStateChanged(function(u){
+  if(!u){ $('login').style.display='flex'; $('nopuede').style.display='none'; $('app').style.display='none'; return; }
+  miCorreo=u.email.toLowerCase();
+  firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
+    var f=s.val()||{}, p=f.permisos||{};
+    var puede = p.admin===true || p.calendario==='leer' || p.calendario==='escribir'
+             || p.agenda==='leer' || p.agenda==='escribir';
+    if(f.activo!==true || !puede){
+      $('login').style.display='none';
+      $('nopuedeTxt').textContent=miCorreo;
+      $('nopuede').style.display='flex';
+      return;
+    }
+    $('login').style.display='none'; $('nopuede').style.display='none';
+    $('app').style.display='block';
+    $('yoMail').textContent=miCorreo;
+    escuchar();
+  }).catch(function(e){
+    $('login').style.display='none';
+    $('nopuedeTxt').textContent='No se pudo verificar tu acceso. '+e.message;
+    $('nopuede').style.display='flex';
+  });
+});
+</script>
+</body>
+</html>
