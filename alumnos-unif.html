@@ -546,6 +546,15 @@ document.getElementById('btnCancel').onclick=closeEditor;
 document.getElementById('btnDelete').onclick=deleteEditor;
 document.getElementById('search').oninput=render;
 
+/* Al volver a esta sección desde el hub, el buscador arranca limpio. El recuadro
+   queda cargado al cambiar de sección, así que sin esto conserva lo último escrito
+   y hay que borrarlo a mano cada vez. */
+window.addEventListener('message', function(ev){
+  if(!ev.data || ev.data.adg!=='mostrar') return;
+  var s=document.getElementById('search');
+  if(s && s.value){ s.value=''; try{ render(); }catch(e){} }
+});
+
 // ===== Guardar en la planilla (Sheets API v4 + OAuth) =====
 const GOOGLE_CLIENT_ID='992149858690-ieom1l1hc5fie8c283t81kv6ggvlkaj8.apps.googleusercontent.com';
 const SHEET_TAB='ALUMNOS';
