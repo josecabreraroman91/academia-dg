@@ -542,12 +542,20 @@ function abrirMenuEstado(id){
   document.getElementById('meHora').textContent=(HORAS[rec.horaIdx]||'')+(rec.profe?(' · '+rec.profe):'');
   ov.querySelectorAll('.me-opt[data-est]').forEach(b=>{
     b.classList.toggle('actual', b.dataset.est===cur);
-    b.onclick=()=>{ childRef(id).child('asis').set(b.dataset.est); cerrarMenuEstado(); };
+    b.onclick=()=>{
+      childRef(id).child('asis').set(b.dataset.est);
+      anotarOp(b.dataset.est, rec.nombre||'', lugarDe(id, rec),
+               {sede:sedeDeId(id), horaIdx:Number(rec.horaIdx)||0});
+      cerrarMenuEstado();
+    };
   });
   document.getElementById('meMover').onclick=()=>{ cerrarMenuEstado(); abrirMover(id); };
   document.getElementById('meSacar').onclick=()=>{
     if(confirm('¿Sacar a '+(rec.nombre||'este alumno')+' de la lista de hoy?\n(No afecta el calendario, solo lo saca del día en la tablet)')){
-      childRef(id).child('borrado').set(true); cerrarMenuEstado();
+      childRef(id).child('borrado').set(true);
+      anotarOp('sacar', rec.nombre||'', 'lo sacó de la lista · '+lugarDe(id, rec),
+               {sede:sedeDeId(id), horaIdx:Number(rec.horaIdx)||0});
+      cerrarMenuEstado();
     }
   };
   ov.classList.add('show');
@@ -578,8 +586,11 @@ function confirmarMover(){
   const nuevoProfe=document.getElementById('mvProfe').value;
   const nuevaHora=+document.getElementById('mvHora').value;
   const destSede=sedeDeProfe(nuevoProfe) || rec._sede;   // sede real del profe; si no se sabe, queda donde estaba
+  const _recM = cacheDia[_moverId] || {};
   childRef(_moverId).child('borrado').set(true);   // sale de donde estaba (sin tocar el calendario)
   db.ref('dia/'+fecha+'/'+destSede).push({ nombre:rec.nombre, horaIdx:nuevaHora, profe:nuevoProfe, mod:rec.mod||'', confirmado:true, asis:'presente', acople:true, movido:true });
+  anotarOp('mover', rec.nombre||'', lugarDe(_moverId, _recM)+' → '+(HORAS[nuevaHora]||'')+' · '+(SEDE_NOM[destSede]||destSede)+' · '+nuevoProfe,
+           {sede:destSede, horaIdx:Number(nuevaHora)||0});
   cerrarMover();
 }
 document.getElementById('mvCancel').onclick=cerrarMover;
@@ -601,6 +612,26 @@ function ventanaCerrada(){
 window.addEventListener('popstate', function(){
   if(_cerrarVentana){ const f=_cerrarVentana; _cerrarVentana=null; try{ f(); }catch(e){} }
 });
+
+function sedeDeId(id){ const i=String(id).indexOf(SEP); return i<0?'':String(id).slice(0,i); }
+function lugarDe(id, rec){
+  const sk=sedeDeId(id);
+  return (HORAS[rec.horaIdx]||'')+' · '+(SEDE_NOM[sk]||sk)+(rec.profe?(' · '+rec.profe):'');
+}
+
+/* Historial de la vista de profes: quién marcó qué y cuándo.
+   Se guarda en ops_v1, el mismo cuaderno que usan los profes desde Agendar.
+   No bloquea nada: si falla, el cambio se guarda igual. */
+function anotarOp(tipo, alumno, detalle, extra){
+  try{
+    const dato = Object.assign({
+      tipo: tipo, alumno: alumno || '', detalle: detalle || '',
+      porCorreo: window._yoCorreo || '', porNombre: window._yoNombre || window._yoCorreo || '',
+      ts: Date.now()
+    }, extra || {});
+    db.ref('ops_v1/'+fecha).push(dato).catch(e=>console.warn('historial:', e.message));
+  }catch(e){ console.warn('historial:', e.message); }
+}
 
 // ---- Acople ----
 const mAc=document.getElementById('mAcople');
@@ -663,6 +694,8 @@ document.getElementById('acGuardar').onclick=()=>{
   const profe=document.getElementById('acProfe').value;
   const selS=document.getElementById('acSede'); const sk=selS?selS.value:miSede;
   db.ref('dia/'+fecha+'/'+sk).push({ nombre:nom, horaIdx, profe, mod:'', confirmado:true, asis:'presente', acople:true });
+  anotarOp('acople', nom, 'lo agregó en '+(HORAS[horaIdx]||'')+' · '+(SEDE_NOM[sk]||sk)+' · '+profe,
+           {sede:sk, horaIdx:Number(horaIdx)||0});
   mAc.classList.remove('show'); toast('✅ Agregado presente');
 };
 
@@ -690,6 +723,11 @@ function adgOcultarLogin(){
   firebase.auth().onAuthStateChanged(function(u){
     if(u){
       adgOcultarLogin();
+      window._yoCorreo = (u.email||'').toLowerCase();
+      try{
+        firebase.database().ref('usuarios/'+window._yoCorreo.replace(/\./g,',')+'/nombre')
+          .once('value').then(function(s){ window._yoNombre = s.val() || ''; }).catch(function(){});
+      }catch(e){}
       if(!_adgArrancada){ _adgArrancada=true; iniciarApp(); }
     } else {
       adgMostrarLogin('');
