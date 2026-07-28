@@ -229,6 +229,13 @@
     frAge.classList.toggle('show', dest==='age');
     frLib.classList.toggle('show', dest==='lib');
     frHis.classList.toggle('show', dest==='his');
+    /* Aviso a la sección que se está mostrando. Los recuadros quedan cargados al
+       cambiar de sección, así que conservan lo que había escrito; con esto cada app
+       puede limpiar lo suyo al volver. */
+    try{
+      const fr={cal:frCal,prof:frProf,alu:frAlu,pag:frPag,cob:frCob,niv:frNiv,age:frAge,lib:frLib,his:frHis,pan:frPan}[dest];
+      if(fr && fr.contentWindow) setTimeout(()=>{ try{ fr.contentWindow.postMessage({adg:'mostrar'}, '*'); }catch(e){} }, 60);
+    }catch(e){}
     frPan.classList.toggle('show', dest==='pan');
     document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('active', t.dataset.go===dest));
   }
