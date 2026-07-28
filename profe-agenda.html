@@ -281,7 +281,7 @@ function libro(){ return (libroSel==='madre' ? (cal&&cal.madre) : (cal&&cal.sema
 function nodoReservas(){ return libroSel==='madre' ? 'madre' : lunes; }
 var pend=null;   // slot elegido
 
-function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
+function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 function aClave(m){ return String(m).trim().toLowerCase().replace(/\./g, ','); }
 function isoDe(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function lunesDeHoy(){ var d=new Date(); var wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return isoDe(d); }
