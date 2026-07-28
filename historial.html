@@ -284,8 +284,7 @@ firebase.auth().onAuthStateChanged(function(u){
   miCorreo=u.email.toLowerCase();
   firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
     var f=s.val()||{}, p=f.permisos||{};
-    var puede = p.admin===true || p.calendario==='leer' || p.calendario==='escribir'
-             || p.agenda==='leer' || p.agenda==='escribir';
+    var puede = p.admin===true || p.historial==='leer' || p.historial==='escribir';
     if(f.activo!==true || !puede){
       $('login').style.display='none';
       $('nopuedeTxt').textContent=miCorreo;
