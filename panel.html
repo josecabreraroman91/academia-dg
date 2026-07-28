@@ -137,7 +137,7 @@ var fichas = {};   // clave (con comas) -> ficha
 
 function aClave(mail){ return String(mail).trim().toLowerCase().replace(/\./g, ','); }
 function aCorreo(clave){ return String(clave).replace(/,/g, '.'); }
-function esc(t){ var d=document.createElement('div'); d.textContent=t==null?'':t; return d.innerHTML; }
+function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 // ---------- Pintar ----------
 function pintar(){
