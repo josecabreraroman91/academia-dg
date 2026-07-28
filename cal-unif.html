@@ -2396,6 +2396,53 @@ function findCol(headers, opts){
 // Cache de la última lectura para poder recalcular al cambiar columnas
 let _syncRows=null, _syncHeaders=null;
 
+/* ============================================================
+   ÍNDICE DE IDs — nombre del alumno → su número en la planilla
+
+   Cualquier sistema externo va a emparejar por número, no por nombre: los
+   nombres se escriben distinto, se repiten y tienen acentos que a veces están
+   y a veces no. El ID lo asigna solo el script asignarIdsAlumnos.
+
+   Se arma de la copia de alumnos (alumnos_v1) y se refresca cada vez que se
+   lee. Si un alumno no tiene ID todavía, la fila sale igual y sin número: la
+   integración no puede frenar el cierre del día.
+   ============================================================ */
+let _idPorNombre = {};
+let _idsListos = false;
+
+function idDeAlumno(nombre){
+  if(!nombre) return '';
+  const k = typeof keyAlumno==='function' ? keyAlumno(nombre) : normName(nombre);
+  return _idPorNombre[k] || _idPorNombre[normName(nombre)] || '';
+}
+
+async function cargarIdsAlumnos(){
+  if(!_fbdb) return;
+  try{
+    const snap = await _fbdb.ref('alumnos_v1/csv').once('value');
+    const csv = snap.val(); if(!csv) return;
+    const rows = parseCSV(csv); if(rows.length<2) return;
+    let headRow = 0;
+    for(let r=0;r<Math.min(rows.length,12);r++){
+      if(rows[r].map(x=>normName(x)).some(h=>h.indexOf('alumno')>-1)){ headRow=r; break; }
+    }
+    const cab = rows[headRow];
+    const iNom = findCol(cab,['alumnos','alumno','nombre']);
+    let   iId  = findCol(cab,['id_alumno','idalumno','id']);
+    if(iId<0) iId = 11;                       // columna L, la que llena el script
+    if(iNom<0) return;
+    const idx = {};
+    for(let r=headRow+1;r<rows.length;r++){
+      const nom=(rows[r][iNom]||'').trim(); if(!nom) continue;
+      const id =(rows[r][iId] ||'').trim();  if(!id)  continue;
+      if(typeof keyAlumno==='function'){ const k=keyAlumno(nom); if(k && !idx[k]) idx[k]=id; }
+      const n=normName(nom); if(n && !idx[n]) idx[n]=id;
+    }
+    _idPorNombre = idx; _idsListos = true;
+    console.log('IDs de alumnos cargados: '+Object.keys(idx).length);
+  }catch(e){ console.warn('no pude cargar los IDs:', e.message); }
+}
+
 // Trae la hoja ALUMNOS por gviz CSV
 async function syncContactos(){
   const status=document.getElementById('telStatus');
@@ -3172,7 +3219,7 @@ async function enviarAlPuente(action, payload){
   });
 }
 const HIST_TAB='HISTORIAL';
-const HIST_HEADER=['Fecha','Alumno','Hora','Sede','Profe','Tipo','Estado','Cobro','Motivo'];
+const HIST_HEADER=['Fecha','Alumno','Hora','Sede','Profe','Tipo','Estado','Cobro','Motivo','ID Alumno'];
 const MOTIVOS={
   noaviso:{label:'No avisó',      estado:'Ausente (no avisó)',     cobro:'Sí'},
   aviso:  {label:'Avisó',         estado:'Ausente (avisó)',        cobro:'No'},
@@ -3333,7 +3380,7 @@ async function guardarHistorialFinal(){
   const {fecha, filasAuto, ausentes}=_cierrePend;
   const filas=filasAuto.slice();
   ausentes.forEach(a=>{ const m=MOTIVOS[a.motivo]||MOTIVOS.noaviso; const rec=a.rec;
-    filas.push([fecha, rec.nombre, HORAS[rec.horaIdx]||'', a.sede, rec.profe||'', rec.mod||'', m.estado, m.cobro, m.label]); });
+    filas.push([fecha, rec.nombre, HORAS[rec.horaIdx]||'', a.sede, rec.profe||'', rec.mod||'', m.estado, m.cobro, m.label, idDeAlumno(rec.nombre)]); });
   // ── PUENTE: guardar el día SIN login (el puente hace el upsert anti-duplicados) ──
   if(PUENTE_URL){
     try{
@@ -3347,7 +3394,8 @@ async function guardarHistorialFinal(){
   try{
     if(!_gtoken) await pedirToken();
     await asegurarHistorial();
-    let prev={values:[]}; try{ prev=await sheetsGet(HIST_TAB+'!A2:I'); }catch(e){}
+    if(!_idsListos) { try{ await cargarIdsAlumnos(); }catch(e){} }   // el ID tiene que estar antes de escribir
+    let prev={values:[]}; try{ prev=await sheetsGet(HIST_TAB+'!A2:J'); }catch(e){}
     const existentes={};
     (prev.values||[]).forEach((r,i)=>{ const k=[r[0],(r[1]||'').trim(),r[2],r[3]].join('||'); existentes[k]={row:i+2, vals:r}; });
     const nuevas=[], updates=[]; let iguales=0;
@@ -3355,8 +3403,8 @@ async function guardarHistorialFinal(){
       const k=[f[0],(f[1]||'').trim(),f[2],f[3]].join('||');
       const ex=existentes[k];
       if(!ex){ nuevas.push(f); return; }
-      const cambio=[4,5,6,7,8].some(i=>String(ex.vals[i]||'')!==String(f[i]||''));  // profe,tipo,estado,cobro,motivo
-      if(cambio) updates.push({range:HIST_TAB+'!A'+ex.row+':I'+ex.row, values:[f]});
+      const cambio=[4,5,6,7,8,9].some(i=>String(ex.vals[i]||'')!==String(f[i]||''));  // profe,tipo,estado,cobro,motivo,id
+      if(cambio) updates.push({range:HIST_TAB+'!A'+ex.row+':J'+ex.row, values:[f]});
       else iguales++;
     });
     if(updates.length) await sheetsBatchUpdate(updates);
@@ -3449,6 +3497,7 @@ fillAlumnosDatalist();
           _arrancado=true;
           iniciarCalendarioCompartido();   // sincroniza el calendario entre encargados (tiempo real)
           try{ escucharReservasProfes(); }catch(e){ console.warn('reservas:', e.message); }
+          try{ cargarIdsAlumnos(); }catch(e){}
           escucharAlumnosVivo();           // alumnos nuevos disponibles al instante
           setTimeout(function(){ publicarDiaHoy(true); }, 1200);
         }
