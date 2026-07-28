@@ -24,6 +24,11 @@
     padding:14px;margin-bottom:14px}
   .ficha.baja{opacity:.55}
   .fhead{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .fnom-edit{font-family:inherit;font-size:15px;font-weight:700;width:100%;
+    background:transparent;border:1px solid transparent;border-radius:8px;
+    color:inherit;padding:5px 8px;margin:-5px 0 0 -8px}
+  .fnom-edit:hover{border-color:var(--linea)}
+  .fnom-edit:focus{border-color:var(--azul);background:var(--bg);outline:none}
   .fnom{font-weight:600;font-size:16px}
   .fmail{color:var(--sec);font-size:12.5px;word-break:break-all}
   .tag{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--linea);color:var(--sec)}
@@ -166,9 +171,9 @@ function pintar(){
     }).join('');
 
     return '<div class="ficha'+(activo?'':' baja')+'" data-ficha="'+esc(cl)+'">'+
-      '<div class="fhead">'+
-        '<div><div class="fnom">'+esc(f.nombre||'(sin nombre)')+'</div>'+
-        '<div class="fmail">'+esc(aCorreo(cl))+'</div></div>'+
+      '<div class="fhead" style="flex-wrap:wrap">'+
+        '<div style="flex:1;min-width:0"><input class="fnom-edit" data-nom="'+esc(cl)+'" value="'+esc(f.nombre||'')+'" placeholder="Nombre de la persona"></div>'+
+        '<div class="fmail">'+esc(aCorreo(cl))+'</div>'+
         '<div class="spacer"></div>'+
         (admin?'<span class="tag super">Super administrador</span>':'')+
         (activo?'':'<span class="tag baja">Dado de baja</span>')+
@@ -196,6 +201,28 @@ function tocar(cl, cambio){
   pintar();
   guardar(cl).catch(function(e){ alert('No se pudo guardar: '+e.message); cargar(); });
 }
+
+/* El nombre se guarda mientras se escribe. Es el que se ve en el Historial,
+   así que conviene que se pueda corregir sin entrar a Firebase. */
+document.addEventListener('input', function(ev){
+  var inp = ev.target.closest ? ev.target.closest('input[data-nom]') : null;
+  if(!inp) return;
+  var cl = inp.dataset.nom, f = fichas[cl];
+  if(!f) return;
+  clearTimeout(inp._t);
+  inp._t = setTimeout(function(){
+    var v = inp.value.trim();
+    if(!v || v === f.nombre) return;
+    f.nombre = v;
+    guardar(cl).catch(function(e){ alert('No se pudo guardar el nombre: '+e.message); cargar(); });
+  }, 700);
+});
+document.addEventListener('focusout', function(ev){
+  var inp = ev.target.closest ? ev.target.closest('input[data-nom]') : null;
+  if(!inp) return;
+  var f = fichas[inp.dataset.nom];
+  if(f && !inp.value.trim()) inp.value = f.nombre || '';
+});
 
 // ---------- Eventos ----------
 document.addEventListener('click', function(ev){
