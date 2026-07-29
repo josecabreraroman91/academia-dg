@@ -854,6 +854,20 @@ load(); render();
        · De los que ya están, solo completa los campos vacíos. Lo que se escribió
          a mano en este dispositivo manda. */
     cargarIdsPlanilla();
+
+    /* Si llega ?alumno=NOMBRE desde el calendario, se abre su ficha directo.
+       Si no existe todavía, se abre una nueva con el nombre puesto. */
+    try{
+      var pedido=new URLSearchParams(location.search).get('alumno');
+      if(pedido){
+        setTimeout(function(){
+          var k=claveAlumno_(pedido);
+          var ex=alumnos.find(function(a){ return a && a.nombre && claveAlumno_(a.nombre)===k; });
+          if(ex){ openEditor(ex.id); }
+          else { openEditor(null); document.getElementById('fNombre').value=pedido; }
+        }, 900);
+      }
+    }catch(e){}
     firebase.database().ref('alumnos_v2').on('value', function(snap){
       try{
         var v = snap.val() || {};
