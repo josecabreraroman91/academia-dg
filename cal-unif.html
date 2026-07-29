@@ -371,7 +371,18 @@
       <label>Nombre del alumno <span id="fNombreHint" style="color:var(--muted);font-weight:400"></span></label>
       <input id="fNombre" list="alumnosList" placeholder="Escribí para buscar o cargar nuevo…" autocomplete="off">
       <datalist id="alumnosList"></datalist>
-      <button class="btn" id="btnFichaAlumno" style="margin-top:6px;font-size:12px;padding:5px 10px">👤 Abrir su ficha completa</button>
+
+      <div id="altaAlumno" style="display:none;margin-top:8px;border:1px solid #c9a227;border-radius:10px;padding:9px 11px;background:#fffbe9">
+        <div style="font-size:12px;font-weight:800;color:#8a6d1f;margin-bottom:6px">🆕 Este alumno no está en el sistema</div>
+        <div class="field-row" style="margin:0">
+          <div class="field"><label>Teléfono</label>
+            <input id="fTelNuevo" type="tel" inputmode="tel" placeholder="0981 445210" autocomplete="off"></div>
+          <div class="field"><label>Precio de clase</label>
+            <input id="fPrecioNuevo" type="text" inputmode="numeric" placeholder="100000" autocomplete="off"></div>
+        </div>
+        <button class="btn" id="btnCrearAlumno" style="margin-top:8px;width:100%;background:#c9a227;border-color:#c9a227;color:#fff;font-weight:700">➕ Crear el alumno en el sistema</button>
+        <div style="font-size:11.5px;color:var(--muted);margin-top:6px">Esto lo da de alta en Alumnos y en la planilla. Después, <b>Guardar</b> lo pone en esta celda.</div>
+      </div>
     </div>
     <div class="field-row">
       <div class="field">
@@ -1893,7 +1904,12 @@ function autocompletarDesdeNube(){
   if(c.lado)  document.getElementById('fLado').value=c.lado;
   if(c.mod)   document.getElementById('fMod').value=c.mod;
 }
-function closeEditor(){ document.getElementById('overlay').classList.remove('show'); editingCell=null; }
+function closeEditor(){ document.getElementById('overlay').classList.remove('show'); editingCell=null; limpiarAlta(); }
+function limpiarAlta(){
+  const c=document.getElementById('altaAlumno'); if(c) c.style.display='none';
+  const t1=document.getElementById('fTelNuevo'); if(t1) t1.value='';
+  const t2=document.getElementById('fPrecioNuevo'); if(t2) t2.value='';
+}
 
 // ===== MARCA "para revisar" (celeste) — VIVE DENTRO DEL ALUMNO =====
 // Antes la marca se guardaba en un mapa aparte, con la POSICIÓN de la celda como clave.
@@ -2155,8 +2171,7 @@ function buildResumen(){
     });
     out += '\n'; // espacio entre bloques de horario
   });
-  /* Renglón fijo al pie: quien recibe el resumen anota debajo quién faltó. */
-  return out.trim() + '\n\nAUSENTES';
+  return out.trim();
 }
 
 /* ===== Arrastrar alumno (mantener apretado ~medio segundo) a un espacio VACÍO ===== */
@@ -3008,14 +3023,65 @@ function gotoNextPending(openIt){
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 document.querySelectorAll('.mode-btn').forEach(b=> b.onclick=()=> setMode(b.dataset.mode));
-/* Abre la ficha del alumno en otra ventana, con los datos completos: teléfono,
-   categoría, precio, facturación. Así no hay que salir del calendario para
-   terminar de cargar a alguien que se acaba de agendar. */
-document.getElementById('btnFichaAlumno').onclick=()=>{
+/* Dos botones, dos trabajos distintos:
+     · "Crear el alumno" → lo da de alta en el sistema (Alumnos + planilla)
+     · "Guardar"         → lo pone en esta celda del calendario, como siempre
+   Mezclarlos en uno solo confunde: hoy "Guardar" ya significa agendar. */
+function nombreYaEnPadron(nom){
+  const k=keyAlumno(nom), n=normName(nom);
+  const idx=idxFlex();
+  if(idx && (idx[k]||idx[n])) return true;
+  return Object.values(alumnosVivo||{}).some(a=>a&&a.nombre&&normName(a.nombre)===n);
+}
+function revisarAltaAlumno(){
+  const caja=document.getElementById('altaAlumno'); if(!caja) return;
   const nom=(document.getElementById('fNombre').value||'').trim();
-  if(!nom){ alert('Escribí primero el nombre del alumno.'); return; }
-  const u='alumnos-unif.html?alumno='+encodeURIComponent(nom);
-  window.open(u, 'adg_alumno_'+nom.replace(/\W/g,''), 'width=520,height=760');
+  if(nom.length<3 || esBloque(nom)){ caja.style.display='none'; return; }
+  caja.style.display = nombreYaEnPadron(nom) ? 'none' : 'block';
+}
+document.getElementById('fNombre').addEventListener('input', ()=>{
+  clearTimeout(window._altaT); window._altaT=setTimeout(revisarAltaAlumno, 350);
+});
+
+document.getElementById('btnCrearAlumno').onclick=async ()=>{
+  const nom=(document.getElementById('fNombre').value||'').trim();
+  if(nom.length<3){ alert('Escribí el nombre y el apellido.'); return; }
+  if(nombreYaEnPadron(nom)){ alert('Ese alumno ya está en el sistema.'); revisarAltaAlumno(); return; }
+
+  const telRaw=(document.getElementById('fTelNuevo').value||'').trim();
+  const tel=normPhone(telRaw);
+  if(!tel || tel.length<11){ alert('Poné el teléfono. Ej: 0981 445210'); return; }
+  const precio=(document.getElementById('fPrecioNuevo').value||'').replace(/\D/g,'');
+
+  const b=document.getElementById('btnCrearAlumno');
+  b.disabled=true; b.textContent='Creando…';
+  try{
+    /* Va a los dos lados, igual que la app de Alumnos: a Firebase al instante para
+       que el calendario lo vea ya, y a la planilla por el puente, que es su casa. */
+    const clave=String(nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+                 .toLowerCase().replace(/\s+/g,' ').trim().replace(/[.#$/\[\]]/g,'_');
+    if(_fbdb){
+      await _fbdb.ref('alumnos_v2/'+clave).set({
+        nombre:nom, cat:(document.getElementById('fNivel').value||'').trim(), lado:'',
+        profe:'', tipo:(document.getElementById('fMod').value||''),
+        precio:Number(precio)||0, tel:tel, nomHor:'', nomWpp:'', ts:Date.now()
+      });
+    }
+    if(PUENTE_URL){
+      await enviarAlPuente('alumnos', { alumnos:[{
+        nombre:nom, cat:(document.getElementById('fNivel').value||'').trim(), lado:'',
+        tipo:(document.getElementById('fMod').value||''),
+        precio: precio ? (Number(precio).toLocaleString('es-PY')+'Gs.') : '',
+        coment:'Creado desde el calendario', nomHor:'', nomWpp:'', tel:tel
+      }]});
+    }
+    b.disabled=false; b.textContent='➕ Crear el alumno en el sistema';
+    document.getElementById('altaAlumno').style.display='none';
+    alert('✅ '+nom+' quedó creado.\n\nAhora apretá Guardar para ponerlo en esta celda.');
+  }catch(e){
+    b.disabled=false; b.textContent='➕ Crear el alumno en el sistema';
+    alert('No se pudo crear el alumno:\n\n'+e.message);
+  }
 };
 
 document.getElementById('btnSave').onclick=saveEditor;
