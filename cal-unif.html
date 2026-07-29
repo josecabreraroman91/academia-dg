@@ -3209,7 +3209,7 @@ async function sheetsBatchUpdate(data){ const id=state.sheetId||DEFAULT_SHEET_ID
 // ===== ETAPA 3: cerrar el día y guardar el HISTORIAL (una fila por alumno) =====
 const SEDE_NICE={lomas:'LOMAS',elite:'ELITE',segurola:'SEGUROLA',adefinir:'A DEFINIR'};
 // ⬇⬇⬇  PEGÁ ACÁ la MISMA URL del puente (Apps Script /exec). Vacío = usa login de Google.
-const PUENTE_URL='https://script.google.com/macros/s/AKfycby2-rbsnahW9DQfed7G0BGDdKslddRsjiYblPNwcZMecG16_dz0yVx9Q0Q75eiEtRbW/exec';
+const PUENTE_URL='https://script.google.com/macros/s/AKfycbx0sFIbIVKDslYQb1Dkk9Wo5AhykUFplMDIsuj1DWB4Xy7FSU1Ebn04ZcahHYqCB4cR/exec';
 async function enviarAlPuente(action, payload){
   /* El puente verifica la sesión de Firebase antes de escribir, así que
      cada pedido viaja firmado con el token de quien está logueado. */
