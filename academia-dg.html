@@ -98,6 +98,7 @@
     <button class="navtab" data-go="niv">📝 Evaluación</button>
     <button class="navtab" data-go="age">➕ Agendar</button>
     <button class="navtab" data-go="lib">📓 Libreta</button>
+    <button class="navtab" data-go="ahi">🧾 Hist. alumno</button>
     <button class="navtab" data-go="his">🕘 Historial</button>
     <button class="navtab" data-go="pan">🔑 Accesos</button>
   </div>
@@ -154,6 +155,12 @@
       <div class="arrow">›</div>
     </div>
 
+    <div class="mcard" data-go="ahi">
+      <div class="ico">🧾</div>
+      <div class="info"><div class="t">Historial del alumno</div><div class="d">Todas sus clases, y corregir si se cobra o no</div></div>
+      <div class="arrow">›</div>
+    </div>
+
     <div class="mcard" data-go="his">
       <div class="ico">🕘</div>
       <div class="info"><div class="t">Historial</div><div class="d">Quién hizo cada cambio: asistencias, movimientos, alumnos agendados</div></div>
@@ -179,6 +186,7 @@
   <iframe id="frNiv" data-src="nivelacion.html" title="Evaluación de alumnos" referrerpolicy="no-referrer"></iframe>
   <iframe id="frAge" data-src="profe-agenda.html" title="Agendar alumnos" referrerpolicy="no-referrer"></iframe>
   <iframe id="frLib" data-src="libreta.html" title="Libreta" referrerpolicy="no-referrer"></iframe>
+  <iframe id="frAhi" data-src="alumno-historial.html" title="Historial del alumno" referrerpolicy="no-referrer"></iframe>
   <iframe id="frHis" data-src="historial.html" title="Historial" referrerpolicy="no-referrer"></iframe>
   <iframe id="frPan" data-src="panel.html" title="Accesos" referrerpolicy="no-referrer"></iframe>
 </div>
@@ -218,6 +226,7 @@
     if(dest==='niv' && !loaded.niv){ frNiv.src=frNiv.dataset.src+'?v='+Date.now(); loaded.niv=true; }
     if(dest==='age' && !loaded.age){ frAge.src=frAge.dataset.src+'?v='+Date.now(); loaded.age=true; }
     if(dest==='lib' && !loaded.lib){ frLib.src=frLib.dataset.src+'?v='+Date.now(); loaded.lib=true; }
+    if(dest==='ahi' && !loaded.ahi){ frAhi.src=frAhi.dataset.src+'?v='+Date.now(); loaded.ahi=true; }
     if(dest==='his' && !loaded.his){ frHis.src=frHis.dataset.src+'?v='+Date.now(); loaded.his=true; }
     if(dest==='pan' && !loaded.pan){ frPan.src=frPan.dataset.src+'?v='+Date.now(); loaded.pan=true; }
     frCal.classList.toggle('show', dest==='cal');
@@ -228,12 +237,13 @@
     frNiv.classList.toggle('show', dest==='niv');
     frAge.classList.toggle('show', dest==='age');
     frLib.classList.toggle('show', dest==='lib');
+    frAhi.classList.toggle('show', dest==='ahi');
     frHis.classList.toggle('show', dest==='his');
     /* Aviso a la sección que se está mostrando. Los recuadros quedan cargados al
        cambiar de sección, así que conservan lo que había escrito; con esto cada app
        puede limpiar lo suyo al volver. */
     try{
-      const fr={cal:frCal,prof:frProf,alu:frAlu,pag:frPag,cob:frCob,niv:frNiv,age:frAge,lib:frLib,his:frHis,pan:frPan}[dest];
+      const fr={cal:frCal,prof:frProf,alu:frAlu,pag:frPag,cob:frCob,niv:frNiv,age:frAge,lib:frLib,ahi:frAhi,his:frHis,pan:frPan}[dest];
       if(fr && fr.contentWindow) setTimeout(()=>{ try{ fr.contentWindow.postMessage({adg:'mostrar'}, '*'); }catch(e){} }, 60);
     }catch(e){}
     frPan.classList.toggle('show', dest==='pan');
@@ -259,7 +269,7 @@
   };
   // Qu\u00e9 permiso necesita cada secci\u00f3n
   var REQUIERE = { cal:'calendario', prof:'profes', alu:'alumnos', pag:'__oculto__', cob:'__oculto__',
-                   niv:'nivelacion', age:'agenda', lib:'agente', his:'historial', pan:'__admin__' };
+                   niv:'nivelacion', age:'agenda', lib:'agente', ahi:'__admin__', his:'historial', pan:'__admin__' };
 
   function $(id){ return document.getElementById(id); }
   function show(m, salir){
