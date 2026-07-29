@@ -407,7 +407,8 @@ function openEditor(id){
   document.getElementById('fNomWpp').value = a?(a.nomWpp||''):'';
   var _idEl=document.getElementById('fIdInfo');
   if(_idEl){
-    var _id = a ? (idPlanillaDe(a.nombre)||'') : '';
+    var _id = '';
+    try{ _id = a ? (idPlanillaDe(a.nombre)||'') : ''; }catch(e){}
     _idEl.innerHTML = _id
       ? 'ID en el sistema: <b>'+esc(_id)+'</b> — es el número con el que lo va a identificar cualquier sistema externo.'
       : (a ? 'Todavía sin ID. Se le asigna solo dentro de los 15 minutos.' : '');
@@ -656,6 +657,42 @@ async function sheetsAppend(values){
    van a leer de ahí, así un alumno nuevo está disponible al segundo
    en vez de esperar los 15 minutos de la copia.
    ============================================================ */
+/* El ID lo asigna solo el script en la planilla. Acá se lee para mostrarlo:
+   sirve para cruzar datos con cualquier sistema externo.
+
+   La fila 1 de ALUMNOS tiene el título y los encabezados están en la fila 2,
+   y hay columnas ocultas: nada se busca por posición. */
+var _idsPlanilla={};
+function idPlanillaDe(nombre){
+  if(!nombre) return '';
+  try{ return _idsPlanilla[claveAlumno_(nombre)] || ''; }catch(e){ return ''; }
+}
+function cargarIdsPlanilla(){
+  try{
+    firebase.database().ref('alumnos_v1/csv').once('value').then(function(s){
+      var csv=s.val(); if(!csv) return;
+      var rows=parseCSV(csv); if(rows.length<2) return;
+      var headRow=-1, iNom=-1, iId=-1;
+      for(var r=0;r<Math.min(rows.length,12);r++){
+        var h=rows[r].map(function(x){ return String(x||'').toLowerCase().trim(); });
+        var n=-1, d=-1;
+        h.forEach(function(x,i){
+          if(n<0 && (x==='alumnos'||x==='alumno'||x.indexOf('nombre')>-1)) n=i;
+          if(d<0 && (x==='id'||x==='id alumno'||x.indexOf('id_alumno')>-1)) d=i;
+        });
+        if(n>=0 && d>=0){ headRow=r; iNom=n; iId=d; break; }
+      }
+      if(headRow<0) return;
+      var m={};
+      for(var i=headRow+1;i<rows.length;i++){
+        var nom=(rows[i][iNom]||'').trim(), id=(rows[i][iId]||'').trim();
+        if(nom && id) m[claveAlumno_(nom)]=id;
+      }
+      _idsPlanilla=m;
+    }).catch(function(){});
+  }catch(e){}
+}
+
 function claveAlumno_(nombre){
   return String(nombre==null?'':nombre)
     .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
