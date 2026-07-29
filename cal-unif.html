@@ -2434,24 +2434,34 @@ async function cargarIdsAlumnos(){
     const snap = await _fbdb.ref('alumnos_v1/csv').once('value');
     const csv = snap.val(); if(!csv) return;
     const rows = parseCSV(csv); if(rows.length<2) return;
-    let headRow = 0;
-    for(let r=0;r<Math.min(rows.length,12);r++){
-      if(rows[r].map(x=>normName(x)).some(h=>h.indexOf('alumno')>-1)){ headRow=r; break; }
+
+    /* La planilla tiene la fila 1 con un título ("INFORMACION") y los encabezados
+       reales en la fila 2. Además hay columnas ocultas, así que las posiciones no
+       son fijas: se busca la fila que tenga a la vez "alumnos" e "id". */
+    let headRow=-1, iNom=-1, iId=-1;
+    for(let r=0; r<Math.min(rows.length,12); r++){
+      const h = rows[r].map(x=>normName(x));
+      const n = h.findIndex(x=>x==='alumnos'||x==='alumno'||x==='nombre');
+      const d = h.findIndex(x=>x==='id'||x==='id alumno'||x==='id_alumno'||x==='idalumno');
+      if(n>=0 && d>=0){ headRow=r; iNom=n; iId=d; break; }
     }
-    const cab = rows[headRow];
-    const iNom = findCol(cab,['alumnos','alumno','nombre']);
-    let   iId  = findCol(cab,['id_alumno','idalumno','id']);
-    if(iId<0) iId = 11;                       // columna L, la que llena el script
-    if(iNom<0) return;
+    if(headRow<0){                                  // sin encabezado de ID: no hay nada que traer
+      console.warn('no encontré la columna ID en la planilla');
+      return;
+    }
+
     const idx = {};
-    for(let r=headRow+1;r<rows.length;r++){
+    for(let r=headRow+1; r<rows.length; r++){
       const nom=(rows[r][iNom]||'').trim(); if(!nom) continue;
       const id =(rows[r][iId] ||'').trim();  if(!id)  continue;
+      /* Se guarda con las dos claves: la limpia (que saca la sede y los emojis del
+         nombre de la grilla) y la simple. Es el mismo problema que teníamos con los
+         teléfonos: en la grilla dice "Pedro Gomez LOMAS" y acá dice "Pedro Gomez". */
       if(typeof keyAlumno==='function'){ const k=keyAlumno(nom); if(k && !idx[k]) idx[k]=id; }
       const n=normName(nom); if(n && !idx[n]) idx[n]=id;
     }
     _idPorNombre = idx; _idsListos = true;
-    console.log('IDs de alumnos cargados: '+Object.keys(idx).length);
+    console.log('IDs de alumnos cargados: '+Object.keys(idx).length+' (columna '+(iId+1)+', fila de encabezados '+(headRow+1)+')');
   }catch(e){ console.warn('no pude cargar los IDs:', e.message); }
 }
 
