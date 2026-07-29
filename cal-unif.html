@@ -3389,6 +3389,9 @@ function abrirClasificarAusentes(){
 function cerrarClasificarAusentes(){ document.getElementById('ovAusentes').classList.remove('show'); }
 async function guardarHistorialFinal(){
   if(!_cierrePend) return;
+  /* El ID tiene que estar cargado ANTES de armar las filas, en los dos caminos.
+     Si no se pudo leer, las filas salen sin ID: nunca frena el cierre del día. */
+  if(!_idsListos){ try{ await cargarIdsAlumnos(); }catch(e){} }
   const {fecha, filasAuto, ausentes}=_cierrePend;
   const filas=filasAuto.slice();
   ausentes.forEach(a=>{ const m=MOTIVOS[a.motivo]||MOTIVOS.noaviso; const rec=a.rec;
@@ -3398,7 +3401,13 @@ async function guardarHistorialFinal(){
     try{
       await enviarAlPuente('historial', {filas});
       limpiarDiasViejos(); cerrarClasificarAusentes(); _cierrePend=null;
-      alert('✅ Día '+fecha+' guardado ('+filas.length+' registros).');
+      const sinId=filas.filter(f=>!f[9]).length;
+      /* El puente se llama con un formulario en un recuadro invisible y NADIE lee
+         la respuesta: si falla, falla en silencio. Por eso el cartel no puede decir
+         "guardado" — solo puede decir que se mandó. */
+      alert('📤 Día '+fecha+': se enviaron '+filas.length+' registros a la planilla.'+
+            (sinId?('\n\n⚠️ '+sinId+' sin ID de alumno.'):'')+
+            '\n\nVerificá en la hoja HISTORIAL que hayan llegado.');
     }catch(e){ alert('No pude guardar el día:\n\n'+e.message); }
     return;
   }
