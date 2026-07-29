@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Historial del alumno · Academia DG</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --linea:#30363d; --txt:#e6edf3;
+    --sec:#8b949e; --azul:#2f81f7; --verde:#3fb950; --rojo:#f85149; --ambar:#d29922;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5}
+  .wrap{max-width:820px;margin:0 auto;padding:16px 14px 70px}
+
+  header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  h1{font-size:21px;margin:0}
+  .sub{color:var(--sec);font-size:13px}
+  .yo{color:var(--sec);font-size:12px;margin:6px 0 16px}
+  .yo a{color:var(--azul);text-decoration:none;margin-left:10px}
+
+  .buscador{position:relative;margin-bottom:16px}
+  .buscador input{width:100%;background:var(--panel);border:1px solid var(--linea);
+    border-radius:11px;color:var(--txt);padding:13px 14px;font-family:inherit;font-size:16px}
+  #sug{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:20;background:var(--panel);
+    border:1px solid var(--linea);border-radius:11px;overflow:hidden;max-height:280px;overflow-y:auto}
+  #sug .s{padding:11px 14px;cursor:pointer;font-size:14px;border-bottom:1px solid var(--linea)}
+  #sug .s:last-child{border-bottom:0}
+  #sug .s:hover,#sug .s:active{background:#12283f}
+  #sug .s small{display:block;font-size:11.5px;color:var(--sec)}
+
+  .ficha{background:var(--panel);border:1px solid var(--linea);border-radius:12px;
+    padding:13px 15px;margin-bottom:14px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+  .ficha .nom{font-size:17px;font-weight:600}
+  .ficha .dato{font-size:12.5px;color:var(--sec)}
+  .ficha .dato b{color:var(--txt);font-weight:600}
+
+  .totales{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:16px}
+  .tot{background:var(--panel);border:1px solid var(--linea);border-radius:11px;padding:8px 13px;font-size:12.5px}
+  .tot b{display:block;font-size:18px;font-weight:600;line-height:1.3}
+  .tot.cobra b{color:var(--verde)}
+  .tot.nocobra b{color:var(--sec)}
+  .tot.revisar b{color:var(--ambar)}
+
+  .clase{background:var(--panel);border:1px solid var(--linea);border-radius:11px;
+    padding:10px 13px;margin-bottom:7px;display:flex;gap:12px;align-items:center}
+  .clase.sinconf{border-color:#6b4a12}
+  .clase .info{flex:1;min-width:0}
+  .clase .l1{font-size:14px;font-weight:500}
+  .clase .l2{font-size:12.5px;color:var(--sec)}
+  .cobro{font-size:11.5px;padding:3px 10px;border-radius:20px;white-space:nowrap;font-weight:600}
+  .cobro.si{background:#12331f;color:var(--verde)}
+  .cobro.no{background:#20242b;color:var(--sec)}
+  button.b{font-family:inherit;font-size:12.5px;padding:6px 12px;border-radius:9px;
+    border:1px solid var(--linea);background:transparent;color:var(--txt);cursor:pointer;white-space:nowrap}
+  button.b:hover{border-color:var(--sec)}
+  button.b.pri{background:var(--azul);border-color:var(--azul);color:#fff;font-weight:600}
+  button.b.gr{font-size:14px;padding:11px 18px}
+
+  .mes{font-size:12px;font-weight:700;color:var(--sec);letter-spacing:.4px;
+    margin:18px 0 7px;text-transform:uppercase}
+  .vacio{color:var(--sec);text-align:center;padding:40px 10px;font-size:14px}
+  #cargando{color:var(--sec);text-align:center;padding:36px 0}
+
+  #ov{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:none;
+    align-items:center;justify-content:center;padding:16px}
+  #ov.show{display:flex}
+  .caja{background:var(--panel);border:1px solid var(--linea);border-radius:14px;
+    padding:18px 16px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto}
+  .caja h3{margin:0 0 3px;font-size:17px}
+  .caja .donde{color:var(--sec);font-size:13px;margin-bottom:15px}
+  .ops{display:flex;flex-direction:column;gap:7px}
+  .ops button{font-family:inherit;font-size:14px;padding:12px 14px;border-radius:10px;
+    border:1px solid var(--linea);background:transparent;color:var(--txt);cursor:pointer;text-align:left}
+  .ops button.on{border-color:var(--azul);background:#12283f;color:#cfe4ff;font-weight:600}
+  .ops button small{display:block;font-size:11.5px;color:var(--sec);font-weight:400}
+  .campo{margin-top:13px}
+  .campo label{display:block;font-size:12.5px;color:var(--sec);margin-bottom:5px}
+  .campo input{width:100%;background:var(--bg);border:1px solid var(--linea);border-radius:9px;
+    color:var(--txt);padding:11px;font-family:inherit;font-size:15px}
+  .err{color:var(--rojo);font-size:13px;margin-top:9px;min-height:17px}
+  .acc{display:flex;gap:8px;margin-top:14px}
+
+  #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:80;
+    background:#1d5a34;color:#d6ffe4;padding:11px 18px;border-radius:12px;font-size:14px;display:none}
+
+  #login,#nopuede{position:fixed;inset:0;z-index:99;background:var(--bg);display:none;
+    align-items:center;justify-content:center;flex-direction:column;padding:26px;text-align:center}
+  #login h2,#nopuede h2{margin:0 0 8px;font-size:20px}
+  #login p,#nopuede p{color:var(--sec);max-width:340px;margin:0 0 22px}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h2>Historial del alumno</h2>
+  <p>Todas sus clases, y corregir si se cobra o no.</p>
+  <button class="b pri gr" id="btnEntrar">Entrar con Google</button>
+  <div class="err" id="errLogin"></div>
+</div>
+
+<div id="nopuede">
+  <h2>No tenés acceso</h2>
+  <p id="nopuedeTxt"></p>
+  <button class="b gr" id="btnSalir2">Salir</button>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <header><h1>Historial del alumno</h1><span class="sub">Y corregir si se cobra</span></header>
+  <div class="yo">Conectado como <b id="yoMail"></b><a href="#" id="btnSalir">Salir</a></div>
+
+  <div class="buscador">
+    <input id="q" type="text" autocomplete="off" placeholder="Buscá un alumno por su nombre…">
+    <div id="sug" style="display:none"></div>
+  </div>
+
+  <div id="cargando" style="display:none">Cargando…</div>
+  <div id="detalle"></div>
+</div>
+
+<div id="ov">
+  <div class="caja">
+    <h3 id="cNom">Alumno</h3>
+    <div class="donde" id="cDonde"></div>
+    <div class="ops" id="cOps">
+      <button data-e="Presente|Sí">Vino<small>se cobra</small></button>
+      <button data-e="Ausente (no avisó)|Sí">Faltó sin avisar<small>había confirmado · se cobra</small></button>
+      <button data-e="Ausente (avisó)|No">Faltó y avisó<small>no se cobra</small></button>
+      <button data-e="Ausente (fuerza mayor)|No">Fuerza mayor<small>no se cobra</small></button>
+      <button data-e="Sin confirmar|No">Sin confirmar<small>el profe no lo marcó · no se cobra</small></button>
+    </div>
+    <div class="campo">
+      <label>Por qué lo cambiás</label>
+      <input id="cMotivo" type="text" autocomplete="off" placeholder="Ej: avisó por WhatsApp, estaba enfermo">
+    </div>
+    <div class="err" id="cErr"></div>
+    <div class="acc">
+      <button class="b" id="cCancel">Cancelar</button>
+      <button class="b pri" id="cGuardar" style="flex:1">Guardar el cambio</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain: "academia-dg.firebaseapp.com",
+  databaseURL: "https://academia-dg-default-rtdb.firebaseio.com",
+  projectId: "academia-dg",
+  storageBucket: "academia-dg.firebasestorage.app",
+  messagingSenderId: "623967243039",
+  appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
+});
+
+const PUENTE_URL='https://script.google.com/macros/s/AKfycbx0sFIbIVKDslYQb1Dkk9Wo5AhykUFplMDIsuj1DWB4Xy7FSU1Ebn04ZcahHYqCB4cR/exec';
+
+var MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+var DIAS=['dom','lun','mar','mié','jue','vie','sáb'];
+
+var $ = function(id){ return document.getElementById(id); };
+var miCorreo=null, historial=[], alumnos=[], elegido=null, editando=null, opElegida=null;
+
+function esc(t){ return String(t==null?'':t)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function aClave(m){ return String(m).trim().toLowerCase().replace(/\./g, ','); }
+function normNom(s){
+  return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/\s+/g,' ').trim();
+}
+function toast(t){ var e=$('toast'); e.textContent=t; e.style.display='block';
+  clearTimeout(e._t); e._t=setTimeout(function(){ e.style.display='none'; }, 3200); }
+
+function fechaLarga(iso){
+  var d=new Date(iso+'T00:00:00');
+  return DIAS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
+}
+function mesDe(iso){
+  var d=new Date(iso+'T00:00:00');
+  return MESES[d.getMonth()]+' '+d.getFullYear();
+}
+
+/* ---------- Datos ---------- */
+function parseCSV(txt){
+  var rows=[], row=[], cur='', q=false;
+  for(var i=0;i<txt.length;i++){ var c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"') q=true;
+      else if(c===','){ row.push(cur); cur=''; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(c!=='\r') cur+=c; }
+  }
+  if(cur.length||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+
+/* El historial vive en la planilla; historial_v1 es la copia que refresca un
+   script cada 30 minutos. Por eso un cambio tarda un rato en verse acá. */
+function cargarHistorial(){
+  return firebase.database().ref('historial_v1/csv').once('value').then(function(s){
+    var csv=s.val(); if(!csv) return;
+    var rows=parseCSV(csv); if(rows.length<2) return;
+    historial=[];
+    for(var i=1;i<rows.length;i++){
+      var r=rows[i];
+      var fecha=(r[0]||'').trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
+      var nom=(r[1]||'').trim(); if(!nom) continue;
+      historial.push({
+        fecha:fecha, alumno:nom, hora:(r[2]||'').trim(), sede:(r[3]||'').trim(),
+        profe:(r[4]||'').trim(), tipo:(r[5]||'').trim(),
+        estado:(r[6]||'').trim(), cobro:(r[7]||'').trim(),
+        motivo:(r[8]||'').trim(), id:(r[9]||'').trim()
+      });
+    }
+    historial.sort(function(a,b){ return a.fecha<b.fecha?1:(a.fecha>b.fecha?-1:0); });
+  }).catch(function(e){ console.warn('historial_v1:', e.message); });
+}
+
+function cargarAlumnos(){
+  return firebase.database().ref('alumnos_v1/csv').once('value').then(function(s){
+    var csv=s.val(); if(!csv) return;
+    var rows=parseCSV(csv); if(rows.length<2) return;
+    var headRow=-1, iNom=-1, iId=-1, iTel=-1, iCat=-1;
+    for(var r=0;r<Math.min(rows.length,12);r++){
+      var h=rows[r].map(normNom);
+      var n=h.findIndex(function(x){ return x==='alumnos'||x==='alumno'||x==='nombre'; });
+      var d=h.findIndex(function(x){ return x==='id'||x==='id alumno'; });
+      if(n>=0&&d>=0){
+        headRow=r; iNom=n; iId=d;
+        iTel=h.findIndex(function(x){ return x==='telefono'; });
+        iCat=h.findIndex(function(x){ return x==='categoria'; });
+        break;
+      }
+    }
+    if(headRow<0) return;
+    alumnos=[];
+    for(var i=headRow+1;i<rows.length;i++){
+      var nom=(rows[i][iNom]||'').trim(); if(!nom) continue;
+      alumnos.push({nombre:nom, id:(rows[i][iId]||'').trim(),
+        tel:iTel>=0?(rows[i][iTel]||'').trim():'', cat:iCat>=0?(rows[i][iCat]||'').trim():''});
+    }
+    alumnos.sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
+  }).catch(function(e){ console.warn('alumnos_v1:', e.message); });
+}
+
+/* ---------- Buscador ---------- */
+$('q').oninput=function(){
+  var t=normNom($('q').value), box=$('sug');
+  if(t.length<2){ box.style.display='none'; return; }
+  var pre=[], med=[];
+  for(var i=0;i<alumnos.length;i++){
+    var n=normNom(alumnos[i].nombre);
+    if(n.indexOf(t)===0) pre.push(alumnos[i]);
+    else if(n.indexOf(t)>0) med.push(alumnos[i]);
+    if(pre.length>=10) break;
+  }
+  var res=pre.concat(med).slice(0,10);
+  if(!res.length){ box.style.display='none'; return; }
+  box.innerHTML=res.map(function(a,i){
+    var d=[]; if(a.id) d.push(a.id); if(a.cat) d.push('cat. '+a.cat);
+    return '<div class="s" data-i="'+i+'">'+esc(a.nombre)+
+           (d.length?'<small>'+esc(d.join(' · '))+'</small>':'')+'</div>';
+  }).join('');
+  box.style.display='block';
+  box.querySelectorAll('.s').forEach(function(d){
+    d.onclick=function(){ abrirAlumno(res[+d.dataset.i]); };
+  });
+};
+document.addEventListener('click', function(ev){
+  if(!ev.target.closest || !ev.target.closest('.buscador')) $('sug').style.display='none';
+});
+
+/* ---------- Detalle ---------- */
+function abrirAlumno(a){
+  elegido=a;
+  $('q').value=a.nombre;
+  $('sug').style.display='none';
+  pintarDetalle();
+}
+
+function clasesDe(a){
+  var k=normNom(a.nombre);
+  return historial.filter(function(h){
+    if(a.id && h.id) return h.id===a.id;
+    return normNom(h.alumno)===k;
+  });
+}
+
+function pintarDetalle(){
+  if(!elegido){ $('detalle').innerHTML=''; return; }
+  var cs=clasesDe(elegido);
+  var cobra=cs.filter(function(c){ return c.cobro==='Sí'; }).length;
+  var sinConf=cs.filter(function(c){ return /sin confirmar/i.test(c.estado); }).length;
+
+  var html='<div class="ficha">'+
+    '<div><div class="nom">'+esc(elegido.nombre)+'</div>'+
+    '<div class="dato">'+(elegido.id?'ID <b>'+esc(elegido.id)+'</b>':'sin ID')+
+    (elegido.cat?' · categoría <b>'+esc(elegido.cat)+'</b>':'')+
+    (elegido.tel?' · '+esc(elegido.tel):'')+'</div></div></div>';
+
+  html+='<div class="totales">'+
+    '<div class="tot"><b>'+cs.length+'</b>clases</div>'+
+    '<div class="tot cobra"><b>'+cobra+'</b>se cobran</div>'+
+    '<div class="tot nocobra"><b>'+(cs.length-cobra)+'</b>no se cobran</div>'+
+    (sinConf?'<div class="tot revisar"><b>'+sinConf+'</b>sin confirmar</div>':'')+
+    '</div>';
+
+  if(!cs.length){
+    html+='<div class="vacio">No hay clases registradas para este alumno.<br>'+
+          '<span style="font-size:12.5px">La copia del historial se refresca cada 30 minutos.</span></div>';
+    $('detalle').innerHTML=html; return;
+  }
+
+  var mesAct='';
+  cs.forEach(function(c,i){
+    var m=mesDe(c.fecha);
+    if(m!==mesAct){ html+='<div class="mes">'+esc(m)+'</div>'; mesAct=m; }
+    var si=c.cobro==='Sí';
+    html+='<div class="clase'+(/sin confirmar/i.test(c.estado)?' sinconf':'')+'">'+
+      '<div class="info">'+
+        '<div class="l1">'+esc(fechaLarga(c.fecha))+' · '+esc(c.hora)+' · '+esc(c.sede)+'</div>'+
+        '<div class="l2">'+esc(c.estado)+(c.profe?' · '+esc(c.profe):'')+(c.tipo?' · '+esc(c.tipo):'')+
+          (c.motivo?' · '+esc(c.motivo):'')+'</div>'+
+      '</div>'+
+      '<span class="cobro '+(si?'si':'no')+'">'+(si?'se cobra':'no se cobra')+'</span>'+
+      '<button class="b" data-c="'+i+'">Cambiar</button>'+
+    '</div>';
+  });
+
+  $('detalle').innerHTML=html;
+  $('detalle').querySelectorAll('button[data-c]').forEach(function(b){
+    b.onclick=function(){ abrirCambio(cs[+b.dataset.c]); };
+  });
+}
+
+/* ---------- Cambiar el cobro ---------- */
+function abrirCambio(c){
+  editando=c; opElegida=null;
+  $('cNom').textContent=c.alumno;
+  $('cDonde').textContent=fechaLarga(c.fecha)+' · '+c.hora+' · '+c.sede+
+    (c.profe?' · '+c.profe:'')+' — hoy: '+c.estado;
+  $('cMotivo').value=''; $('cErr').textContent='';
+  $('cOps').querySelectorAll('button').forEach(function(b){
+    b.classList.toggle('on', b.dataset.e.split('|')[0]===c.estado);
+    if(b.classList.contains('on')) opElegida=b.dataset.e;
+  });
+  $('ov').classList.add('show');
+}
+function cerrarCambio(){ $('ov').classList.remove('show'); editando=null; }
+$('cCancel').onclick=cerrarCambio;
+$('ov').onclick=function(e){ if(e.target===$('ov')) cerrarCambio(); };
+$('cOps').onclick=function(ev){
+  var b=ev.target.closest('button[data-e]'); if(!b) return;
+  opElegida=b.dataset.e;
+  $('cOps').querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x===b); });
+};
+
+$('cGuardar').onclick=function(){
+  if(!editando || !opElegida){ $('cErr').textContent='Elegí qué pasó.'; return; }
+  var motivo=$('cMotivo').value.trim();
+  if(motivo.length<3){ $('cErr').textContent='Escribí por qué lo cambiás. Dentro de tres meses lo vas a agradecer.'; return; }
+  var p=opElegida.split('|');
+  var b=$('cGuardar'); b.disabled=true; b.textContent='Guardando…';
+
+  firebase.auth().currentUser.getIdToken().then(function(tk){
+    return enviarAlPuente('corregir', {cambios:[{
+      fecha:editando.fecha, alumno:editando.alumno, hora:editando.hora, sede:editando.sede,
+      estado:p[0], cobro:p[1], motivo:motivo
+    }]}, tk);
+  }).then(function(){
+    /* La planilla ya se corrigió, pero la copia que leemos se refresca cada 30
+       minutos. Se actualiza en pantalla para no dejar al usuario esperando. */
+    editando.estado=p[0]; editando.cobro=p[1];
+    editando.motivo=motivo+' · '+miCorreo;
+    anotarEnHistorial(editando, p[0], p[1], motivo);
+    cerrarCambio(); pintarDetalle();
+    b.disabled=false; b.textContent='Guardar el cambio';
+    toast('✅ Cambio guardado en la planilla');
+  }).catch(function(e){
+    b.disabled=false; b.textContent='Guardar el cambio';
+    $('cErr').textContent='No se pudo guardar: '+e.message;
+  });
+};
+
+/* El puente se llama con un formulario en un recuadro invisible: no se puede leer
+   la respuesta. Por eso conviene verificar en la planilla si algo no cuadra. */
+function enviarAlPuente(action, payload, idToken){
+  return new Promise(function(res){
+    var name='puente_'+Date.now();
+    var ifr=document.createElement('iframe'); ifr.name=name; ifr.style.display='none';
+    document.body.appendChild(ifr);
+    var f=document.createElement('form');
+    f.method='POST'; f.action=PUENTE_URL; f.target=name; f.style.display='none';
+    var i=document.createElement('input');
+    i.name='data'; i.value=JSON.stringify(Object.assign({action:action, idToken:idToken}, payload));
+    f.appendChild(i); document.body.appendChild(f); f.submit();
+    setTimeout(function(){
+      try{ f.remove(); ifr.remove(); }catch(e){}
+      res();
+    }, 2500);
+  });
+}
+
+/* Todo cambio de cobro queda en el historial general: dentro de tres meses vas a
+   querer saber por qué ese cobro no está. */
+function anotarEnHistorial(c, estado, cobro, motivo){
+  try{
+    var hoy=new Date();
+    var dia=hoy.getFullYear()+'-'+String(hoy.getMonth()+1).padStart(2,'0')+'-'+String(hoy.getDate()).padStart(2,'0');
+    firebase.database().ref('ops_v1/'+dia).push({
+      tipo:'cobro', alumno:c.alumno,
+      detalle:'clase del '+c.fecha+' '+c.hora+' '+c.sede+' → '+estado+
+              ' · '+(cobro==='Sí'?'se cobra':'no se cobra')+' · '+motivo,
+      porCorreo:miCorreo, porNombre:window._yoNombre||miCorreo, ts:Date.now()
+    }).catch(function(){});
+  }catch(e){}
+}
+
+/* ---------- Entrada ---------- */
+$('btnEntrar').onclick=function(){
+  firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(function(e){ $('errLogin').textContent=e.message; });
+};
+$('btnSalir').onclick=function(e){ e.preventDefault(); firebase.auth().signOut(); };
+$('btnSalir2').onclick=function(){ firebase.auth().signOut(); };
+
+/* Nada que lea Firebase corre antes del login. */
+firebase.auth().onAuthStateChanged(function(u){
+  if(!u){ $('login').style.display='flex'; $('nopuede').style.display='none'; $('app').style.display='none'; return; }
+  miCorreo=u.email.toLowerCase();
+  firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
+    var f=s.val()||{}, p=f.permisos||{};
+    /* Esto toca plata: solo administradores. */
+    if(f.activo!==true || p.admin!==true){
+      $('login').style.display='none';
+      $('nopuedeTxt').textContent=miCorreo+'\n\nEsta sección es solo para administradores.';
+      $('nopuede').style.display='flex';
+      return;
+    }
+    window._yoNombre=f.nombre||'';
+    $('login').style.display='none'; $('nopuede').style.display='none';
+    $('app').style.display='block';
+    $('yoMail').textContent=miCorreo;
+    $('cargando').style.display='block';
+    Promise.all([cargarAlumnos(), cargarHistorial()]).then(function(){
+      $('cargando').style.display='none';
+      $('q').focus();
+    });
+  }).catch(function(e){
+    $('login').style.display='none';
+    $('nopuedeTxt').textContent='No se pudo verificar tu acceso. '+e.message;
+    $('nopuede').style.display='flex';
+  });
+});
+</script>
+</body>
+</html>
