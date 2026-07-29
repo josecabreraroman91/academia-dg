@@ -371,6 +371,7 @@
       <label>Nombre del alumno <span id="fNombreHint" style="color:var(--muted);font-weight:400"></span></label>
       <input id="fNombre" list="alumnosList" placeholder="Escribí para buscar o cargar nuevo…" autocomplete="off">
       <datalist id="alumnosList"></datalist>
+      <button class="btn" id="btnFichaAlumno" style="margin-top:6px;font-size:12px;padding:5px 10px">👤 Abrir su ficha completa</button>
     </div>
     <div class="field-row">
       <div class="field">
@@ -2154,7 +2155,8 @@ function buildResumen(){
     });
     out += '\n'; // espacio entre bloques de horario
   });
-  return out.trim();
+  /* Renglón fijo al pie: quien recibe el resumen anota debajo quién faltó. */
+  return out.trim() + '\n\nAUSENTES';
 }
 
 /* ===== Arrastrar alumno (mantener apretado ~medio segundo) a un espacio VACÍO ===== */
@@ -3006,6 +3008,16 @@ function gotoNextPending(openIt){
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 document.querySelectorAll('.mode-btn').forEach(b=> b.onclick=()=> setMode(b.dataset.mode));
+/* Abre la ficha del alumno en otra ventana, con los datos completos: teléfono,
+   categoría, precio, facturación. Así no hay que salir del calendario para
+   terminar de cargar a alguien que se acaba de agendar. */
+document.getElementById('btnFichaAlumno').onclick=()=>{
+  const nom=(document.getElementById('fNombre').value||'').trim();
+  if(!nom){ alert('Escribí primero el nombre del alumno.'); return; }
+  const u='alumnos-unif.html?alumno='+encodeURIComponent(nom);
+  window.open(u, 'adg_alumno_'+nom.replace(/\W/g,''), 'width=520,height=760');
+};
+
 document.getElementById('btnSave').onclick=saveEditor;
 document.getElementById('btnAltoRend').onclick=()=>guardarBloque('ALTO RENDIMIENTO');
 document.getElementById('btnRevisar').onclick=toggleRevisar;
