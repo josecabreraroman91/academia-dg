@@ -3349,6 +3349,9 @@ async function cerrarYGuardarDia(){
   if(!_fbdb){ alert('Firebase no está disponible en este momento.'); return; }
   const fecha=isoDe(new Date());
   try{
+    /* Los ID tienen que estar ANTES de armar ninguna fila: acá se arman las de los
+       presentes, y en guardarHistorialFinal las de los ausentes. */
+    if(!_idsListos){ try{ await cargarIdsAlumnos(); }catch(e){} }
     // 1) leer todas las sedes del día desde Firebase; separar presentes (auto) y ausentes (a clasificar)
     const sedes=['lomas','elite','segurola','adefinir'];
     const filasAuto=[]; const ausentes=[];
@@ -3360,14 +3363,14 @@ async function cerrarYGuardarDia(){
         if(rec.borrado) return;                                        // sacado del día por el profe
         if(/ALMUERZO/i.test(rec.nombre)) return;                       // almuerzo no va
         if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO/i.test(rec.nombre)){ // AR: se paga al profe
-          filasAuto.push([fecha,'ALTO RENDIMIENTO',HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'','AR','Bloque','—','']);
+          filasAuto.push([fecha,'ALTO RENDIMIENTO',HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'','AR','Bloque','—','','']);
           return;
         }
         if(rec.asis==='ausente'){
           ausentes.push({rec, sede:SEDE_NICE[sk]||sk, motivo:'noaviso'}); // por defecto: no avisó (se cobra)
         }else{
           const estado=rec.acople?'Presente (acople)':'Presente';
-          filasAuto.push([fecha,rec.nombre,HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'',rec.mod||'',estado,'Sí','']);
+          filasAuto.push([fecha,rec.nombre,HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'',rec.mod||'',estado,'Sí','',idDeAlumno(rec.nombre)]);
         }
       });
     }
