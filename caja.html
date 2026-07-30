@@ -3,217 +3,106 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Caja · Academia DG</title>
+<title>Accesos · Academia DG</title>
 <style>
   :root{
-    --fondo:#eef3f6; --tarjeta:#ffffff; --linea:#dbe4ea;
-    --texto:#17262f; --suave:#6a7f8b;
-    --teal:#0e7c9e; --teal-osc:#0a5c75; --teal-claro:#e3f1f6;
-    --verde:#15803d; --verde-claro:#e8f5ec;
-    --rojo:#b42318; --rojo-claro:#fdecea; --ambar:#8a5a00; --ambar-claro:#fdf3e2;
-    --violeta:#5b3a86; --violeta-claro:#ede4f7;
+    --bg:#0d1117; --panel:#161b22; --linea:#30363d; --txt:#e6edf3;
+    --sec:#8b949e; --azul:#2f81f7; --verde:#3fb950; --rojo:#f85149; --ambar:#d29922;
   }
   *{box-sizing:border-box}
-  html{-webkit-text-size-adjust:100%}
-  body{margin:0;background:var(--fondo);color:var(--texto);
+  body{margin:0;background:var(--bg);color:var(--txt);
     font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5}
-  .wrap{max-width:1040px;margin:0 auto;padding:22px 16px 80px}
-  h1{font-size:24px;margin:0 0 2px;letter-spacing:-.4px}
-  .sub{color:var(--suave);font-size:13.5px}
-  .yo{color:var(--suave);font-size:12px;margin:4px 0 18px}
-  .yo a{color:var(--teal);text-decoration:none;margin-left:10px}
+  .wrap{max-width:820px;margin:0 auto;padding:18px 14px 60px}
 
-  button{font-family:inherit;font-size:14px;padding:10px 18px;border-radius:9px;
-    border:1px solid var(--linea);background:var(--tarjeta);color:var(--texto);cursor:pointer}
-  button:hover{border-color:var(--suave)}
-  button.pri{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:600}
-  button.pri:hover{background:var(--teal-osc)}
-  button.chico{font-size:12.5px;padding:6px 12px}
-  button:disabled{opacity:.5;cursor:default}
-  button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:4px}
+  h1{font-size:21px;margin:0;letter-spacing:-.3px}
+  .sub{color:var(--sec);font-size:13px}
+  .yo{color:var(--sec);font-size:12px;margin:10px 0 22px}
+  .yo a{color:var(--azul);text-decoration:none;margin-left:8px}
 
-  /* ---- Solapas ---- */
-  .solapas{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
-  .solapas button{font-size:13.5px;padding:8px 15px;border-radius:20px}
-  .solapas button.on{border-color:var(--teal);background:var(--teal-claro);
-    color:var(--teal-osc);font-weight:700}
-  .solapas button b{opacity:.65;font-weight:600;margin-left:4px}
+  .ficha{background:var(--panel);border:1px solid var(--linea);border-radius:12px;
+    padding:14px;margin-bottom:14px}
+  .ficha.baja{opacity:.55}
+  .fhead{display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
+  .fnom-edit{font-family:inherit;font-size:15px;font-weight:700;width:100%;
+    background:transparent;border:1px solid transparent;border-radius:8px;
+    color:inherit;padding:5px 8px;margin:-5px 0 0 -8px}
+  .fnom-edit:hover{border-color:var(--linea)}
+  .fnom-edit:focus{border-color:var(--azul);background:var(--bg);outline:none}
+  .fnom{font-weight:600;font-size:16px}
+  .fmail{color:var(--sec);font-size:12.5px;word-break:break-all}
+  .tag{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--linea);color:var(--sec)}
+  .tag.super{color:var(--ambar);border-color:var(--ambar)}
+  .tag.baja{color:var(--rojo);border-color:var(--rojo)}
+  .spacer{flex:1}
 
-  /* ---- Cifras de arriba ---- */
-  .cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px}
-  .cifra{background:var(--tarjeta);border:1px solid var(--linea);border-radius:12px;padding:12px 14px}
-  .cifra b{display:block;font-size:23px;font-weight:600;line-height:1.15;letter-spacing:-.5px}
-  .cifra span{font-size:12px;color:var(--suave)}
-  .cifra.entra b{color:var(--verde)}
-  .cifra.sale b{color:var(--ambar)}
-  .cifra.queda b{color:var(--teal)}
-  .cifra.malo b{color:var(--rojo)}
+  .mods{margin-top:14px;border-top:1px solid var(--linea);padding-top:6px}
+  .mod{display:flex;align-items:center;gap:10px;padding:7px 0;flex-wrap:wrap}
+  .mnom{flex:1;min-width:150px;font-size:14px}
+  .mnom small{display:block;color:var(--sec);font-size:11.5px}
+  .niv{display:flex;border:1px solid var(--linea);border-radius:8px;overflow:hidden}
+  .niv button{background:transparent;border:0;color:var(--sec);font-size:12px;
+    padding:6px 11px;cursor:pointer;font-family:inherit;white-space:nowrap}
+  .niv button+button{border-left:1px solid var(--linea)}
+  .niv button.on{background:var(--azul);color:#fff;font-weight:600}
+  .niv button.on.cero{background:#30363d;color:var(--txt)}
 
-  .barra{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
-  .barra input{flex:1;min-width:190px;background:var(--tarjeta);border:1px solid var(--linea);
-    border-radius:10px;padding:11px 14px;font-family:inherit;font-size:15px;color:var(--texto)}
-  .barra input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-claro)}
-  select.sel{font-family:inherit;font-size:14.5px;font-weight:600;padding:10px 12px;
-    border:1px solid var(--linea);border-radius:10px;background:var(--tarjeta);
-    color:var(--texto);text-transform:capitalize;cursor:pointer}
-  select.sel:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-claro)}
+  .facc{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+  button.b{font-family:inherit;font-size:13.5px;padding:9px 16px;border-radius:8px;
+    border:1px solid var(--linea);background:transparent;color:var(--txt);cursor:pointer}
+  button.b.pri{background:var(--azul);border-color:var(--azul);color:#fff;font-weight:600}
+  button.b.mal{color:var(--rojo);border-color:#5a2a2a}
+  button.b:disabled{opacity:.4;cursor:default}
 
-  .aviso{border-radius:10px;padding:10px 13px;margin-bottom:14px;font-size:13px;
-    background:var(--ambar-claro);border:1px solid #eccf9a;color:var(--ambar)}
-  .aviso b{color:#6b4600}
+  .nuevo{background:var(--panel);border:1px dashed var(--linea);border-radius:12px;padding:14px;margin-bottom:22px}
+  .nuevo input{width:100%;background:var(--bg);border:1px solid var(--linea);border-radius:8px;
+    color:var(--txt);padding:10px 12px;font-family:inherit;font-size:14px;margin-bottom:8px}
+  .aviso{font-size:12.5px;color:var(--sec);margin-top:8px}
+  .err{color:var(--rojo);font-size:13px;margin-top:8px}
+  .ok{color:var(--verde);font-size:13px;margin-top:8px}
 
-  /* ---- La tabla alumno × mes ---- */
-  .tabla{background:var(--tarjeta);border:1px solid var(--linea);border-radius:14px;overflow-x:auto}
-  .tgrid{display:grid;min-width:max-content}
-  .th,.td{padding:9px 8px;border-bottom:1px solid var(--linea);display:flex;align-items:center}
-  .th{position:sticky;top:0;background:var(--tarjeta);font-size:11px;font-weight:700;color:var(--suave);
-    letter-spacing:.4px;text-transform:uppercase;justify-content:center;
-    border-bottom:2px solid var(--linea);z-index:2}
-  .th.nomh{justify-content:flex-start;padding-left:16px}
-  .td.nomc{padding-left:16px;font-size:14.5px;font-weight:500;position:sticky;left:0;
-    background:var(--tarjeta);z-index:1;gap:7px;flex-wrap:wrap}
-  .td.mesc{justify-content:center;padding:6px 8px}
-  .tgrid>.fin{border-bottom:0}
-  .cnt{min-width:46px;padding:7px 9px;border-radius:9px;border:1px solid transparent;
-    background:var(--teal-claro);color:var(--teal-osc);font-family:inherit;font-size:15px;
-    font-weight:700;cursor:pointer;line-height:1.1;text-align:center}
-  .cnt:hover{border-color:var(--teal);background:#d2e9f1}
-  .cnt small{display:block;font-size:9.5px;font-weight:500;opacity:.75}
-  .sin{color:#c3ced5;font-size:15px;user-select:none}
-  .pin{font-size:9.5px;padding:2px 6px;border-radius:20px;font-weight:700;white-space:nowrap}
-  .pin.no{background:var(--rojo-claro);color:var(--rojo)}
-  .pin.sp{background:var(--ambar-claro);color:var(--ambar)}
-  .pin.mn{background:var(--violeta-claro);color:var(--violeta)}
-  .pin.tl{background:#eceff1;color:var(--suave)}
-  #masBtn{width:100%;margin-top:10px}
-  .vacio{text-align:center;color:var(--suave);padding:40px 16px;font-size:14.5px}
+  #cargando,#vacio{color:var(--sec);text-align:center;padding:40px 0}
 
-  /* ---- Tablas comunes (informes, profes, corregir) ---- */
-  .caja{background:var(--tarjeta);border:1px solid var(--linea);border-radius:14px;
-    padding:15px 16px;margin-bottom:14px}
-  .caja h3{margin:0 0 10px;font-size:15px}
-  .caja .pie{color:var(--suave);font-size:12px;margin-top:10px}
-  table.t{width:100%;border-collapse:collapse;font-size:13.5px}
-  table.t th{text-align:left;color:var(--suave);font-size:11px;font-weight:700;letter-spacing:.4px;
-    text-transform:uppercase;padding:7px 8px;border-bottom:2px solid var(--linea);white-space:nowrap}
-  table.t td{padding:9px 8px;border-bottom:1px solid var(--linea)}
-  table.t tr:last-child td{border-bottom:0}
-  table.t td.num,table.t th.num{text-align:right;white-space:nowrap}
-  table.t tr.click{cursor:pointer}
-  table.t tr.click:hover td{background:var(--teal-claro)}
-  .neg{color:var(--rojo)}
-
-  /* ---- La ficha del alumno ---- */
-  #ov{position:fixed;inset:0;z-index:50;background:rgba(15,35,45,.45);display:none;
-    align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto}
-  #ov.show{display:flex}
-  .ficha{background:var(--tarjeta);border-radius:16px;width:100%;max-width:470px;
-    box-shadow:0 18px 50px rgba(10,50,65,.22);overflow:hidden;margin:auto}
-  .ficha.ancha{max-width:620px}
-  .f-cab{padding:15px 16px 12px;display:flex;align-items:center;gap:8px}
-  .f-cab h2{margin:0;font-size:19px;letter-spacing:-.3px;flex:1;min-width:0}
-  .f-cab button{padding:5px 9px;font-size:15px;line-height:1;color:var(--suave)}
-  .f-cuerpo{padding:0 16px 18px}
-  .mesfila{display:flex;gap:7px;align-items:stretch;margin-bottom:10px}
-  .mesfila .sel{flex:1}
-  .masmes{width:42px;padding:0;font-size:19px;font-weight:700;color:var(--teal);line-height:1}
-  .masmes:hover{border-color:var(--teal);background:var(--teal-claro)}
-  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:11px}
-  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--teal-claro);
-    color:var(--teal-osc);border:1px solid #bfdfea;border-radius:20px;padding:4px 6px 4px 11px;
-    font-size:12px;font-weight:600;text-transform:capitalize}
-  .chip button{all:unset;cursor:pointer;font-size:13px;line-height:1;padding:0 4px;color:var(--teal-osc)}
-  .chip button:hover{color:var(--rojo)}
-  .chipAdd{background:var(--tarjeta);border:1px dashed var(--linea);border-radius:20px;
-    padding:4px 11px;font-size:12px;color:var(--suave);cursor:pointer;text-transform:capitalize}
-  .chipAdd:hover{border-color:var(--teal);color:var(--teal)}
-  .diasMes{font-size:11px;font-weight:700;color:var(--suave);text-transform:uppercase;
-    letter-spacing:.4px;margin:9px 0 6px;width:100%}
-  .rotulo{font-size:13px;color:var(--suave);margin-bottom:10px}
-  .rotulo b{color:var(--texto);font-weight:600}
-  .dias{display:flex;gap:7px;flex-wrap:wrap}
-  .d{background:var(--teal);color:#fff;border-radius:9px;min-width:44px;padding:7px 8px;
-    text-align:center;line-height:1.15}
-  .d.varias{background:var(--teal-osc)}
-  .d .n{display:block;font-size:16px;font-weight:700}
-  .d .c{display:block;font-size:10.5px;opacity:.85;margin-top:1px}
-
-  .cobro{margin-top:16px;padding-top:13px;border-top:1px solid var(--linea)}
-  .cobro .tit{font-size:11px;font-weight:700;color:var(--suave);letter-spacing:.4px;
-    text-transform:uppercase;margin-bottom:9px}
-  .op{border:1px solid var(--linea);border-radius:11px;padding:10px 12px;margin-bottom:8px}
-  .op .fila1{display:flex;align-items:baseline;gap:8px}
-  .op .et{font-size:13px;font-weight:600;flex:1}
-  .op .nm{font-size:19px;font-weight:700;letter-spacing:-.4px;white-space:nowrap}
-  .op .exp{font-size:11.5px;color:var(--suave);margin-top:3px}
-  .op.bien{border-color:#bcdccb;background:var(--verde-claro)}
-  .op.bien .nm{color:var(--verde)}
-  .op.flojo{border-color:#eccf9a;background:var(--ambar-claro)}
-  .op.flojo .nm{color:var(--ambar)}
-  .op.malo{border-color:#f3b9b9;background:var(--rojo-claro)}
-  .op.malo .nm{color:var(--rojo);font-size:14px}
-
-  .wa{width:100%;margin-top:14px;background:#1f9d55;border-color:#1f9d55;color:#fff;font-weight:700}
-  .wa:hover{background:#187f45;border-color:#187f45}
-  .wa:disabled{background:#e6ebee;border-color:var(--linea);color:#9fb0ba;cursor:not-allowed}
-  .waNota{font-size:11.5px;color:var(--suave);margin-top:6px;text-align:center}
-
-  /* ---- Tipos de clase ---- */
-  .tipoFila{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--linea)}
-  .tipoFila:last-of-type{border-bottom:0}
-  .tipoFila .nom{flex:1;font-weight:600}
-  .tipoFila .uso{color:var(--suave);font-size:12px;font-weight:400}
-  .tipoFila input{width:140px;background:var(--tarjeta);border:1px solid var(--linea);border-radius:9px;
-    color:var(--texto);padding:9px 11px;font-family:inherit;font-size:14.5px;font-weight:600;text-align:right}
-  .tipoFila input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-claro)}
-
-  #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:80;
-    background:var(--texto);color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;display:none}
-
-  #login,#nopuede{position:fixed;inset:0;z-index:99;background:var(--fondo);display:none;
-    align-items:center;justify-content:center;flex-direction:column;padding:26px;text-align:center}
-  #login h2,#nopuede h2{margin:0 0 8px;font-size:22px}
-  #login p,#nopuede p{color:var(--suave);max-width:360px;margin:0 0 22px;white-space:pre-line}
-  .err{color:var(--rojo);font-size:13px;margin-top:9px;min-height:17px}
-  @media (max-width:560px){ .f-cab,.f-cuerpo{padding-left:15px;padding-right:15px} }
+  #login,#nopuede{position:fixed;inset:0;z-index:99;background:var(--bg);
+    display:none;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center}
+  #login h2,#nopuede h2{margin:0 0 8px;font-size:20px}
+  #login p,#nopuede p{color:var(--sec);max-width:340px;margin:0 0 22px}
 </style>
 </head>
 <body>
 
 <div id="login">
-  <h2>Caja</h2>
-  <p>Cobros por alumno, pago a profesores e informes de la academia.</p>
-  <button class="pri" id="btnEntrar">Entrar con Google</button>
+  <h2>Accesos · Academia DG</h2>
+  <p>Este panel es solo para administradores.</p>
+  <button class="b pri" id="btnEntrar">Entrar con Google</button>
   <div class="err" id="errLogin"></div>
 </div>
 
 <div id="nopuede">
-  <h2>No tenés acceso</h2>
+  <h2>No tenés acceso a este panel</h2>
   <p id="nopuedeTxt"></p>
-  <button id="btnSalir2">Salir</button>
+  <button class="b" id="btnSalir2">Salir</button>
 </div>
 
 <div class="wrap" id="app" style="display:none">
-  <h1>Caja</h1>
-  <div class="sub" id="rango"></div>
-  <div class="yo"><span id="yoMail"></span><a href="#" id="btnSalir">salir</a></div>
+  <header>
+    <h1>Accesos</h1>
+    <span class="sub">Quién entra a qué</span>
+  </header>
+  <div class="yo">Conectado como <b id="yoMail"></b><a href="#" id="btnSalir">Salir</a></div>
 
-  <div class="solapas">
-    <button data-s="cobros" class="on">Cobros</button>
-    <button data-s="informes">Informes</button>
-    <button data-s="profes">Pago a profesores</button>
-    <button data-s="tipos">Tipos de clase</button>
-    <button data-s="corregir">Para corregir <b id="nCorregir"></b></button>
+  <div class="nuevo">
+    <div style="font-weight:600;margin-bottom:10px">Agregar una persona</div>
+    <input id="nvMail" type="email" placeholder="correo@gmail.com" autocomplete="off">
+    <input id="nvNom" type="text" placeholder="Nombre (por ejemplo: Marina)" autocomplete="off">
+    <button class="b pri" id="btnAgregar">Agregar</button>
+    <div class="aviso">Tiene que ser la cuenta de Google con la que va a entrar. Se agrega sin ningún permiso: se los das abajo.</div>
+    <div class="err" id="errNuevo"></div>
   </div>
 
-  <div id="cargando" class="vacio">Leyendo el historial…</div>
-  <div id="pantalla"></div>
+  <div id="cargando">Cargando…</div>
+  <div id="lista"></div>
 </div>
-
-<div id="ov">
-  <div class="ficha" id="ficha"></div>
-</div>
-<div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
@@ -229,1017 +118,201 @@ firebase.initializeApp({
   appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
 });
 
-/* ============================================================
-   CAJA — de dónde sale cada número
+// Módulos del sistema. La clave es la que leen el hub y las reglas.
+var MODULOS = [
+  {k:'calendario',   n:'Calendario',    d:'Horarios del día, mensajes y reporte'},
+  {k:'profes',       n:'Vista Profes',  d:'Asistencia desde la tablet'},
+  {k:'alumnos',      n:'Alumnos',       d:'Listado y datos de alumnos'},
+  {k:'pagos',        n:'Pagos a Profesores', d:''},
+  {k:'cobros',       n:'Cobros',        d:'Consulta y registro de cobros'},
+  {k:'nivelacion',   n:'Evaluación de alumnos', d:'Cargar evaluaciones'},
+  {k:'agenda',       n:'Agendar alumnos', d:'Ver lugares libres y anotar alumnos nuevos desde el celular'},
+  {k:'agente',       n:'Libreta del agente', d:'Ver lo que anota el agente de WhatsApp'},
+  {k:'historial',    n:'Historial', d:'Ver quién hizo cada cambio: asistencias, movimientos, alumnos agendados'},
+  {k:'caja',         n:'Caja', d:'Cobros por alumno, pago a profesores e informes. Es plata: darlo con criterio'}
+];
+var NIVELES = [
+  {v:'no',       t:'Sin acceso'},
+  {v:'leer',     t:'Ver'},
+  {v:'escribir', t:'Ver y editar'}
+];
 
-   Nada se guarda dos veces. Todo se calcula al abrir, leyendo:
+var $ = function(id){ return document.getElementById(id); };
+var miCorreo = null;
+var fichas = {};   // clave (con comas) -> ficha
 
-     historial_v1/csv  · las clases que ya pasaron (copia de la hoja HISTORIAL,
-                         la refresca un script cada 30 minutos)
-     alumnos_v1/csv    · el padrón: precio por clase y teléfono
-     tipos_v1          · cuánto aporta cada tipo de clase al pozo de los profes.
-                         Es el ÚNICO dato que nace en esta app.
+function aClave(mail){ return String(mail).trim().toLowerCase().replace(/\./g, ','); }
+function aCorreo(clave){ return String(clave).replace(/,/g, '.'); }
+function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-   Las dos cuentas son independientes y solo comparten la clase:
-
-     Lo que cobra la academia → sale del ALUMNO (su precio, del padrón)
-     Lo que se paga al profe  → sale del TIPO DE CLASE (igual para todos)
-
-   La diferencia es lo que le queda a la academia.
-   ============================================================ */
-
-var CUENTA={ nombre:'Diego González', alias:'1.549.349' };
-var TOPE_ABONO=500000;      // más que esto es un abono mensual, no un precio por clase
-var TOPE_FILAS=80;          // cuántos alumnos se muestran antes del botón "ver más"
-
-var MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
-var MESES_CORTO=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
-var DIAS=['dom','lun','mar','mié','jue','vie','sáb'];
-
-var $=function(id){ return document.getElementById(id); };
-var miCorreo=null, miNombre='';
-var historial=[], padron=[], tipos={};
-var idxId={}, idxNom={};
-var solapa='cobros', mesElegido='', filtroTxt='', tope=TOPE_FILAS;
-var ALUMNOS=[], MESES_HAY=[], VIENDO=null, MESES_SEL=[], _sumando=false;
-
-function esc(t){ return String(t==null?'':t)
-  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-  .replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
-function aClave(m){ return String(m).trim().toLowerCase().replace(/\./g, ','); }
-function gs(n){ return Math.round(n||0).toLocaleString('es-PY'); }
-function toast(t){ var e=$('toast'); e.textContent=t; e.style.display='block';
-  clearTimeout(e._t); e._t=setTimeout(function(){ e.style.display='none'; }, 3200); }
-
-function normNom(s){
-  return String(s==null?'':s).replace(/\u2060/g,'').replace(/\u200b/g,'').replace(/\u2019/g,"'")
-    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
-    .toLowerCase().replace(/\s+/g,' ').trim();
-}
-/* Misma limpieza que usa el calendario: saca el sufijo de sede o de tipo de clase
-   pegado al nombre ("Pedro Gomez LOMAS", "Rob Wilkie DUAL"). Sin esto, el mismo
-   alumno queda partido en dos. */
-var SUFIJOS=['lomas','elite','segurola','dual','duales','individual','ind','grupal','g','d',
-             'noche','ar','alto','rendimiento','pretemporada','prete','grupo','chicos'];
-function keyAlumno(s){
-  var w=normNom(s).replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim().split(' ');
-  while(w.length>1 && SUFIJOS.indexOf(w[w.length-1])>=0) w.pop();
-  return w.join(' ');
-}
-function soloDigitos(s){ return String(s==null?'':s).replace(/\D/g,''); }
-
-/* Códigos de país de los alumnos del exterior: no se les pega el 595 delante, y
-   se lo despega si una versión vieja ya lo hizo. Igual que en el calendario. */
-var PAIS_CC=['549','54','598','591','593','55','56','51','57','52','34','33','39','44','49',
-             '351','353','31','41','43','45','46','47','48','420','61','64','81','82','86','972','1'];
-function empiezaConPais(d){
-  for(var i=0;i<PAIS_CC.length;i++){ if(d.indexOf(PAIS_CC[i])===0) return true; }
-  return false;
-}
-function normTel(raw){
-  var d=soloDigitos(raw); if(!d) return '';
-  if(d.slice(0,2)==='00') d=d.slice(2);
-  if(d.indexOf('595')===0 && d.length>12 && empiezaConPais(d.slice(3))) return d.slice(3);
-  if(d.indexOf('595')===0){
-    var r=d.slice(3); while(r.charAt(0)==='0') r=r.slice(1);
-    return '595'+r;
-  }
-  while(d.charAt(0)==='0') d=d.slice(1);
-  if(d.length<=10 && !empiezaConPais(d)) return '595'+d;
-  return d;
-}
-function telOk(t){ return t && t.length>=10 && t.length<=15; }
-/* Un paraguayo es 595 + 9 dígitos = 12. Un número del exterior con su código de
-   país está bien: hay 76 alumnos así. Lo que no es ninguna de las dos cosas está
-   mal cargado — el caso de Jorge Bernal, con el 595 tipeado 959, pasa el largo
-   pero no existe. */
-function telRaro(t){
-  var d=soloDigitos(t); if(!d) return 'sin teléfono';
-  if(d.indexOf('595')===0){
-    if(d.length===12) return '';
-    return d.length>12 ? 'le sobran '+(d.length-12)+' dígito(s)' : 'le faltan '+(12-d.length)+' dígito(s)';
-  }
-  if(empiezaConPais(d) && d.length>=10 && d.length<=15) return '';
-  return 'no se reconoce el país';
-}
-
-function fechaCorta(iso){
-  var d=new Date(iso+'T00:00:00');
-  return DIAS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
-}
-function mesDe(iso){ return iso.slice(0,7); }
-function mesNombre(m){ var p=m.split('-'); return MESES[(+p[1])-1]+' '+p[0]; }
-function mesCorto(m){ var p=m.split('-'); return MESES_CORTO[(+p[1])-1]+' '+p[0].slice(2); }
-
-/* ---------- Lectura de los datos ---------- */
-function parseCSV(txt){
-  var rows=[], row=[], cur='', q=false;
-  for(var i=0;i<txt.length;i++){ var c=txt[i];
-    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
-    else { if(c==='"') q=true;
-      else if(c===','){ row.push(cur); cur=''; }
-      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
-      else if(c!=='\r') cur+=c; }
-  }
-  if(cur.length||row.length){ row.push(cur); rows.push(row); }
-  return rows;
-}
-
-/* HISTORIAL: Fecha · Alumno · Hora · Sede · Profe · Tipo · Estado · Cobro · Motivo · ID */
-function cargarHistorial(){
-  return firebase.database().ref('historial_v1/csv').once('value').then(function(s){
-    var csv=s.val(); if(!csv) return;
-    var rows=parseCSV(csv); if(rows.length<2) return;
-    historial=[];
-    for(var i=1;i<rows.length;i++){
-      var r=rows[i];
-      var fecha=(r[0]||'').trim();
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
-      var nom=(r[1]||'').trim(); if(!nom) continue;
-      var estado=(r[6]||'').trim();
-      historial.push({
-        fecha:fecha, alumno:nom, hora:(r[2]||'').trim(), sede:(r[3]||'').trim(),
-        profe:(r[4]||'').trim(), tipo:(r[5]||'').trim(),
-        estado:estado, cobro:(r[7]||'').trim(), motivo:(r[8]||'').trim(),
-        id:(r[9]||'').trim(),
-        presente: estado.indexOf('Presente')===0,
-        seCobra: (r[7]||'').trim().toLowerCase().indexOf('s')===0
-      });
-    }
-  }).catch(function(e){ console.warn('historial_v1:', e.message); });
-}
-
-/* Padrón: los encabezados NO están en la primera fila y hay columnas ocultas,
-   así que las columnas se buscan por su nombre, nunca por posición. */
-function cargarPadron(){
-  return firebase.database().ref('alumnos_v1/csv').once('value').then(function(s){
-    var csv=s.val(); if(!csv) return;
-    var rows=parseCSV(csv); if(rows.length<2) return;
-    var head=-1, col={};
-    for(var r=0;r<Math.min(rows.length,12);r++){
-      var h=rows[r].map(normNom);
-      var iNom=h.indexOf('alumnos'); if(iNom<0) iNom=h.indexOf('alumno');
-      var iId=h.indexOf('id');
-      if(iNom>=0 && iId>=0){
-        head=r; col.nom=iNom; col.id=iId;
-        col.precio=h.findIndex(function(x){ return x.indexOf('precio')>=0; });
-        col.tel=h.findIndex(function(x){ return x.indexOf('telefono')>=0; });
-        col.tipo=h.findIndex(function(x){ return x.indexOf('tipo de clase')>=0; });
-        col.cat=h.findIndex(function(x){ return x.indexOf('categoria')>=0; });
-        col.alt1=h.findIndex(function(x){ return x.indexOf('nombre p/ horario')>=0 || x.indexOf('nombre p horario')>=0; });
-        col.alt2=h.findIndex(function(x){ return x.indexOf('nombre_calendario')>=0 || x.indexOf('nombre calendario')>=0; });
-        break;
-      }
-    }
-    if(head<0) return;
-    padron=[]; idxId={}; idxNom={};
-    for(var i=head+1;i<rows.length;i++){
-      var f=rows[i], nom=(f[col.nom]||'').trim(); if(!nom) continue;
-      var a={
-        nombre:nom,
-        id:col.id>=0?(f[col.id]||'').trim():'',
-        precio:col.precio>=0?(+soloDigitos(f[col.precio])||0):0,
-        tel:col.tel>=0?normTel(f[col.tel]):'',
-        telCrudo:col.tel>=0?(f[col.tel]||'').trim():'',
-        tipo:col.tipo>=0?(f[col.tipo]||'').trim():'',
-        cat:col.cat>=0?(f[col.cat]||'').trim():''
-      };
-      padron.push(a);
-      if(a.id && !idxId[a.id]) idxId[a.id]=a;
-      [nom, col.alt1>=0?f[col.alt1]:'', col.alt2>=0?f[col.alt2]:''].forEach(function(n){
-        var k=keyAlumno(n); if(k && !idxNom[k]) idxNom[k]=a;
-      });
-    }
-  }).catch(function(e){ console.warn('alumnos_v1:', e.message); });
-}
-
-function cargarTipos(){
-  return firebase.database().ref('tipos_v1').once('value').then(function(s){
-    tipos=s.val()||{};
-  }).catch(function(e){ tipos={}; console.warn('tipos_v1:', e.message); });
-}
-
-function fichaDe(h){
-  if(h.id && idxId[h.id]) return idxId[h.id];
-  return idxNom[keyAlumno(h.alumno)]||null;
-}
-/* Las claves de Firebase no aceptan puntos ni barras. */
-function claveTipo(t){ return String(t||'(sin tipo)').trim().replace(/[.#$/\[\]]/g,'_')||'(sin tipo)'; }
-function aporteDe(tipo){
-  var t=tipos[claveTipo(tipo)];
-  return t && t.aporte ? +t.aporte : 0;
-}
-
-/* ============================================================
-   EL POZO DE LOS PROFESORES
-
-   Verificado contra tres meses de pagos reales: los 14 profesores coinciden.
-
-   · La bolsa de una hora se arma con lo que aportan los alumnos PRESENTES de
-     esa hora, juntando las tres sedes.
-   · Se reparte en partes iguales entre todos los profes que TENÍAN CLASE esa
-     hora, hayan venido sus alumnos o no. El profe cuyos alumnos faltaron igual
-     estuvo trabajando: hay 85 horas así en el historial viejo.
-   · No importa cuántos alumnos tuvo cada uno.
-   ============================================================ */
-function calcularPozo(filas){
-  var horas={};
-  filas.forEach(function(h){
-    var k=h.fecha+'|'+h.hora;
-    if(!horas[k]) horas[k]={fecha:h.fecha, hora:h.hora, total:0, profes:{}, presentes:0, clases:0, sinTipo:0};
-    var b=horas[k];
-    b.clases++;
-    if(h.profe) b.profes[h.profe]=true;
-    if(h.presente){
-      b.presentes++;
-      var ap=aporteDe(h.tipo);
-      if(!ap) b.sinTipo++;
-      b.total+=ap;
-    }
+// ---------- Pintar ----------
+function pintar(){
+  var claves = Object.keys(fichas).sort(function(a,b){
+    return (fichas[a].nombre||a).localeCompare(fichas[b].nombre||b);
   });
-  var porProfe={}, sinTipoTotal=0, totalPozo=0;
-  Object.keys(horas).forEach(function(k){
-    var b=horas[k], ps=Object.keys(b.profes);
-    sinTipoTotal+=b.sinTipo;
-    if(!ps.length || !b.total) return;
-    b.parte=b.total/ps.length;
-    totalPozo+=b.total;
-    ps.forEach(function(p){
-      if(!porProfe[p]) porProfe[p]={profe:p, monto:0, horas:0, clases:0, presentes:0};
-      porProfe[p].monto+=b.parte;
-      porProfe[p].horas++;
-    });
-  });
-  filas.forEach(function(h){
-    if(h.profe && porProfe[h.profe]){
-      porProfe[h.profe].clases++;
-      if(h.presente) porProfe[h.profe].presentes++;
-    }
-  });
-  return { horas:horas, porProfe:porProfe, total:totalPozo, clasesSinTipo:sinTipoTotal };
+  $('cargando').style.display='none';
+  if(!claves.length){ $('lista').innerHTML='<div id="vacio">Todavía no hay nadie cargado.</div>'; return; }
+
+  $('lista').innerHTML = claves.map(function(cl){
+    var f = fichas[cl] || {};
+    var p = f.permisos || {};
+    var activo = f.activo === true;
+    var admin  = p.admin === true;
+    var yo = (aCorreo(cl) === miCorreo);
+
+    var mods = MODULOS.map(function(m){
+      var actual = p[m.k] || 'no';
+      var botones = NIVELES.map(function(n){
+        var on = (actual===n.v) ? (' on'+(n.v==='no'?' cero':'')) : '';
+        return '<button class="'+on.trim()+'" data-cl="'+esc(cl)+'" data-mod="'+m.k+'" data-niv="'+n.v+'">'+n.t+'</button>';
+      }).join('');
+      return '<div class="mod"><div class="mnom">'+esc(m.n)+
+             (m.d?'<small>'+esc(m.d)+'</small>':'')+
+             '</div><div class="niv">'+botones+'</div></div>';
+    }).join('');
+
+    return '<div class="ficha'+(activo?'':' baja')+'" data-ficha="'+esc(cl)+'">'+
+      '<div class="fhead" style="flex-wrap:wrap">'+
+        '<div style="flex:1;min-width:0"><input class="fnom-edit" data-nom="'+esc(cl)+'" value="'+esc(f.nombre||'')+'" placeholder="Nombre de la persona"></div>'+
+        '<div class="fmail">'+esc(aCorreo(cl))+'</div>'+
+        '<div class="spacer"></div>'+
+        (admin?'<span class="tag super">Super administrador</span>':'')+
+        (activo?'':'<span class="tag baja">Dado de baja</span>')+
+        (yo?'<span class="tag">Sos vos</span>':'')+
+      '</div>'+
+      '<div class="mods">'+mods+'</div>'+
+      '<div class="facc">'+
+        '<button class="b" data-acc="activo" data-cl="'+esc(cl)+'">'+(activo?'Dar de baja':'Reactivar')+'</button>'+
+        '<button class="b" data-acc="admin" data-cl="'+esc(cl)+'">'+(admin?'Quitar super administrador':'Hacer super administrador')+'</button>'+
+        '<div class="spacer"></div>'+
+        '<button class="b mal" data-acc="borrar" data-cl="'+esc(cl)+'">Eliminar</button>'+
+      '</div>'+
+    '</div>';
+  }).join('');
 }
 
-/* ============================================================
-   LOS ALUMNOS, MES POR MES
-
-   Se cobra lo que ya decidió el cierre del día (columna Cobro del HISTORIAL):
-   el que vino, y el que dijo que venía y no vino. Acá no se vuelve a decidir
-   nada, solo se le pone precio.
-   ============================================================ */
-function armarAlumnos(){
-  var mapa={}, meses={};
-  historial.forEach(function(h){
-    if(!h.seCobra) return;
-    var f=fichaDe(h);
-    var k=f?(f.id||keyAlumno(f.nombre)):('?'+keyAlumno(h.alumno));
-    if(!mapa[k]) mapa[k]={ k:k, nombre:f?f.nombre:h.alumno, ficha:f, meses:{}, total:0 };
-    var a=mapa[k], m=mesDe(h.fecha);
-    meses[m]=true;
-    if(!a.meses[m]) a.meses[m]={ clases:0, dias:{} };
-    a.meses[m].clases++;
-    a.meses[m].dias[h.fecha]=(a.meses[m].dias[h.fecha]||0)+1;
-    a.total++;
-  });
-  ALUMNOS=Object.keys(mapa).map(function(k){ return mapa[k]; })
-    .sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
-  MESES_HAY=Object.keys(meses).sort();
+// ---------- Guardar ----------
+function guardar(cl){
+  return firebase.database().ref('usuarios/'+cl).set(fichas[cl]);
 }
 
-/* Cuánto se le cobra a un alumno por los meses elegidos.
-   Un precio de más de 500.000 es un abono mensual mal cargado en la casilla del
-   precio por clase: no se multiplica por clase, se cobra una vez por mes. */
-function cobroDe(a, mesesSel){
-  var f=a.ficha;
-  var clases=0;
-  mesesSel.forEach(function(m){ if(a.meses[m]) clases+=a.meses[m].clases; });
-  if(!f) return { estado:'nopadron', clases:clases, total:0 };
-  if(!f.precio) return { estado:'sinprecio', clases:clases, total:0 };
-  if(f.precio>TOPE_ABONO) return { estado:'abono', clases:clases, precio:f.precio,
-                                   total:f.precio*mesesSel.length, meses:mesesSel.length };
-  return { estado:'ok', clases:clases, precio:f.precio, total:f.precio*clases };
+function tocar(cl, cambio){
+  var f = fichas[cl]; if(!f) return;
+  cambio(f);
+  pintar();
+  guardar(cl).catch(function(e){ alert('No se pudo guardar: '+e.message); cargar(); });
 }
 
-function filasDelMes(mes){
-  if(!mes) return historial;
-  return historial.filter(function(h){ return mesDe(h.fecha)===mes; });
-}
-
-/* ---------- Solapas ---------- */
-document.querySelectorAll('.solapas button').forEach(function(b){
-  b.onclick=function(){
-    document.querySelectorAll('.solapas button').forEach(function(x){ x.classList.remove('on'); });
-    b.classList.add('on'); solapa=b.dataset.s; pintar();
-  };
+/* El nombre se guarda mientras se escribe. Es el que se ve en el Historial,
+   así que conviene que se pueda corregir sin entrar a Firebase. */
+document.addEventListener('input', function(ev){
+  var inp = ev.target.closest ? ev.target.closest('input[data-nom]') : null;
+  if(!inp) return;
+  var cl = inp.dataset.nom, f = fichas[cl];
+  if(!f) return;
+  clearTimeout(inp._t);
+  inp._t = setTimeout(function(){
+    var v = inp.value.trim();
+    if(!v || v === f.nombre) return;
+    f.nombre = v;
+    guardar(cl).catch(function(e){ alert('No se pudo guardar el nombre: '+e.message); cargar(); });
+  }, 700);
+});
+document.addEventListener('focusout', function(ev){
+  var inp = ev.target.closest ? ev.target.closest('input[data-nom]') : null;
+  if(!inp) return;
+  var f = fichas[inp.dataset.nom];
+  if(f && !inp.value.trim()) inp.value = f.nombre || '';
 });
 
-function selectorMes(){
-  var ms=MESES_HAY.slice().reverse();
-  if(!ms.length) return '';
-  if(!mesElegido || ms.indexOf(mesElegido)<0) mesElegido=ms[0];
-  return '<select class="sel" id="selMes">'+ms.map(function(m){
-    return '<option value="'+m+'"'+(m===mesElegido?' selected':'')+'>'+esc(mesNombre(m))+'</option>';
-  }).join('')+'</select>';
-}
-function engancharMes(){
-  var s=$('selMes'); if(!s) return;
-  s.onchange=function(){ mesElegido=s.value; pintar(); };
-}
+// ---------- Eventos ----------
+document.addEventListener('click', function(ev){
+  var b = ev.target.closest('button'); if(!b) return;
 
-function pintar(){
-  if(solapa==='cobros') pantallaCobros();
-  else if(solapa==='informes') pantallaInformes();
-  else if(solapa==='profes') pantallaProfes();
-  else if(solapa==='tipos') pantallaTipos();
-  else pantallaCorregir();
-  contarCorregir();
-}
-
-/* ============================================================
-   SOLAPA COBROS
-   Misma presentación que la app de clases por alumno: un alumno por fila, un mes
-   por columna, y el número de clases se toca para abrir la ficha.
-   ============================================================ */
-function marcas(a){
-  var f=a.ficha, p='';
-  if(!f) return '<span class="pin no">no está en el padrón</span>';
-  if(!f.precio) p+='<span class="pin sp">sin precio</span>';
-  else if(f.precio>TOPE_ABONO) p+='<span class="pin mn">abono mensual</span>';
-  var tr=telRaro(f.tel);
-  if(tr) p+='<span class="pin tl">'+esc(tr==='sin teléfono'?'sin teléfono':'teléfono')+'</span>';
-  return p;
-}
-
-function pantallaCobros(){
-  if(!ALUMNOS.length){
-    $('pantalla').innerHTML='<div class="vacio">Todavía no hay clases cerradas en el historial.<br>'+
-      'El cierre del día las va escribiendo todas las noches.</div>';
+  // nivel de un módulo
+  if(b.dataset.mod){
+    tocar(b.dataset.cl, function(f){
+      f.permisos = f.permisos || {};
+      f.permisos[b.dataset.mod] = b.dataset.niv;
+    });
     return;
   }
-  var q=filtroTxt?normNom(filtroTxt):'';
-  var lista=q.length>=2 ? ALUMNOS.filter(function(a){ return normNom(a.nombre).indexOf(q)>=0; }) : ALUMNOS;
 
-  /* Cifras de arriba: siempre sobre TODOS los alumnos, no sobre el filtro. */
-  var conPrecio=0, sinPrecio=0, clasesSinPrecio=0, totalTodo=0, clasesTodo=0;
-  ALUMNOS.forEach(function(a){
-    var c=cobroDe(a, MESES_HAY);
-    clasesTodo+=c.clases;
-    if(c.estado==='ok'||c.estado==='abono'){ conPrecio++; totalTodo+=c.total; }
-    else { sinPrecio++; clasesSinPrecio+=c.clases; }
-  });
+  var acc = b.dataset.acc; if(!acc) return;
+  var cl = b.dataset.cl;
+  var f = fichas[cl] || {};
+  var esYo = (aCorreo(cl) === miCorreo);
 
-  var html='<div class="cifras">'+
-    '<div class="cifra"><b>'+gs(ALUMNOS.length)+'</b><span>alumnos con clases</span></div>'+
-    '<div class="cifra"><b>'+gs(clasesTodo)+'</b><span>clases cobrables</span></div>'+
-    '<div class="cifra entra"><b>'+gs(totalTodo)+'</b><span>en todo el historial</span></div>'+
-    (sinPrecio?'<div class="cifra malo"><b>'+gs(sinPrecio)+'</b><span>sin precio · '+gs(clasesSinPrecio)+' clases</span></div>':'')+
-  '</div>';
-
-  if(sinPrecio) html+='<div class="aviso">Hay <b>'+sinPrecio+' alumnos</b> con clases que no se pueden cobrar, '+
-    'por <b>'+gs(clasesSinPrecio)+' clases</b>. Están en la solapa <b>Para corregir</b>, y el precio se carga en la app de Alumnos.</div>';
-
-  html+='<div class="barra">'+
-    '<input id="q" type="search" autocomplete="off" placeholder="Buscar un alumno por su nombre…" value="'+esc(filtroTxt)+'">'+
-  '</div>';
-
-  if(!lista.length){
-    html+='<div class="tabla"><div class="vacio">Ningún alumno coincide con eso.</div></div>';
-    $('pantalla').innerHTML=html; engancharBuscador(); return;
+  if(acc==='activo'){
+    if(f.activo===true && esYo && !confirm('Te estás dando de baja a vos mismo. Vas a perder el acceso al panel.\n\n¿Seguro?')) return;
+    tocar(cl, function(x){ x.activo = !(x.activo===true); });
   }
 
-  var muestra=lista.slice(0, tope);
-  var cols='minmax(210px,1fr) repeat('+MESES_HAY.length+', 78px)';
-  html+='<div class="tabla"><div class="tgrid" style="grid-template-columns:'+cols+'">';
-  html+='<div class="th nomh">Alumno</div>';
-  MESES_HAY.forEach(function(m){ html+='<div class="th">'+esc(mesCorto(m))+'</div>'; });
-  muestra.forEach(function(a,i){
-    var fin=(i===muestra.length-1)?' fin':'';
-    html+='<div class="td nomc'+fin+'"><span>'+esc(a.nombre)+'</span>'+marcas(a)+'</div>';
-    MESES_HAY.forEach(function(m){
-      var mm=a.meses[m];
-      html+='<div class="td mesc'+fin+'">';
-      html+= mm
-        ? '<button class="cnt" data-k="'+esc(a.k)+'" data-m="'+m+'">'+gs(mm.clases)+
-          '<small>'+(mm.clases===1?'clase':'clases')+'</small></button>'
-        : '<span class="sin">·</span>';
-      html+='</div>';
-    });
-  });
-  html+='</div></div>';
-  if(lista.length>tope) html+='<button id="masBtn">Ver '+gs(lista.length-tope)+' alumnos más</button>';
-
-  $('pantalla').innerHTML=html;
-  engancharBuscador();
-  document.querySelectorAll('button.cnt').forEach(function(b){
-    b.onclick=function(){ abrirFicha(b.dataset.k, b.dataset.m); };
-  });
-  if($('masBtn')) $('masBtn').onclick=function(){ tope+=TOPE_FILAS; pantallaCobros(); };
-}
-
-function engancharBuscador(){
-  var q=$('q'); if(!q) return;
-  q.oninput=function(){
-    filtroTxt=q.value; tope=TOPE_FILAS; pantallaCobros();
-    var n=$('q'); if(n){ n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
-  };
-}
-
-/* ---------- La ficha del alumno ---------- */
-function abrirFicha(k, mes){
-  VIENDO=ALUMNOS.filter(function(a){ return a.k===k; })[0]; if(!VIENDO) return;
-  var suyos=Object.keys(VIENDO.meses).sort();
-  MESES_SEL=[ (mes && VIENDO.meses[mes]) ? mes : suyos[suyos.length-1] ];
-  _sumando=false;
-  pintarFicha();
-  $('ov').classList.add('show');
-  document.body.style.overflow='hidden';
-  /* El botón "atrás" del celular cierra la ficha en vez de sacar la app del hub. */
-  try{ history.pushState({ficha:1},''); }catch(e){}
-}
-function cerrarFicha(){
-  $('ov').classList.remove('show'); document.body.style.overflow=''; VIENDO=null;
-}
-$('ov').onclick=function(e){ if(e.target===$('ov')) cerrarFicha(); };
-window.addEventListener('popstate', function(){ if($('ov').classList.contains('show')) cerrarFicha(); });
-
-function pintarFicha(){
-  if(!VIENDO) return;
-  var a=VIENDO;
-  var suyos=Object.keys(a.meses).sort();
-  var sel=MESES_SEL.slice().sort();
-  var faltan=suyos.filter(function(m){ return sel.indexOf(m)<0; });
-
-  var h='<div class="f-cab"><h2>'+esc(a.nombre)+'</h2>'+
-        '<button id="fCerrar" aria-label="Cerrar">✕</button></div><div class="f-cuerpo">';
-
-  /* Mes principal + botón para sumar otro (para el que debe dos meses). */
-  h+='<div class="mesfila"><select class="sel" id="fMes">'+
-     suyos.slice().reverse().map(function(m){
-       return '<option value="'+m+'"'+(m===sel[sel.length-1]?' selected':'')+'>'+esc(mesNombre(m))+'</option>';
-     }).join('')+'</select>'+
-     (faltan.length?'<button class="masmes" id="fMasMes" title="Sumar otro mes">+</button>':'')+
-     '</div>';
-
-  if(sel.length>1 || _sumando){
-    h+='<div class="chips">';
-    sel.forEach(function(m){
-      h+='<span class="chip">'+esc(mesNombre(m))+
-         (sel.length>1?'<button data-quitar="'+m+'" title="Sacar">✕</button>':'')+'</span>';
-    });
-    if(_sumando) faltan.forEach(function(m){
-      h+='<button class="chipAdd" data-sumar="'+m+'">+ '+esc(mesNombre(m))+'</button>';
-    });
-    h+='</div>';
+  if(acc==='admin'){
+    var era = (f.permisos||{}).admin === true;
+    if(era && esYo && !confirm('Te estás quitando el rol de super administrador.\n\n¿Seguro?')) return;
+    tocar(cl, function(x){ x.permisos = x.permisos||{}; x.permisos.admin = !era; });
   }
 
-  /* Los días, agrupados por mes cuando hay más de uno. */
-  var clases=0, dias=0, cuerpo='';
-  sel.forEach(function(m){
-    var mm=a.meses[m]; if(!mm) return;
-    var ds=Object.keys(mm.dias).sort();
-    clases+=mm.clases; dias+=ds.length;
-    if(sel.length>1) cuerpo+='<div class="diasMes">'+esc(mesNombre(m))+' · '+gs(mm.clases)+
-      (mm.clases===1?' clase':' clases')+'</div>';
-    cuerpo+=ds.map(function(f){
-      var n=+f.slice(8,10), c=mm.dias[f];
-      return '<div class="d'+(c>1?' varias':'')+'"><span class="n">'+n+'</span>'+
-             '<span class="c">'+(c===1?'1 clase':c+' clases')+'</span></div>';
-    }).join('');
-  });
-  h+='<div class="rotulo"><b>'+gs(clases)+(clases===1?' clase':' clases')+'</b> en <b>'+
-     gs(dias)+(dias===1?' día':' días')+'</b>'+
-     (sel.length>1?' · <b>'+sel.length+' meses juntos</b>':'')+'</div>';
-  h+='<div class="dias">'+cuerpo+'</div>';
-
-  /* Cuánto pagar */
-  var c=cobroDe(a, sel);
-  h+='<div class="cobro"><div class="tit">Cuánto pagar</div>';
-  if(c.estado==='ok'){
-    h+=op('bien','Según el padrón','₲ '+gs(c.total),
-          gs(c.clases)+' clases × ₲ '+gs(c.precio)+' por clase');
-  } else if(c.estado==='abono'){
-    h+=op('flojo','Según el padrón · abono mensual','₲ '+gs(c.total),
-          '₲ '+gs(c.precio)+' por mes × '+c.meses+(c.meses===1?' mes':' meses')+
-          '. <b>No se multiplica por clase</b>: el padrón tiene un abono cargado, así que las clases no cambian el monto.');
-  } else if(c.estado==='sinprecio'){
-    h+=op('malo','Según el padrón','Sin precio cargado',
-          'Está en el padrón pero la columna de precio está vacía o en cero. Se carga en la app de Alumnos.');
-  } else {
-    h+=op('malo','Según el padrón','No está en el padrón',
-          'Tiene clases en el historial pero no existe como alumno. Se crea en la app de Alumnos.');
+  if(acc==='borrar'){
+    if(esYo){ alert('No podés eliminar tu propia ficha.'); return; }
+    if(!confirm('Eliminar a '+(f.nombre||aCorreo(cl))+' definitivamente?\n\nVa a perder el acceso al instante.')) return;
+    firebase.database().ref('usuarios/'+cl).remove()
+      .then(function(){ delete fichas[cl]; pintar(); })
+      .catch(function(e){ alert('No se pudo eliminar: '+e.message); });
   }
-  h+='</div>';
+});
 
-  /* WhatsApp */
-  var tel=a.ficha?a.ficha.tel:'';
-  var puede=c.total>0 && telOk(tel) && !telRaro(tel);
-  h+='<button class="wa" id="fWa"'+(puede?'':' disabled')+'>Enviar por WhatsApp</button>';
-  h+='<button class="chico" id="fCopiar" style="width:100%;margin-top:7px"'+(c.total>0?'':' disabled')+'>Copiar el mensaje</button>';
-  var nota='';
-  if(!c.total) nota='Sin precio no hay mensaje que mandar.';
-  else if(!tel) nota='Este alumno no tiene teléfono en el padrón.';
-  else if(telRaro(tel)) nota='El teléfono está mal cargado: '+telRaro(tel)+'.';
-  else nota='Abre WhatsApp con el mensaje escrito. No lo manda: lo revisás y apretás enviar vos.';
-  h+='<div class="waNota">'+esc(nota)+'</div>';
-
-  h+='</div>';
-  $('ficha').innerHTML=h;
-
-  $('fCerrar').onclick=cerrarFicha;
-  $('fMes').onchange=function(){ MESES_SEL=[$('fMes').value]; _sumando=false; pintarFicha(); };
-  if($('fMasMes')) $('fMasMes').onclick=function(){ _sumando=true; pintarFicha(); };
-  $('ficha').querySelectorAll('[data-quitar]').forEach(function(b){
-    b.onclick=function(){ MESES_SEL=MESES_SEL.filter(function(x){ return x!==b.dataset.quitar; }); pintarFicha(); };
-  });
-  $('ficha').querySelectorAll('[data-sumar]').forEach(function(b){
-    b.onclick=function(){ MESES_SEL.push(b.dataset.sumar); _sumando=false; pintarFicha(); };
-  });
-
-  var msg=c.total?textoMensaje(a, sel, c):'';
-  if(puede) $('fWa').onclick=function(){
-    /* web.whatsapp.com y NO wa.me: en Windows wa.me abre WhatsApp Escritorio y
-       ese programa rompe los emojis de cuatro bytes (🎾 💪 👤 💰). */
-    window.open('https://web.whatsapp.com/send?phone='+tel+'&text='+encodeURIComponent(msg),'waSenderTab');
-  };
-  if(c.total) $('fCopiar').onclick=function(){
-    navigator.clipboard.writeText(msg).then(function(){ toast('Mensaje copiado'); },
-      function(){ toast('No pude copiar'); });
-  };
-}
-
-function op(clase, et, nm, exp){
-  return '<div class="op '+clase+'"><div class="fila1"><span class="et">'+et+
-    '</span><span class="nm">'+nm+'</span></div>'+(exp?'<div class="exp">'+exp+'</div>':'')+'</div>';
-}
-
-function fraseDias(ds){
-  if(ds.length===1) return ds[0];
-  return ds.slice(0,-1).join(', ')+' y '+ds[ds.length-1];
-}
-
-/* El mensaje que definió José. Con dos meses la frase se encadena sola. */
-function textoMensaje(a, sel, c){
-  var primer=(a.nombre||'').trim().split(/\s+/)[0];
-  var partes=sel.slice().sort().map(function(m,i){
-    var mm=a.meses[m]; if(!mm) return '';
-    var ds=Object.keys(mm.dias).sort().map(function(f){
-      var d=+f.slice(8,10), n=mm.dias[f];
-      return n>1 ? d+' ('+n+' clases)' : ''+d;
-    });
-    var nom=MESES[(+m.split('-')[1])-1];
-    return (i===0?'En '+nom+' entrenaste los días ':'y en '+nom+' los días ')+fraseDias(ds);
-  }).filter(Boolean);
-  var frase=partes.join(', ')+' y el total es '+gs(c.total)+' Gs.';
-
-  return '*Hola '+primer+' cómo estás? 🎾*\n\n'+
-    'Quiero pasarte tu estado de cuenta y detalle de clases por favor.\n\n'+
-    frase+'\n\n'+
-    'Por favor cuando puedas podes fijarte y realizar la transferencia sin problema.\n'+
-    'Si preferís pagar por *QR*, avísame y te envío la imagen 💪🏻\n\n'+
-    '*CUENTA PARA TRANSFERENCIAS*\n\n'+
-    '👤*Nombre:* '+CUENTA.nombre+'\n'+
-    '💰 *Alias CI:* '+CUENTA.alias+'\n\n'+
-    'Muchas gracias!!!!';
-}
-
-/* ============================================================
-   SOLAPA INFORMES
-   ============================================================ */
-function totalDelMes(mes){
-  var e=0, clasesSinPrecio=0;
-  ALUMNOS.forEach(function(a){
-    if(!a.meses[mes]) return;
-    var c=cobroDe(a,[mes]);
-    e+=c.total;
-    if(c.estado==='sinprecio'||c.estado==='nopadron') clasesSinPrecio+=c.clases;
-  });
-  return { entra:e, clasesSinPrecio:clasesSinPrecio };
-}
-
-function pantallaInformes(){
-  if(!MESES_HAY.length){ $('pantalla').innerHTML='<div class="vacio">Todavía no hay clases cerradas en el historial.</div>'; return; }
-  var filas=filasDelMes(mesElegido);
-  var pozo=calcularPozo(filas);
-  var tm=totalDelMes(mesElegido);
-  var entra=tm.entra, sale=pozo.total, queda=entra-sale;
-  var pct=entra?Math.round(queda*100/entra):0;
-
-  var html='<div class="barra">'+selectorMes()+'</div>';
-
-  html+='<div class="cifras">'+
-    '<div class="cifra entra"><b>'+gs(entra)+'</b><span>entra · alumnos</span></div>'+
-    '<div class="cifra sale"><b>'+gs(sale)+'</b><span>sale · profesores</span></div>'+
-    '<div class="cifra '+(queda>=0?'queda':'malo')+'"><b>'+gs(queda)+'</b><span>queda · '+pct+'%</span></div>'+
-    '<div class="cifra"><b>'+gs(filas.length)+'</b><span>clases del mes</span></div>'+
-  '</div>';
-
-  if(tm.clasesSinPrecio||pozo.clasesSinTipo){
-    html+='<div class="aviso">Estos números están cortos: hay <b>'+gs(tm.clasesSinPrecio)+' clases sin precio de alumno</b>'+
-      (pozo.clasesSinTipo?' y <b>'+gs(pozo.clasesSinTipo)+' clases con un tipo sin aporte cargado</b>':'')+
-      '. Cada corrección hace este informe más cierto.</div>';
-  }
-
-  /* --- Mes a mes --- */
-  html+='<div class="caja"><h3>Mes a mes</h3><table class="t"><thead><tr><th>Mes</th><th class="num">Clases</th>'+
-    '<th class="num">Entra</th><th class="num">Sale</th><th class="num">Queda</th><th class="num">%</th></tr></thead><tbody>';
-  MESES_HAY.slice().reverse().forEach(function(m){
-    var f=filasDelMes(m), pz=calcularPozo(f), t=totalDelMes(m), q=t.entra-pz.total;
-    html+='<tr><td style="text-transform:capitalize">'+esc(mesNombre(m))+'</td><td class="num">'+gs(f.length)+'</td>'+
-      '<td class="num">'+gs(t.entra)+'</td><td class="num">'+gs(pz.total)+'</td>'+
-      '<td class="num'+(q<0?' neg':'')+'">'+gs(q)+'</td>'+
-      '<td class="num">'+(t.entra?Math.round(q*100/t.entra):0)+'%</td></tr>';
-  });
-  html+='</tbody></table></div>';
-
-  /* --- Por hora del día --- */
-  var horas={};
-  Object.keys(pozo.horas).forEach(function(k){
-    var b=pozo.horas[k];
-    if(!horas[b.hora]) horas[b.hora]={hora:b.hora, pozo:0, presentes:0, turnos:0};
-    var x=horas[b.hora];
-    x.pozo+=b.total; x.presentes+=b.presentes; x.turnos+=Object.keys(b.profes).length;
-  });
-  var lh=Object.keys(horas).map(function(k){ return horas[k]; })
-    .sort(function(a,b){ return (b.pozo/Math.max(b.presentes,1))-(a.pozo/Math.max(a.presentes,1)); });
-  html+='<div class="caja"><h3>Por hora del día</h3><table class="t"><thead><tr><th>Hora</th>'+
-    '<th class="num">Alumnos</th><th class="num">Sale</th><th class="num">Costo x alumno</th>'+
-    '<th class="num">Alumnos x profe</th></tr></thead><tbody>';
-  lh.forEach(function(x){
-    html+='<tr><td>'+esc(x.hora)+'</td><td class="num">'+gs(x.presentes)+'</td>'+
-      '<td class="num">'+gs(x.pozo)+'</td><td class="num">'+gs(x.presentes?x.pozo/x.presentes:0)+'</td>'+
-      '<td class="num">'+(x.turnos?(x.presentes/x.turnos).toFixed(1):'0.0')+'</td></tr>';
-  });
-  html+='</tbody></table><div class="pie">De la hora más cara a la más barata. Como la bolsa se reparte entre '+
-    'todos los profes que trabajan esa hora, una hora con pocos alumnos y muchos profes cuesta mucho más por alumno.</div></div>';
-
-  /* --- Por sede --- */
-  var sedes={};
-  filas.forEach(function(h){
-    var s=h.sede||'(sin sede)';
-    if(!sedes[s]) sedes[s]={sede:s, clases:0, presentes:0, entra:0};
-    sedes[s].clases++;
-    if(h.presente) sedes[s].presentes++;
-    if(h.seCobra){
-      var f=fichaDe(h);
-      if(f && f.precio && f.precio<=TOPE_ABONO) sedes[s].entra+=f.precio;
-    }
-  });
-  html+='<div class="caja"><h3>Por sede</h3><table class="t"><thead><tr><th>Sede</th><th class="num">Clases</th>'+
-    '<th class="num">Presentes</th><th class="num">Entra</th></tr></thead><tbody>';
-  Object.keys(sedes).sort(function(a,b){ return sedes[b].clases-sedes[a].clases; }).forEach(function(k){
-    var s=sedes[k];
-    html+='<tr><td>'+esc(s.sede)+'</td><td class="num">'+gs(s.clases)+'</td>'+
-      '<td class="num">'+gs(s.presentes)+'</td><td class="num">'+gs(s.entra)+'</td></tr>';
-  });
-  html+='</tbody></table><div class="pie">Los abonos mensuales no se pueden repartir por sede: quedan afuera de esta columna.</div></div>';
-
-  /* --- Por tipo de clase --- */
-  var tps={};
-  filas.forEach(function(h){
-    var t=h.tipo||'(sin tipo)';
-    if(!tps[t]) tps[t]={tipo:t, clases:0, presentes:0, aporte:0};
-    tps[t].clases++;
-    if(h.presente){ tps[t].presentes++; tps[t].aporte+=aporteDe(h.tipo); }
-  });
-  html+='<div class="caja"><h3>Por tipo de clase</h3><table class="t"><thead><tr><th>Tipo</th><th class="num">Clases</th>'+
-    '<th class="num">Presentes</th><th class="num">Aporte al pozo</th></tr></thead><tbody>';
-  Object.keys(tps).sort(function(a,b){ return tps[b].clases-tps[a].clases; }).forEach(function(k){
-    var t=tps[k];
-    html+='<tr><td>'+esc(t.tipo)+(aporteDe(t.tipo)?'':' <span class="pin sp">sin aporte</span>')+'</td>'+
-      '<td class="num">'+gs(t.clases)+'</td><td class="num">'+gs(t.presentes)+'</td>'+
-      '<td class="num">'+gs(t.aporte)+'</td></tr>';
-  });
-  html+='</tbody></table></div>';
-
-  /* --- Ausencias --- */
-  var aus=0, ausCobrada=0, perdida=0;
-  filas.forEach(function(h){
-    if(h.presente) return;
-    aus++;
-    if(h.seCobra) ausCobrada++;
-    else{
-      var f=fichaDe(h);
-      if(f && f.precio && f.precio<=TOPE_ABONO) perdida+=f.precio;
-    }
-  });
-  html+='<div class="caja"><h3>Ausencias</h3><div class="cifras" style="margin:0">'+
-    '<div class="cifra"><b>'+gs(aus)+'</b><span>clases sin alumno</span></div>'+
-    '<div class="cifra entra"><b>'+gs(ausCobrada)+'</b><span>se cobran igual</span></div>'+
-    '<div class="cifra malo"><b>'+gs(perdida)+'</b><span>no se cobra</span></div></div>'+
-    '<div class="pie">Se cobra al que dijo que venía y no vino. No se cobra al que avisó, '+
-    'ni al que nunca contestó el WhatsApp.</div></div>';
-
-  /* --- Los que dejaron de venir --- */
-  var ult={}, hoy=new Date();
-  historial.forEach(function(h){
-    if(!h.presente) return;
-    var f=fichaDe(h);
-    var k=f?(f.id||keyAlumno(f.nombre)):keyAlumno(h.alumno);
-    if(!ult[k]) ult[k]={fecha:h.fecha, nombre:f?f.nombre:h.alumno, total:0};
-    if(h.fecha>ult[k].fecha) ult[k].fecha=h.fecha;
-    ult[k].total++;
-  });
-  var dormidos=Object.keys(ult).map(function(k){
-    var u=ult[k];
-    return {nombre:u.nombre, fecha:u.fecha, total:u.total,
-            dias:Math.round((hoy-new Date(u.fecha+'T00:00:00'))/86400000)};
-  }).filter(function(x){ return x.dias>=21; })
-    .sort(function(a,b){ return b.total-a.total; }).slice(0,25);
-
-  html+='<div class="caja"><h3>Hace tres semanas que no vienen</h3>';
-  if(!dormidos.length) html+='<div class="pie">Ninguno. O el historial todavía es muy corto para saberlo.</div>';
-  else{
-    html+='<table class="t"><thead><tr><th>Alumno</th><th class="num">Última vez</th>'+
-      '<th class="num">Días</th><th class="num">Clases que tuvo</th></tr></thead><tbody>';
-    dormidos.forEach(function(x){
-      html+='<tr><td>'+esc(x.nombre)+'</td><td class="num">'+esc(fechaCorta(x.fecha))+'</td>'+
-        '<td class="num">'+gs(x.dias)+'</td><td class="num">'+gs(x.total)+'</td></tr>';
-    });
-    html+='</tbody></table><div class="pie">Ordenado por cuántas clases llegó a tener: primero los que más se extrañan.</div>';
-  }
-  html+='</div>';
-
-  $('pantalla').innerHTML=html;
-  engancharMes();
-}
-
-/* ============================================================
-   SOLAPA PAGO A PROFESORES
-   ============================================================ */
-function pantallaProfes(){
-  if(!MESES_HAY.length){ $('pantalla').innerHTML='<div class="vacio">Todavía no hay clases cerradas en el historial.</div>'; return; }
-  var filas=filasDelMes(mesElegido);
-  var pozo=calcularPozo(filas);
-  var lista=Object.keys(pozo.porProfe).map(function(k){ return pozo.porProfe[k]; })
-    .sort(function(a,b){ return b.monto-a.monto; });
-
-  var html='<div class="barra">'+selectorMes()+'</div>';
-  html+='<div class="cifras">'+
-    '<div class="cifra sale"><b>'+gs(pozo.total)+'</b><span>total a pagar</span></div>'+
-    '<div class="cifra"><b>'+gs(lista.length)+'</b><span>profesores</span></div>'+
-  '</div>';
-
-  if(pozo.clasesSinTipo) html+='<div class="aviso"><b>'+gs(pozo.clasesSinTipo)+' clases</b> tienen un tipo '+
-    'sin aporte cargado y no suman al pozo. Se cargan en <b>Tipos de clase</b>.</div>';
-
-  html+='<div class="caja"><table class="t"><thead><tr><th>Profesor</th><th class="num">Horas</th>'+
-    '<th class="num">Clases</th><th class="num">Presentes</th><th class="num">A cobrar</th>'+
-    '<th></th></tr></thead><tbody>';
-  if(!lista.length) html+='<tr><td colspan="6" class="vacio">Sin clases este mes.</td></tr>';
-  lista.forEach(function(p){
-    html+='<tr class="click" data-p="'+esc(p.profe)+'"><td><b>'+esc(p.profe)+'</b></td>'+
-      '<td class="num">'+gs(p.horas)+'</td><td class="num">'+gs(p.clases)+'</td>'+
-      '<td class="num">'+gs(p.presentes)+'</td><td class="num"><b>'+gs(p.monto)+'</b></td>'+
-      '<td class="num"><button class="chico">Ver el detalle</button></td></tr>';
-  });
-  html+='</tbody></table><div class="pie">La bolsa de cada hora se arma con los alumnos presentes de las tres '+
-    'sedes y se reparte en partes iguales entre los profes que tenían clase esa hora.</div></div>';
-
-  $('pantalla').innerHTML=html;
-  engancharMes();
-  document.querySelectorAll('tr.click').forEach(function(tr){
-    tr.onclick=function(){ abrirProfe(tr.dataset.p, pozo); };
-  });
-}
-
-function abrirProfe(profe, pozo){
-  var hs=Object.keys(pozo.horas).map(function(k){ return pozo.horas[k]; })
-    .filter(function(b){ return b.profes[profe] && b.total; })
-    .sort(function(a,b){ return (a.fecha+a.hora)<(b.fecha+b.hora)?-1:1; });
-
-  var tot=0; hs.forEach(function(b){ tot+=b.parte; });
-
-  var h='<div class="f-cab"><h2>'+esc(profe)+'</h2><button id="fCerrar">✕</button></div>'+
-        '<div class="f-cuerpo">'+
-        '<div class="rotulo" style="text-transform:capitalize"><b>'+esc(mesNombre(mesElegido))+'</b> · '+
-        gs(hs.length)+' horas trabajadas</div>'+
-        '<div class="op bien"><div class="fila1"><span class="et">A cobrar en el mes</span>'+
-        '<span class="nm">₲ '+gs(tot)+'</span></div></div>'+
-        '<table class="t" style="margin-top:12px"><thead><tr><th>Día</th><th>Hora</th>'+
-        '<th class="num">Bolsa</th><th class="num">Profes</th><th class="num">Le toca</th></tr></thead><tbody>';
-  hs.forEach(function(b){
-    h+='<tr><td>'+esc(fechaCorta(b.fecha))+'</td><td>'+esc(b.hora)+'</td>'+
-       '<td class="num">'+gs(b.total)+'</td><td class="num">'+Object.keys(b.profes).length+'</td>'+
-       '<td class="num">'+gs(b.parte)+'</td></tr>';
-  });
-  h+='</tbody></table>'+
-     '<button class="chico" id="pCopiar" style="width:100%;margin-top:12px">Copiar el detalle</button></div>';
-
-  $('ficha').innerHTML=h;
-  $('ficha').classList.add('ancha');
-  $('ov').classList.add('show');
-  document.body.style.overflow='hidden';
-  $('fCerrar').onclick=function(){ $('ficha').classList.remove('ancha'); cerrarFicha(); };
-  $('pCopiar').onclick=function(){
-    var t=profe+' · '+mesNombre(mesElegido)+'\n';
-    hs.forEach(function(b){
-      t+=fechaCorta(b.fecha)+' '+b.hora+' · bolsa '+gs(b.total)+' entre '+
-         Object.keys(b.profes).length+' → '+gs(b.parte)+'\n';
-    });
-    t+='TOTAL: '+gs(tot)+' Gs.';
-    navigator.clipboard.writeText(t).then(function(){ toast('Detalle copiado'); },
-      function(){ toast('No pude copiar'); });
-  };
-}
-
-/* ============================================================
-   SOLAPA TIPOS DE CLASE
-
-   La lista NO está escrita a mano: sale de los tipos que aparecen de verdad en
-   el historial. Si mañana aparece un tipo nuevo, aparece acá solo, marcado como
-   sin aporte, y los informes avisan. Una casa por dato: el aporte vive
-   únicamente en tipos_v1.
-   ============================================================ */
-function pantallaTipos(){
-  var uso={};
-  historial.forEach(function(h){
-    var t=(h.tipo||'').trim()||'(sin tipo)';
-    if(!uso[t]) uso[t]={tipo:t, clases:0};
-    uso[t].clases++;
-  });
-  Object.keys(tipos).forEach(function(k){ if(!uso[k]) uso[k]={tipo:k, clases:0}; });
-  var lista=Object.keys(uso).map(function(k){ return uso[k]; })
-    .sort(function(a,b){ return b.clases-a.clases; });
-
-  var html='<div class="aviso">Acá se carga <b>cuánto aporta cada tipo de clase al pozo de los profesores</b>. '+
-    'No es lo que paga el alumno: eso vive en el padrón, alumno por alumno. Son dos números distintos para la misma clase.</div>';
-
-  html+='<div class="caja"><h3>Tipos que aparecen en el historial</h3>';
-  if(!lista.length) html+='<div class="pie">Todavía no hay clases cerradas.</div>';
-  lista.forEach(function(t){
-    var k=claveTipo(t.tipo);
-    var val=tipos[k]&&tipos[k].aporte?tipos[k].aporte:'';
-    html+='<div class="tipoFila"><div class="nom">'+esc(t.tipo)+
-      '<div class="uso">'+gs(t.clases)+' clases en el historial</div></div>'+
-      '<input type="text" inputmode="numeric" data-t="'+esc(k)+'" value="'+esc(val?gs(val):'')+'" placeholder="0"></div>';
-  });
-  if(lista.length) html+='<button class="pri" id="tGuardar" style="margin-top:14px">Guardar los aportes</button>';
-  html+='<div class="pie">Se guarda en Firebase, en <b>tipos_v1</b>. Es el único dato que nace en esta app.</div></div>';
-
-  $('pantalla').innerHTML=html;
-
-  if($('tGuardar')) $('tGuardar').onclick=function(){
-    var datos={};
-    document.querySelectorAll('input[data-t]').forEach(function(i){
-      var v=+soloDigitos(i.value)||0;
-      if(v) datos[i.dataset.t]={ aporte:v, ts:Date.now(), por:miCorreo };
-    });
-    $('tGuardar').disabled=true;
-    firebase.database().ref('tipos_v1').set(datos).then(function(){
-      tipos=datos; $('tGuardar').disabled=false;
-      toast('Aportes guardados');
-      anotarOp('tipos','Se actualizaron los aportes de '+Object.keys(datos).length+' tipos de clase');
-      pintar();
-    }).catch(function(e){
-      $('tGuardar').disabled=false;
-      alert('No se pudo guardar en Firebase.\n\n'+e.message+
-        '\n\nSi dice que no tenés permiso, falta agregarle el cajón tipos_v1 a las reglas de Firebase.');
-    });
-  };
-}
-
-function anotarOp(tipo, detalle){
-  try{
-    var hoy=new Date();
-    var dia=hoy.getFullYear()+'-'+String(hoy.getMonth()+1).padStart(2,'0')+'-'+String(hoy.getDate()).padStart(2,'0');
-    firebase.database().ref('ops_v1/'+dia).push({
-      tipo:tipo, alumno:'—', detalle:detalle,
-      porCorreo:miCorreo, porNombre:miNombre||miCorreo, ts:Date.now()
-    }).catch(function(){});
-  }catch(e){}
-}
-
-/* ============================================================
-   SOLAPA PARA CORREGIR
-
-   No es una lista cargada a mano ni un archivo aparte: se calcula cada vez,
-   cruzando el historial contra el padrón. El que se corrige en la app de
-   Alumnos desaparece de acá solo.
-   ============================================================ */
-function calcularCorregir(){
-  var porAlumno={}, tiposSinAporte={};
-  historial.forEach(function(h){
-    var f=fichaDe(h);
-    var k=f?(f.id||keyAlumno(f.nombre)):('?'+keyAlumno(h.alumno));
-    if(!porAlumno[k]) porAlumno[k]={ nombre:f?f.nombre:h.alumno, ficha:f, clases:0, cobrables:0, tipos:{} };
-    var a=porAlumno[k];
-    a.clases++;
-    if(h.seCobra) a.cobrables++;
-    if(h.tipo) a.tipos[h.tipo]=(a.tipos[h.tipo]||0)+1;
-    if(h.presente && !aporteDe(h.tipo)){
-      var t=(h.tipo||'').trim()||'(sin tipo)';
-      tiposSinAporte[t]=(tiposSinAporte[t]||0)+1;
-    }
-  });
-
-  var items=[];
-  Object.keys(porAlumno).forEach(function(k){
-    var a=porAlumno[k], f=a.ficha, motivos=[];
-    if(!f) motivos.push({txt:'no está en el padrón', grave:true});
-    else{
-      if(!f.precio) motivos.push({txt:'sin precio cargado', grave:true});
-      else if(f.precio>TOPE_ABONO) motivos.push({txt:'abono mensual ('+gs(f.precio)+') en la casilla del precio por clase', grave:false});
-      if(!f.tipo) motivos.push({txt:'sin tipo de clase', grave:false});
-      var tr=telRaro(f.tel);
-      if(tr) motivos.push({txt: tr==='sin teléfono' ? 'sin teléfono' : ('teléfono: '+tr+' ('+f.telCrudo+')'), grave:false});
-    }
-    if(Object.keys(a.tipos).length>1)
-      motivos.push({txt:'hace '+Object.keys(a.tipos).length+' tipos de clase y el padrón tiene un solo precio', grave:false});
-    if(!motivos.length) return;
-    items.push({ nombre:a.nombre, clases:a.clases, cobrables:a.cobrables, motivos:motivos,
-                 grave: motivos.some(function(m){ return m.grave; }) });
-  });
-  items.sort(function(a,b){
-    if(a.grave!==b.grave) return a.grave?-1:1;
-    return b.cobrables-a.cobrables;
-  });
-  return { items:items, tiposSinAporte:tiposSinAporte };
-}
-
-function contarCorregir(){
-  var c=calcularCorregir();
-  var n=c.items.length+Object.keys(c.tiposSinAporte).length;
-  $('nCorregir').textContent=n?'· '+n:'';
-}
-
-function pantallaCorregir(){
-  var c=calcularCorregir();
-  var graves=c.items.filter(function(x){ return x.grave; });
-  var clasesGraves=graves.reduce(function(s,x){ return s+x.cobrables; },0);
-
-  var html='<div class="cifras">'+
-    '<div class="cifra malo"><b>'+gs(graves.length)+'</b><span>alumnos que no se pueden cobrar</span></div>'+
-    '<div class="cifra malo"><b>'+gs(clasesGraves)+'</b><span>clases colgadas por eso</span></div>'+
-    '<div class="cifra"><b>'+gs(c.items.length)+'</b><span>para revisar en total</span></div>'+
-  '</div>';
-
-  var tsa=Object.keys(c.tiposSinAporte);
-  if(tsa.length){
-    html+='<div class="caja"><h3>Tipos de clase sin aporte cargado</h3>'+
-      '<table class="t"><thead><tr><th>Tipo</th><th class="num">Clases que no suman al pozo</th></tr></thead><tbody>';
-    tsa.sort(function(a,b){ return c.tiposSinAporte[b]-c.tiposSinAporte[a]; }).forEach(function(t){
-      html+='<tr><td>'+esc(t)+'</td><td class="num">'+gs(c.tiposSinAporte[t])+'</td></tr>';
-    });
-    html+='</tbody></table><div class="pie">Se cargan en la solapa <b>Tipos de clase</b>. '+
-      'Mientras estén en cero, el pago a profesores sale corto.</div></div>';
-  }
-
-  html+='<div class="caja"><h3>Alumnos</h3>';
-  if(!c.items.length) html+='<div class="pie">No hay nada para corregir.</div>';
-  else{
-    html+='<table class="t"><thead><tr><th>Alumno</th><th class="num">Clases</th>'+
-      '<th class="num">Cobrables</th><th>Qué le falta</th></tr></thead><tbody>';
-    c.items.forEach(function(x){
-      html+='<tr><td>'+esc(x.nombre)+'</td><td class="num">'+gs(x.clases)+'</td>'+
-        '<td class="num">'+gs(x.cobrables)+'</td><td>'+
-        x.motivos.map(function(m){ return '<span class="pin '+(m.grave?'no':'sp')+'">'+esc(m.txt)+'</span>'; }).join(' ')+
-        '</td></tr>';
-    });
-    html+='</tbody></table>';
-  }
-  html+='<div class="pie">Los rojos son los que hoy no se pueden cobrar. Todo esto se arregla en la '+
-    '<b>app de Alumnos</b>, que es donde vive el padrón: acá desaparecen solos cuando se corrigen. '+
-    'Ordenado por clases cobrables, no alfabético: primero lo que más plata mueve.</div></div>';
-
-  $('pantalla').innerHTML=html;
-}
-
-/* ---------- Entrada ---------- */
-$('btnEntrar').onclick=function(){
-  firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
-    .catch(function(e){ $('errLogin').textContent=e.message; });
+$('btnAgregar').onclick = function(){
+  var mail = $('nvMail').value.trim().toLowerCase();
+  var nom  = $('nvNom').value.trim();
+  $('errNuevo').textContent='';
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)){ $('errNuevo').textContent='Ese correo no parece válido.'; return; }
+  if(!nom){ $('errNuevo').textContent='Poné un nombre para reconocerlo después.'; return; }
+  var cl = aClave(mail);
+  if(fichas[cl]){ $('errNuevo').textContent='Esa persona ya está en la lista.'; return; }
+  fichas[cl] = { nombre:nom, activo:true, permisos:{ admin:false } };
+  guardar(cl).then(function(){
+    $('nvMail').value=''; $('nvNom').value=''; pintar();
+  }).catch(function(e){ $('errNuevo').textContent='No se pudo agregar: '+e.message; delete fichas[cl]; });
 };
-$('btnSalir').onclick=function(e){ e.preventDefault(); firebase.auth().signOut(); };
-$('btnSalir2').onclick=function(){ firebase.auth().signOut(); };
 
-/* Nada que lea Firebase corre antes del login. */
+// ---------- Carga ----------
+function cargar(){
+  firebase.database().ref('usuarios').once('value').then(function(s){
+    fichas = s.val() || {};
+    pintar();
+  }).catch(function(e){
+    $('cargando').textContent = 'No se pudo leer la lista: '+e.message;
+  });
+}
+
+$('btnEntrar').onclick = function(){
+  $('errLogin').textContent='';
+  firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(function(e){ $('errLogin').textContent='No se pudo entrar: '+e.message; });
+};
+$('btnSalir').onclick = function(e){ e.preventDefault(); firebase.auth().signOut().then(function(){ location.reload(); }); };
+$('btnSalir2').onclick = function(){ firebase.auth().signOut().then(function(){ location.reload(); }); };
+
 firebase.auth().onAuthStateChanged(function(u){
   if(!u){ $('login').style.display='flex'; $('nopuede').style.display='none'; $('app').style.display='none'; return; }
-  miCorreo=u.email.toLowerCase();
+  miCorreo = u.email.toLowerCase();
   firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
-    var f=s.val()||{}, p=f.permisos||{};
-    /* Esto es plata, de los alumnos y de los profesores: solo administradores. */
-    if(f.activo!==true || p.admin!==true){
+    var f = s.val();
+    if(!f || f.activo!==true || !(f.permisos||{}).admin){
       $('login').style.display='none';
-      $('nopuedeTxt').textContent=miCorreo+'\n\nLa caja es solo para administradores.';
+      $('nopuedeTxt').textContent = miCorreo;
       $('nopuede').style.display='flex';
       return;
     }
-    miNombre=f.nombre||'';
     $('login').style.display='none'; $('nopuede').style.display='none';
     $('app').style.display='block';
-    $('yoMail').textContent=miCorreo;
-    Promise.all([cargarPadron(), cargarHistorial(), cargarTipos()]).then(function(){
-      armarAlumnos();
-      $('cargando').style.display='none';
-      $('rango').textContent = historial.length
-        ? gs(historial.length)+' clases en el historial · '+
-          (MESES_HAY.length?mesNombre(MESES_HAY[0])+' a '+mesNombre(MESES_HAY[MESES_HAY.length-1]):'')
-        : 'todavía sin clases cerradas';
-      pintar();
-    });
+    $('yoMail').textContent = miCorreo;
+    cargar();
   }).catch(function(e){
     $('login').style.display='none';
-    $('nopuedeTxt').textContent='No se pudo verificar tu acceso. '+e.message;
+    $('nopuedeTxt').textContent = 'No se pudo verificar tu acceso. '+e.message;
     $('nopuede').style.display='flex';
   });
 });
