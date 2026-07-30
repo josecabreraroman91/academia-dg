@@ -438,10 +438,10 @@
     <h3>➕ Cambios de los profes</h3>
     <p style="font-size:11px;color:var(--muted);margin-bottom:12px">Los hicieron desde el celular. Al aplicar se reflejan en la semana editable. La MADRE no se toca nunca. Todo queda registrado con quién lo hizo.</p>
     <div id="resvLista" style="max-height:36vh;overflow-y:auto"></div>
-    <div id="madreMovBox" style="display:none;margin-top:12px;border-top:2px solid #2f81f7;padding-top:10px">
-      <div style="font-size:12px;font-weight:700;margin-bottom:2px;color:#2f81f7">&#8596;&#65039; Cambios de lugar hechos en la MADRE</div>
-      <div style="font-size:11px;color:var(--muted);margin-bottom:7px">En la MADRE estos alumnos cambiaron de profe, hora o sede, y en la semana editable siguen donde estaban. Aplicalos de a uno.</div>
-      <div id="madreMovLista" style="max-height:30vh;overflow-y:auto"></div>
+    <div id="conflictoBox" style="display:none;margin-top:12px;border-top:2px solid #e5534b;padding-top:10px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:2px;color:#e5534b">&#9888;&#65039; Alumnos en dos lugares a la misma hora</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:7px">Nadie puede estar en dos canchas a la vez. Eleg&iacute; de d&oacute;nde sacarlo.</div>
+      <div id="conflictoLista" style="max-height:30vh;overflow-y:auto"></div>
     </div>
     <div id="madreBox" style="display:none;margin-top:12px;border-top:2px solid #d29922;padding-top:10px">
       <div style="font-size:12px;font-weight:700;margin-bottom:2px;color:#d29922">📋 Cambios propuestos para la MADRE</div>
@@ -710,75 +710,27 @@ function _vecesEnDia(libro, dia, nombre){
    Acá se detecta y se muestra para aplicarlo CON UN TOQUE. Nunca solo: mover a
    alguien automáticamente puede pisar a otro o deshacer un acomodo hecho a mano.
    ============================================================ */
-function _horaProfeDe(k){ const p=String(k).split('|'); return p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]; }
-
-function movimientosMadre(){
-  const M = state.madre && state.madre.alumnos;
-  const S = state.semana && state.semana.alumnos;
-  if(!M || !S) return [];
-  const ign = state.madreMovIgn || {};
-
-  /* Se agrupa por día + alumno en los dos lados. Comparar de a un alumno por día
-     evita confundir un alumno con dos clases el mismo día. */
-  const grupos = {};
-  const meter = (obj, lado)=> Object.keys(obj||{}).forEach(k=>{
-    const a = obj[k];
-    if(!a || !a.nombre || esBloque(a.nombre)) return;
-    const p = k.split('|'); if(p.length !== 5) return;
-    const g = p[0] + '||' + normName(a.nombre);
-    if(!grupos[g]) grupos[g] = { madre:[], sem:[] };
-    grupos[g][lado].push(k);
-  });
-  meter(M, 'madre'); meter(S, 'sem');
-
-  const out = [];
-  Object.keys(grupos).forEach(g=>{
-    const madre = grupos[g].madre, sem = grupos[g].sem;
-    /* Si está solo en un lado no es un movimiento: o es un alta (la baja la
-       propagación normal) o lo sacaron de la MADRE (no se toca nunca). */
-    if(!madre.length || !sem.length) return;
-
-    /* Coincide si es la misma hora y el mismo profe. El casillero no importa:
-       cambiar de casillero dentro de su hora no es un cambio real. */
-    const semHP = sem.map(_horaProfeDe);
-    const madreHP = madre.map(_horaProfeDe);
-    const lugaresNuevos = madre.filter(k=> semHP.indexOf(_horaProfeDe(k)) < 0);
-    const sobrantes     = sem.filter(k=> madreHP.indexOf(_horaProfeDe(k)) < 0);
-
-    /* Se emparejan de a uno: cada clase que sobra en la semana va a un lugar
-       nuevo de la MADRE. Si sobran altas, esas no son movimientos. */
-    const n = Math.min(lugaresNuevos.length, sobrantes.length);
-    for(let i=0; i<n; i++){
-      const desde = sobrantes[i], hasta = lugaresNuevos[i];
-      if(ign[desde+'>'+hasta]) continue;
-      out.push({ alumno: (M[hasta] && M[hasta].nombre) || '', desde: desde, hasta: hasta });
-    }
-  });
-  return out.sort((a,b)=> a.hasta < b.hasta ? -1 : 1);
-}
-
 /* ============================================================
-   DUPLICADOS EN LA MISMA HORA
+   CONFLICTOS DE HORARIO
    El mismo alumno en dos lugares a la misma hora del mismo día es imposible:
-   nadie juega en dos canchas a la vez. Siempre es un error.
-   Los dejó el código viejo, que al cambiar a alguien de profe en la MADRE lo
-   AGREGABA en el lugar nuevo sin sacarlo del viejo.
-   Solo se ofrece quitar el que la MADRE no respalda, y nunca solo: con un botón
-   y con confirmación. Una clase extra en OTRA hora no se toca nunca, porque eso
-   es justamente para lo que sirve la semana editable.
-   ============================================================ */
-function duplicadosSemana(){
-  const S = state.semana && state.semana.alumnos; if(!S) return [];
-  const M = (state.madre && state.madre.alumnos) || {};
-  const hp = k=>{ const p=String(k).split('|'); return p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]; };
+   nadie juega en dos canchas a la vez. Eso SIEMPRE está mal y hay que verlo.
 
-  /* Se agrupa por día + hora + alumno: dos lugares a la misma hora es imposible. */
+   Es lo único que se avisa. Que un alumno esté en otro horario en la semana
+   editable NO se avisa: si está ahí es porque alguien lo movió por algún motivo,
+   y para eso existe la semana editable.
+
+   El sistema no adivina cuál de los dos lugares sobra: muestra los dos y una
+   persona elige. Nunca borra solo.
+   ============================================================ */
+function conflictosHorario(){
+  const S = state.semana && state.semana.alumnos; if(!S) return [];
+
   const porHora = {};
   Object.keys(S).forEach(k=>{
     const a = S[k];
     if(!a || !a.nombre || esBloque(a.nombre)) return;
     const p = k.split('|'); if(p.length !== 5) return;
-    const g = p[0]+'|'+p[3]+'||'+normName(a.nombre);
+    const g = p[0]+'|'+p[3]+'||'+normName(a.nombre);   // día + hora + alumno
     if(!porHora[g]) porHora[g] = [];
     porHora[g].push(k);
   });
@@ -787,124 +739,44 @@ function duplicadosSemana(){
   Object.keys(porHora).forEach(g=>{
     const ks = porHora[g];
     if(ks.length < 2) return;
-    const nom = S[ks[0]].nombre;
-
-    /* Cuántas veces respalda la MADRE cada posición (hora + profe + sede). Lo que
-       la semana tenga POR ENCIMA de eso es lo que sobra. */
-    const cuposMadre = {};
-    Object.keys(M).forEach(mk=>{
-      const a = M[mk]; if(!a || !a.nombre) return;
-      if(normName(a.nombre) !== normName(nom)) return;
-      const q = hp(mk);
-      cuposMadre[q] = (cuposMadre[q] || 0) + 1;
-    });
-
-    const sobran = [], quedan = [];
-    const usados = {};
-    ks.forEach(k=>{
-      const q = hp(k);
-      usados[q] = (usados[q] || 0) + 1;
-      if(usados[q] <= (cuposMadre[q] || 0)) quedan.push(k);   // la MADRE lo respalda
-      else sobran.push(k);
-    });
-
-    /* Si la MADRE no respalda ninguno, no se propone nada: no hay forma de saber
-       cuál sobra y quitar el equivocado sería peor. Eso lo mira una persona. */
-    if(!quedan.length || !sobran.length) return;
-    sobran.forEach(k=> out.push({ alumno: nom, quitar: k, queda: quedan[0] }));
+    out.push({ alumno: S[ks[0]].nombre, lugares: ks });
   });
   return out;
 }
 
-function quitarDuplicado(k){
+function quitarDeConflicto(k){
   const S = state.semana && state.semana.alumnos; if(!S || !S[k]) return;
   const nom = S[k].nombre;
-  if(!confirm('Quitar a '+nom+' de '+lugarTxt(k)+'?\n\nQueda en el lugar que dice la MADRE. La MADRE no se toca.')) return;
+  if(!confirm('Sacar a '+nom+' de '+lugarTxt(k)+'?\n\nSigue en el otro lugar de esa hora. La MADRE no se toca.')) return;
   delete S[k];
-  try{ logOp('duplicado_quitado', nom+': '+lugarTxt(k)); }catch(e){}
-  saveState(); renderGrid(); pintarMovMadre(); pintarBotonResv();
+  try{ logOp('conflicto_resuelto', nom+': sacado de '+lugarTxt(k)); }catch(e){}
+  saveState(); renderGrid(); pintarConflictos(); pintarBotonResv();
 }
 
 /* Aplica UN movimiento. Nunca pisa a nadie: si el lugar exacto está ocupado
    busca otro casillero libre en esa misma hora y profe, y si los cuatro están
    llenos no toca nada y avisa. La MADRE no se modifica jamás. */
-function aplicarMovMadre(desde, hasta){
-  const S = state.semana && state.semana.alumnos;
-  const M = state.madre && state.madre.alumnos;
-  if(!S || !M){ return; }
-  const alSem = S[desde], alMadre = M[hasta];
-  if(!alSem || !alMadre){ pintarMovMadre(); pintarBotonResv(); return; }
-
-  const p = hasta.split('|');
-  let destino = null;
-  if(!S[hasta] || !S[hasta].nombre) destino = hasta;
-  else {
-    for(let si=0; si<SLOTS_POR_HORA; si++){
-      const k2 = p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]+'|'+si;
-      if(!S[k2] || !S[k2].nombre){ destino = k2; break; }
-    }
-  }
-  if(!destino){
-    alert('En la semana editable esa hora ya tiene los cuatro lugares ocupados.\n\nHay que liberar uno antes de mover a '+alSem.nombre+'.');
-    return;
-  }
-
-  /* La persona se mueve con TODO lo suyo (la marca de revisar, el confirmado).
-     El tipo de clase lo manda la MADRE, que es la plantilla. */
-  const copia = JSON.parse(JSON.stringify(alSem));
-  if(alMadre.mod) copia.mod = alMadre.mod;
-  delete S[desde];
-  S[destino] = copia;
-  if(state.madreSync) state.madreSync[hasta] = alMadre.nombre;
-  try{ logOp('madre_mov_aplicado', alSem.nombre+': '+lugarTxt(desde)+' -> '+lugarTxt(destino)); }catch(e){}
-  saveState(); renderGrid(); pintarMovMadre(); pintarBotonResv();
-}
-
-function ignorarMovMadre(desde, hasta){
-  if(!state.madreMovIgn) state.madreMovIgn = {};
-  state.madreMovIgn[desde+'>'+hasta] = true;
-  saveState(); pintarMovMadre(); pintarBotonResv();
-}
-
-function pintarMovMadre(){
-  const box = document.getElementById('madreMovBox');
-  const lista = document.getElementById('madreMovLista');
+function pintarConflictos(){
+  const box = document.getElementById('conflictoBox');
+  const lista = document.getElementById('conflictoLista');
   if(!box || !lista) return;
-  const ms = movimientosMadre();
-  const dup = duplicadosSemana();
-  box.style.display = (ms.length || dup.length) ? 'block' : 'none';
-  if(!ms.length && !dup.length) return;
-
-  let htmlDup = dup.map(d=>
-    '<div style="border:1px solid #e5534b;border-radius:10px;padding:8px 10px;margin-bottom:6px;display:flex;gap:9px;align-items:center">'+
-      '<div style="font-size:15px">&#9888;&#65039;</div>'+
-      '<div style="flex:1;min-width:0">'+
-        '<div style="font-weight:700;font-size:12.5px">'+esc(d.alumno)+' <span style="font-weight:400;color:var(--muted)">est&aacute; dos veces en la misma hora</span></div>'+
-        '<div style="font-size:11px;color:var(--muted)">sobra en '+esc(lugarTxt(d.quitar))+' &middot; queda en '+esc(lugarTxt(d.queda))+' (como la MADRE)</div>'+
+  const cs = conflictosHorario();
+  box.style.display = cs.length ? 'block' : 'none';
+  if(!cs.length) return;
+  lista.innerHTML = cs.map(c=>
+    '<div style="border:1px solid #e5534b;border-radius:10px;padding:8px 10px;margin-bottom:6px">'+
+      '<div style="font-weight:700;font-size:12.5px">&#9888;&#65039; '+esc(c.alumno)+
+        ' <span style="font-weight:400;color:var(--muted)">est&aacute; a la misma hora en '+c.lugares.length+' lugares</span></div>'+
+      '<div style="margin-top:6px;display:flex;flex-direction:column;gap:4px">'+
+        c.lugares.map(k=>
+          '<div style="display:flex;gap:8px;align-items:center">'+
+            '<div style="flex:1;min-width:0;font-size:11.5px">'+esc(lugarTxt(k))+'</div>'+
+            '<button class="btn danger" data-conf="'+esc(k)+'" style="font-size:11px;padding:4px 9px">Sacar de ac&aacute;</button>'+
+          '</div>').join('')+
       '</div>'+
-      '<button class="btn danger" data-dup="'+esc(d.quitar)+'" style="font-size:11px;padding:5px 9px">Quitar</button>'+
     '</div>').join('');
-
-  lista.innerHTML = htmlDup + ms.map(m=>{
-    const id = esc(m.desde+'>'+m.hasta);
-    return '<div style="border:1px solid #2f81f7;border-radius:10px;padding:8px 10px;margin-bottom:6px;display:flex;gap:9px;align-items:center">'+
-      '<div style="font-size:15px">&#8596;&#65039;</div>'+
-      '<div style="flex:1;min-width:0">'+
-        '<div style="font-weight:700;font-size:12.5px">'+esc(m.alumno)+' <span style="font-weight:400;color:var(--muted)">cambi&oacute; de lugar en la MADRE</span></div>'+
-        '<div style="font-size:11px;color:var(--muted)">'+esc(lugarTxt(m.desde))+' &rarr; '+esc(lugarTxt(m.hasta))+'</div>'+
-      '</div>'+
-      '<button class="btn" data-mov-no="'+id+'" style="font-size:11px;padding:5px 9px">Ignorar</button>'+
-      '<button class="btn primary" data-mov-si="'+id+'" style="font-size:11px;padding:5px 9px">Aplicar</button>'+
-    '</div>';
-  }).join('');
-  lista.querySelectorAll('button[data-mov-si]').forEach(b=>{
-    b.onclick=()=>{ const q=b.dataset.movSi.split('>'); aplicarMovMadre(q[0], q[1]); };
-  });
-  lista.querySelectorAll('button[data-mov-no]').forEach(b=>{
-    b.onclick=()=>{ const q=b.dataset.movNo.split('>'); ignorarMovMadre(q[0], q[1]); };
-  });
-  lista.querySelectorAll('button[data-dup]').forEach(b=>{
-    b.onclick=()=> quitarDuplicado(b.dataset.dup);
+  lista.querySelectorAll('button[data-conf]').forEach(b=>{
+    b.onclick=()=> quitarDeConflicto(b.dataset.conf);
   });
 }
 
@@ -1070,10 +942,8 @@ function resvPendientes(){
 function pintarBotonResv(){
   const b=document.getElementById('btnReservas'); if(!b) return;
   const n=resvPendientes().length, f=fijosPendientes().length, m=propuestasPendientes().length;
-  let mv=0, dp=0;
-  try{ mv=movimientosMadre().length; }catch(e){}
-  try{ dp=duplicadosSemana().length; }catch(e){}
-  const tot=n+f+m+mv+dp;
+  let cf=0; try{ cf=conflictosHorario().length; }catch(e){}
+  const tot=n+f+m+cf;
   b.style.display = tot ? 'inline-block' : 'none';
   const s=document.getElementById('resvN'); if(s) s.textContent = tot ? '('+tot+')' : '';
   if(m && b) b.style.borderColor='#d29922';
@@ -1116,7 +986,7 @@ function abrirResv(){
     });
   }
   pintarPropuestas();
-  pintarMovMadre();
+  pintarConflictos();
   pintarFijos();
   document.getElementById('overlayResv').classList.add('show');
 }
@@ -1570,9 +1440,6 @@ function empujarCalendario(){
       // con el calendario: si vive solo en un dispositivo, otro que estuvo cerrado no
       // se entera y vuelve a bajar a alguien que se sacó de la semana a propósito.
       madreSync: state.madreSync || {},
-      // Movimientos de la MADRE que se decidió no aplicar. Viaja con el calendario
-      // para que no reaparezcan en los otros dispositivos.
-      madreMovIgn: state.madreMovIgn || {},
       // La marca ya viaja DENTRO de cada alumno (al.revisar). Este mapa se sigue
       // publicando solo para que un dispositivo con la versión anterior siga viendo
       // los celestes; "enAlumno" avisa a los dispositivos nuevos que lo ignoren.
@@ -1628,7 +1495,6 @@ function iniciarCalendarioCompartido(){
     // evita que alguien baje dos veces; marcar de menos lo trae de vuelta sin querer.
     // Ante un mismo alumno con distinto nombre, manda la nube (va con la MADRE que llega).
     if(r.madreSync) state.madreSync = Object.assign({}, state.madreSync || {}, r.madreSync);
-    if(r.madreMovIgn) state.madreMovIgn = Object.assign({}, state.madreMovIgn || {}, r.madreMovIgn);
     // Marcas "para revisar": si el que publicó ya usa el formato nuevo, las marcas vienen
     // dentro de cada alumno y el mapa se ignora. Si publicó un dispositivo con la versión
     // anterior, se importa su mapa hacia adentro de los alumnos (una sola vez).
