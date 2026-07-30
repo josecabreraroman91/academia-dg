@@ -2635,6 +2635,39 @@ function registrarCambiosAdmin(){
   _fotoPrev=foto;
   if(!ops.length) return;
 
+  /* Mover a alguien puede salir en UN guardado (arrastrándolo) o en DOS: sacarlo
+     de un lado y ponerlo en otro. En el segundo caso el sistema ve un "sacar" y
+     después un "agregar", sin saber que es la misma acción. Por eso no se escribe
+     al instante: se espera un momento y, si aparece la otra mitad, se juntan. */
+  _pendOps = _pendOps.concat(ops);
+  clearTimeout(_flushT);
+  _flushT = setTimeout(volcarOps, 2500);
+}
+
+let _pendOps=[], _flushT=null;
+
+function volcarOps(){
+  if(!_pendOps.length || !_fbdb) return;
+  let ops=_pendOps; _pendOps=[];
+
+  /* Un "sacar" y un "agregar" del mismo alumno son un movimiento. */
+  const juntas=[], usados={};
+  ops.forEach((o,i)=>{
+    if(usados[i]) return;
+    if(o.tipo==='sacar'){
+      const j=ops.findIndex((x,ix)=>!usados[ix] && ix!==i && x.tipo==='agregar' &&
+              normName(x.alumno)===normName(o.alumno));
+      if(j>=0){
+        usados[i]=usados[j]=true;
+        juntas.push({tipo:'mover', alumno:o.alumno,
+          detalle:(o.detalle||'')+' → '+String(ops[j].detalle||'').replace(/^[^·]*· ?/,'')});
+        return;
+      }
+    }
+    usados[i]=true; juntas.push(o);
+  });
+  ops=juntas;
+
   const fecha=(function(){ const d=new Date();
     return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
   const base={ porCorreo:_yoCorreo, porNombre:_yoNombre||_yoCorreo, ts:Date.now() };
