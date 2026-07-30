@@ -368,8 +368,10 @@ function clasesAMostrar(){
 /* Sin alumno elegido la lista puede ser muy larga: se muestra de a tanda. */
 var verTodos=false, TOPE_LISTA=150;
 
+var _csVista=[];
 function pintarTodosLosAlumnos(){
   var cs=clasesAMostrar();
+  _csVista=cs;
   var cobra=cs.filter(function(c){ return c.cobro==='Sí'; }).length;
   var alumnos={}; cs.forEach(function(c){ alumnos[normNom(c.alumno)]=1; });
 
@@ -399,10 +401,15 @@ function pintarTodosLosAlumnos(){
           (c.motivo?' · '+esc(c.motivo):'')+'</div>'+
       '</div>'+
       '<span class="cobro '+(si?'si':'no')+'">'+(si?'se cobra':'no se cobra')+'</span>'+
+      /* Se corrige desde acá mismo, sin tener que entrar al alumno. */
+      '<button class="b" data-t="'+i+'">Cambiar</button>'+
     '</div>';
   }
   if(tope<cs.length) html+='<button class="b" id="masLista" style="width:100%;margin-top:10px">Ver las '+(cs.length-tope)+' restantes</button>';
   $('detalle').innerHTML=html;
+  $('detalle').querySelectorAll('button[data-t]').forEach(function(b){
+    b.onclick=function(){ abrirCambio(_csVista[+b.dataset.t]); };
+  });
   if($('masLista')) $('masLista').onclick=function(){ verTodos=true; pintarTodosLosAlumnos(); };
 }
 
