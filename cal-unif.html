@@ -372,16 +372,15 @@
       <input id="fNombre" list="alumnosList" placeholder="Escribí para buscar o cargar nuevo…" autocomplete="off">
       <datalist id="alumnosList"></datalist>
 
-      <div id="altaAlumno" style="display:none;margin-top:8px;border:1px solid #c9a227;border-radius:10px;padding:9px 11px;background:#fffbe9">
-        <div style="font-size:12px;font-weight:800;color:#8a6d1f;margin-bottom:6px">🆕 Este alumno no está en el sistema</div>
-        <div class="field-row" style="margin:0">
-          <div class="field"><label>Teléfono</label>
+      <div id="altaAlumno" style="display:none;margin-top:8px;border:1px dashed var(--line);border-radius:10px;padding:8px 10px">
+        <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">No está en la lista &mdash; cargalo ac&aacute; mismo</div>
+        <div style="display:flex;gap:7px;align-items:flex-end;flex-wrap:wrap">
+          <div class="field" style="flex:1;min-width:108px;margin:0"><label>Teléfono</label>
             <input id="fTelNuevo" type="tel" inputmode="tel" placeholder="0981 445210" autocomplete="off"></div>
-          <div class="field"><label>Precio de clase</label>
+          <div class="field" style="flex:1;min-width:100px;margin:0"><label>Precio de clase</label>
             <input id="fPrecioNuevo" type="text" inputmode="numeric" placeholder="100000" autocomplete="off"></div>
+          <button class="btn" id="btnCrearAlumno" style="white-space:nowrap;font-size:12px;padding:7px 11px;font-weight:700">+ Crear alumno</button>
         </div>
-        <button class="btn" id="btnCrearAlumno" style="margin-top:8px;width:100%;background:#c9a227;border-color:#c9a227;color:#fff;font-weight:700">➕ Crear el alumno en el sistema</button>
-        <div style="font-size:11.5px;color:var(--muted);margin-top:6px">Esto lo da de alta en Alumnos y en la planilla. Después, <b>Guardar</b> lo pone en esta celda.</div>
       </div>
     </div>
     <div class="field-row">
@@ -439,6 +438,11 @@
     <h3>➕ Cambios de los profes</h3>
     <p style="font-size:11px;color:var(--muted);margin-bottom:12px">Los hicieron desde el celular. Al aplicar se reflejan en la semana editable. La MADRE no se toca nunca. Todo queda registrado con quién lo hizo.</p>
     <div id="resvLista" style="max-height:36vh;overflow-y:auto"></div>
+    <div id="madreMovBox" style="display:none;margin-top:12px;border-top:2px solid #2f81f7;padding-top:10px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:2px;color:#2f81f7">&#8596;&#65039; Cambios de lugar hechos en la MADRE</div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:7px">En la MADRE estos alumnos cambiaron de profe, hora o sede, y en la semana editable siguen donde estaban. Aplicalos de a uno.</div>
+      <div id="madreMovLista" style="max-height:30vh;overflow-y:auto"></div>
+    </div>
     <div id="madreBox" style="display:none;margin-top:12px;border-top:2px solid #d29922;padding-top:10px">
       <div style="font-size:12px;font-weight:700;margin-bottom:2px;color:#d29922">📋 Cambios propuestos para la MADRE</div>
       <div style="font-size:11px;color:var(--muted);margin-bottom:7px">Estos NO se aplicaron. La MADRE es la plantilla de todas las semanas: aprobalos de a uno.</div>
@@ -687,6 +691,140 @@ function ddmm(d){ return d.getDate()+'/'+(d.getMonth()+1); }
    · La primera vez no toca nada: solo toma nota de cómo está la MADRE
      hoy. De ahí en adelante bajan únicamente los cambios nuevos.
    ============================================================ */
+/* Cuántas veces aparece un alumno en un día, en un libro (MADRE o semana). */
+function _vecesEnDia(libro, dia, nombre){
+  const A = (libro && libro.alumnos) || {};
+  const n = normName(nombre); let c = 0;
+  Object.keys(A).forEach(k=>{
+    if(k.indexOf(dia+'|') !== 0) return;
+    const a = A[k];
+    if(a && a.nombre && normName(a.nombre) === n) c++;
+  });
+  return c;
+}
+
+/* ============================================================
+   MOVIMIENTOS DE LA MADRE  →  la semana editable
+   Cuando en la MADRE se cambia a un alumno de profe, hora o sede, en la semana
+   editable sigue donde estaba. Eso antes pasaba desapercibido.
+   Acá se detecta y se muestra para aplicarlo CON UN TOQUE. Nunca solo: mover a
+   alguien automáticamente puede pisar a otro o deshacer un acomodo hecho a mano.
+   ============================================================ */
+function _horaProfeDe(k){ const p=String(k).split('|'); return p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]; }
+
+function movimientosMadre(){
+  const M = state.madre && state.madre.alumnos;
+  const S = state.semana && state.semana.alumnos;
+  if(!M || !S) return [];
+  const ign = state.madreMovIgn || {};
+
+  /* Se agrupa por día + alumno en los dos lados. Comparar de a un alumno por día
+     evita confundir un alumno con dos clases el mismo día. */
+  const grupos = {};
+  const meter = (obj, lado)=> Object.keys(obj||{}).forEach(k=>{
+    const a = obj[k];
+    if(!a || !a.nombre || esBloque(a.nombre)) return;
+    const p = k.split('|'); if(p.length !== 5) return;
+    const g = p[0] + '||' + normName(a.nombre);
+    if(!grupos[g]) grupos[g] = { madre:[], sem:[] };
+    grupos[g][lado].push(k);
+  });
+  meter(M, 'madre'); meter(S, 'sem');
+
+  const out = [];
+  Object.keys(grupos).forEach(g=>{
+    const madre = grupos[g].madre, sem = grupos[g].sem;
+    /* Si está solo en un lado no es un movimiento: o es un alta (la baja la
+       propagación normal) o lo sacaron de la MADRE (no se toca nunca). */
+    if(!madre.length || !sem.length) return;
+
+    /* Coincide si es la misma hora y el mismo profe. El casillero no importa:
+       cambiar de casillero dentro de su hora no es un cambio real. */
+    const semHP = sem.map(_horaProfeDe);
+    const madreHP = madre.map(_horaProfeDe);
+    const lugaresNuevos = madre.filter(k=> semHP.indexOf(_horaProfeDe(k)) < 0);
+    const sobrantes     = sem.filter(k=> madreHP.indexOf(_horaProfeDe(k)) < 0);
+
+    /* Se emparejan de a uno: cada clase que sobra en la semana va a un lugar
+       nuevo de la MADRE. Si sobran altas, esas no son movimientos. */
+    const n = Math.min(lugaresNuevos.length, sobrantes.length);
+    for(let i=0; i<n; i++){
+      const desde = sobrantes[i], hasta = lugaresNuevos[i];
+      if(ign[desde+'>'+hasta]) continue;
+      out.push({ alumno: (M[hasta] && M[hasta].nombre) || '', desde: desde, hasta: hasta });
+    }
+  });
+  return out.sort((a,b)=> a.hasta < b.hasta ? -1 : 1);
+}
+
+/* Aplica UN movimiento. Nunca pisa a nadie: si el lugar exacto está ocupado
+   busca otro casillero libre en esa misma hora y profe, y si los cuatro están
+   llenos no toca nada y avisa. La MADRE no se modifica jamás. */
+function aplicarMovMadre(desde, hasta){
+  const S = state.semana && state.semana.alumnos;
+  const M = state.madre && state.madre.alumnos;
+  if(!S || !M){ return; }
+  const alSem = S[desde], alMadre = M[hasta];
+  if(!alSem || !alMadre){ pintarMovMadre(); pintarBotonResv(); return; }
+
+  const p = hasta.split('|');
+  let destino = null;
+  if(!S[hasta] || !S[hasta].nombre) destino = hasta;
+  else {
+    for(let si=0; si<SLOTS_POR_HORA; si++){
+      const k2 = p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]+'|'+si;
+      if(!S[k2] || !S[k2].nombre){ destino = k2; break; }
+    }
+  }
+  if(!destino){
+    alert('En la semana editable esa hora ya tiene los cuatro lugares ocupados.\n\nHay que liberar uno antes de mover a '+alSem.nombre+'.');
+    return;
+  }
+
+  /* La persona se mueve con TODO lo suyo (la marca de revisar, el confirmado).
+     El tipo de clase lo manda la MADRE, que es la plantilla. */
+  const copia = JSON.parse(JSON.stringify(alSem));
+  if(alMadre.mod) copia.mod = alMadre.mod;
+  delete S[desde];
+  S[destino] = copia;
+  if(state.madreSync) state.madreSync[hasta] = alMadre.nombre;
+  try{ logOp('madre_mov_aplicado', alSem.nombre+': '+lugarTxt(desde)+' -> '+lugarTxt(destino)); }catch(e){}
+  saveState(); renderGrid(); pintarMovMadre(); pintarBotonResv();
+}
+
+function ignorarMovMadre(desde, hasta){
+  if(!state.madreMovIgn) state.madreMovIgn = {};
+  state.madreMovIgn[desde+'>'+hasta] = true;
+  saveState(); pintarMovMadre(); pintarBotonResv();
+}
+
+function pintarMovMadre(){
+  const box = document.getElementById('madreMovBox');
+  const lista = document.getElementById('madreMovLista');
+  if(!box || !lista) return;
+  const ms = movimientosMadre();
+  box.style.display = ms.length ? 'block' : 'none';
+  if(!ms.length) return;
+  lista.innerHTML = ms.map(m=>{
+    const id = esc(m.desde+'>'+m.hasta);
+    return '<div style="border:1px solid #2f81f7;border-radius:10px;padding:8px 10px;margin-bottom:6px;display:flex;gap:9px;align-items:center">'+
+      '<div style="font-size:15px">&#8596;&#65039;</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-weight:700;font-size:12.5px">'+esc(m.alumno)+' <span style="font-weight:400;color:var(--muted)">cambi&oacute; de lugar en la MADRE</span></div>'+
+        '<div style="font-size:11px;color:var(--muted)">'+esc(lugarTxt(m.desde))+' &rarr; '+esc(lugarTxt(m.hasta))+'</div>'+
+      '</div>'+
+      '<button class="btn" data-mov-no="'+id+'" style="font-size:11px;padding:5px 9px">Ignorar</button>'+
+      '<button class="btn primary" data-mov-si="'+id+'" style="font-size:11px;padding:5px 9px">Aplicar</button>'+
+    '</div>';
+  }).join('');
+  lista.querySelectorAll('button[data-mov-si]').forEach(b=>{
+    b.onclick=()=>{ const q=b.dataset.movSi.split('>'); aplicarMovMadre(q[0], q[1]); };
+  });
+  lista.querySelectorAll('button[data-mov-no]').forEach(b=>{
+    b.onclick=()=>{ const q=b.dataset.movNo.split('>'); ignorarMovMadre(q[0], q[1]); };
+  });
+}
+
 function propagarMadreASemana(){
   const M = state.madre && state.madre.alumnos;
   if(!M || !state.semana || !state.semana.alumnos) return 0;
@@ -707,6 +845,14 @@ function propagarMadreASemana(){
     if(state.madreSync[k] === al.nombre) return;      // ya estaba, no es nuevo
 
     const enSemana = state.semana.alumnos[k];
+
+    /* ¿Es un MOVIMIENTO disfrazado de alta? Si en la semana ese alumno ya aparece
+       tantas veces ese día como en la MADRE, no falta agregarlo: cambió de lugar.
+       Agregarlo acá lo dejaría DOS VECES (una en el lugar viejo y otra en el
+       nuevo). Los movimientos se aplican de a uno desde el panel, con revisión.
+       No se marca en madreSync a propósito: así sigue detectándose. */
+    const _dia = k.split('|')[0];
+    if(_vecesEnDia(state.semana, _dia, al.nombre) >= _vecesEnDia(state.madre, _dia, al.nombre)) return;
 
     if(!enSemana || !enSemana.nombre){                // celda libre: baja
       state.semana.alumnos[k] = JSON.parse(JSON.stringify(al));
@@ -841,7 +987,8 @@ function resvPendientes(){
 function pintarBotonResv(){
   const b=document.getElementById('btnReservas'); if(!b) return;
   const n=resvPendientes().length, f=fijosPendientes().length, m=propuestasPendientes().length;
-  const tot=n+f+m;
+  let mv=0; try{ mv=movimientosMadre().length; }catch(e){}
+  const tot=n+f+m+mv;
   b.style.display = tot ? 'inline-block' : 'none';
   const s=document.getElementById('resvN'); if(s) s.textContent = tot ? '('+tot+')' : '';
   if(m && b) b.style.borderColor='#d29922';
@@ -884,6 +1031,7 @@ function abrirResv(){
     });
   }
   pintarPropuestas();
+  pintarMovMadre();
   pintarFijos();
   document.getElementById('overlayResv').classList.add('show');
 }
@@ -1337,6 +1485,9 @@ function empujarCalendario(){
       // con el calendario: si vive solo en un dispositivo, otro que estuvo cerrado no
       // se entera y vuelve a bajar a alguien que se sacó de la semana a propósito.
       madreSync: state.madreSync || {},
+      // Movimientos de la MADRE que se decidió no aplicar. Viaja con el calendario
+      // para que no reaparezcan en los otros dispositivos.
+      madreMovIgn: state.madreMovIgn || {},
       // La marca ya viaja DENTRO de cada alumno (al.revisar). Este mapa se sigue
       // publicando solo para que un dispositivo con la versión anterior siga viendo
       // los celestes; "enAlumno" avisa a los dispositivos nuevos que lo ignoren.
@@ -1392,6 +1543,7 @@ function iniciarCalendarioCompartido(){
     // evita que alguien baje dos veces; marcar de menos lo trae de vuelta sin querer.
     // Ante un mismo alumno con distinto nombre, manda la nube (va con la MADRE que llega).
     if(r.madreSync) state.madreSync = Object.assign({}, state.madreSync || {}, r.madreSync);
+    if(r.madreMovIgn) state.madreMovIgn = Object.assign({}, state.madreMovIgn || {}, r.madreMovIgn);
     // Marcas "para revisar": si el que publicó ya usa el formato nuevo, las marcas vienen
     // dentro de cada alumno y el mapa se ignora. Si publicó un dispositivo con la versión
     // anterior, se importa su mapa hacia adentro de los alumnos (una sola vez).
@@ -1401,6 +1553,7 @@ function iniciarCalendarioCompartido(){
     migrarSedesPorBook();
     _aplicandoRemoto = false; _calListo = true;
     try{ autoAplicarReservas(); }catch(e){}
+    try{ pintarBotonResv(); }catch(e){}   // la MADRE pudo cambiar en otro dispositivo
     try{ sanearEstado(); }catch(e){}
     try{ reindexarAlumnos(); }catch(e){}
     try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
@@ -3075,11 +3228,16 @@ document.getElementById('btnCrearAlumno').onclick=async ()=>{
         coment:'Creado desde el calendario', nomHor:'', nomWpp:'', tel:tel
       }]});
     }
-    b.disabled=false; b.textContent='➕ Crear el alumno en el sistema';
+    b.disabled=false; b.textContent='+ Crear alumno';
     document.getElementById('altaAlumno').style.display='none';
-    alert('✅ '+nom+' quedó creado.\n\nAhora apretá Guardar para ponerlo en esta celda.');
+    /* Un solo paso: queda creado Y agendado en esta celda. Sin cartel: el alumno
+       aparece en la grilla al instante, que es el aviso que importa. */
+    console.log('Alumno creado desde el calendario:', nom);
+    try{ if(_fbdb) contactosLocal[normName(nom)] = { nivel:(document.getElementById('fNivel').value||'').trim(), lado:'', mod:(document.getElementById('fMod').value||''), tel:tel }; }catch(e){}
+    try{ resetIdxFlex(); }catch(e){}
+    saveEditor();
   }catch(e){
-    b.disabled=false; b.textContent='➕ Crear el alumno en el sistema';
+    b.disabled=false; b.textContent='+ Crear alumno';
     alert('No se pudo crear el alumno:\n\n'+e.message);
   }
 };
