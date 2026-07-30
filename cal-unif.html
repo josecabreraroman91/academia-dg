@@ -757,6 +757,74 @@ function movimientosMadre(){
   return out.sort((a,b)=> a.hasta < b.hasta ? -1 : 1);
 }
 
+/* ============================================================
+   DUPLICADOS EN LA MISMA HORA
+   El mismo alumno en dos lugares a la misma hora del mismo día es imposible:
+   nadie juega en dos canchas a la vez. Siempre es un error.
+   Los dejó el código viejo, que al cambiar a alguien de profe en la MADRE lo
+   AGREGABA en el lugar nuevo sin sacarlo del viejo.
+   Solo se ofrece quitar el que la MADRE no respalda, y nunca solo: con un botón
+   y con confirmación. Una clase extra en OTRA hora no se toca nunca, porque eso
+   es justamente para lo que sirve la semana editable.
+   ============================================================ */
+function duplicadosSemana(){
+  const S = state.semana && state.semana.alumnos; if(!S) return [];
+  const M = (state.madre && state.madre.alumnos) || {};
+  const hp = k=>{ const p=String(k).split('|'); return p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]; };
+
+  /* Se agrupa por día + hora + alumno: dos lugares a la misma hora es imposible. */
+  const porHora = {};
+  Object.keys(S).forEach(k=>{
+    const a = S[k];
+    if(!a || !a.nombre || esBloque(a.nombre)) return;
+    const p = k.split('|'); if(p.length !== 5) return;
+    const g = p[0]+'|'+p[3]+'||'+normName(a.nombre);
+    if(!porHora[g]) porHora[g] = [];
+    porHora[g].push(k);
+  });
+
+  const out = [];
+  Object.keys(porHora).forEach(g=>{
+    const ks = porHora[g];
+    if(ks.length < 2) return;
+    const nom = S[ks[0]].nombre;
+
+    /* Cuántas veces respalda la MADRE cada posición (hora + profe + sede). Lo que
+       la semana tenga POR ENCIMA de eso es lo que sobra. */
+    const cuposMadre = {};
+    Object.keys(M).forEach(mk=>{
+      const a = M[mk]; if(!a || !a.nombre) return;
+      if(normName(a.nombre) !== normName(nom)) return;
+      const q = hp(mk);
+      cuposMadre[q] = (cuposMadre[q] || 0) + 1;
+    });
+
+    const sobran = [], quedan = [];
+    const usados = {};
+    ks.forEach(k=>{
+      const q = hp(k);
+      usados[q] = (usados[q] || 0) + 1;
+      if(usados[q] <= (cuposMadre[q] || 0)) quedan.push(k);   // la MADRE lo respalda
+      else sobran.push(k);
+    });
+
+    /* Si la MADRE no respalda ninguno, no se propone nada: no hay forma de saber
+       cuál sobra y quitar el equivocado sería peor. Eso lo mira una persona. */
+    if(!quedan.length || !sobran.length) return;
+    sobran.forEach(k=> out.push({ alumno: nom, quitar: k, queda: quedan[0] }));
+  });
+  return out;
+}
+
+function quitarDuplicado(k){
+  const S = state.semana && state.semana.alumnos; if(!S || !S[k]) return;
+  const nom = S[k].nombre;
+  if(!confirm('Quitar a '+nom+' de '+lugarTxt(k)+'?\n\nQueda en el lugar que dice la MADRE. La MADRE no se toca.')) return;
+  delete S[k];
+  try{ logOp('duplicado_quitado', nom+': '+lugarTxt(k)); }catch(e){}
+  saveState(); renderGrid(); pintarMovMadre(); pintarBotonResv();
+}
+
 /* Aplica UN movimiento. Nunca pisa a nadie: si el lugar exacto está ocupado
    busca otro casillero libre en esa misma hora y profe, y si los cuatro están
    llenos no toca nada y avisa. La MADRE no se modifica jamás. */
@@ -803,9 +871,21 @@ function pintarMovMadre(){
   const lista = document.getElementById('madreMovLista');
   if(!box || !lista) return;
   const ms = movimientosMadre();
-  box.style.display = ms.length ? 'block' : 'none';
-  if(!ms.length) return;
-  lista.innerHTML = ms.map(m=>{
+  const dup = duplicadosSemana();
+  box.style.display = (ms.length || dup.length) ? 'block' : 'none';
+  if(!ms.length && !dup.length) return;
+
+  let htmlDup = dup.map(d=>
+    '<div style="border:1px solid #e5534b;border-radius:10px;padding:8px 10px;margin-bottom:6px;display:flex;gap:9px;align-items:center">'+
+      '<div style="font-size:15px">&#9888;&#65039;</div>'+
+      '<div style="flex:1;min-width:0">'+
+        '<div style="font-weight:700;font-size:12.5px">'+esc(d.alumno)+' <span style="font-weight:400;color:var(--muted)">est&aacute; dos veces en la misma hora</span></div>'+
+        '<div style="font-size:11px;color:var(--muted)">sobra en '+esc(lugarTxt(d.quitar))+' &middot; queda en '+esc(lugarTxt(d.queda))+' (como la MADRE)</div>'+
+      '</div>'+
+      '<button class="btn danger" data-dup="'+esc(d.quitar)+'" style="font-size:11px;padding:5px 9px">Quitar</button>'+
+    '</div>').join('');
+
+  lista.innerHTML = htmlDup + ms.map(m=>{
     const id = esc(m.desde+'>'+m.hasta);
     return '<div style="border:1px solid #2f81f7;border-radius:10px;padding:8px 10px;margin-bottom:6px;display:flex;gap:9px;align-items:center">'+
       '<div style="font-size:15px">&#8596;&#65039;</div>'+
@@ -822,6 +902,9 @@ function pintarMovMadre(){
   });
   lista.querySelectorAll('button[data-mov-no]').forEach(b=>{
     b.onclick=()=>{ const q=b.dataset.movNo.split('>'); ignorarMovMadre(q[0], q[1]); };
+  });
+  lista.querySelectorAll('button[data-dup]').forEach(b=>{
+    b.onclick=()=> quitarDuplicado(b.dataset.dup);
   });
 }
 
@@ -987,8 +1070,10 @@ function resvPendientes(){
 function pintarBotonResv(){
   const b=document.getElementById('btnReservas'); if(!b) return;
   const n=resvPendientes().length, f=fijosPendientes().length, m=propuestasPendientes().length;
-  let mv=0; try{ mv=movimientosMadre().length; }catch(e){}
-  const tot=n+f+m+mv;
+  let mv=0, dp=0;
+  try{ mv=movimientosMadre().length; }catch(e){}
+  try{ dp=duplicadosSemana().length; }catch(e){}
+  const tot=n+f+m+mv+dp;
   b.style.display = tot ? 'inline-block' : 'none';
   const s=document.getElementById('resvN'); if(s) s.textContent = tot ? '('+tot+')' : '';
   if(m && b) b.style.borderColor='#d29922';
