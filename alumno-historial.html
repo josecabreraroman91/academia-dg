@@ -60,6 +60,18 @@
 
   .mes{font-size:12px;font-weight:700;color:var(--sec);letter-spacing:.4px;
     margin:18px 0 7px;text-transform:uppercase}
+  .filtros{background:#fff;border:1px solid var(--line,#dbe4ea);border-radius:12px;
+    padding:11px 13px;margin-bottom:14px}
+  .ftit{font-size:11px;font-weight:700;color:#6a7f8b;letter-spacing:.4px;
+    text-transform:uppercase;margin-bottom:8px}
+  .fchips{display:flex;gap:6px;flex-wrap:wrap}
+  .fchips button{font-family:inherit;font-size:12.5px;padding:6px 11px;border-radius:20px;
+    border:1px solid #dbe4ea;background:#fff;color:#17262f;cursor:pointer}
+  .fchips button:hover{border-color:#6a7f8b}
+  .fchips button.on{border-color:#0e7c9e;background:#e3f1f6;color:#0a5c75;font-weight:700}
+  .fchips button b{opacity:.6;font-weight:600;margin-left:3px}
+  .fnota{font-size:11.5px;color:#6a7f8b;margin-top:8px}
+  .quien{font-weight:700;font-size:13.5px;margin-bottom:1px}
   .vacio{color:var(--sec);text-align:center;padding:40px 10px;font-size:14px}
   #cargando{color:var(--sec);text-align:center;padding:36px 0}
 
@@ -116,6 +128,15 @@
   </div>
 
   <div id="cargando" style="display:none">Cargando…</div>
+
+  <!-- Los filtros salen de los datos: solo aparecen los estados que existen
+       de verdad en el historial, con cuántas clases tiene cada uno. -->
+  <div class="filtros" id="filtros" style="display:none">
+    <div class="ftit">Filtrar por estado</div>
+    <div class="fchips" id="fEstados"></div>
+    <div class="fnota" id="fNota"></div>
+  </div>
+
   <div id="detalle"></div>
 </div>
 
@@ -253,6 +274,8 @@ function cargarAlumnos(){
 /* ---------- Buscador ---------- */
 $('q').oninput=function(){
   var t=normNom($('q').value), box=$('sug');
+  /* Buscador vacío: se sale del alumno y se vuelve a ver a todos juntos. */
+  if(!t && elegido){ elegido=null; verTodos=false; pintarDetalle(); }
   if(t.length<2){ box.style.display='none'; return; }
   var pre=[], med=[];
   for(var i=0;i<alumnos.length;i++){
@@ -279,7 +302,7 @@ document.addEventListener('click', function(ev){
 
 /* ---------- Detalle ---------- */
 function abrirAlumno(a){
-  elegido=a;
+  elegido=a; fEstado='todos'; verTodos=false;
   $('q').value=a.nombre;
   $('sug').style.display='none';
   pintarDetalle();
@@ -293,9 +316,100 @@ function clasesDe(a){
   });
 }
 
+/* ============================================================
+   FILTROS POR ESTADO
+   Los estados salen de los datos, no de una lista escrita a mano: si mañana
+   aparece uno nuevo en el historial, el filtro lo muestra solo.
+
+   Funcionan en los dos modos:
+   · con un alumno elegido → filtran sus clases
+   · sin alumno elegido    → muestran esas clases de TODOS los alumnos juntos,
+                             que es lo que no se podía ver antes
+   ============================================================ */
+var fEstado='todos';
+
+function contarEstados(lista){
+  var c={};
+  lista.forEach(function(x){
+    var e=(x.estado||'—').trim() || '—';
+    c[e]=(c[e]||0)+1;
+  });
+  return c;
+}
+
+function pintarFiltros(){
+  var base = elegido ? clasesDe(elegido) : historial;
+  var c = contarEstados(base);
+  var claves = Object.keys(c).sort(function(a,b){ return c[b]-c[a]; });
+  if(!claves.length){ $('filtros').style.display='none'; return; }
+  $('filtros').style.display='block';
+
+  var h='<button data-e="todos"'+(fEstado==='todos'?' class="on"':'')+'>Todos <b>'+base.length+'</b></button>';
+  claves.forEach(function(e){
+    h+='<button data-e="'+esc(e)+'"'+(fEstado===e?' class="on"':'')+'>'+esc(e)+' <b>'+c[e]+'</b></button>';
+  });
+  $('fEstados').innerHTML=h;
+  $('fEstados').querySelectorAll('button[data-e]').forEach(function(b){
+    b.onclick=function(){ fEstado=b.dataset.e; verTodos=false; pintarDetalle(); };
+  });
+
+  $('fNota').textContent = elegido
+    ? 'Estás viendo solo a '+elegido.nombre+'. Borrá el buscador para ver a todos los alumnos juntos.'
+    : 'Estás viendo a todos los alumnos. Buscá uno arriba para ver solo el suyo.';
+}
+
+/* Las clases que hay que mostrar, según el alumno elegido y el estado. */
+function clasesAMostrar(){
+  var base = elegido ? clasesDe(elegido) : historial;
+  if(fEstado==='todos') return base;
+  return base.filter(function(x){ return ((x.estado||'—').trim()||'—')===fEstado; });
+}
+
+/* Sin alumno elegido la lista puede ser muy larga: se muestra de a tanda. */
+var verTodos=false, TOPE_LISTA=150;
+
+function pintarTodosLosAlumnos(){
+  var cs=clasesAMostrar();
+  var cobra=cs.filter(function(c){ return c.cobro==='Sí'; }).length;
+  var alumnos={}; cs.forEach(function(c){ alumnos[normNom(c.alumno)]=1; });
+
+  var html='<div class="totales">'+
+    '<div class="tot"><b>'+cs.length+'</b>clases</div>'+
+    '<div class="tot"><b>'+Object.keys(alumnos).length+'</b>alumnos</div>'+
+    '<div class="tot cobra"><b>'+cobra+'</b>se cobran</div>'+
+    '<div class="tot nocobra"><b>'+(cs.length-cobra)+'</b>no se cobran</div>'+
+    '</div>';
+
+  if(!cs.length){
+    $('detalle').innerHTML=html+'<div class="vacio">No hay clases con ese estado.</div>';
+    return;
+  }
+
+  var tope = verTodos ? cs.length : Math.min(cs.length, TOPE_LISTA);
+  var mesAct='';
+  for(var i=0;i<tope;i++){
+    var c=cs[i], m=mesDe(c.fecha);
+    if(m!==mesAct){ html+='<div class="mes">'+esc(m)+'</div>'; mesAct=m; }
+    var si=c.cobro==='Sí';
+    html+='<div class="clase'+(/sin confirmar/i.test(c.estado)?' sinconf':'')+'">'+
+      '<div class="info">'+
+        '<div class="quien">'+esc(c.alumno)+'</div>'+
+        '<div class="l1">'+esc(fechaLarga(c.fecha))+' · '+esc(c.hora)+' · '+esc(c.sede)+'</div>'+
+        '<div class="l2">'+esc(c.estado)+(c.profe?' · '+esc(c.profe):'')+(c.tipo?' · '+esc(c.tipo):'')+
+          (c.motivo?' · '+esc(c.motivo):'')+'</div>'+
+      '</div>'+
+      '<span class="cobro '+(si?'si':'no')+'">'+(si?'se cobra':'no se cobra')+'</span>'+
+    '</div>';
+  }
+  if(tope<cs.length) html+='<button class="b" id="masLista" style="width:100%;margin-top:10px">Ver las '+(cs.length-tope)+' restantes</button>';
+  $('detalle').innerHTML=html;
+  if($('masLista')) $('masLista').onclick=function(){ verTodos=true; pintarTodosLosAlumnos(); };
+}
+
 function pintarDetalle(){
-  if(!elegido){ $('detalle').innerHTML=''; return; }
-  var cs=clasesDe(elegido);
+  pintarFiltros();
+  if(!elegido){ pintarTodosLosAlumnos(); return; }
+  var cs=clasesAMostrar();
   var cobra=cs.filter(function(c){ return c.cobro==='Sí'; }).length;
   var sinConf=cs.filter(function(c){ return /sin confirmar/i.test(c.estado); }).length;
 
@@ -451,6 +565,7 @@ firebase.auth().onAuthStateChanged(function(u){
     $('cargando').style.display='block';
     Promise.all([cargarAlumnos(), cargarHistorial()]).then(function(){
       $('cargando').style.display='none';
+      pintarDetalle();          // arranca mostrando a todos, con los filtros
       $('q').focus();
     });
   }).catch(function(e){
