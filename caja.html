@@ -20,8 +20,15 @@
   .wrap{max-width:1040px;margin:0 auto;padding:22px 16px 80px}
   h1{font-size:24px;margin:0 0 2px;letter-spacing:-.4px}
   .sub{color:var(--suave);font-size:13.5px}
-  .yo{color:var(--suave);font-size:12px;margin:4px 0 18px}
+  .yo{color:var(--suave);font-size:12px;margin:4px 0 10px}
   .yo a{color:var(--teal);text-decoration:none;margin-left:10px}
+
+  .frescura{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--tarjeta);
+    border:1px solid var(--linea);border-radius:11px;padding:8px 12px;margin-bottom:16px;
+    font-size:12.5px;color:var(--suave)}
+  .frescura .txt{flex:1;min-width:150px}
+  .frescura .txt b{color:var(--texto);font-weight:600}
+  .frescura .viejo{color:var(--ambar);font-weight:600}
 
   button{font-family:inherit;font-size:14px;padding:10px 18px;border-radius:9px;
     border:1px solid var(--linea);background:var(--tarjeta);color:var(--texto);cursor:pointer}
@@ -198,6 +205,11 @@
   <div class="sub" id="rango"></div>
   <div class="yo"><span id="yoMail"></span><a href="#" id="btnSalir">salir</a></div>
 
+  <div class="frescura">
+    <div class="txt" id="frescuraTxt">Leyendo…</div>
+    <button class="chico" id="btnRefrescar">🔄 Actualizar ahora</button>
+  </div>
+
   <div class="solapas">
     <button data-s="cobros" class="on">Cobros</button>
     <button data-s="informes">Informes</button>
@@ -258,7 +270,8 @@ var DIAS=['dom','lun','mar','mié','jue','vie','sáb'];
 
 var $=function(id){ return document.getElementById(id); };
 var miCorreo=null, miNombre='', puedeEditar=false;
-var historial=[], padron=[], tipos={};
+var historial=[], padron=[], tipos={}, alumnosVivo={};
+var histActualizado='', padActualizado='', leidoTs=0, refrescando=false;
 var idxId={}, idxNom={};
 var solapa='cobros', mesElegido='', filtroTxt='', tope=TOPE_FILAS;
 var ALUMNOS=[], MESES_HAY=[], VIENDO=null, MESES_SEL=[], _sumando=false;
@@ -346,71 +359,124 @@ function parseCSV(txt){
 }
 
 /* HISTORIAL: Fecha · Alumno · Hora · Sede · Profe · Tipo · Estado · Cobro · Motivo · ID */
+function parsearHistorial(paq){
+  if(!paq) return;
+  var csv = (typeof paq==='string') ? paq : paq.csv;
+  histActualizado = (paq && paq.actualizado) ? paq.actualizado : '';
+  if(!csv) return;
+  var rows=parseCSV(csv); if(rows.length<2) return;
+  historial=[];
+  for(var i=1;i<rows.length;i++){
+    var r=rows[i];
+    var fecha=(r[0]||'').trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
+    var nom=(r[1]||'').trim(); if(!nom) continue;
+    var estado=(r[6]||'').trim();
+    historial.push({
+      fecha:fecha, alumno:nom, hora:(r[2]||'').trim(), sede:(r[3]||'').trim(),
+      profe:(r[4]||'').trim(), tipo:(r[5]||'').trim(),
+      estado:estado, cobro:(r[7]||'').trim(), motivo:(r[8]||'').trim(),
+      id:(r[9]||'').trim(),
+      presente: estado.indexOf('Presente')===0,
+      seCobra: (r[7]||'').trim().toLowerCase().indexOf('s')===0
+    });
+  }
+}
 function cargarHistorial(){
-  return firebase.database().ref('historial_v1/csv').once('value').then(function(s){
-    var csv=s.val(); if(!csv) return;
-    var rows=parseCSV(csv); if(rows.length<2) return;
-    historial=[];
-    for(var i=1;i<rows.length;i++){
-      var r=rows[i];
-      var fecha=(r[0]||'').trim();
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
-      var nom=(r[1]||'').trim(); if(!nom) continue;
-      var estado=(r[6]||'').trim();
-      historial.push({
-        fecha:fecha, alumno:nom, hora:(r[2]||'').trim(), sede:(r[3]||'').trim(),
-        profe:(r[4]||'').trim(), tipo:(r[5]||'').trim(),
-        estado:estado, cobro:(r[7]||'').trim(), motivo:(r[8]||'').trim(),
-        id:(r[9]||'').trim(),
-        presente: estado.indexOf('Presente')===0,
-        seCobra: (r[7]||'').trim().toLowerCase().indexOf('s')===0
-      });
-    }
+  return firebase.database().ref('historial_v1').once('value').then(function(s){
+    parsearHistorial(s.val());
   }).catch(function(e){ console.warn('historial_v1:', e.message); });
+}
+
+function parsearPadron(paq){
+  if(!paq) return;
+  var csv = (typeof paq==='string') ? paq : paq.csv;
+  padActualizado = (paq && paq.actualizado) ? paq.actualizado : '';
+  if(!csv) return;
+  var rows=parseCSV(csv); if(rows.length<2) return;
+  var head=-1, col={};
+  for(var r=0;r<Math.min(rows.length,12);r++){
+    var h=rows[r].map(normNom);
+    var iNom=h.indexOf('alumnos'); if(iNom<0) iNom=h.indexOf('alumno');
+    var iId=h.indexOf('id');
+    if(iNom>=0 && iId>=0){
+      head=r; col.nom=iNom; col.id=iId;
+      col.precio=h.findIndex(function(x){ return x.indexOf('precio')>=0; });
+      col.tel=h.findIndex(function(x){ return x.indexOf('telefono')>=0; });
+      col.tipo=h.findIndex(function(x){ return x.indexOf('tipo de clase')>=0; });
+      col.cat=h.findIndex(function(x){ return x.indexOf('categoria')>=0; });
+      col.alt1=h.findIndex(function(x){ return x.indexOf('nombre p/ horario')>=0 || x.indexOf('nombre p horario')>=0; });
+      col.alt2=h.findIndex(function(x){ return x.indexOf('nombre_calendario')>=0 || x.indexOf('nombre calendario')>=0; });
+      break;
+    }
+  }
+  if(head<0) return;
+  padron=[]; idxId={}; idxNom={};
+  for(var i=head+1;i<rows.length;i++){
+    var f=rows[i], nom=(f[col.nom]||'').trim(); if(!nom) continue;
+    var a={
+      nombre:nom,
+      id:col.id>=0?(f[col.id]||'').trim():'',
+      precio:col.precio>=0?(+soloDigitos(f[col.precio])||0):0,
+      tel:col.tel>=0?normTel(f[col.tel]):'',
+      telCrudo:col.tel>=0?(f[col.tel]||'').trim():'',
+      tipo:col.tipo>=0?(f[col.tipo]||'').trim():'',
+      cat:col.cat>=0?(f[col.cat]||'').trim():''
+    };
+    padron.push(a);
+    if(a.id && !idxId[a.id]) idxId[a.id]=a;
+    [nom, col.alt1>=0?f[col.alt1]:'', col.alt2>=0?f[col.alt2]:''].forEach(function(n){
+      var k=keyAlumno(n); if(k && !idxNom[k]) idxNom[k]=a;
+    });
+  }
+  aplicarVivo();
 }
 
 /* Padrón: los encabezados NO están en la primera fila y hay columnas ocultas,
    así que las columnas se buscan por su nombre, nunca por posición. */
 function cargarPadron(){
-  return firebase.database().ref('alumnos_v1/csv').once('value').then(function(s){
-    var csv=s.val(); if(!csv) return;
-    var rows=parseCSV(csv); if(rows.length<2) return;
-    var head=-1, col={};
-    for(var r=0;r<Math.min(rows.length,12);r++){
-      var h=rows[r].map(normNom);
-      var iNom=h.indexOf('alumnos'); if(iNom<0) iNom=h.indexOf('alumno');
-      var iId=h.indexOf('id');
-      if(iNom>=0 && iId>=0){
-        head=r; col.nom=iNom; col.id=iId;
-        col.precio=h.findIndex(function(x){ return x.indexOf('precio')>=0; });
-        col.tel=h.findIndex(function(x){ return x.indexOf('telefono')>=0; });
-        col.tipo=h.findIndex(function(x){ return x.indexOf('tipo de clase')>=0; });
-        col.cat=h.findIndex(function(x){ return x.indexOf('categoria')>=0; });
-        col.alt1=h.findIndex(function(x){ return x.indexOf('nombre p/ horario')>=0 || x.indexOf('nombre p horario')>=0; });
-        col.alt2=h.findIndex(function(x){ return x.indexOf('nombre_calendario')>=0 || x.indexOf('nombre calendario')>=0; });
-        break;
-      }
-    }
-    if(head<0) return;
-    padron=[]; idxId={}; idxNom={};
-    for(var i=head+1;i<rows.length;i++){
-      var f=rows[i], nom=(f[col.nom]||'').trim(); if(!nom) continue;
-      var a={
-        nombre:nom,
-        id:col.id>=0?(f[col.id]||'').trim():'',
-        precio:col.precio>=0?(+soloDigitos(f[col.precio])||0):0,
-        tel:col.tel>=0?normTel(f[col.tel]):'',
-        telCrudo:col.tel>=0?(f[col.tel]||'').trim():'',
-        tipo:col.tipo>=0?(f[col.tipo]||'').trim():'',
-        cat:col.cat>=0?(f[col.cat]||'').trim():''
-      };
-      padron.push(a);
-      if(a.id && !idxId[a.id]) idxId[a.id]=a;
-      [nom, col.alt1>=0?f[col.alt1]:'', col.alt2>=0?f[col.alt2]:''].forEach(function(n){
-        var k=keyAlumno(n); if(k && !idxNom[k]) idxNom[k]=a;
-      });
-    }
+  return firebase.database().ref('alumnos_v1').once('value').then(function(s){
+    parsearPadron(s.val());
   }).catch(function(e){ console.warn('alumnos_v1:', e.message); });
+}
+
+/* ============================================================
+   EL PRECIO, SIN ESPERAR LOS 15 MINUTOS
+
+   La app de Alumnos escribe cada alumno en `alumnos_v2` al instante, y el
+   puente lo lleva a la planilla; recién 15 minutos después entra en la copia
+   que lee la caja. Así que se lee el cajón instantáneo y se pisa lo que traiga.
+
+   No rompe "una casa por dato": la planilla sigue mandando. `alumnos_v2` es la
+   MISMA casa un paso antes, no una copia paralela con vida propia.
+   ============================================================ */
+function cargarVivo(){
+  return firebase.database().ref('alumnos_v2').once('value').then(function(s){
+    alumnosVivo=s.val()||{}; aplicarVivo();
+  }).catch(function(e){ alumnosVivo={}; console.warn('alumnos_v2:', e.message); });
+}
+
+function aplicarVivo(){
+  if(!alumnosVivo || !padron.length) return;
+  Object.keys(alumnosVivo).forEach(function(k){
+    var v=alumnosVivo[k]; if(!v || !v.nombre) return;
+    var kk=keyAlumno(v.nombre);
+    var a=idxNom[kk];
+    if(a){
+      if(v.precio!==undefined && v.precio!==null) a.precio=Number(v.precio)||0;
+      if(v.tipo!==undefined) a.tipo=v.tipo||'';
+      if(v.tel){ a.tel=normTel(v.tel); a.telCrudo=v.tel; }
+      a.vivo=true;
+    } else {
+      /* Alumno recién creado: todavía no está en la copia de la planilla. Si no
+         se lo agrega, la caja lo marcaría como "no está en el padrón". */
+      var nuevo={ nombre:v.nombre, id:'', precio:Number(v.precio)||0,
+                  tel:v.tel?normTel(v.tel):'', telCrudo:v.tel||'',
+                  tipo:v.tipo||'', cat:v.cat||'', vivo:true };
+      padron.push(nuevo);
+      if(kk) idxNom[kk]=nuevo;
+    }
+  });
 }
 
 function cargarTipos(){
@@ -522,6 +588,103 @@ function cobroDe(a, mesesSel){
 function filasDelMes(mes){
   if(!mes) return historial;
   return historial.filter(function(h){ return mesDe(h.fecha)===mes; });
+}
+
+/* ============================================================
+   CUÁNDO SE ACTUALIZA CADA COSA
+
+   Tres velocidades, y conviene tenerlas claras:
+
+   · Precio, tipo y teléfono de un alumno → AL INSTANTE. La app de Alumnos los
+     escribe en `alumnos_v2` y acá se escucha ese cajón en vivo.
+   · Los aportes de los tipos de clase → AL INSTANTE, también en vivo.
+   · Las clases y si se cobran → hasta 30 MINUTOS. Vienen de la planilla, y un
+     script de Google copia HISTORIAL a Firebase cada media hora. Eso no se puede
+     apurar desde acá: el botón vuelve a leer la copia, pero si el script todavía
+     no corrió, la copia sigue siendo la misma.
+
+   Por eso el cartel de arriba dice de cuándo son los datos: es lo único que el
+   sistema realmente sabe.
+   ============================================================ */
+function haceCuanto(iso){
+  if(!iso) return '';
+  var t=new Date(iso).getTime();
+  if(isNaN(t)) return '';
+  var min=Math.round((Date.now()-t)/60000);
+  if(min<1) return 'recién';
+  if(min===1) return 'hace 1 minuto';
+  if(min<60) return 'hace '+min+' minutos';
+  var h=Math.round(min/60);
+  return h===1 ? 'hace 1 hora' : 'hace '+h+' horas';
+}
+
+function pintarFrescura(){
+  var e=$('frescuraTxt'); if(!e) return;
+  var partes=[];
+  var h=haceCuanto(histActualizado);
+  var p=haceCuanto(padActualizado);
+  var viejo = function(iso){
+    var t=new Date(iso).getTime();
+    return iso && !isNaN(t) && (Date.now()-t)/60000 > 45;
+  };
+  partes.push('Clases y cobros: <b'+(viejo(histActualizado)?' class="viejo"':'')+'>'+
+    (h||'sin fecha')+'</b>');
+  partes.push('padrón: <b'+(viejo(padActualizado)?' class="viejo"':'')+'>'+(p||'sin fecha')+'</b>');
+  partes.push('precios y tipos: <b>en vivo</b>');
+  e.innerHTML=partes.join(' · ');
+}
+setInterval(pintarFrescura, 60000);
+
+/* Lo que llega solo desde Firebase no repinta encima de lo que estás haciendo:
+   si hay una ficha abierta o estás cargando aportes, espera. */
+function datosLlegaron(){
+  leidoTs=Date.now();
+  armarAlumnos();
+  pintarFrescura();
+  var ov=$('ov');
+  if(ov && ov.classList.contains('show')) return;
+  if(solapa==='tipos') return;
+  pintar();
+}
+
+function escucharTodo(){
+  var db=firebase.database();
+  db.ref('alumnos_v2').on('value', function(s){
+    alumnosVivo=s.val()||{}; aplicarVivo(); datosLlegaron();
+  }, function(e){ console.warn('alumnos_v2:', e.message); });
+
+  db.ref('tipos_v1').on('value', function(s){
+    tipos=s.val()||{}; datosLlegaron();
+  }, function(e){ console.warn('tipos_v1:', e.message); });
+
+  db.ref('alumnos_v1').on('value', function(s){
+    parsearPadron(s.val()); datosLlegaron();
+  }, function(e){ console.warn('alumnos_v1:', e.message); });
+
+  db.ref('historial_v1').on('value', function(s){
+    parsearHistorial(s.val()); datosLlegaron();
+  }, function(e){ console.warn('historial_v1:', e.message); });
+}
+
+/* El botón. Vuelve a pedir todo de cero, sin esperar. */
+function refrescar(){
+  if(refrescando) return;
+  refrescando=true;
+  var b=$('btnRefrescar');
+  var antesH=histActualizado, antesP=padActualizado;
+  b.disabled=true; b.textContent='Actualizando…';
+  Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo()]).then(function(){
+    armarAlumnos(); pintar(); pintarFrescura();
+    b.disabled=false; b.textContent='🔄 Actualizar ahora';
+    refrescando=false;
+    if(antesH===histActualizado && antesP===padActualizado)
+      toast('Ya estabas viendo lo último que hay');
+    else
+      toast('Datos actualizados');
+  }).catch(function(){
+    b.disabled=false; b.textContent='🔄 Actualizar ahora'; refrescando=false;
+    toast('No pude actualizar');
+  });
 }
 
 /* ---------- Solapas ---------- */
@@ -1237,15 +1400,19 @@ firebase.auth().onAuthStateChanged(function(u){
     $('login').style.display='none'; $('nopuede').style.display='none';
     $('app').style.display='block';
     $('yoMail').textContent=miCorreo;
-    Promise.all([cargarPadron(), cargarHistorial(), cargarTipos()]).then(function(){
+    Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo()]).then(function(){
       armarAlumnos();
+      leidoTs=Date.now();
       $('cargando').style.display='none';
       $('rango').textContent = historial.length
         ? gs(historial.length)+' clases en el historial · '+
           (MESES_HAY.length?mesNombre(MESES_HAY[0])+' a '+mesNombre(MESES_HAY[MESES_HAY.length-1]):'')
         : 'todavía sin clases cerradas';
+      pintarFrescura();
       pintar();
+      escucharTodo();          // de acá en adelante, lo que cambie llega solo
     });
+    $('btnRefrescar').onclick=refrescar;
   }).catch(function(e){
     $('login').style.display='none';
     $('nopuedeTxt').textContent='No se pudo verificar tu acceso. '+e.message;
