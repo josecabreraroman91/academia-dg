@@ -1545,6 +1545,7 @@ function saveState(){
   try{reindexarAlumnos();}catch(e){}
   try{ guardarRevisar(); }catch(e){}   // espejo de marcas (compatibilidad) siempre al día
   autoPublicar();
+  try{ registrarCambiosAdmin(); }catch(e){}
   if(!_aplicandoRemoto && _calListo) empujarCalendario();
 }
 
@@ -2551,6 +2552,129 @@ function backupAuto(motivo){
   logOp('backup', motivo);
 }
 // Registro de operaciones sensibles en la nube (para saber SIEMPRE qué pasó y desde dónde)
+/* ============================================================
+   REGISTRO DE LO QUE HACEN LOS ADMINISTRADORES
+
+   Los profes proponen en un cajón aparte, así que de ellos se sabe siempre
+   quién hizo qué. El administrador edita directo, y el calendario **sube todo
+   entero de una sola vez**: no hay ningún punto donde sepa qué celda cambió.
+
+   Por eso acá se compara: se guarda una foto de cómo estaba y, al guardar, se
+   mira qué cambió respecto de esa foto. De ahí salen las operaciones.
+
+   · Solo se registra a los administradores. Los profes siguen igual.
+   · No se registra lo que llega de otro dispositivo: eso ya lo anotó quien lo hizo.
+   · Un cambio masivo (vaciar un día) deja UN renglón que lo resume, no doscientos.
+   · Se borra solo a la semana: es para control, no para guardar para siempre.
+   ============================================================ */
+const OPS_DIAS_VIDA = 7;
+const OPS_TOPE = 40;               // más que esto se resume en un renglón
+let _soyAdmin=false, _yoCorreo='', _yoNombre='', _fotoPrev=null;
+
+function _libros(){
+  return [['MADRE', state.madre], ['Semana', state.semana], ['Semana próxima', state.semanaProxima]];
+}
+/* La foto: por cada libro, qué alumno hay en cada celda y con qué tipo de clase. */
+function _sacarFoto(){
+  const f={};
+  _libros().forEach(par=>{
+    const A=(par[1]&&par[1].alumnos)||{}, m={};
+    Object.keys(A).forEach(k=>{
+      const al=A[k];
+      if(al && al.nombre) m[k]={n:al.nombre, mod:al.mod||'', niv:al.nivel||''};
+    });
+    f[par[0]]=m;
+  });
+  return f;
+}
+
+function _difLibro(libro, viejo, nuevo){
+  const ops=[];
+  const salieron=[], entraron=[];
+  Object.keys(viejo).forEach(k=>{
+    const v=viejo[k], n=nuevo[k];
+    if(!n){ salieron.push({k, v}); return; }
+    if(normName(n.n)!==normName(v.n)){ salieron.push({k,v}); entraron.push({k,v:n}); return; }
+    /* Mismo alumno en la misma celda: puede haber cambiado el tipo o el nivel. */
+    if(n.mod!==v.mod || n.niv!==v.niv){
+      ops.push({tipo:'editar', alumno:n.n, detalle:libro+' · '+lugarTxt(k)+
+        (n.mod!==v.mod ? ' · tipo '+(v.mod||'—')+' → '+(n.mod||'—') : '')+
+        (n.niv!==v.niv ? ' · nivel '+(v.niv||'—')+' → '+(n.niv||'—') : '')});
+    }
+  });
+  Object.keys(nuevo).forEach(k=>{ if(!viejo[k]) entraron.push({k, v:nuevo[k]}); });
+
+  /* Un alumno que sale de un lado y entra en otro es un MOVER, no dos cosas. */
+  const usados={};
+  salieron.forEach(s=>{
+    const i=entraron.findIndex((e,ix)=>!usados[ix] && normName(e.v.n)===normName(s.v.n));
+    if(i>=0){
+      usados[i]=true;
+      ops.push({tipo:'mover', alumno:s.v.n, detalle:libro+' · '+lugarTxt(s.k)+' → '+lugarTxt(entraron[i].k)});
+    } else {
+      ops.push({tipo:'sacar', alumno:s.v.n, detalle:libro+' · '+lugarTxt(s.k)});
+    }
+  });
+  entraron.forEach((e,ix)=>{
+    if(usados[ix]) return;
+    ops.push({tipo:'agregar', alumno:e.v.n, detalle:libro+' · '+lugarTxt(e.k)});
+  });
+  return ops;
+}
+
+function registrarCambiosAdmin(){
+  if(!_soyAdmin || !_fbdb || !_calListo || _aplicandoRemoto) return;
+  const foto=_sacarFoto();
+  if(!_fotoPrev){ _fotoPrev=foto; return; }        // la primera vez solo se guarda
+
+  let ops=[];
+  _libros().forEach(par=>{
+    const nom=par[0];
+    ops=ops.concat(_difLibro(nom, _fotoPrev[nom]||{}, foto[nom]||{}));
+  });
+  _fotoPrev=foto;
+  if(!ops.length) return;
+
+  const fecha=(function(){ const d=new Date();
+    return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); })();
+  const base={ porCorreo:_yoCorreo, porNombre:_yoNombre||_yoCorreo, ts:Date.now() };
+
+  if(ops.length>OPS_TOPE){
+    /* Cambio masivo: un solo renglón. Doscientos no se leen y llenan el cajón. */
+    const cuenta={};
+    ops.forEach(o=>cuenta[o.tipo]=(cuenta[o.tipo]||0)+1);
+    const resumen=Object.keys(cuenta).map(k=>cuenta[k]+' '+k).join(', ');
+    ops=[{tipo:'editar', alumno:'('+ops.length+' cambios)', detalle:'Cambio masivo: '+resumen}];
+  }
+  ops.forEach(o=>{
+    try{ _fbdb.ref('ops_admin/'+fecha).push(Object.assign({}, base, o)); }catch(e){}
+  });
+}
+
+/* Se borran las fechas de más de una semana. Corre una vez, al abrir. */
+function limpiarOpsAdmin(){
+  if(!_fbdb || !_soyAdmin) return;
+  const corte=new Date(Date.now()-OPS_DIAS_VIDA*86400000);
+  const lim=corte.getFullYear()+'-'+String(corte.getMonth()+1).padStart(2,'0')+'-'+String(corte.getDate()).padStart(2,'0');
+  _fbdb.ref('ops_admin').once('value').then(s=>{
+    const v=s.val()||{};
+    Object.keys(v).forEach(f=>{ if(f<lim) _fbdb.ref('ops_admin/'+f).remove().catch(()=>{}); });
+  }).catch(e=>console.warn('no pude limpiar ops_admin:', e.message));
+}
+
+/* ¿Quién soy y soy administrador? De eso depende que se registre o no. */
+function saberSiSoyAdmin(){
+  const u=firebase.auth().currentUser; if(!u || !_fbdb) return;
+  _yoCorreo=(u.email||'').toLowerCase();
+  const clave=_yoCorreo.replace(/\./g, ',');
+  _fbdb.ref('usuarios/'+clave).once('value').then(s=>{
+    const f=s.val()||{};
+    _yoNombre=f.nombre||u.displayName||_yoCorreo;
+    _soyAdmin=!!(f.permisos && f.permisos.admin===true);
+    if(_soyAdmin){ _fotoPrev=_sacarFoto(); limpiarOpsAdmin(); }
+  }).catch(e=>console.warn('no pude leer mi ficha:', e.message));
+}
+
 function logOp(accion, detalle){
   try{ if(_fbdb) _fbdb.ref('log_ops').push({t:Date.now(), accion:String(accion), detalle:String(detalle||''), dia:state.dia||'', ua:(navigator.userAgent||'').slice(0,80)}); }catch(e){}
 }
@@ -3878,6 +4002,7 @@ fillAlumnosDatalist();
         if(!_arrancado){
           _arrancado=true;
           iniciarCalendarioCompartido();   // sincroniza el calendario entre encargados (tiempo real)
+          try{ saberSiSoyAdmin(); }catch(e){}
           try{ escucharReservasProfes(); }catch(e){ console.warn('reservas:', e.message); }
           try{ cargarIdsAlumnos(); }catch(e){}
           escucharAlumnosVivo();           // alumnos nuevos disponibles al instante
