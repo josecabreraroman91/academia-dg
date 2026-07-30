@@ -256,7 +256,16 @@ function pintar(){
 
    Sin esto, con 400 alumnos son ~800 asistencias por semana: en un año, cada apertura
    bajaría cuarenta mil renglones. */
-var _refOps=null;
+var _refOps=null, _refAdmin=null, opsV1=[], opsAdmin=[];
+
+/* Los cambios de los administradores viven aparte, en ops_admin, porque se
+   borran solos a la semana. Acá se juntan con el resto para verlos en una sola
+   lista. Vienen con la misma forma, así que no hay nada especial que hacer. */
+function juntarOps(){
+  ops = opsV1.concat(opsAdmin);
+  ops.sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
+  pintar();
+}
 function isoMenos(dias){
   var d=new Date(Date.now()-dias*86400000);
   return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
@@ -269,21 +278,37 @@ function escuchar(){
   _refOps = ref;
   $('cargando').style.display='block';
   ref.on('value', function(s){
-    var v=s.val()||{}; ops=[];
+    var v=s.val()||{}; opsV1=[];
     /* ops_v1 está partido por semana, por fecha o por 'madre'.
        Acá se junta todo y se ordena por hora, del más nuevo al más viejo. */
     Object.keys(v).forEach(function(grupo){
       var g=v[grupo]||{};
       Object.keys(g).forEach(function(id){
         var o=g[id];
-        if(o && o.ts) ops.push(o);
+        if(o && o.ts) opsV1.push(o);
       });
     });
-    ops.sort(function(a,b){ return (b.ts||0)-(a.ts||0); });
-    pintar();
+    juntarOps();
   }, function(e){
     $('cargando').textContent='No pude leer el historial: '+e.message;
   });
+
+  /* ops_admin está partido por fecha y no guarda más de una semana, así que se
+     trae entero: es poco. Si no hay permiso para leerlo, se ignora en silencio
+     y el historial sigue funcionando igual. */
+  if(_refAdmin){ _refAdmin.off(); _refAdmin=null; }
+  _refAdmin = firebase.database().ref('ops_admin');
+  _refAdmin.on('value', function(s){
+    var v=s.val()||{}; opsAdmin=[];
+    Object.keys(v).forEach(function(fecha){
+      var g=v[fecha]||{};
+      Object.keys(g).forEach(function(id){
+        var o=g[id];
+        if(o && o.ts) opsAdmin.push(o);
+      });
+    });
+    juntarOps();
+  }, function(){ opsAdmin=[]; juntarOps(); });
 }
 
 /* ---------- Filtros ---------- */
