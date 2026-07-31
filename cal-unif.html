@@ -2230,6 +2230,10 @@ function _renderGridReal(){
       al.confirmado = !al.confirmado;
       // Al marcar PRESENTE, se quita sola la marca celeste "para revisar" (ya quedó resuelto)
       if(al.confirmado && al.revisar) delete al.revisar;
+      /* Queda registrado quién confirmó y cuándo. El resto de los cambios del
+         calendario se detectan comparando fotos, pero la marca verde no cambia
+         la grilla: hay que anotarla en el momento o no queda rastro. */
+      anotarConfirmacion(al, cellKey(sk,+pi,+hi,+si));
       guardarRevisar();
       saveState(); renderGrid();
     };
@@ -2799,6 +2803,31 @@ function _difLibro(libro, viejo, nuevo){
     ops.push({tipo:'agregar', alumno:e.v.n, detalle:libro+' · '+lugarTxt(e.k)});
   });
   return ops;
+}
+
+/* ============================================================
+   QUIÉN CONFIRMÓ Y CUÁNDO
+
+   Los cambios del calendario (agregar, mover, sacar) se detectan comparando una
+   foto de antes contra una de después. La marca verde no sirve para eso: no
+   agrega ni saca a nadie de la grilla, así que la comparación no la ve. Por eso
+   se anota acá, en el mismo momento en que se toca el botón.
+   ============================================================ */
+function anotarConfirmacion(al, k){
+  try{
+    if(!_fbdb || !_yoCorreo) return;
+    const d=new Date();
+    const fecha=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    const libro = (state.mode==='madre') ? 'MADRE' : (state.semanaVista==='prox' ? 'Semana próxima' : 'Semana');
+    _fbdb.ref('ops_admin/'+fecha).push({
+      tipo: al.confirmado ? 'confirmar' : 'desconfirmar',
+      alumno: (al.nombre||'').slice(0,80),
+      detalle: (libro+' · '+lugarTxt(k)).slice(0,200),
+      porCorreo: _yoCorreo,
+      porNombre: _yoNombre || _yoCorreo,
+      ts: Date.now()
+    }).catch(()=>{});
+  }catch(e){ console.warn('no pude anotar la confirmación:', e.message); }
 }
 
 function registrarCambiosAdmin(){
