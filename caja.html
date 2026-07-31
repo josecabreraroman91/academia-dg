@@ -271,6 +271,7 @@ var DIAS=['dom','lun','mar','mié','jue','vie','sáb'];
 var $=function(id){ return document.getElementById(id); };
 var miCorreo=null, miNombre='', puedeEditar=false;
 var historial=[], padron=[], tipos={}, alumnosVivo={};
+var profesores={}, noProfe={};
 var histActualizado='', padActualizado='', leidoTs=0, refrescando=false;
 var idxId={}, idxNom={};
 var solapa='cobros', mesElegido='', filtroTxt='', tope=TOPE_FILAS;
@@ -479,6 +480,45 @@ function aplicarVivo(){
   });
 }
 
+/* ============================================================
+   COLUMNAS QUE NO SON PROFESORES
+
+   En la grilla hay columnas que no son una persona: "Sin profe" (SP) y las de
+   A DEFINIR, que se usan para estacionar alumnos hasta ubicarlos. Si contaran
+   como profesor, se llevarían una parte de la bolsa de esa hora y todos los
+   profes de verdad cobrarían menos.
+
+   La marca vive en el calendario (calendario_v2/profesores), que es donde se
+   define la columna. Acá solo se lee.
+   ============================================================ */
+function cargarColumnas(){
+  return firebase.database().ref('calendario_v2/profesores').once('value').then(function(s){
+    guardarColumnas(s.val());
+  }).catch(function(e){ console.warn('calendario_v2/profesores:', e.message); });
+}
+function guardarColumnas(lista){
+  lista = lista || [];
+  profesores={}; noProfe={};
+  var arr = Array.isArray(lista) ? lista : Object.keys(lista).map(function(k){ return lista[k]; });
+  arr.forEach(function(p){
+    if(!p || !p.dim) return;
+    var d=String(p.dim).trim().toUpperCase();
+    profesores[d]=p.nombre||p.dim;
+    if(p.noEsProfe) noProfe[d]=true;
+  });
+}
+function esColumnaSinProfe(dim){ return !!noProfe[String(dim||'').trim().toUpperCase()]; }
+function nombreProfe(dim){ return profesores[String(dim||'').trim().toUpperCase()] || dim; }
+
+/* Los casilleros de ALTO RENDIMIENTO, ALMUERZO, LIBRE, los puntos y los guiones
+   ocupan lugar en la grilla pero NO son alumnos. Misma regla que el calendario. */
+function esBloque(nombre){
+  var t=keyAlumno(nombre).replace(/\./g,'').trim();
+  return t==='' || t==='-' || t.length<=2 ||
+         t==='alto rendimiento' || t==='alto r' ||
+         t==='almuerzo' || t==='libre';
+}
+
 function cargarTipos(){
   return firebase.database().ref('tipos_v1').once('value').then(function(s){
     tipos=s.val()||{};
@@ -512,8 +552,11 @@ function calcularPozo(filas){
   var horas={};
   filas.forEach(function(h){
     var k=h.fecha+'|'+h.hora;
-    if(!horas[k]) horas[k]={fecha:h.fecha, hora:h.hora, total:0, profes:{}, presentes:0, clases:0, sinTipo:0};
+    if(!horas[k]) horas[k]={fecha:h.fecha, hora:h.hora, total:0, profes:{}, presentes:0, clases:0, sinTipo:0, estacionados:0};
     var b=horas[k];
+    /* Una columna que no es un profesor no trabaja: ni cobra parte del pozo, ni
+       lo que aporta el alumno estacionado ahí engorda la bolsa de los demás. */
+    if(esColumnaSinProfe(h.profe)){ b.estacionados++; return; }
     b.clases++;
     if(h.profe) b.profes[h.profe]=true;
     if(h.presente){
@@ -537,6 +580,7 @@ function calcularPozo(filas){
     });
   });
   filas.forEach(function(h){
+    if(esColumnaSinProfe(h.profe)) return;
     if(h.profe && porProfe[h.profe]){
       porProfe[h.profe].clases++;
       if(h.presente) porProfe[h.profe].presentes++;
@@ -556,6 +600,7 @@ function armarAlumnos(){
   var mapa={}, meses={};
   historial.forEach(function(h){
     if(!h.seCobra) return;
+    if(esBloque(h.alumno)) return;     // ALTO RENDIMIENTO, ALMUERZO... no son personas
     var f=fichaDe(h);
     var k=f?(f.id||keyAlumno(f.nombre)):('?'+keyAlumno(h.alumno));
     if(!mapa[k]) mapa[k]={ k:k, nombre:f?f.nombre:h.alumno, ficha:f, meses:{}, total:0 };
@@ -653,6 +698,10 @@ function escucharTodo(){
     alumnosVivo=s.val()||{}; aplicarVivo(); datosLlegaron();
   }, function(e){ console.warn('alumnos_v2:', e.message); });
 
+  db.ref('calendario_v2/profesores').on('value', function(s){
+    guardarColumnas(s.val()); datosLlegaron();
+  }, function(e){ console.warn('profesores:', e.message); });
+
   db.ref('tipos_v1').on('value', function(s){
     tipos=s.val()||{}; datosLlegaron();
   }, function(e){ console.warn('tipos_v1:', e.message); });
@@ -673,7 +722,7 @@ function refrescar(){
   var b=$('btnRefrescar');
   var antesH=histActualizado, antesP=padActualizado;
   b.disabled=true; b.textContent='Actualizando…';
-  Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo()]).then(function(){
+  Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas()]).then(function(){
     armarAlumnos(); pintar(); pintarFrescura();
     b.disabled=false; b.textContent='🔄 Actualizar ahora';
     refrescando=false;
@@ -1149,7 +1198,7 @@ function pantallaProfes(){
     '<th></th></tr></thead><tbody>';
   if(!lista.length) html+='<tr><td colspan="6" class="vacio">Sin clases este mes.</td></tr>';
   lista.forEach(function(p){
-    html+='<tr class="click" data-p="'+esc(p.profe)+'"><td><b>'+esc(p.profe)+'</b></td>'+
+    html+='<tr class="click" data-p="'+esc(p.profe)+'"><td><b>'+esc(p.profe)+'</b>'+(nombreProfe(p.profe)!==p.profe?' <span style="color:var(--suave);font-weight:400">'+esc(nombreProfe(p.profe))+'</span>':'')+'</td>'+
       '<td class="num">'+gs(p.horas)+'</td><td class="num">'+gs(p.clases)+'</td>'+
       '<td class="num">'+gs(p.presentes)+'</td><td class="num"><b>'+gs(p.monto)+'</b></td>'+
       '<td class="num"><button class="chico">Ver el detalle</button></td></tr>';
@@ -1284,6 +1333,7 @@ function anotarOp(tipo, detalle){
 function calcularCorregir(){
   var porAlumno={}, tiposSinAporte={};
   historial.forEach(function(h){
+    if(esBloque(h.alumno)) return;     // los bloques de la grilla no son alumnos
     var f=fichaDe(h);
     var k=f?(f.id||keyAlumno(f.nombre)):('?'+keyAlumno(h.alumno));
     if(!porAlumno[k]) porAlumno[k]={ nombre:f?f.nombre:h.alumno, ficha:f, clases:0, cobrables:0, tipos:{} };
@@ -1400,7 +1450,7 @@ firebase.auth().onAuthStateChanged(function(u){
     $('login').style.display='none'; $('nopuede').style.display='none';
     $('app').style.display='block';
     $('yoMail').textContent=miCorreo;
-    Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo()]).then(function(){
+    Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas()]).then(function(){
       armarAlumnos();
       leidoTs=Date.now();
       $('cargando').style.display='none';
