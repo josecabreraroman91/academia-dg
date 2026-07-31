@@ -49,6 +49,8 @@
   .chip.tel{background:#1d3a2c;color:#7df0aa}
   .chip.notel{background:#3a2626;color:#ff9a9a}
   .adias{display:flex;gap:4px;margin-top:8px}
+  .dchip .quitarDia{all:unset;cursor:pointer;margin-left:6px;font-size:10px;opacity:.55;padding:0 2px}
+  .dchip .quitarDia:hover{opacity:1;color:#b42318}
   .dchip{flex:1;text-align:center;font-size:10px;font-weight:700;padding:3px 0;border-radius:6px;background:var(--panel2);color:#41506180}
   .dchip.on{background:var(--clay);color:#1a1a1a}
   .dchip .hh{display:block;font-size:9px;font-weight:600;margin-top:1px;opacity:.85}
@@ -235,7 +237,8 @@
     </div>
 
     <div class="sheet-actions">
-      <button class="btn danger" id="btnDelete" style="display:none">Borrar</button>
+      <!-- El botón de BORRAR se sacó a propósito: un alumno no se elimina, se edita.
+           Borrarlo pierde su historial de clases y de cobros. -->
       <button class="btn ghost" id="btnCancel">Cancelar</button>
       <button class="btn primary" id="btnSave">Guardar</button>
     </div>
@@ -306,13 +309,39 @@ function load(){ try{ alumnos=JSON.parse(localStorage.getItem(STORE_KEY)||'[]');
 function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(alumnos)); }
 
 // ===== Render lista =====
+/* Sacar un día fijo desde la ficha del alumno: escribe en la MADRE del
+   calendario y deja LÁPIDA, para que ninguna copia vieja lo reviva. */
+function quitarDiaDeLaMadre(clave, nombre, txt){
+  if(!confirm('¿Sacar a '+nombre+' del día fijo '+txt+'?\n\nDesaparece de la MADRE del calendario.\nEl alumno NO se borra: sigue en el sistema.')) return;
+  var upd={};
+  upd['madre/alumnos/'+clave]=null;
+  upd['borrados/madre/'+clave]=Date.now();
+  upd['_ts']=Date.now();
+  firebase.database().ref('calendario_v2').update(upd).then(function(){
+    try{ toast('Día sacado de la MADRE'); }catch(e){}
+  }).catch(function(e){
+    alert('No se pudo sacar el día.\n\n'+e.message+
+      '\n\nSi dice que no tenés permiso, hace falta permiso de escritura en el calendario.');
+  });
+}
+
 function diasResumen(a){
   return DIAS.map(([full,ab])=>{
     const hs=(a.horarios||[]).filter(x=>x.dia===full);
     const on=hs.length>0;
     const horas=hs.map(x=>x.hora).filter(Boolean).join(' · ');
-    return `<div class="dchip ${on?'on':''}">${ab}${horas?`<span class="hh">${esc(horas)}</span>`:''}</div>`;
+    const quitar = hs.filter(x=>x.clave).map(x=>
+      `<button type="button" class="quitarDia" data-clave="${esc(x.clave)}" data-nom="${esc(a.nombre||'')}" data-txt="${esc(ab+' '+(x.hora||''))}" title="Sacar este día fijo de la MADRE">✕</button>`).join('');
+    return `<div class="dchip ${on?'on':''}">${ab}${horas?`<span class="hh">${esc(horas)}</span>`:''}${on?quitar:''}</div>`;
   }).join('');
+}
+function wireQuitarDias(){
+  document.querySelectorAll('.quitarDia').forEach(function(b){
+    b.onclick=function(ev){
+      ev.stopPropagation();
+      quitarDiaDeLaMadre(b.dataset.clave, b.dataset.nom, b.dataset.txt);
+    };
+  });
 }
 function render(){
   const q=normName(document.getElementById('search').value);
@@ -344,6 +373,7 @@ function render(){
     </div>`;
   }).join('');
   el.querySelectorAll('[data-edit]').forEach(c=>c.onclick=()=>openEditor(c.dataset.edit));
+  wireQuitarDias();
 }
 
 // ===== Editor =====
@@ -420,7 +450,7 @@ function openEditor(id){
   document.getElementById('fDir').value        = a?(a.dir||''):'';
   document.getElementById('fComent').value = a?(a.comentarios||''):'';
   attachMiles(document.getElementById('fPrecio'));
-  document.getElementById('btnDelete').style.display = a?'block':'none';
+  var _bd=document.getElementById('btnDelete'); if(_bd) _bd.style.display='none';   // el borrado se retiró a propósito
   document.getElementById('ov').classList.add('show');
 }
 function closeEditor(){ document.getElementById('ov').classList.remove('show'); editId=null; }
@@ -597,7 +627,7 @@ function restaurar(file){
 document.getElementById('btnNuevo').onclick=()=>openEditor(null);
 document.getElementById('btnSave').onclick=saveEditor;
 document.getElementById('btnCancel').onclick=closeEditor;
-document.getElementById('btnDelete').onclick=deleteEditor;
+var _bdel=document.getElementById('btnDelete'); if(_bdel) _bdel.onclick=deleteEditor;
 document.getElementById('search').oninput=render;
 
 /* Al volver a esta sección desde el hub, el buscador arranca limpio. El recuadro
@@ -838,7 +868,9 @@ load(); render();
       var k = norm(al.nombre);
       if(!out[k]) out[k] = [];
       var repetido = out[k].some(function(h){ return h.dia===dia && h.hora===hora; });
-      if(!repetido) out[k].push({dia:dia, hora:hora});
+      /* Se guarda la clave de la celda: es la dirección exacta en la MADRE y
+         es lo único que permite sacar ese día desde acá. */
+      if(!repetido) out[k].push({dia:dia, hora:hora, clave:clave});
     });
     return out;
   }
