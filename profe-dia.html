@@ -99,6 +99,9 @@
   .profe-nom{font-size:13px;color:var(--muted);font-weight:700}
   .profe-cnt{margin-left:auto;font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-weight:700}
 
+  .ayuda{display:inline-flex;align-items:center;gap:4px;background:#e8f0fb;border:1px solid #b9cdea;
+    color:#1d4b8f;border-radius:20px;padding:2px 9px;font-size:11.5px;font-weight:700;cursor:pointer}
+  .ayuda:hover{border-color:#1d4b8f}
   .bloque{display:flex;align-items:center;gap:10px;background:#eaf4f1;border:1px dashed #bcd8cf;border-radius:10px;padding:10px 12px;margin:6px 0;color:#2c5c4f;font-weight:700;font-size:14px}
   .bloque .bem{font-size:20px}
 
@@ -249,6 +252,9 @@
     <div class="acts">
       <button class="btn" id="acCancel">Cancelar</button>
       <button class="btn court" id="acGuardar">Agregar presente</button>
+    </div>
+    <div class="acts" style="margin-top:6px">
+      <button class="btn" id="acAyudante" style="width:100%">🤝 Sumar profe ayudante a esta hora</button>
     </div>
   </div>
 </div>
@@ -474,6 +480,46 @@ function listaProfesSync(){
 }
 function optProfe(dim, sel){ const n=profeNombre(dim); return `<option value="${dim}"${sel?' selected':''}>${dim}${n?' · '+n:''}</option>`; }
 function esBloque(a){ return a.mod==='BLOQUE' || /ALTO RENDIMIENTO|ALMUERZO/i.test(a.nombre||''); }
+/* ============================================================
+   PROFE AYUDANTE
+
+   Un profe que esa hora no tiene alumnos puede sumarse a la clase de otro.
+   Entra al reparto de la bolsa como uno más, y deja de figurar como
+   disponible en su propio horario, porque ya no lo está.
+
+   Se guarda como un renglón del día con nombre AYUDANTE: el campo profe es
+   el titular (para verlo en su fila) y ayudante es la inicial del que ayuda.
+   ============================================================ */
+function esAyuda(a){ return !!(a && a.ayudante); }
+
+/* Los que están ayudando en algún lado a esa hora ya no están disponibles */
+function ayudandoEnHora(h){
+  var set={};
+  Object.keys(cacheDia).forEach(function(id){
+    var a=cacheDia[id];
+    if(a && !a.borrado && esAyuda(a) && (a.horaIdx||0)===h) set[a.ayudante]=true;
+  });
+  return set;
+}
+/* Profes que esa hora no tienen ningún alumno: los únicos que pueden ayudar */
+function profesLibresEn(h){
+  var conAlumnos={}, todos={};
+  Object.keys(cacheDia).forEach(function(id){
+    var a=cacheDia[id];
+    if(!a || a.borrado || (a.horaIdx||0)!==h) return;
+    if(!esAyuda(a) && !esBloque(a)) conAlumnos[a.profe]=true;
+  });
+  SEDES_ORDEN.forEach(function(sk){
+    var dp=cacheDispo[sk]||{};
+    Object.keys(dp).forEach(function(p){ if((dp[p]||[]).includes(h)) todos[p]=true; });
+  });
+  var ayudando=ayudandoEnHora(h);
+  var PLACE={'SP':1,'—':1,'':1};
+  return Object.keys(todos).filter(function(p){
+    return !conAlumnos[p] && !ayudando[p] && !PLACE[p];
+  }).sort(function(x,y){ return profeIdx(x)-profeIdx(y); });
+}
+
 function bloqueEmoji(a){ if(/ALMUERZO/i.test(a.nombre||'')) return '🍽️'; return '🏋️'; }
 function modTxt(m){ return m ? '('+m+')' : ''; }
 
@@ -496,8 +542,9 @@ function render(){
     const PLACEHOLDER={'SP':1,'—':1,'':1};   // "Sin Profe" y vacíos: no son profes reales
     SEDES_ORDEN.forEach(sk=>{
       const dp=cacheDispo[sk]||{};
-      const disp=Object.keys(dp).filter(p=>(dp[p]||[]).includes(h) && !PLACEHOLDER[p]);   // profes disponibles esa hora (sin SP/placeholders)
-      const conAl=presentes.filter(a=>a._sede===sk && (a.horaIdx||0)===h).map(a=>a.profe);
+      const _ayudando=ayudandoEnHora(h);   // el que ayuda en otra clase ya no está disponible acá
+      const disp=Object.keys(dp).filter(p=>(dp[p]||[]).includes(h) && !PLACEHOLDER[p] && !_ayudando[p]);
+      const conAl=presentes.filter(a=>a._sede===sk && (a.horaIdx||0)===h && !esAyuda(a)).map(a=>a.profe);
       const profes=[...new Set([...disp,...conAl])].sort((x,y)=>profeIdx(x)-profeIdx(y));
       profes.forEach(p=> filas.push({sede:sk,profe:p,alumnos:byCell[sk+'|'+p+'|'+h]||[]}));
     });
@@ -505,16 +552,21 @@ function render(){
     html+=`<div class="hora-block"><div class="hora-h"><span class="hnum">${HORAS[h]||('h'+h)}</span> <span class="ln"></span></div>`;
     filas.forEach(f=>{
       const em=SEDE_EMOJI[f.sede]||'';
+      const ayudas=(f.alumnos||[]).filter(esAyuda);
+      const chipsAyuda=ayudas.map(a=>`<span class="ayuda" data-quitaayuda="${a.cid}" title="Tocá para sacarlo">🤝 ${escapeHtml(a.ayudante)} ayuda</span>`).join(' ');
+      f.alumnos=(f.alumnos||[]).filter(a=>!esAyuda(a));
       const cab=`<span class="prof">(${escapeHtml(f.profe)}${em?' '+em:''})</span>`;
-      if(!f.alumnos.length){
+      if(!f.alumnos.length && !ayudas.length){
         html+=`<div class="slot vacio" data-add="${f.sede}|${f.profe}|${h}">${cab} <span class="disp">— disponible · tocá para agregar —</span></div>`;
+      } else if(!f.alumnos.length){
+        html+=`<div class="slot"><span class="prof addp" data-add="${f.sede}|${f.profe}|${h}">(${escapeHtml(f.profe)}${em?' '+em:''})</span> ${chipsAyuda}</div>`;
       } else {
         const partes=f.alumnos.sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(a=>{
           if(esBloque(a)) return `<span class="blk">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}</span>`;
           const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';   // 👀 = no confirmó. Los acoples ya están presentes
           return `<span class="al presente${a.acople?' acople':''}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
         });
-        html+=`<div class="slot">${`<span class="prof addp" data-add="${f.sede}|${f.profe}|${h}">(${escapeHtml(f.profe)}${em?' '+em:''})</span>`} ${partes.join(' <span class="sep">·</span> ')}</div>`;
+        html+=`<div class="slot">${`<span class="prof addp" data-add="${f.sede}|${f.profe}|${h}">(${escapeHtml(f.profe)}${em?' '+em:''})</span>`} ${partes.join(' <span class="sep">·</span> ')}${chipsAyuda?' '+chipsAyuda:''}</div>`;
       }
     });
     html+='</div>';
@@ -529,6 +581,7 @@ function render(){
     html+=`</div>`;
   }
   wrap.innerHTML=html;
+  wrap.querySelectorAll('[data-quitaayuda]').forEach(el=>{ el.onclick=(ev)=>{ ev.stopPropagation(); quitarAyudante(el.dataset.quitaayuda); }; });
   wrap.querySelectorAll('.al[data-id]').forEach(el=>{ el.onclick=()=>abrirMenuEstado(el.dataset.id); });
   wrap.querySelectorAll('.aus-item[data-id]').forEach(el=>{ el.onclick=()=>abrirMenuEstado(el.dataset.id); });
 }
@@ -688,6 +741,41 @@ function cerrarAcople(){
   _acElegido=null;
   try{ render(); }catch(e){ console.warn('render:', e.message); }
 }
+/* Sumar un profe ayudante a la clase donde se tocó la inicial */
+document.getElementById('acAyudante').onclick=function(){
+  var h=+document.getElementById('acHora').value;
+  var sede=document.getElementById('acSede').value;
+  var titular=document.getElementById('acProfe').value;
+  var libres=profesLibresEn(h);
+  if(!libres.length){
+    alert('No hay ningún profe libre a las '+(HORAS[h]||'')+'.\n\n'+
+          'Solo puede ayudar un profe que esa hora no tenga alumnos asignados.');
+    return;
+  }
+  var lista=libres.map(function(d,i){ return (i+1)+') '+d+(profeNombre(d)?' · '+profeNombre(d):''); }).join('\n');
+  var r=prompt('¿Quién ayuda a '+titular+' a las '+(HORAS[h]||'')+'?\n\n'+lista+'\n\nEscribí el número:');
+  if(!r) return;
+  var idx=parseInt(r,10)-1;
+  if(isNaN(idx) || idx<0 || idx>=libres.length){ alert('No entendí cuál elegiste.'); return; }
+  var quien=libres[idx];
+  db.ref('dia/'+fecha+'/'+sede).push({
+    nombre:'AYUDANTE', horaIdx:h, profe:titular, ayudante:quien,
+    mod:'', confirmado:true, asis:'presente', acople:true
+  }).then(function(){
+    anotarOp('acople','AYUDANTE '+quien, 'ayuda a '+titular+' · '+(HORAS[h]||'')+' · '+(SEDE_NOM[sede]||sede),
+             {sede:sede, horaIdx:h});
+    cerrarAcople();
+  }).catch(function(e){ alert('No se pudo sumar el ayudante.\n\n'+e.message); });
+};
+
+function quitarAyudante(cid){
+  var a=cacheDia[cid]; if(!a) return;
+  if(!confirm('¿Sacar a '+a.ayudante+' de la ayuda?')) return;
+  childRef(cid).child('borrado').set(true)
+    .then(function(){ try{ render(); }catch(e){} })
+    .catch(function(e){ alert('No se pudo sacar.\n\n'+e.message); });
+}
+
 document.getElementById('acCancel').onclick=cerrarAcople;
 document.getElementById('meCancel').onclick=cerrarMenuEstado;
 document.getElementById('ovEstado').onclick=(e)=>{ if(e.target.id==='ovEstado') cerrarMenuEstado(); };
