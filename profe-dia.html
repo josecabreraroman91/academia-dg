@@ -99,6 +99,13 @@
   .profe-nom{font-size:13px;color:var(--muted);font-weight:700}
   .profe-cnt{margin-left:auto;font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-weight:700}
 
+  .zoomctl{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;
+    overflow:hidden;background:var(--panel);margin-right:4px}
+  .zoomctl button{background:transparent;border:none;color:var(--txt);font-weight:800;cursor:pointer;
+    padding:4px 10px;font-size:14px;line-height:1}
+  .zoomctl button:active{background:#ffffff1a}
+  .zoomctl .zlbl{font-size:10.5px;font-weight:700;min-width:42px;text-align:center;
+    border-left:1px solid var(--line);border-right:1px solid var(--line);padding:4px}
   .arTog{cursor:pointer}
   .arTog:hover{filter:brightness(1.15)}
   .arBox{margin:6px 0 4px 8px;display:flex;flex-direction:column;gap:4px}
@@ -240,6 +247,11 @@
   </div>
 
   <div class="leyenda">
+    <div class="zoomctl" title="Acercar / alejar la vista">
+      <button id="zOut" aria-label="Alejar">−</button>
+      <button class="zlbl" id="zReset" title="Volver a 100%">100%</button>
+      <button id="zIn" aria-label="Acercar">+</button>
+    </div>
     <span>Tocá un alumno para marcar <b>ausente</b></span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>👀 = no confirmó</span>
@@ -531,6 +543,19 @@ function profesLibresEn(h){
   }).sort(function(x,y){ return profeIdx(x)-profeIdx(y); });
 }
 
+/* ---- Acercar / alejar la vista, igual que en el calendario ----
+   Queda guardado en el dispositivo: cada tablet se ajusta a su pantalla. */
+var _zoom = 1;
+try{ var _z=localStorage.getItem('profedia_zoom'); if(_z) _zoom=Math.max(0.6, Math.min(1.6, parseFloat(_z)||1)); }catch(e){}
+function aplicarZoom(){
+  var w=document.getElementById('wrap');
+  if(w) w.style.zoom=_zoom;
+  var l=document.getElementById('zReset');
+  if(l) l.textContent=Math.round(_zoom*100)+'%';
+  try{ localStorage.setItem('profedia_zoom', String(_zoom)); }catch(e){}
+}
+function cambiarZoom(d){ _zoom=Math.max(0.6, Math.min(1.6, Math.round((_zoom+d)*100)/100)); aplicarZoom(); }
+
 var _arAbierto = {};   // qué bloques de alto rendimiento están desplegados
 function bloqueEmoji(a){ if(/ALMUERZO/i.test(a.nombre||'')) return '🍽️'; return '🏋️'; }
 function modTxt(m){ return m ? '('+m+')' : ''; }
@@ -582,14 +607,15 @@ function render(){
             if(!lst) return `<span class="blk">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}${dur}</span>`;
             const abierto=_arAbierto[a.cid];
             const vinieron=(a.arAsis||{});
-            const nPres=lst.filter(n=>vinieron[n]==='presente').length;
+            /* Como todos los alumnos: arrancan PRESENTES y el profe marca al que faltó. */
+            const nPres=lst.filter(n=>vinieron[n]!=='ausente').length;
             let h=`<span class="blk arTog" data-artog="${a.cid}">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}${dur} · ${nPres}/${lst.length} ${abierto?'▾':'▸'}</span>`;
             if(abierto){
               h+='<div class="arBox">'+lst.map(n=>{
-                const st=vinieron[n]||'';
+                const st = vinieron[n]==='ausente' ? 'ausente' : 'presente';
                 return `<div class="arAl ${st}" data-arcid="${a.cid}" data-arnom="${escapeHtml(n)}">`+
                        `<span>${escapeHtml(n)}</span>`+
-                       `<span class="arSt">${st==='presente'?'✓ vino':(st==='ausente'?'✕ faltó':'— sin marcar')}</span></div>`;
+                       `<span class="arSt">${st==='ausente'?'✕ faltó':'✓ vino'}</span></div>`;
               }).join('')+'</div>';
             }
             return h;
@@ -811,10 +837,10 @@ document.getElementById('acAyudante').onclick=function(){
    Se guarda dentro del propio bloque, en `arAsis`, para que viaje con él. */
 function marcarAlumnoAR(cid, nombre){
   const a=cacheDia[cid]; if(!a) return;
-  const act=(a.arAsis&&a.arAsis[nombre])||'';
-  const sig = act==='' ? 'presente' : (act==='presente' ? 'ausente' : null);
+  const act=(a.arAsis&&a.arAsis[nombre])||'presente';
+  const sig = act==='ausente' ? 'presente' : 'ausente';
   const ref=childRef(cid).child('arAsis').child(nombre.replace(/[.#$/\[\]]/g,'_'));
-  const p = sig ? ref.set(sig) : ref.remove();
+  const p = ref.set(sig);
   p.then(()=>{ try{ render(); }catch(e){} })
    .catch(e=>alert('No se pudo marcar.\n\n'+e.message));
 }
@@ -826,6 +852,11 @@ function quitarAyudante(cid){
     .then(function(){ try{ render(); }catch(e){} })
     .catch(function(e){ alert('No se pudo sacar.\n\n'+e.message); });
 }
+
+document.getElementById('zOut').onclick=()=>cambiarZoom(-0.1);
+document.getElementById('zIn').onclick=()=>cambiarZoom(0.1);
+document.getElementById('zReset').onclick=()=>{ _zoom=1; aplicarZoom(); };
+aplicarZoom();
 
 document.getElementById('acCancel').onclick=cerrarAcople;
 document.getElementById('meCancel').onclick=cerrarMenuEstado;
