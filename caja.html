@@ -173,6 +173,11 @@
   .tipoFila input{width:140px;background:var(--tarjeta);border:1px solid var(--linea);border-radius:9px;
     color:var(--texto);padding:9px 11px;font-family:inherit;font-size:14.5px;font-weight:600;text-align:right}
   .tipoFila input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-claro)}
+  .arreglo{display:flex;gap:6px;margin-top:7px;flex-wrap:wrap}
+  .arreglo input{background:var(--tarjeta);border:1px solid var(--linea);border-radius:8px;
+    color:var(--texto);padding:6px 9px;font-family:inherit;font-size:12.5px;width:120px}
+  .arreglo .cTipo{width:80px}
+  .arreglo input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 2px var(--teal-claro)}
   .quitarTipo{border:1px solid var(--linea);background:var(--tarjeta);color:var(--suave);
     border-radius:8px;padding:6px 10px;font-size:13px;line-height:1;cursor:pointer}
   .quitarTipo:hover{border-color:var(--rojo);color:var(--rojo)}
@@ -273,6 +278,48 @@ firebase.initializeApp({
    ============================================================ */
 
 var CUENTA={ nombre:'Diego González', alias:'1.549.349' };
+/* El puente: la única forma de escribir en la planilla. Verifica la sesión de
+   Firebase antes de escribir, así que el pedido viaja firmado. */
+var PUENTE_URL='https://script.google.com/macros/s/AKfycbx0sFIbIVKDslYQb1Dkk9Wo5AhykUFplMDIsuj1DWB4Xy7FSU1Ebn04ZcahHYqCB4cR/exec';
+
+function enviarAlPuente(action, payload){
+  return firebase.auth().currentUser.getIdToken().catch(function(){ return ''; }).then(function(idToken){
+    return new Promise(function(resolve){
+      var name='pnt_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+      var ifr=document.createElement('iframe'); ifr.name=name; ifr.style.display='none'; document.body.appendChild(ifr);
+      var form=document.createElement('form'); form.method='POST'; form.action=PUENTE_URL; form.target=name; form.style.display='none';
+      var inp=document.createElement('input'); inp.type='hidden'; inp.name='data';
+      inp.value=JSON.stringify(Object.assign({action:action, idToken:idToken}, payload));
+      form.appendChild(inp); document.body.appendChild(form);
+      var listo=false, fin=function(){ if(listo) return; listo=true;
+        setTimeout(function(){ try{ form.remove(); ifr.remove(); }catch(e){} },300); resolve(); };
+      ifr.onload=fin; setTimeout(fin, 5000);
+      form.submit();
+    });
+  });
+}
+
+/* Corrige el precio y el tipo de un alumno. Escribe en las DOS casas a la vez:
+   en Firebase al instante (para verlo ya) y en la planilla por el puente, que
+   es donde vive el padrón de verdad. Es el mismo camino de la app de Alumnos. */
+function corregirAlumno(ficha, precioTxt, tipo){
+  var esBeca=/beca/i.test(precioTxt);
+  var num=+soloDigitos(precioTxt)||0;
+  var precioPlanilla = esBeca ? 'BECA' : (num.toLocaleString('en-US')+'Gs.');
+  var datos={ nombre:ficha.nombre, cat:ficha.cat||'', lado:'', tipo:tipo||ficha.tipo||'',
+              precio:precioPlanilla, coment:'', nomHor:'', nomWpp:'', tel:ficha.telCrudo||'' };
+  /* Firebase primero: no depende de que la planilla ande. */
+  try{
+    var k=keyAlumno(ficha.nombre).replace(/\s+/g,'_');
+    firebase.database().ref('alumnos_v2/'+k).update({
+      nombre:ficha.nombre, precio: esBeca?0:num, tipo:datos.tipo, tel:ficha.tel||''
+    }).catch(function(){});
+  }catch(e){}
+  return enviarAlPuente('alumnos', {alumnos:[datos]}).then(function(){
+    ficha.precio = esBeca?0:num; ficha.beca=esBeca; ficha.tipo=datos.tipo;
+    anotarOp('editar', 'Corrigió a '+ficha.nombre+' · precio '+precioPlanilla+(datos.tipo?' · tipo '+datos.tipo:''));
+  });
+}
 var TOPE_ABONO=500000;      // más que esto es un abono mensual, no un precio por clase
 var TOPE_FILAS=80;          // cuántos alumnos se muestran antes del botón "ver más"
 
@@ -1429,7 +1476,7 @@ function calcularCorregir(){
     if(Object.keys(a.tipos).length>1)
       motivos.push({txt:'hace '+Object.keys(a.tipos).length+' tipos de clase y el padrón tiene un solo precio', grave:false});
     if(!motivos.length) return;
-    items.push({ nombre:a.nombre, clases:a.clases, cobrables:a.cobrables, motivos:motivos,
+    items.push({ nombre:a.nombre, ficha:f, clases:a.clases, cobrables:a.cobrables, motivos:motivos,
                  grave: motivos.some(function(m){ return m.grave; }) });
   });
   items.sort(function(a,b){
@@ -1476,6 +1523,14 @@ function pantallaCorregir(){
       html+='<tr><td>'+esc(x.nombre)+'</td><td class="num">'+gs(x.clases)+'</td>'+
         '<td class="num">'+gs(x.cobrables)+'</td><td>'+
         x.motivos.map(function(m){ return '<span class="pin '+(m.grave?'no':'sp')+'">'+esc(m.txt)+'</span>'; }).join(' ')+
+        (x.ficha && puedeEditar
+          ? '<div class="arreglo">'+
+              '<input class="cPrecio" data-n="'+esc(x.nombre)+'" placeholder="precio o BECA" value="'+
+                 esc(x.ficha.beca?'BECA':(x.ficha.precio?gs(x.ficha.precio):''))+'">'+
+              '<input class="cTipo" data-n="'+esc(x.nombre)+'" placeholder="tipo" value="'+esc(x.ficha.tipo||'')+'">'+
+              '<button class="chico cGuardar" data-n="'+esc(x.nombre)+'">Guardar</button>'+
+            '</div>'
+          : '')+
         '</td></tr>';
     });
     html+='</tbody></table>';
@@ -1485,6 +1540,26 @@ function pantallaCorregir(){
     'Ordenado por clases cobrables, no alfabético: primero lo que más plata mueve.</div></div>';
 
   $('pantalla').innerHTML=html;
+
+  document.querySelectorAll('.cGuardar').forEach(function(b){
+    b.onclick=function(){
+      var nom=b.dataset.n;
+      var pr=document.querySelector('.cPrecio[data-n="'+CSS.escape(nom)+'"]');
+      var tp=document.querySelector('.cTipo[data-n="'+CSS.escape(nom)+'"]');
+      var it=c.items.filter(function(z){ return z.nombre===nom; })[0];
+      if(!it || !it.ficha) return;
+      if(!(pr.value||'').trim() && !(tp.value||'').trim()){ toast('Poné un precio o un tipo'); return; }
+      b.disabled=true; b.textContent='Guardando…';
+      corregirAlumno(it.ficha, pr.value, tp.value).then(function(){
+        b.disabled=false; b.textContent='Guardar';
+        toast('Guardado en la planilla');
+        pintar();
+      }).catch(function(e){
+        b.disabled=false; b.textContent='Guardar';
+        alert('No se pudo guardar.\n\n'+(e.message||''));
+      });
+    };
+  });
 }
 
 /* ---------- Entrada ---------- */
