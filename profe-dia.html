@@ -549,7 +549,9 @@ function abrirMenuEstado(id){
       cerrarMenuEstado();
     };
   });
-  document.getElementById('meMover').onclick=()=>{ cerrarMenuEstado(); abrirMover(id); };
+  /* Se cierra el menú y recién en el ciclo siguiente se abre el de mover, para
+     no pisarse con el aviso de "atrás" que dispara el cierre. */
+  document.getElementById('meMover').onclick=()=>{ cerrarMenuEstado(); setTimeout(()=>abrirMover(id), 0); };
   document.getElementById('meSacar').onclick=()=>{
     if(confirm('¿Sacar a '+(rec.nombre||'este alumno')+' de la lista de hoy?\n(No afecta el calendario, solo lo saca del día en la tablet)')){
       childRef(id).child('borrado').set(true);
@@ -602,14 +604,31 @@ function escapeHtml(s){ return String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':
    pantalla en blanco. Ahora, si hay una ventana abierta, "atrás" la cierra y no
    navega a ningún lado. */
 let _cerrarVentana=null;
+/* Cada ventana deja una marca en el historial para que el botón "atrás" del
+   celular la cierre en vez de sacar la app del hub.
+
+   EL PROBLEMA QUE TENÍA: al cerrar una ventana se llama a history.back(), y el
+   navegador avisa de ese "atrás" CON RETRASO, no en el momento. Si mientras
+   tanto se abrió otra ventana —por ejemplo el menú del alumno abre el de
+   mover— ese aviso llegaba tarde y cerraba la ventana nueva. Se veía como que
+   el botón "no hacía nada": abría y se cerraba solo en milisegundos.
+
+   LA SOLUCIÓN: contar los "atrás" que disparamos nosotros mismos, para
+   ignorar el aviso cuando es el eco de nuestro propio cierre. */
+let _popPropios = 0;
 function ventanaAbierta(cerrarFn){
   _cerrarVentana=cerrarFn;
   try{ history.pushState({v:1}, ''); }catch(e){}
 }
 function ventanaCerrada(){
-  if(_cerrarVentana){ _cerrarVentana=null; try{ history.back(); }catch(e){} }
+  if(_cerrarVentana){
+    _cerrarVentana=null;
+    _popPropios++;                       // el aviso que viene es nuestro: se ignora
+    try{ history.back(); }catch(e){ _popPropios=Math.max(0,_popPropios-1); }
+  }
 }
 window.addEventListener('popstate', function(){
+  if(_popPropios>0){ _popPropios--; return; }   // eco de un cierre nuestro
   if(_cerrarVentana){ const f=_cerrarVentana; _cerrarVentana=null; try{ f(); }catch(e){} }
 });
 
