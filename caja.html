@@ -430,6 +430,9 @@ function parsearPadron(paq){
     var a={
       nombre:nom,
       id:col.id>=0?(f[col.id]||'').trim():'',
+      /* BECA escrito en la casilla del precio = alumno becado, no paga. Es
+         distinto del cero o el vacío, que significan "falta cargarlo". */
+      beca: col.precio>=0 && /beca/i.test(String(f[col.precio]||'')),
       precio:col.precio>=0?(+soloDigitos(f[col.precio])||0):0,
       tel:col.tel>=0?normTel(f[col.tel]):'',
       telCrudo:col.tel>=0?(f[col.tel]||'').trim():'',
@@ -636,6 +639,7 @@ function cobroDe(a, mesesSel){
   var clases=0;
   mesesSel.forEach(function(m){ if(a.meses[m]) clases+=a.meses[m].clases; });
   if(!f) return { estado:'nopadron', clases:clases, total:0 };
+  if(f.beca) return { estado:'beca', clases:clases, total:0 };
   if(!f.precio) return { estado:'sinprecio', clases:clases, total:0 };
   if(f.precio>TOPE_ABONO) return { estado:'abono', clases:clases, precio:f.precio,
                                    total:f.precio*mesesSel.length, meses:mesesSel.length };
@@ -786,7 +790,8 @@ function pintar(){
 function marcas(a){
   var f=a.ficha, p='';
   if(!f) return '<span class="pin no">no está en el padrón</span>';
-  if(!f.precio) p+='<span class="pin sp">sin precio</span>';
+  if(f.beca) p+='<span class="pin mn">becado</span>';
+  else if(!f.precio) p+='<span class="pin sp">sin precio</span>';
   else if(f.precio>TOPE_ABONO) p+='<span class="pin mn">abono mensual</span>';
   var tr=telRaro(f.tel);
   if(tr) p+='<span class="pin tl">'+esc(tr==='sin teléfono'?'sin teléfono':'teléfono')+'</span>';
@@ -803,11 +808,12 @@ function pantallaCobros(){
   var lista=q.length>=2 ? ALUMNOS.filter(function(a){ return normNom(a.nombre).indexOf(q)>=0; }) : ALUMNOS;
 
   /* Cifras de arriba: siempre sobre TODOS los alumnos, no sobre el filtro. */
-  var conPrecio=0, sinPrecio=0, clasesSinPrecio=0, totalTodo=0, clasesTodo=0;
+  var conPrecio=0, sinPrecio=0, clasesSinPrecio=0, totalTodo=0, clasesTodo=0, becados=0;
   ALUMNOS.forEach(function(a){
     var c=cobroDe(a, MESES_HAY);
     clasesTodo+=c.clases;
     if(c.estado==='ok'||c.estado==='abono'){ conPrecio++; totalTodo+=c.total; }
+    else if(c.estado==='beca'){ becados++; }
     else { sinPrecio++; clasesSinPrecio+=c.clases; }
   });
 
@@ -815,6 +821,7 @@ function pantallaCobros(){
     '<div class="cifra"><b>'+gs(ALUMNOS.length)+'</b><span>alumnos con clases</span></div>'+
     '<div class="cifra"><b>'+gs(clasesTodo)+'</b><span>clases cobrables</span></div>'+
     '<div class="cifra entra"><b>'+gs(totalTodo)+'</b><span>en todo el historial</span></div>'+
+    (becados?'<div class="cifra"><b>'+gs(becados)+'</b><span>becados · no pagan</span></div>':'')+
     (sinPrecio?'<div class="cifra malo"><b>'+gs(sinPrecio)+'</b><span>sin precio · '+gs(clasesSinPrecio)+' clases</span></div>':'')+
   '</div>';
 
@@ -944,6 +951,10 @@ function pintarFicha(){
     h+=op('flojo','Según el padrón · abono mensual','₲ '+gs(c.total),
           '₲ '+gs(c.precio)+' por mes × '+c.meses+(c.meses===1?' mes':' meses')+
           '. <b>No se multiplica por clase</b>: el padrón tiene un abono cargado, así que las clases no cambian el monto.');
+  } else if(c.estado==='beca'){
+    h+=op('flojo','Alumno becado','Sin cargo',
+          gs(c.clases)+' clases en el período. No paga: en el padrón dice BECA. '+
+          'Al profesor se le paga igual, porque su parte sale del tipo de clase.');
   } else if(c.estado==='sinprecio'){
     h+=op('malo','Según el padrón','Sin precio cargado',
           'Está en el padrón pero la columna de precio está vacía o en cero. Se carga en la app de Alumnos.');
@@ -1398,7 +1409,8 @@ function calcularCorregir(){
     var a=porAlumno[k], f=a.ficha, motivos=[];
     if(!f) motivos.push({txt:'no está en el padrón', grave:true});
     else{
-      if(!f.precio) motivos.push({txt:'sin precio cargado', grave:true});
+      if(f.beca){ /* becado: el cero es a propósito, no falta ningún dato */ }
+      else if(!f.precio) motivos.push({txt:'sin precio cargado', grave:true});
       else if(f.precio>TOPE_ABONO) motivos.push({txt:'abono mensual ('+gs(f.precio)+') en la casilla del precio por clase', grave:false});
       if(!f.tipo) motivos.push({txt:'sin tipo de clase', grave:false});
       var tr=telRaro(f.tel);
