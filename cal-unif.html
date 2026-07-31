@@ -293,6 +293,18 @@
 .slot.confirmado.revisar{background:#b9e3c6 !important;box-shadow:inset 0 0 0 2px #2ba6e0}
 .slot.confirmado.revisar .nm{color:#1d5a34}
 .dropdown-menu .btn{width:100%;text-align:left}
+  #panelAR{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+  .arTit{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;
+    color:var(--muted);margin-bottom:8px}
+  .arFila{display:flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid var(--line);
+    border-radius:8px;margin-bottom:5px;font-size:14px}
+  .arFila span{flex:1}
+  .arQuitar{border:0;background:transparent;color:var(--muted);cursor:pointer;font-size:14px;padding:0 4px}
+  .arQuitar:hover{color:#c0392b}
+  .arVacio{color:var(--muted);font-size:13px;padding:4px 0 8px}
+  .arAgregar{display:flex;gap:6px;margin-top:8px}
+  .arAgregar input{flex:1;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  .arPie{color:var(--muted);font-size:11.5px;margin-top:7px}
 </style>
 </head>
 <body class="modo-semana">
@@ -410,9 +422,21 @@
     <div class="field">
       <label>Bloques fijos (no son alumnos)</label>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn" id="btnAltoRend" style="flex:1;min-width:120px">🏋️ Alto rendimiento</button>
+        <button class="btn" id="btnAltoRend" style="flex:1;min-width:120px">🏋️ AR · 1 hora</button>
+        <button class="btn" id="btnAltoRend30" style="flex:1;min-width:120px">🏋️ AR · 30 min</button>
         <button class="btn" id="btnAlmuerzo" style="flex:1;min-width:120px">🍽️ Almuerzo</button>
         <button class="btn" id="btnBloquear" style="flex:1;min-width:120px;background:#ffe3e0;border-color:#e59b93;color:#c0392b">🔒 Bloquear (profe no disponible)</button>
+      </div>
+
+      <!-- Los alumnos que entrenan dentro de un bloque de alto rendimiento -->
+      <div id="panelAR" style="display:none">
+        <div id="arTitulo" class="arTit"></div>
+        <div id="arLista"></div>
+        <div class="arAgregar">
+          <input id="arNombre" list="dlAlumnos" placeholder="Nombre del alumno" autocomplete="off">
+          <button type="button" class="btn" id="arAdd">Agregar</button>
+        </div>
+        <div class="arPie">Se ve desplegable en la vista de profes, para marcar quién vino.</div>
       </div>
     </div>
     <div class="field" id="fieldRevisar">
@@ -2280,6 +2304,7 @@ function openEditor(cellId){
   if(al.nombre){ fr.style.display=''; actualizarBtnRevisar(sk,+pi,+hi,+si); }
   else { fr.style.display='none'; }
   inp.oninput=()=>{ actualizarHintTel(); autocompletarDesdeNube(); };
+  try{ pintarListaAR(); }catch(e){ console.warn('lista AR:', e.message); }
 
   /* Teclado: el campo queda listo para escribir apenas se abre, y con Enter
      se confirma el nombre; el segundo Enter guarda. Así no hay que tocar
@@ -2444,12 +2469,66 @@ function saveEditor(){
   revisarMadre();
   saveState(); closeEditor(); renderGrid();
 }
-function guardarBloque(nombre){
+/* Un bloque de ALTO RENDIMIENTO lleva su DURACIÓN adentro (60 o 30 minutos).
+   Así el sistema no tiene que adivinarla: un alumno de hora y media entra en un
+   bloque de 60 y en uno de 30, igual que se cargaba antes a mano.
+   `lista` son los alumnos que entrenan en ese bloque. */
+function guardarBloque(nombre, dur){
   if(!editingCell) return;
   if(!confirmarSiMadre()) return;
   const [sk,pi,hi,si]=editingCell.split('|');
-  book().alumnos[cellKey(sk,+pi,+hi,+si)]={ nombre, nivel:'', lado:'', mod:'BLOQUE', nota:'' };
+  const k=cellKey(sk,+pi,+hi,+si);
+  const previo=book().alumnos[k]||{};
+  const cel={ nombre, nivel:'', lado:'', mod:'BLOQUE', nota:'' };
+  if(dur) cel.dur=dur;
+  if(previo.lista && previo.lista.length) cel.lista=previo.lista.slice();  // no se pierde la lista
+  book().alumnos[k]=cel;
   saveState(); closeEditor(); renderGrid();
+}
+
+/* ---- La lista de alumnos de un bloque de alto rendimiento ---- */
+function esBloqueAR(al){
+  return !!(al && al.mod==='BLOQUE' && /ALTO\s*RENDIMIENTO/i.test(al.nombre||''));
+}
+function pintarListaAR(){
+  const cont=document.getElementById('panelAR'); if(!cont) return;
+  if(!editingCell){ cont.style.display='none'; return; }
+  const [sk,pi,hi,si]=editingCell.split('|');
+  const al=book().alumnos[cellKey(sk,+pi,+hi,+si)]||{};
+  if(!esBloqueAR(al)){ cont.style.display='none'; return; }
+  cont.style.display='';
+  const lista=al.lista||[];
+  const dur=al.dur||60;
+  document.getElementById('arTitulo').textContent =
+    'Alumnos del bloque · '+(dur===30?'media hora':'una hora')+' · '+lista.length;
+  document.getElementById('arLista').innerHTML = lista.length
+    ? lista.map((n,i)=>'<div class="arFila"><span>'+escapeHtml(n)+'</span>'+
+        '<button type="button" class="arQuitar" data-i="'+i+'" title="Sacar">✕</button></div>').join('')
+    : '<div class="arVacio">Todavía no hay nadie en este bloque.</div>';
+  cont.querySelectorAll('.arQuitar').forEach(b=>{
+    b.onclick=()=>{
+      const arr=(book().alumnos[cellKey(sk,+pi,+hi,+si)].lista||[]).slice();
+      arr.splice(+b.dataset.i,1);
+      book().alumnos[cellKey(sk,+pi,+hi,+si)].lista=arr;
+      saveState(); pintarListaAR(); renderGrid();
+    };
+  });
+}
+function agregarAlumnoAR(){
+  if(!editingCell) return;
+  const inp=document.getElementById('arNombre');
+  const nom=(inp.value||'').trim();
+  if(!nom) return;
+  const [sk,pi,hi,si]=editingCell.split('|');
+  const k=cellKey(sk,+pi,+hi,+si);
+  const cel=book().alumnos[k]; if(!esBloqueAR(cel)) return;
+  const arr=(cel.lista||[]).slice();
+  if(arr.some(x=>normName(x)===normName(nom))){ inp.value=''; return; }   // ya estaba
+  arr.push(nom);
+  cel.lista=arr;
+  inp.value='';
+  saveState(); pintarListaAR(); renderGrid();
+  inp.focus();
 }
 // Marca el horario del profe como NO disponible (celda roja con candado). Usa el mecanismo "libres".
 function guardarBloqueado(){
@@ -3748,7 +3827,10 @@ document.getElementById('btnCrearAlumno').onclick=async ()=>{
 };
 
 document.getElementById('btnSave').onclick=saveEditor;
-document.getElementById('btnAltoRend').onclick=()=>guardarBloque('ALTO RENDIMIENTO');
+document.getElementById('btnAltoRend').onclick=()=>guardarBloque('ALTO RENDIMIENTO', 60);
+document.getElementById('btnAltoRend30').onclick=()=>guardarBloque('ALTO RENDIMIENTO', 30);
+document.getElementById('arAdd').onclick=agregarAlumnoAR;
+document.getElementById('arNombre').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); agregarAlumnoAR(); } });
 document.getElementById('btnRevisar').onclick=toggleRevisar;
 document.getElementById('btnAlmuerzo').onclick=()=>guardarBloque('ALMUERZO');
 document.getElementById('btnBloquear').onclick=guardarBloqueado;
