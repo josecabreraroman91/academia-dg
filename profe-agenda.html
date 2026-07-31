@@ -845,14 +845,23 @@ document.addEventListener('focusin', function(e){
    pantalla en blanco. Ahora, si hay una ventana abierta, "atrás" la cierra y no
    navega a ningún lado. */
 var _cerrarVentana=null;
+var _popPropios = 0;
 function ventanaAbierta(cerrarFn){
   _cerrarVentana=cerrarFn;
   try{ history.pushState({v:1}, ''); }catch(e){}
 }
 function ventanaCerrada(){
-  if(_cerrarVentana){ _cerrarVentana=null; try{ history.back(); }catch(e){} }
+  /* Se cuenta el "atrás" que disparamos nosotros, para ignorar el aviso cuando
+     llega tarde y ya se abrió otra ventana. Sin esto, abrir una ventana desde
+     otra la cerraba sola y parecía que el botón no hacía nada. */
+  if(_cerrarVentana){
+    _cerrarVentana=null;
+    _popPropios++;
+    try{ history.back(); }catch(e){ _popPropios=Math.max(0,_popPropios-1); }
+  }
 }
 window.addEventListener('popstate', function(){
+  if(_popPropios>0){ _popPropios--; return; }   // eco de un cierre nuestro
   if(_cerrarVentana){ var f=_cerrarVentana; _cerrarVentana=null; try{ f(); }catch(e){} }
 });
 
