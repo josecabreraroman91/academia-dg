@@ -1883,7 +1883,12 @@ function armarDiaDe(dia, book){
         for(let si=0;si<SLOTS_POR_HORA;si++){
           const al=B.alumnos[`${dia}|${s.key}|${pi}|${hi}|${si}`];
           if(al && al.nombre){
-            recs[fbKey(hi,d,si,al.nombre)]={ nombre:al.nombre, horaIdx:hi, profe:d, mod:al.mod||'', confirmado:!!al.confirmado };
+            var _r={ nombre:al.nombre, horaIdx:hi, profe:d, mod:al.mod||'', confirmado:!!al.confirmado };
+            /* Los bloques de ALTO RENDIMIENTO llevan su lista de alumnos y su
+               duración: sin esto, el profe no los ve en la tablet. */
+            if(al.lista && al.lista.length) _r.lista=al.lista.slice();
+            if(al.dur) _r.dur=al.dur;
+            recs[fbKey(hi,d,si,al.nombre)]=_r;
           }
         }
       }
@@ -2502,7 +2507,7 @@ function pintarListaAR(){
   document.getElementById('arTitulo').textContent =
     'Alumnos del bloque · '+(dur===30?'media hora':'una hora')+' · '+lista.length;
   document.getElementById('arLista').innerHTML = lista.length
-    ? lista.map((n,i)=>'<div class="arFila"><span>'+escapeHtml(n)+'</span>'+
+    ? lista.map((n,i)=>'<div class="arFila"><span>'+esc(n)+'</span>'+
         '<button type="button" class="arQuitar" data-i="'+i+'" title="Sacar">✕</button></div>').join('')
     : '<div class="arVacio">Todavía no hay nadie en este bloque.</div>';
   cont.querySelectorAll('.arQuitar').forEach(b=>{
