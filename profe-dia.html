@@ -99,6 +99,17 @@
   .profe-nom{font-size:13px;color:var(--muted);font-weight:700}
   .profe-cnt{margin-left:auto;font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-weight:700}
 
+  .arTog{cursor:pointer}
+  .arTog:hover{filter:brightness(1.15)}
+  .arBox{margin:6px 0 4px 8px;display:flex;flex-direction:column;gap:4px}
+  .arAl{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);
+    border-radius:9px;font-size:14px;cursor:pointer;background:var(--panel)}
+  .arAl span:first-child{flex:1}
+  .arAl .arSt{font-size:11.5px;color:var(--muted);white-space:nowrap}
+  .arAl.presente{border-color:#2f7d4f;background:#12331f}
+  .arAl.presente .arSt{color:#3fb950}
+  .arAl.ausente{border-color:#7d3a35;background:#3a1a1a}
+  .arAl.ausente .arSt{color:#f85149}
   .ayuda{display:inline-flex;align-items:center;gap:4px;background:#e8f0fb;border:1px solid #b9cdea;
     color:#1d4b8f;border-radius:20px;padding:2px 9px;font-size:11.5px;font-weight:700;cursor:pointer}
   .ayuda:hover{border-color:#1d4b8f}
@@ -520,6 +531,7 @@ function profesLibresEn(h){
   }).sort(function(x,y){ return profeIdx(x)-profeIdx(y); });
 }
 
+var _arAbierto = {};   // qué bloques de alto rendimiento están desplegados
 function bloqueEmoji(a){ if(/ALMUERZO/i.test(a.nombre||'')) return '🍽️'; return '🏋️'; }
 function modTxt(m){ return m ? '('+m+')' : ''; }
 
@@ -562,7 +574,26 @@ function render(){
         html+=`<div class="slot"><span class="prof addp" data-add="${f.sede}|${f.profe}|${h}">(${escapeHtml(f.profe)}${em?' '+em:''})</span> ${chipsAyuda}</div>`;
       } else {
         const partes=f.alumnos.sort((a,b)=>(a.nombre||'').localeCompare(b.nombre||'')).map(a=>{
-          if(esBloque(a)) return `<span class="blk">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}</span>`;
+          if(esBloque(a)){
+            /* Los bloques de ALTO RENDIMIENTO llevan adentro su propia lista de
+               alumnos. Se muestran desplegables para poder marcar quién vino. */
+            const lst=(a.lista&&a.lista.length)?a.lista:null;
+            const dur=a.dur===30?" · 30'":(a.dur===60?' · 1h':'');
+            if(!lst) return `<span class="blk">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}${dur}</span>`;
+            const abierto=_arAbierto[a.cid];
+            const vinieron=(a.arAsis||{});
+            const nPres=lst.filter(n=>vinieron[n]==='presente').length;
+            let h=`<span class="blk arTog" data-artog="${a.cid}">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}${dur} · ${nPres}/${lst.length} ${abierto?'▾':'▸'}</span>`;
+            if(abierto){
+              h+='<div class="arBox">'+lst.map(n=>{
+                const st=vinieron[n]||'';
+                return `<div class="arAl ${st}" data-arcid="${a.cid}" data-arnom="${escapeHtml(n)}">`+
+                       `<span>${escapeHtml(n)}</span>`+
+                       `<span class="arSt">${st==='presente'?'✓ vino':(st==='ausente'?'✕ faltó':'— sin marcar')}</span></div>`;
+              }).join('')+'</div>';
+            }
+            return h;
+          }
           const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';   // 👀 = no confirmó. Los acoples ya están presentes
           return `<span class="al presente${a.acople?' acople':''}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
         });
@@ -581,6 +612,13 @@ function render(){
     html+=`</div>`;
   }
   wrap.innerHTML=html;
+  wrap.querySelectorAll('[data-artog]').forEach(el=>{
+    el.onclick=(ev)=>{ ev.stopPropagation();
+      const id=el.dataset.artog; _arAbierto[id]=!_arAbierto[id]; render(); };
+  });
+  wrap.querySelectorAll('[data-arcid]').forEach(el=>{
+    el.onclick=(ev)=>{ ev.stopPropagation(); marcarAlumnoAR(el.dataset.arcid, el.dataset.arnom); };
+  });
   wrap.querySelectorAll('[data-quitaayuda]').forEach(el=>{ el.onclick=(ev)=>{ ev.stopPropagation(); quitarAyudante(el.dataset.quitaayuda); }; });
   wrap.querySelectorAll('.al[data-id]').forEach(el=>{ el.onclick=()=>abrirMenuEstado(el.dataset.id); });
   wrap.querySelectorAll('.aus-item[data-id]').forEach(el=>{ el.onclick=()=>abrirMenuEstado(el.dataset.id); });
@@ -767,6 +805,19 @@ document.getElementById('acAyudante').onclick=function(){
     cerrarAcople();
   }).catch(function(e){ alert('No se pudo sumar el ayudante.\n\n'+e.message); });
 };
+
+/* Marcar a un alumno de un bloque de alto rendimiento.
+   Va rotando: sin marcar → vino → faltó → sin marcar.
+   Se guarda dentro del propio bloque, en `arAsis`, para que viaje con él. */
+function marcarAlumnoAR(cid, nombre){
+  const a=cacheDia[cid]; if(!a) return;
+  const act=(a.arAsis&&a.arAsis[nombre])||'';
+  const sig = act==='' ? 'presente' : (act==='presente' ? 'ausente' : null);
+  const ref=childRef(cid).child('arAsis').child(nombre.replace(/[.#$/\[\]]/g,'_'));
+  const p = sig ? ref.set(sig) : ref.remove();
+  p.then(()=>{ try{ render(); }catch(e){} })
+   .catch(e=>alert('No se pudo marcar.\n\n'+e.message));
+}
 
 function quitarAyudante(cid){
   var a=cacheDia[cid]; if(!a) return;
