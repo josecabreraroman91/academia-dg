@@ -173,6 +173,18 @@
   .tipoFila input{width:140px;background:var(--tarjeta);border:1px solid var(--linea);border-radius:9px;
     color:var(--texto);padding:9px 11px;font-family:inherit;font-size:14.5px;font-weight:600;text-align:right}
   .tipoFila input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-claro)}
+  .quitarTipo{border:1px solid var(--linea);background:var(--tarjeta);color:var(--suave);
+    border-radius:8px;padding:6px 10px;font-size:13px;line-height:1;cursor:pointer}
+  .quitarTipo:hover{border-color:var(--rojo);color:var(--rojo)}
+  .agregarTipo{margin-top:16px;padding-top:14px;border-top:1px solid var(--linea)}
+  .agregarTipo .tit{font-size:11px;font-weight:700;color:var(--suave);letter-spacing:.4px;
+    text-transform:uppercase;margin-bottom:9px}
+  .agregarTipo .fila{display:flex;gap:8px;flex-wrap:wrap}
+  .agregarTipo input{background:var(--tarjeta);border:1px solid var(--linea);border-radius:9px;
+    color:var(--texto);padding:9px 11px;font-family:inherit;font-size:14px}
+  .agregarTipo #tNombre{flex:1;min-width:200px}
+  .agregarTipo #tMonto{width:120px;text-align:right;font-weight:600}
+  .agregarTipo input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-claro)}
 
   #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:80;
     background:var(--texto);color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;display:none}
@@ -1196,7 +1208,10 @@ function pantallaProfes(){
   html+='<div class="caja"><table class="t"><thead><tr><th>Profesor</th><th class="num">Horas</th>'+
     '<th class="num">Clases</th><th class="num">Presentes</th><th class="num">A cobrar</th>'+
     '<th></th></tr></thead><tbody>';
-  if(!lista.length) html+='<tr><td colspan="6" class="vacio">Sin clases este mes.</td></tr>';
+  if(!lista.length) html+='<tr><td colspan="6" class="vacio">'+
+    (pozo.clasesSinTipo
+      ? 'Todavía no se puede calcular: falta cargar el aporte de los tipos de clase.'
+      : 'Sin clases este mes.')+'</td></tr>';
   lista.forEach(function(p){
     html+='<tr class="click" data-p="'+esc(p.profe)+'"><td><b>'+esc(p.profe)+'</b>'+(nombreProfe(p.profe)!==p.profe?' <span style="color:var(--suave);font-weight:400">'+esc(nombreProfe(p.profe))+'</span>':'')+'</td>'+
       '<td class="num">'+gs(p.horas)+'</td><td class="num">'+gs(p.clases)+'</td>'+
@@ -1283,14 +1298,45 @@ function pantallaTipos(){
     html+='<div class="tipoFila"><div class="nom">'+esc(t.tipo)+
       '<div class="uso">'+gs(t.clases)+' clases en el historial</div></div>'+
       '<input type="text" inputmode="numeric" data-t="'+esc(k)+'" value="'+esc(val?gs(val):'')+
-      '" placeholder="0"'+(puedeEditar?'':' disabled')+'></div>';
+      '" placeholder="0"'+(puedeEditar?'':' disabled')+'>'+
+      ((puedeEditar && !t.clases)?'<button class="quitarTipo" data-q="'+esc(k)+'" title="Quitar este tipo">✕</button>':'')+
+      '</div>';
   });
+  if(puedeEditar){
+    html+='<div class="agregarTipo">'+
+      '<div class="tit">Agregar un tipo que todavía no aparece</div>'+
+      '<div class="fila">'+
+        '<input type="text" id="tNombre" placeholder="Nombre del tipo, igual que en el calendario">'+
+        '<input type="text" inputmode="numeric" id="tMonto" placeholder="Aporte">'+
+        '<button class="chico" id="tAgregar">Agregar</button>'+
+      '</div>'+
+      '<div class="pie" style="margin-top:8px">El nombre tiene que escribirse <b>exactamente igual</b> a como '+
+      'aparece en el calendario, o la clase no va a encontrar su aporte.</div>'+
+    '</div>';
+  }
   if(lista.length && puedeEditar) html+='<button class="pri" id="tGuardar" style="margin-top:14px">Guardar los aportes</button>';
   if(lista.length && !puedeEditar) html+='<div class="pie" style="margin-top:12px">Tu permiso de Caja es solo de lectura: '+
     'ves los aportes pero no podés cambiarlos.</div>';
   html+='<div class="pie">Se guarda en Firebase, en <b>tipos_v1</b>. Es el único dato que nace en esta app.</div></div>';
 
   $('pantalla').innerHTML=html;
+
+  if($('tAgregar')) $('tAgregar').onclick=function(){
+    var nom=($('tNombre').value||'').trim();
+    var monto=+soloDigitos($('tMonto').value)||0;
+    if(!nom){ toast('Ponele un nombre al tipo'); return; }
+    var k=claveTipo(nom);
+    if(tipos[k]){ toast('Ese tipo ya está en la lista'); return; }
+    tipos[k]={ aporte:monto, ts:Date.now(), por:miCorreo };
+    pantallaTipos();
+    toast('Agregado. Acordate de guardar.');
+  };
+  document.querySelectorAll('.quitarTipo').forEach(function(b){
+    b.onclick=function(){
+      if(!confirm('¿Quitar el tipo "'+b.dataset.q+'"? No tiene clases en el historial.')) return;
+      delete tipos[b.dataset.q]; pantallaTipos();
+    };
+  });
 
   if($('tGuardar')) $('tGuardar').onclick=function(){
     var datos={};
