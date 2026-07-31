@@ -1813,6 +1813,9 @@ function iniciarCalendarioCompartido(){
     /* LÁPIDAS: saca a cualquier alumno que en la nube figure como borrado.
        Esta es la red que impide que un borrado "reviva" desde una copia vieja. */
     try{ _aplicarTumbas(r); }catch(e){ console.warn('tumbas:', e.message); }
+    /* La foto de comparación se pone al día con lo que acaba de llegar: lo que
+       hizo otro no puede terminar registrado a mi nombre. */
+    try{ _fotoPrev = _sacarFoto(); }catch(e){}
     /* La foto de la nube pasa a ser la base contra la que se comparan los
        próximos cambios: de acá en adelante solo se escribe lo que uno tocó. */
     try{
@@ -2831,7 +2834,13 @@ function anotarConfirmacion(al, k){
 }
 
 function registrarCambiosAdmin(){
-  if(!_soyAdmin || !_fbdb || !_calListo || _aplicandoRemoto) return;
+  if(!_fbdb || !_calListo) return;
+  /* Si el cambio vino de OTRO dispositivo, no es mío: no se registra. Pero hay
+     que actualizar la foto igual, porque si no, la próxima vez que yo guarde
+     algo la comparación va a encontrar el cambio del otro mezclado con el mío
+     y me lo va a atribuir. Eso hacía que cada acción apareciera dos veces, una
+     con cada nombre. */
+  if(_aplicandoRemoto || !_soyAdmin){ try{ _fotoPrev=_sacarFoto(); }catch(e){} return; }
   const foto=_sacarFoto();
   if(!_fotoPrev){ _fotoPrev=foto; return; }        // la primera vez solo se guarda
 
