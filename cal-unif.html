@@ -454,11 +454,16 @@
   </div>
 </div>
 
+<style>
+  .prof-item .pnoprofe{display:flex;align-items:center;gap:4px;font-size:10.5px;
+    color:var(--muted);white-space:nowrap;cursor:pointer}
+  .prof-item .pnoprofe input{margin:0;cursor:pointer}
+</style>
 <!-- Modal gestión de profesores -->
 <div class="overlay" id="overlayProfs">
   <div class="sheet">
     <h3>👥 Profesores</h3>
-    <p style="font-size:11px;color:var(--muted);margin-bottom:12px">El diminutivo (JM, VA...) es lo que se ve en la grilla y en los desplegables de columnas.</p>
+    <p style="font-size:11px;color:var(--muted);margin-bottom:12px">El diminutivo (JM, VA...) es lo que se ve en la grilla y en los desplegables de columnas. Marcá <b>no es profe</b> en las columnas que no son una persona (Sin profe, A definir): siguen funcionando igual, pero no cobran parte del pozo.</p>
     <div class="prof-list" id="profList"></div>
     <div class="prof-add">
       <div class="field" style="flex:1">
@@ -794,6 +799,10 @@ function propagarMadreASemana(){
     if(!al || !al.nombre) return;
     if(state.madreSync[k] === al.nombre) return;      // ya estaba, no es nuevo
 
+    /* Si esa celda tiene LÁPIDA, alguien sacó a ese alumno a propósito.
+       La MADRE no lo vuelve a bajar: sería revivirlo por la puerta de atrás. */
+    if(_hayTumba('semana', k)) { state.madreSync[k] = al.nombre; return; }
+
     const enSemana = state.semana.alumnos[k];
 
     /* ¿Es un MOVIMIENTO disfrazado de alta? Si en la semana ese alumno ya aparece
@@ -832,6 +841,7 @@ function propagarMadreASemana(){
       for(let si=0; si<SLOTS_POR_HORA; si++){
         const k2 = p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3]+'|'+si;
         const oc = state.semana.alumnos[k2];
+        if(_hayTumba('semana', k2)) continue;   // ese casillero se vació a propósito
         if(!oc || !oc.nombre){
           state.semana.alumnos[k2] = JSON.parse(JSON.stringify(al));
           bajaron++;
@@ -1574,10 +1584,127 @@ function _conteoPorDia(alumnos){ const c={}; DIAS_SEM.forEach(d=>c[d]=0); Object
 let _remotoCounts=null;   // cuántos alumnos por día tenía la nube la última vez que la vimos
 let _ultimoTsRemoto=0;    // marca de tiempo de la última versión de la nube que ESTE dispositivo vio
 function _recargar(){ try{ location.reload(); }catch(e){} }
+/* ============================================================================
+   SINCRONIZACIÓN POR CELDA CON LÁPIDAS
+   Reemplaza al modelo viejo "subo todo el calendario y gana el último".
+
+   EL PROBLEMA QUE RESUELVE
+   Antes, cada cambio reescribía el calendario ENTERO. Un dispositivo con una
+   copia vieja, al guardar cualquier cosa, volvía a subir a los alumnos que otro
+   ya había borrado: el borrado no dejaba huella, era apenas un casillero vacío.
+
+   CÓMO FUNCIONA AHORA
+   1. Se guarda una FOTO de lo último que se vio en la nube (_baseRemota).
+   2. Al guardar, se compara el estado actual contra esa foto y se escriben
+      SOLO las celdas que cambiaron. Nunca se toca lo que uno no tocó.
+   3. Un borrado no deja un hueco: deja una LÁPIDA con fecha y hora. Así el
+      borrado es un hecho registrado y nadie lo puede revivir sin querer.
+   4. Al recibir la nube, cualquier alumno que tenga lápida se saca del estado
+      local, aunque haya llegado por la MADRE o por una copia vieja.
+   ========================================================================== */
+
+const TUMBA_DIAS = 30;              // cuánto viven las lápidas antes de limpiarse
+const LIBROS_SYNC = ['madre','semana','semanaProxima'];
+let _baseRemota = null;             // foto de lo último confirmado en la nube
+let _empujePendiente = false;
+
+function _ahora(){ return Date.now(); }
+/* ¿Esta celda tiene lápida? = ¿alguien borró a ese alumno a propósito? */
+function _hayTumba(libro, k){
+  try{ return !!(state.borrados && state.borrados[libro] && state.borrados[libro][k]); }
+  catch(e){ return false; }
+}
+/* Hora del SERVIDOR, no la del reloj de esta computadora: los relojes de las PC
+   están siempre corridos entre sí y el orden de los cambios dependía de eso. */
+function _tsServidor(){
+  try{ return firebase.database.ServerValue.TIMESTAMP; }catch(e){ return Date.now(); }
+}
+
+/* Arma la foto plana del calendario tal como va a la nube. */
+function _fotoCalendario(){
+  const f = {
+    seedVersion: SEED_VERSION,
+    profesores: state.profesores || [],
+    sedesPorDia: state.sedesPorDia || {},
+    lunesActual: state.lunesActual || '',
+    madreSync: state.madreSync || {},
+    revisar: { marks: _derivarMarcas(), upd: _ahora(), enAlumno: true },
+    libros: {}, borrados: {}
+  };
+  LIBROS_SYNC.forEach(L=>{
+    const B = state[L] || {alumnos:{}, libres:{}};
+    f.libros[L] = {
+      alumnos: JSON.parse(JSON.stringify(B.alumnos || {})),
+      libres:  JSON.parse(JSON.stringify(B.libres  || {}))
+    };
+    f.borrados[L] = Object.assign({}, (state.borrados && state.borrados[L]) || {});
+  });
+  return f;
+}
+
+/* Compara la foto de ahora con la de la nube y devuelve SOLO lo que cambió. */
+function _diffCalendario(base, ahora){
+  const upd = {};
+  let celdas = 0, bajas = 0, altas = 0;
+
+  ['profesores','sedesPorDia','lunesActual','madreSync','seedVersion'].forEach(campo=>{
+    if(JSON.stringify(base[campo]) !== JSON.stringify(ahora[campo])) upd[campo] = ahora[campo];
+  });
+
+  LIBROS_SYNC.forEach(L=>{
+    const bA = (base.libros[L]||{}).alumnos || {};
+    const aA = (ahora.libros[L]||{}).alumnos || {};
+    const bL = (base.libros[L]||{}).libres  || {};
+    const aL = (ahora.libros[L]||{}).libres  || {};
+
+    // Altas y cambios de alumnos
+    Object.keys(aA).forEach(k=>{
+      if(JSON.stringify(bA[k]) !== JSON.stringify(aA[k])){
+        upd[L+'/alumnos/'+_ruta(k)] = aA[k];
+        // Si esa celda tenía lápida, se levanta: volvió a haber alguien.
+        upd['borrados/'+L+'/'+_ruta(k)] = null;
+        celdas++; altas++;
+      }
+    });
+    // Bajas: no dejan hueco, dejan LÁPIDA
+    Object.keys(bA).forEach(k=>{
+      if(aA[k] === undefined){
+        upd[L+'/alumnos/'+_ruta(k)] = null;
+        upd['borrados/'+L+'/'+_ruta(k)] = _tsServidor();
+        celdas++; bajas++;
+      }
+    });
+    // Horas bloqueadas / libres
+    Object.keys(aL).forEach(k=>{ if(bL[k]!==aL[k]) { upd[L+'/libres/'+_ruta(k)] = aL[k]; celdas++; } });
+    Object.keys(bL).forEach(k=>{ if(aL[k]===undefined){ upd[L+'/libres/'+_ruta(k)] = null; celdas++; } });
+  });
+
+  return { upd, celdas, bajas, altas };
+}
+
+/* Las claves del calendario ("LUNES|lomas|3|11|0") no se pueden usar tal cual como
+   ruta de Firebase si trajeran . # $ / [ ] — se escapan por las dudas. */
+function _ruta(k){ return String(k).replace(/[.#$/\[\]]/g, '_'); }
+
+/* Limpia lápidas viejas para que el cajón no crezca para siempre. */
+function _limpiarTumbas(upd){
+  const corte = _ahora() - TUMBA_DIAS*24*60*60*1000;
+  LIBROS_SYNC.forEach(L=>{
+    const t = (state.borrados && state.borrados[L]) || {};
+    Object.keys(t).forEach(k=>{
+      if(typeof t[k]==='number' && t[k] < corte){
+        upd['borrados/'+L+'/'+_ruta(k)] = null;
+        delete t[k];
+      }
+    });
+  });
+}
+
 function empujarCalendario(){
   if(!_calRef) return;
   try{ sanearEstado(); }catch(e){}
-  // GUARDIA: si estoy por publicar un día VACÍO que en la nube tenía gente, pido confirmación explícita
+
+  // GUARDIA: si estoy por publicar un día VACÍO que en la nube tenía gente, pido confirmación
   if(_remotoCounts){
     const loc=_conteoPorDia(state.semana && state.semana.alumnos);
     const vaciados=DIAS_SEM.filter(d=>_remotoCounts[d]>=5 && loc[d]===0);
@@ -1590,46 +1717,70 @@ function empujarCalendario(){
       logOp('vaciado_confirmado', vaciados.join(','));
     }
   }
+
   try{
-    const payload = JSON.parse(JSON.stringify({
-      seedVersion: SEED_VERSION,
-      profesores: state.profesores || [],
-      sedesPorDia: state.sedesPorDia || {},
-      madre: state.madre || {alumnos:{},libres:{}},
-      semana: state.semana || {alumnos:{},libres:{}},
-      semanaProxima: state.semanaProxima || {alumnos:{},libres:{}},
-      lunesActual: state.lunesActual || '',
-      // Registro de qué alumnos de la MADRE ya bajaron a la semana. Tiene que viajar
-      // con el calendario: si vive solo en un dispositivo, otro que estuvo cerrado no
-      // se entera y vuelve a bajar a alguien que se sacó de la semana a propósito.
-      madreSync: state.madreSync || {},
-      // La marca ya viaja DENTRO de cada alumno (al.revisar). Este mapa se sigue
-      // publicando solo para que un dispositivo con la versión anterior siga viendo
-      // los celestes; "enAlumno" avisa a los dispositivos nuevos que lo ignoren.
-      revisar: { marks: _derivarMarcas(), upd: Date.now(), enAlumno: true },
-      _ts: Date.now()
-    }));
-    // GUARDIA ANTI-DESACTUALIZADO: si la nube tiene una versión MÁS NUEVA que la última que este
-    // dispositivo vio (estuvo dormido/offline), NO puede pisar el trabajo de los demás.
-    _calRef.once('value').then(snap=>{
-      const r = snap && snap.val();
-      if(r && r._ts && r._ts > (_ultimoTsRemoto||0)){
-        logOp('empuje_bloqueado_desactualizado', 'nube:'+r._ts+' > visto:'+_ultimoTsRemoto);
-        backupAuto('cambios de dispositivo desactualizado (NO publicados)');
-        alert('⚠️ Este dispositivo estaba DESACTUALIZADO (estuvo dormido o sin conexión) y otro dispositivo guardó cambios más nuevos.\n\nPara proteger ese trabajo, tus últimos cambios de acá NO se publicaron (quedaron en un backup local por las dudas).\n\nLa app se va a recargar con los datos más nuevos. Después re-cargá lo tuyo.');
-        _recargar();
-        return;
-      }
-      _calRef.set(payload);
-      _remotoCounts=_conteoPorDia(state.semana && state.semana.alumnos);
-    }).catch(()=>{ try{ _calRef.set(payload); _remotoCounts=_conteoPorDia(state.semana && state.semana.alumnos); }catch(e){} });
+    const ahora = _fotoCalendario();
+
+    /* Primera vez en esta sesión: todavía no sabemos qué hay en la nube.
+       NO se escribe a ciegas; se espera a que el listener traiga la base. */
+    if(!_baseRemota){ _empujePendiente = true; return; }
+
+    const d = _diffCalendario(_baseRemota, ahora);
+    if(!d.celdas && Object.keys(d.upd).length===0) return;   // nada cambió: no se escribe
+
+    _limpiarTumbas(d.upd);
+    d.upd['revisar'] = ahora.revisar;
+    d.upd['_ts'] = _tsServidor();
+
+    _calRef.update(d.upd).then(()=>{
+      _baseRemota = ahora;
+      _remotoCounts = _conteoPorDia(state.semana && state.semana.alumnos);
+      if(d.bajas) logOp('borrados_publicados', d.bajas+' celda(s)');
+    }).catch(err=>{
+      /* NO se reintenta a ciegas: escribir sin saber qué hay en la nube es
+         exactamente lo que resucitaba alumnos borrados. */
+      console.warn('No pude guardar:', err && err.message);
+      backupAuto('cambios NO publicados (error al guardar)');
+      /* Si un guardado falla, este dispositivo puede haber quedado con cambios que
+         la nube no tiene. Se le saca la base de comparación: hasta que no llegue
+         una copia fresca de la nube NO vuelve a escribir. Sin esto, un cambio hecho
+         sin conexión se puede republicar mucho después y revivir a alguien que otro
+         ya borró. Es la falla que apareció en la prueba de caos. */
+      _baseRemota = null; _empujePendiente = false;
+      alert('⚠️ No se pudieron guardar los cambios.\n\n'+((err&&err.message)||'')+'\n\nTus cambios quedaron en un backup local, pero NO están publicados.\n\nCuando vuelva la conexión el calendario se va a actualizar con lo que hay en la nube: revisá y volvé a hacer el cambio.');
+    });
   }catch(e){ console.warn('No pude subir el calendario:', e.message); }
 }
+
+/* Saca del estado local a todo alumno que tenga lápida en la nube.
+   Es la red que atrapa cualquier resurrección: venga de una copia vieja,
+   de la propagación de la MADRE o de un dispositivo que estuvo dormido. */
+function _aplicarTumbas(r){
+  let revividos = 0;
+  LIBROS_SYNC.forEach(L=>{
+    const t = (r.borrados && r.borrados[L]) || {};
+    if(!state.borrados) state.borrados = {};
+    state.borrados[L] = Object.assign({}, state.borrados[L]||{}, t);
+    const B = state[L];
+    if(!B || !B.alumnos) return;
+    Object.keys(t).forEach(k=>{
+      if(B.alumnos[k]){ delete B.alumnos[k]; revividos++; }
+    });
+  });
+  if(revividos) logOp('tumbas_aplicadas', revividos+' celda(s) que habían reaparecido');
+  return revividos;
+}
+
 function iniciarCalendarioCompartido(){
   if(!_calRef) return;
   _calRef.on('value', snap=>{
     const r = snap.val();
     if(!r || !r.madre){   // nube vacía: subo mi calendario (producción) como base. Si NO está vacía, solo sincronizo (no piso)
+      /* La nube está vacía: la base contra la que comparar es "no hay nada",
+         así que el primer guardado sube todo el calendario. */
+      _baseRemota = { seedVersion:null, profesores:[], sedesPorDia:{}, lunesActual:'',
+                      madreSync:{}, revisar:{}, libros:{}, borrados:{} };
+      LIBROS_SYNC.forEach(L=>{ _baseRemota.libros[L]={alumnos:{},libres:{}}; _baseRemota.borrados[L]={}; });
       empujarCalendario(); _calListo=true;
       try{ reindexarAlumnos(); }catch(e){}
       try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
@@ -1659,6 +1810,15 @@ function iniciarCalendarioCompartido(){
     // evita que alguien baje dos veces; marcar de menos lo trae de vuelta sin querer.
     // Ante un mismo alumno con distinto nombre, manda la nube (va con la MADRE que llega).
     if(r.madreSync) state.madreSync = Object.assign({}, state.madreSync || {}, r.madreSync);
+    /* LÁPIDAS: saca a cualquier alumno que en la nube figure como borrado.
+       Esta es la red que impide que un borrado "reviva" desde una copia vieja. */
+    try{ _aplicarTumbas(r); }catch(e){ console.warn('tumbas:', e.message); }
+    /* La foto de la nube pasa a ser la base contra la que se comparan los
+       próximos cambios: de acá en adelante solo se escribe lo que uno tocó. */
+    try{
+      _baseRemota = _fotoCalendario();
+      if(_empujePendiente){ _empujePendiente = false; setTimeout(empujarCalendario, 0); }
+    }catch(e){ console.warn('base:', e.message); }
     // Marcas "para revisar": si el que publicó ya usa el formato nuevo, las marcas vienen
     // dentro de cada alumno y el mapa se ignora. Si publicó un dispositivo con la versión
     // anterior, se importa su mapa hacia adentro de los alumnos (una sola vez).
@@ -1808,6 +1968,12 @@ function expandirParaNoOcultarNada(mapaDia, B, dia){
 }
 function sanearEstado(){
   let reparado=[];
+  /* Las lápidas (celdas que alguien vació a propósito) tienen que existir siempre:
+     si faltan, un borrado vuelve a ser un simple hueco y los alumnos reaparecen. */
+  if(!state.borrados || typeof state.borrados!=='object'){ state.borrados={}; }
+  ['madre','semana','semanaProxima'].forEach(L=>{
+    if(!state.borrados[L] || typeof state.borrados[L]!=='object') state.borrados[L]={};
+  });
   const DIAS=['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
   const plantilla=(d)=>JSON.parse(JSON.stringify((SEED_CAL.sedesPorDia&&SEED_CAL.sedesPorDia[d])||[]));
   const sanearMapaSedes=(mapa, quien)=>{
@@ -2318,8 +2484,21 @@ function renderProfList(){
     <div class="prof-item">
       <input class="pdim-edit" data-i="${i}" maxlength="4" placeholder="JM">
       <input class="pnom-edit" data-i="${i}" placeholder="Nombre del profe">
+      <label class="pnoprofe" title="Marcar si esta columna no es un profesor de verdad (por ejemplo Sin profe o A definir). No cobra parte del pozo.">
+        <input type="checkbox" class="pnp-edit" data-i="${i}"> no es profe
+      </label>
       <button class="pdel" data-i="${i}">Borrar</button>
     </div>`).join('');
+  el.querySelectorAll('.pnp-edit').forEach(chk=>{
+    const i=+chk.dataset.i; chk.checked = !!state.profesores[i].noEsProfe;
+    chk.onchange=()=>{
+      /* Una columna marcada así sigue existiendo en la grilla y se le pueden
+         estacionar alumnos, pero NO se le paga: no cuenta al repartir la bolsa
+         de la hora entre los profesores. Lo lee la app de Caja. */
+      state.profesores[i].noEsProfe = chk.checked;
+      saveState(); renderAll();
+    };
+  });
   el.querySelectorAll('.pdim-edit').forEach(inp=>{
     const i=+inp.dataset.i; inp.value=state.profesores[i].dim;
     inp.onchange=()=>{
@@ -2546,7 +2725,7 @@ function backupAuto(motivo){
   try{
     if(_fbdb){
       let slot=0; try{ slot=(parseInt(localStorage.getItem('cal_dg_bkslot')||'0')+1)%3; localStorage.setItem('cal_dg_bkslot',String(slot)); }catch(e){}
-      _fbdb.ref('backups_auto/b'+slot).set(item);
+      _fbdb.ref('backups_auto/b'+slot).set(item).catch(()=>{});   // sin red, el backup falla en silencio: no puede romper el guardado
     }
   }catch(e){}
   logOp('backup', motivo);
