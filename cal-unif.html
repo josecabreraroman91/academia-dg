@@ -4097,6 +4097,14 @@ async function cerrarYGuardarDia(){
         if(!rec||!rec.nombre) return;
         if(rec.borrado) return;                                        // sacado del día por el profe
         if(/ALMUERZO/i.test(rec.nombre)) return;                       // almuerzo no va
+        /* PROFE AYUDANTE: no es un alumno, es un profe que se sumó a la clase de
+           otro. Se guarda igual en HISTORIAL porque es la única forma de que el
+           pago del mes sepa que trabajó esa hora: la copia del día se borra a las
+           48 horas. No se cobra a nadie y no aporta al pozo. */
+        if(rec.ayudante){
+          filasAuto.push([fecha,'AYUDANTE',HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.ayudante,'AYUDA','Ayudante','—','ayuda a '+(rec.profe||''),'']);
+          return;
+        }
         if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO/i.test(rec.nombre)){ // AR: se paga al profe
           filasAuto.push([fecha,'ALTO RENDIMIENTO',HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'','AR','Bloque','—','','']);
           return;
