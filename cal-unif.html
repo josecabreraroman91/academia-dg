@@ -1820,7 +1820,18 @@ function iniciarCalendarioCompartido(){
     }catch(e){}
     _ultimoTsRemoto = r._ts || _ultimoTsRemoto || 0;
     _aplicandoRemoto = true;
-    state.profesores    = r.profesores    || state.profesores;
+    /* Las columnas de la nube mandan, pero se conserva la marca "no es profe" de
+       las que ya la tenían localmente y llegan sin ella. Un dispositivo con una
+       copia vieja publicaba su lista sin la marca y la borraba para todos: se
+       tildaba, se guardaba bien, y a los segundos desaparecía sola. */
+    if(r.profesores){
+      var _marcadas={};
+      (state.profesores||[]).forEach(function(p){ if(p&&p.dim&&p.noEsProfe) _marcadas[String(p.dim).toUpperCase()]=true; });
+      state.profesores = r.profesores.map(function(p){
+        if(p && p.dim && !p.noEsProfe && _marcadas[String(p.dim).toUpperCase()]) p.noEsProfe=true;
+        return p;
+      });
+    }
     state.sedesPorDia   = r.sedesPorDia   || state.sedesPorDia;
     state.madre         = r.madre         || state.madre;
     state.semana        = r.semana        || state.semana;
