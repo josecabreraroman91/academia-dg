@@ -677,12 +677,13 @@ let state = {
 
 function book(){
   if(state.mode==='madre') return state.madre;
+  if(state.semActiva==='anterior') return state.semanaAnterior || state.semana;
   return state.semActiva==='proxima' ? state.semanaProxima : state.semana;
 }
 // Columnas de profes AHORA por planilla (madre/semana independientes)
 function bookSedes(){ const b=book(); if(!b.sedesPorDia) b.sedesPorDia=JSON.parse(JSON.stringify(state.sedesPorDia||{})); return b.sedesPorDia; }
 function sedesSemana(){ const b=state.semana||(state.semana={alumnos:{},libres:{}}); if(!b.sedesPorDia) b.sedesPorDia=JSON.parse(JSON.stringify(state.sedesPorDia||{})); return b.sedesPorDia; }
-function migrarSedesPorBook(){ const base=state.sedesPorDia||{}; ['madre','semana','semanaProxima'].forEach(k=>{ if(state[k] && !state[k].sedesPorDia) state[k].sedesPorDia=JSON.parse(JSON.stringify(base)); }); }
+function migrarSedesPorBook(){ const base=state.sedesPorDia||{}; ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{ if(state[k] && !state[k].sedesPorDia) state[k].sedesPorDia=JSON.parse(JSON.stringify(base)); }); }
 // ===== Dos semanas editables (esta + la que viene), con fechas =====
 function isoDe(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function lunesDeHoy(){ const d=new Date(); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return isoDe(d); }
@@ -1518,7 +1519,8 @@ function asegurarSemanas(){
   if(!state.lunesActual) state.lunesActual=lunesDeHoy();
   if(!state.semana) state.semana=JSON.parse(JSON.stringify(state.madre||vacia));
   if(!state.semanaProxima) state.semanaProxima=JSON.parse(JSON.stringify(state.madre||vacia));
-  if(!state.semActiva) state.semActiva='actual';
+  if(!state.semanaAnterior) state.semanaAnterior=JSON.parse(JSON.stringify(state.semana));
+  if(['actual','proxima','anterior'].indexOf(state.semActiva)<0) state.semActiva='actual';
   if(!state.madreSync) propagarMadreASemana();   // primera vez: toma la referencia
 }
 /* ============================================================
@@ -1556,6 +1558,17 @@ function avanzarSemana(){
   if(!confirm(aviso)) return;
 
   backupAuto('antes de avanzar semana');
+
+  /* La semana que se va NO se tira: queda guardada. Sirve para dos cosas.
+
+     La primera es crítica. Si se avanza un miércoles o un sábado, los días que
+     ya pasaron de esa semana siguen siendo "hoy" para las tablets. Sin esta
+     copia, el calendario publicaba el día de hoy usando la grilla NUEVA: los
+     profes veían la lista del sábado siguiente, y a las 23:00 el cierre cobraba
+     y pagaba por esa lista equivocada.
+
+     La segunda es poder mirar atrás: qué pasó la semana pasada. */
+  state.semanaAnterior = state.semana;
 
   const deLaMadre = () => JSON.parse(JSON.stringify(state.madre));
   state.semana        = deLaMadre();
@@ -1697,7 +1710,7 @@ function _recargar(){ try{ location.reload(); }catch(e){} }
    ========================================================================== */
 
 const TUMBA_DIAS = 30;              // cuánto viven las lápidas antes de limpiarse
-const LIBROS_SYNC = ['madre','semana','semanaProxima'];
+const LIBROS_SYNC = ['madre','semana','semanaProxima','semanaAnterior'];
 let _baseRemota = null;             // foto de lo último confirmado en la nube
 let _empujePendiente = false;
 
@@ -2023,9 +2036,18 @@ function publicarFecha(offset, silencioso){
   const d=new Date(); d.setDate(d.getDate()+offset);
   const dia=diaNombreDeFecha(d); if(!dia) return false;   // domingo: no hay clases
   const fecha=isoDe(d);
-  // elegir el libro (esta semana / próxima) según a qué semana pertenece la fecha
+  /* Elegir la grilla según a qué semana pertenece la fecha.
+     El caso que importa: si se avanzó de semana un miércoles o un sábado, los
+     días que ya pasaron de la semana vieja siguen siendo "hoy" o "ayer" para
+     las tablets. Antes se publicaban con la grilla NUEVA — los profes veían la
+     lista de la semana siguiente y el cierre de las 23:00 cobraba por ella. */
   let _book=state.semana;
-  try{ const _base=state.lunesActual||lunesDeHoy(); const _dias=Math.round((new Date(fecha+'T00:00:00')-new Date(_base+'T00:00:00'))/86400000); if(_dias>=7) _book=state.semanaProxima||state.semana; }catch(e){}
+  try{
+    const _base=state.lunesActual||lunesDeHoy();
+    const _dias=Math.round((new Date(fecha+'T00:00:00')-new Date(_base+'T00:00:00'))/86400000);
+    if(_dias>=7)      _book=state.semanaProxima||state.semana;
+    else if(_dias<0)  _book=state.semanaAnterior||state.semana;
+  }catch(e){}
   const porSede=armarDiaDe(dia, _book); if(!porSede) return false;
   const dispo=armarDispoDe(dia);
   if(dispo){ try{ _fbdb.ref('dia/'+fecha+'/_dispo').set(dispo); }catch(e){} }
@@ -2123,7 +2145,7 @@ function sanearEstado(){
   });
   if(DIAS.indexOf(state.dia)<0){ state.dia='LUNES'; reparado.push('día activo'); }
   if(state.mode!=='madre' && state.mode!=='semana'){ state.mode='semana'; }
-  if(state.semActiva!=='actual' && state.semActiva!=='proxima'){ state.semActiva='actual'; }
+  if(['actual','proxima','anterior'].indexOf(state.semActiva)<0){ state.semActiva='actual'; }
   if(reparado.length){ try{ logOp('auto_reparacion', reparado.slice(0,8).join(', ')); }catch(e){} console.warn('🔧 Estructura reparada:', reparado); }
   return reparado;
 }
@@ -2168,9 +2190,32 @@ function renderDayTabs(){
     b.onclick=()=>{ state.dia=dia; state.semActiva=week; ajustarSede(); saveState(); renderAll(); };
     return b;
   };
-  /* Solo se muestra la semana actual. La próxima sigue existiendo por
-     detrás (la usa "Avanzar semana"), pero ya no se navega desde acá. */
+  /* Los días de la semana en curso, y un botón para mirar la anterior.
+     La próxima sigue existiendo por detrás (la usa "Avanzar semana"), pero no
+     se navega desde acá. */
+  if(state.semActiva==='anterior'){
+    const volver=document.createElement('button');
+    volver.className='tab';
+    volver.innerHTML='▸ Volver a esta semana';
+    volver.onclick=()=>{ state.semActiva='actual'; ajustarSede(); saveState(); renderAll(); };
+    el.appendChild(volver);
+    const lunAnt=isoMas(state.lunesActual,-7);
+    DAYS.forEach((d,i)=>{
+      const f=isoMas(lunAnt,i);
+      const b=document.createElement('button');
+      b.className='tab'+(d===state.dia?' active':'')+' prox';
+      b.innerHTML=cap(d).slice(0,3)+' <b>'+ddmm(f)+'</b>';
+      b.onclick=()=>{ state.dia=d; ajustarSede(); saveState(); renderAll(); };
+      el.appendChild(b);
+    });
+    return;
+  }
   state.semActiva='actual';
+  const atras=document.createElement('button');
+  atras.className='tab';
+  atras.innerHTML='◂ Semana anterior';
+  atras.onclick=()=>{ state.semActiva='anterior'; ajustarSede(); saveState(); renderAll(); };
+  el.appendChild(atras);
   DAYS.forEach((d,i)=>el.appendChild(mk(d,i,'actual')));
 }
 function renderSedeTabs(){
@@ -2380,7 +2425,7 @@ function openEditor(cellId){
   const [sk,pi,hi,si]=cellId.split('|');
   const al=book().alumnos[cellKey(sk,+pi,+hi,+si)] || {};
   const s=sedeByKey(sk);
-  document.getElementById('sheetTitle').textContent = `${s?(s.emoji?s.emoji+' ':'')+s.nombre+' · ':''}${s?s.profes[+pi]:''} · ${HORAS[+hi]}` + (state.mode==='madre'?' · 🔒 MADRE':'');
+  document.getElementById('sheetTitle').textContent = `${s?(s.emoji?s.emoji+' ':'')+s.nombre+' · ':''}${s?s.profes[+pi]:''} · ${HORAS[+hi]}` + (state.mode==='madre'?' · 🔒 MADRE':'') + (state.mode!=='madre' && state.semActiva==='anterior'?' · ◂ SEMANA ANTERIOR':'');
   const inp=document.getElementById('fNombre');
   inp.value=al.nombre||'';
   document.getElementById('fNivel').value=al.nivel||'';
