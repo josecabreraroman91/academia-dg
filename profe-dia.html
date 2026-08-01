@@ -52,7 +52,7 @@
   .conn .dot.wait{background:var(--amar);box-shadow:0 0 0 3px rgba(224,168,0,.25)}
   .chgSede{background:#ffffff1a;border:1px solid #ffffff33;color:#fff;border-radius:8px;padding:6px 9px;font-size:11px;font-weight:700;cursor:pointer}
 
-  .leyenda{display:flex;gap:12px;flex-wrap:wrap;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
+  .leyenda{display:flex;gap:12px;flex-wrap:wrap;align-items:center;justify-content:center;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--line);font-size:12px;color:var(--muted)}
   .leyenda span{display:inline-flex;align-items:center;gap:5px}
   .pill{width:12px;height:12px;border-radius:50%;display:inline-block}
   .pill.sin{background:var(--sin)} .pill.pres{background:var(--pres)} .pill.aus{background:var(--aus)}
@@ -87,7 +87,7 @@
   .aus-nom{font-weight:700;color:#b3261e;text-decoration:line-through;text-decoration-color:#000;text-decoration-thickness:2px}
   .aus-meta{margin-left:auto;font-size:.82em;color:var(--muted);white-space:nowrap}
   /* control de zoom */
-  .zoomctl{position:fixed;right:12px;bottom:14px;z-index:45;display:flex;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:3px;box-shadow:0 6px 20px rgba(0,0,0,.28)}
+  .zoomctl{display:inline-flex;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:2px}
   .zoomctl button{width:30px;height:30px;border:0;background:transparent;color:var(--txt);font-size:18px;font-weight:800;border-radius:8px;cursor:pointer}
   .zoomctl button:active{background:var(--line)}
   .zoomctl .zlbl{width:auto;padding:0 6px;font-size:12px;font-weight:700;color:var(--muted)}
@@ -232,14 +232,13 @@
     <div class="conn"><span class="dot" id="cdot"></span><span id="ctxt">…</span></div>
   </div>
 
-  <!-- Zoom flotante (siempre accesible) -->
-  <div class="zoomctl" title="Acercar / alejar la lista">
-    <button id="zOut" aria-label="Alejar">−</button>
-    <button class="zlbl" id="zReset" title="Tamaño normal">A</button>
-    <button id="zIn" aria-label="Acercar">+</button>
-  </div>
 
   <div class="leyenda">
+    <div class="zoomctl" title="Acercar / alejar la lista">
+      <button id="zOut" aria-label="Alejar">−</button>
+      <button class="zlbl" id="zReset" title="Tamaño normal">A</button>
+      <button id="zIn" aria-label="Acercar">+</button>
+    </div>
     <span>Tocá un alumno para marcar <b>ausente</b></span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>👀 = no confirmó</span>
