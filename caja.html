@@ -594,11 +594,39 @@ function esAyudante(h){
          String(h && h.alumno||'').toUpperCase()==='AYUDANTE';
 }
 
+/* ============================================================
+   LOS CASILLEROS QUE NO SON UN ALUMNO
+
+   En la grilla hay textos que ocupan lugar pero no son una persona. Y NO se
+   tratan todos igual, porque significan cosas distintas:
+
+   · BLOQUE DE ALTO RENDIMIENTO → ahí el profe SÍ está trabajando. No aporta al
+     pozo (sus alumnos entran en filas propias, con su tipo AR60 o AR30), pero
+     cuenta como hora trabajada y le da derecho a su parte.
+
+   · CASILLERO DECORATIVO → ALMUERZO, LIBRE, no hay cancha, feriado. Ahí no hay
+     clase: ni aporta al pozo ni cuenta como hora trabajada.
+
+   Antes los dos caían en la misma bolsa y un "LIBRE" con tipo de clase cargado
+   engordaba el pozo de la hora. Nadie lo veía, porque la pantalla de cobros sí
+   los escondía: se pagaba de más en silencio.
+   ============================================================ */
+var DECORATIVOS=/almuerzo|\blibre\b|pretemporada|no\s*hay\s*cancha|nohaycancha|\bferiado\b|\bvacaciones\b|cancelad|suspendid|\bentrenamiento\b/i;
+function esBloqueAR(nombre){
+  return /alto\s*rendimiento|alto\s*r\b/i.test(String(nombre==null?'':nombre).trim());
+}
 function esBloque(nombre){
   var crudo=String(nombre==null?'':nombre).trim();
-  if(/alto\s*rendimiento|alto\s*r\b|almuerzo|libre|pretemporada/i.test(crudo)) return true;
-  var t=keyAlumno(nombre).replace(/\./g,'').trim();
-  return t==='' || t==='-' || t.length<=2;
+  if(esBloqueAR(crudo) || DECORATIVOS.test(crudo)) return true;
+  /* El largo se mide sobre el nombre TAL CUAL ESTÁ ESCRITO, no sobre el limpio.
+     Antes se medía sobre el limpio, y a "Lu G" la limpieza le sacaba la G por
+     ser sufijo de grupal: quedaba en "lu", dos letras, y el sistema lo tomaba
+     por decoración. Sus clases NO SE COBRABAN NUNCA y no aparecía en la Caja,
+     sin ningún aviso. Le pasaba a cualquier nombre corto. */
+  var letras=crudo.replace(/[^a-z0-9]/gi,'');
+  if(!letras) return true;                                      // vacío, guiones, puntos
+  if(keyAlumno(nombre).replace(/\./g,'').trim()==='') return true;
+  return letras.length<=2;                                      // "-", "AR", "G" sueltos
 }
 
 function cargarTipos(){
@@ -634,12 +662,17 @@ function calcularPozo(filas){
   var horas={};
   filas.forEach(function(h){
     var k=h.fecha+'|'+h.hora;
-    if(!horas[k]) horas[k]={fecha:h.fecha, hora:h.hora, total:0, profes:{}, presentes:0, clases:0, sinTipo:0, estacionados:0, ayudas:0};
+    if(!horas[k]) horas[k]={fecha:h.fecha, hora:h.hora, total:0, profes:{}, presentes:0, clases:0, sinTipo:0, estacionados:0, ayudas:0, decorativos:0};
     var b=horas[k];
     /* Una columna que no es un profesor no trabaja: ni cobra parte del pozo, ni
        lo que aporta el alumno estacionado ahí engorda la bolsa de los demás. */
     if(esColumnaSinProfe(h.profe)){ b.estacionados++; return; }
     if(esAyudante(h)){ if(h.profe) b.profes[h.profe]=true; b.ayudas++; return; }
+    /* El bloque de alto rendimiento: el profe trabaja esa hora, pero el bloque
+       en sí no aporta. Lo que aportan son sus alumnos, que vienen aparte. */
+    if(esBloqueAR(h.alumno)){ if(h.profe) b.profes[h.profe]=true; return; }
+    /* Un casillero decorativo no es una clase: no aporta y no da hora trabajada. */
+    if(esBloque(h.alumno)){ b.decorativos++; return; }
     b.clases++;
     if(h.profe) b.profes[h.profe]=true;
     if(h.presente){
@@ -649,10 +682,11 @@ function calcularPozo(filas){
       b.total+=ap;
     }
   });
-  var porProfe={}, sinTipoTotal=0, totalPozo=0;
+  var porProfe={}, sinTipoTotal=0, totalPozo=0, decorativosTotal=0;
   Object.keys(horas).forEach(function(k){
     var b=horas[k], ps=Object.keys(b.profes);
     sinTipoTotal+=b.sinTipo;
+    decorativosTotal+=b.decorativos;
     if(!ps.length || !b.total) return;
     b.parte=b.total/ps.length;
     totalPozo+=b.total;
@@ -665,12 +699,16 @@ function calcularPozo(filas){
   filas.forEach(function(h){
     if(esColumnaSinProfe(h.profe)) return;
     if(esAyudante(h)){ if(porProfe[h.profe]) porProfe[h.profe].ayudas=(porProfe[h.profe].ayudas||0)+1; return; }
+    /* Ni el bloque de alto rendimiento ni los casilleros decorativos cuentan
+       como una clase dada: el bloque ya se abre en una fila por alumno. */
+    if(esBloqueAR(h.alumno) || esBloque(h.alumno)) return;
     if(h.profe && porProfe[h.profe]){
       porProfe[h.profe].clases++;
       if(h.presente) porProfe[h.profe].presentes++;
     }
   });
-  return { horas:horas, porProfe:porProfe, total:totalPozo, clasesSinTipo:sinTipoTotal };
+  return { horas:horas, porProfe:porProfe, total:totalPozo, clasesSinTipo:sinTipoTotal,
+           decorativos:decorativosTotal };
 }
 
 /* ============================================================
@@ -1288,6 +1326,10 @@ function pantallaProfes(){
 
   if(pozo.clasesSinTipo) html+='<div class="aviso"><b>'+gs(pozo.clasesSinTipo)+' clases</b> tienen un tipo '+
     'sin aporte cargado y no suman al pozo. Se cargan en <b>Tipos de clase</b>.</div>';
+
+  if(pozo.decorativos) html+='<div class="aviso"><b>'+gs(pozo.decorativos)+' casilleros</b> del calendario '+
+    '(LIBRE, ALMUERZO, no hay cancha) llegaron al historial como si fueran clases. No se cuentan: '+
+    'no son alumnos. Conviene no cargarles un tipo de clase en la grilla.</div>';
 
   html+='<div class="caja"><table class="t"><thead><tr><th>Profesor</th><th class="num">Horas</th>'+
     '<th class="num">Clases</th><th class="num">Presentes</th><th class="num">A cobrar</th>'+
