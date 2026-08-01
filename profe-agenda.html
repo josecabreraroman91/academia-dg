@@ -131,6 +131,30 @@
     margin-bottom:5px;font-size:13.5px;cursor:pointer;background:var(--bg)}
   #fSug .sug:active{background:#12283f}
   #fSug .sug small{display:block;font-size:11.5px;color:var(--sec)}
+
+  /* ---- Clase que no se cargó ---- */
+  #ovAtras{position:fixed;inset:0;z-index:52;background:rgba(0,0,0,.72);display:none;
+    align-items:flex-end;justify-content:center;overflow:hidden}
+  #ovAtras.show{display:flex}
+  .campo select{width:100%;background:var(--bg);border:1px solid var(--linea);
+    border-radius:10px;color:var(--txt);padding:12px;font-family:inherit;font-size:16px;
+    -webkit-appearance:none;appearance:none}
+  #gSug{margin-top:5px}
+  #gSug .sug{padding:9px 11px;border:1px solid var(--linea);border-radius:9px;
+    margin-bottom:5px;font-size:13.5px;cursor:pointer;background:var(--bg)}
+  #gSug .sug:active{background:#12283f}
+  #gSug .sug small{display:block;font-size:11.5px;color:var(--sec)}
+  #btnAtras{width:100%;margin:-4px 0 12px}
+  .mias{margin-top:6px}
+  .mias .fila{border:1px solid var(--linea);border-radius:10px;padding:9px 11px;
+    margin-bottom:6px;font-size:13px;background:var(--bg)}
+  .mias .fila small{display:block;font-size:11.5px;color:var(--sec);margin-top:2px}
+  .mias .fila.rech{border-color:#5a2a2a}
+  .mias .fila.rech b{color:var(--rojo)}
+  .mias .fila.apro{border-color:#1d5a34}
+  .mias .fila.apro b{color:var(--verde)}
+  .titsec{font-size:12.5px;color:var(--sec);margin:18px 0 6px;
+    border-top:1px solid var(--linea);padding-top:14px}
   .sl.ocupado{cursor:pointer}
   .sl.sacado{text-decoration:line-through;color:var(--rojo);opacity:.75}
   .sl.destino{background:#12283f;color:#8fbdf0}
@@ -180,6 +204,7 @@
     <button data-l="semana" class="on">🗓️ Esta semana<small>los cambios entran solos</small></button>
     <button data-l="madre">📋 MADRE<small>los cambios se aprueban antes</small></button>
   </div>
+  <button class="b" id="btnAtras" style="display:none">➕ Clase que no cargué<span id="atrasCont" style="color:var(--sec)"></span></button>
   <div class="dias" id="dias"></div>
   <div id="avisoMadre">📋 Estás en la <b>MADRE</b>, la plantilla de todas las semanas. Lo que cambies acá <b>no se aplica solo</b>: queda esperando aprobación.</div>
   <div class="leyenda" id="leyenda" style="display:none">
@@ -246,6 +271,56 @@
       <button class="b" id="fCancel">Cancelar</button>
       <button class="b pri" id="fGuardar" style="flex:1">Agendar</button>
     </div>
+  </div>
+</div>
+
+<div id="ovAtras">
+  <div class="hoja">
+    <div style="position:sticky;top:0;background:var(--panel);z-index:3;margin:-18px -16px 0;padding:14px 16px 10px;border-bottom:1px solid var(--linea);display:flex;align-items:center;gap:10px">
+      <div style="flex:1;min-width:0">
+        <h3 style="margin:0">Clase que no cargué</h3>
+        <div class="donde" style="margin:0">Queda esperando que la apruebe un administrador</div>
+      </div>
+      <button class="b" id="gCancel2" style="padding:9px 12px">✕</button>
+    </div>
+
+    <div class="campo"><label>Buscar alumno</label>
+      <input id="gNom" type="text" autocomplete="off" placeholder="Escribí las primeras letras">
+      <div id="gSug"></div>
+      <div id="gElegidoTxt" style="font-size:12px;color:var(--sec);margin-top:5px"></div></div>
+
+    <div class="campo"><label>Día de la clase</label>
+      <input id="gFecha" type="date"></div>
+
+    <div class="campo"><label>Sede</label>
+      <div class="ops" id="gSede"></div></div>
+
+    <div class="campo"><label>Profesor que dio la clase</label>
+      <select id="gProfe"></select></div>
+
+    <div class="campo"><label>Hora</label>
+      <select id="gHora"></select></div>
+
+    <div class="campo"><label>Tipo de clase</label>
+      <div class="ops" id="gMod">
+        <button data-v="G">G<small>grupal</small></button>
+        <button data-v="D">D<small>dual</small></button>
+        <button data-v="IND">IND<small>individual</small></button>
+      </div></div>
+
+    <div class="campo"><label>Nota, si hace falta aclarar algo</label>
+      <input id="gNota" type="text" autocomplete="off" placeholder="Opcional"></div>
+
+    <div style="font-size:12px;color:var(--sec)">Se carga como <b>presente</b> y se cobra. Si el alumno no vino, no hay nada que cargar.</div>
+
+    <div class="err" id="gErr"></div>
+    <div class="acc">
+      <button class="b" id="gCancel">Cancelar</button>
+      <button class="b pri" id="gGuardar" style="flex:1">Mandar a aprobar</button>
+    </div>
+
+    <div id="gMias"></div>
+    <div style="height:10px"></div>
   </div>
 </div>
 
@@ -808,6 +883,7 @@ function arrancar(){
   pintarDias();
   escucharReservas();
   escucharAlumnos();
+  if(puedeEscribir){ $('btnAtras').style.display='block'; escucharAtrasadas(); }
   firebase.database().ref('calendario_v2').on('value', function(s){
     cal = s.val();
     if(cal && cal.lunesActual && cal.lunesActual!==lunes){
@@ -819,13 +895,235 @@ function arrancar(){
   }, function(e){ $('cargando').textContent='No pude leer el calendario: '+e.message; });
 }
 
+/* ============================================================
+   CLASE QUE NO SE CARGÓ
+   El profe da una clase y se olvida de abrirla en la tablet. Al cerrar el día
+   esa clase queda como "sin confirmar": no se le cobra al alumno y no se le
+   paga al profe. Acá la carga después, de cualquier fecha, y queda ESPERANDO
+   que un administrador la apruebe. Recién ahí va a la planilla.
+
+   No escribe en el calendario ni en el historial: anota en su propio cajón
+   (atrasadas_v1), igual que las reservas y que la libreta del agente.
+   ============================================================ */
+var gElegido=null, atrasadas={}, _atrasRef=null;
+
+/* La llave es la clase misma: fecha, sede, hora y alumno. Así, si dos profes
+   cargan la misma clase, al segundo lo frena Firebase y no la app. */
+function claveAtrasada(fecha, sede, hi, alumno){
+  var a = normNom(alumno).replace(/[^a-z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  return fecha+'|'+sede+'|'+hi+'|'+a;
+}
+/* Las sedes y los profes salen del propio calendario, no de una lista escrita
+   a mano: si mañana se agrega una sede, esto la toma solo. */
+function sedesTodas(){
+  var m=(cal && cal.sedesPorDia) || {}, vistas={}, out=[];
+  DAYS.forEach(function(d){
+    (m[d]||[]).forEach(function(s){
+      if(s && s.key && !vistas[s.key]){ vistas[s.key]=1; out.push(s.key); }
+    });
+  });
+  return out;
+}
+function profesTodos(){
+  var vistos={}, out=[];
+  ((cal && cal.profesores) || []).forEach(function(p){
+    if(p && p.dim && !NO_PROFE[p.dim] && !vistos[p.dim]){
+      vistos[p.dim]=1; out.push({dim:p.dim, nombre:p.nombre||''});
+    }
+  });
+  var m=(cal && cal.sedesPorDia) || {};
+  DAYS.forEach(function(d){
+    (m[d]||[]).forEach(function(s){
+      (s.profes||[]).forEach(function(dim){
+        if(dim && !NO_PROFE[dim] && !vistos[dim]){
+          vistos[dim]=1; out.push({dim:dim, nombre:nombreProfe(dim)});
+        }
+      });
+    });
+  });
+  out.sort(function(a,b){ return (a.nombre||a.dim).localeCompare(b.nombre||b.dim); });
+  return out;
+}
+
+function abrirAtras(){
+  if(!puedeEscribir) return;
+  gElegido=null;
+  $('gNom').value=''; $('gSug').innerHTML=''; $('gElegidoTxt').textContent='';
+  $('gNota').value=''; $('gErr').textContent='';
+
+  /* Por defecto, ayer: es el caso normal. Nunca una fecha futura. */
+  var hoy=new Date();
+  $('gFecha').max = isoDe(hoy);
+  hoy.setDate(hoy.getDate()-1);
+  $('gFecha').value = isoDe(hoy);
+
+  var ss=sedesTodas();
+  $('gSede').innerHTML = ss.map(function(k,i){
+    return '<button data-v="'+esc(k)+'"'+(i===0?' class="on"':'')+'>'+esc(SEDE_NICE[k]||k)+'</button>';
+  }).join('');
+
+  var ps=profesTodos();
+  $('gProfe').innerHTML = ps.map(function(p){
+    var txt = p.nombre ? (p.nombre+' ('+p.dim+')') : p.dim;
+    return '<option value="'+esc(p.dim)+'"'+(p.dim===miDim?' selected':'')+'>'+esc(txt)+'</option>';
+  }).join('');
+
+  $('gHora').innerHTML = HORAS.map(function(h,i){
+    return '<option value="'+i+'">'+esc(h)+'</option>';
+  }).join('');
+  $('gHora').value = 8;                      // 14:00, la franja de más movimiento
+
+  marcarG('G');
+  pintarMias();
+  ventanaAbierta(cerrarAtras);
+  $('ovAtras').classList.add('show');
+  ajustarVentanas();
+}
+function cerrarAtras(){
+  ventanaCerrada();
+  $('ovAtras').classList.remove('show');
+}
+$('btnAtras').onclick=abrirAtras;
+$('gCancel').onclick=cerrarAtras;
+$('gCancel2').onclick=cerrarAtras;
+
+function marcarG(v){
+  Array.prototype.forEach.call($('gMod').querySelectorAll('button'), function(b){
+    b.classList.toggle('on', b.dataset.v===v);
+  });
+}
+function modG(){ var b=$('gMod').querySelector('button.on'); return b?b.dataset.v:'G'; }
+function sedeG(){ var b=$('gSede').querySelector('button.on'); return b?b.dataset.v:''; }
+$('gMod').onclick=function(ev){ var b=ev.target.closest('button[data-v]'); if(b) marcarG(b.dataset.v); };
+$('gSede').onclick=function(ev){
+  var b=ev.target.closest('button[data-v]'); if(!b) return;
+  Array.prototype.forEach.call($('gSede').querySelectorAll('button'), function(x){ x.classList.toggle('on', x===b); });
+};
+
+/* El buscador es el mismo de siempre (buscarAlumnos), pero con sus propios
+   casilleros: si compartiera los del formulario de agendar, abrir uno rompería
+   el otro. Acá NO se puede cargar un alumno nuevo: eso se pide al número de la
+   academia, para no llenar el padrón de nombres escritos de cualquier forma. */
+function pintarSugerenciasG(){
+  var q=$('gNom').value.trim();
+  if(gElegido && normNom(q)!==normNom(gElegido.nombre)) gElegido=null;
+  if(gElegido){ $('gSug').innerHTML=''; return; }
+  var r=buscarAlumnos(q);
+  if(!r.length){
+    $('gSug').innerHTML='';
+    $('gElegidoTxt').innerHTML = q.length>=2
+      ? 'No está en la lista. Pedile que escriba al número de la academia para darlo de alta.'
+      : '';
+    return;
+  }
+  $('gElegidoTxt').textContent='';
+  $('gSug').innerHTML = r.map(function(a){
+    var sub=[a.cat||'', a.mod||''].filter(Boolean).join(' · ');
+    return '<div class="sug" data-n="'+esc(a.nombre)+'">'+esc(a.nombre)+(sub?'<small>'+esc(sub)+'</small>':'')+'</div>';
+  }).join('');
+}
+$('gNom').oninput=pintarSugerenciasG;
+$('gSug').onclick=function(ev){
+  var d=ev.target.closest('.sug'); if(!d) return;
+  var nom=d.dataset.n;
+  gElegido = _porNombre[normNom(nom)] || {nombre:nom, mod:'', cat:''};
+  $('gNom').value=gElegido.nombre;
+  $('gSug').innerHTML='';
+  $('gElegidoTxt').textContent='✓ '+gElegido.nombre;
+  /* El tipo viene del padrón, pero el profe lo puede cambiar. Importa: al profe
+     se le paga según el TIPO de clase, no según el precio del alumno. */
+  var m=String(gElegido.mod||'').toUpperCase();
+  marcarG(m.indexOf('IND')>=0 ? 'IND' : (m.charAt(0)==='D' ? 'D' : 'G'));
+};
+
+function guardarAtrasada(){
+  var fecha=$('gFecha').value;
+  var sede=sedeG();
+  var hi=parseInt($('gHora').value,10);
+  var profe=$('gProfe').value||'';
+  var nota=$('gNota').value.trim();
+  var e=$('gErr'); e.textContent='';
+
+  if(!gElegido){ e.textContent='Elegí un alumno de la lista.'; return; }
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)){ e.textContent='Poné el día de la clase.'; return; }
+  if(fecha > isoDe(new Date())){ e.textContent='No se puede cargar una clase que todavía no pasó.'; return; }
+  if(!sede){ e.textContent='Elegí la sede.'; return; }
+  if(!profe){ e.textContent='Elegí el profesor.'; return; }
+
+  var b=$('gGuardar'); b.disabled=true; b.textContent='Mandando…';
+  var k=claveAtrasada(fecha, sede, hi, gElegido.nombre);
+  var reg={
+    fecha:fecha, alumno:gElegido.nombre, mod:modG(),
+    profe:profe, sede:sede, horaIdx:hi, hora:HORAS[hi]||'',
+    porCorreo:miCorreo, porNombre:miNombre||miCorreo,
+    ts:Date.now(), estado:'pendiente'
+  };
+  if(nota) reg.nota=nota.slice(0,200);
+
+  firebase.database().ref('atrasadas_v1/'+k).set(reg).then(function(){
+    /* El historial no puede frenar la operación: si falla, la clase igual quedó. */
+    var hoyIso=isoDe(new Date());
+    firebase.database().ref('ops_v1/'+hoyIso).push({
+      tipo:'atrasada', alumno:reg.alumno,
+      detalle:'cargó una clase del '+fecha+' '+reg.hora+' '+(SEDE_NICE[sede]||sede)+' '+profe+' · espera aprobación',
+      porCorreo:miCorreo, porNombre:miNombre||miCorreo, ts:Date.now(),
+      sede:sede, horaIdx:hi
+    }).catch(function(){});
+    b.disabled=false; b.textContent='Mandar a aprobar';
+    gElegido=null; $('gNom').value=''; $('gElegidoTxt').textContent=''; $('gNota').value='';
+    toast('✅ Mandada. Queda esperando aprobación');
+  }).catch(function(err){
+    b.disabled=false; b.textContent='Mandar a aprobar';
+    e.textContent = /permission/i.test(err.message)
+      ? 'Esa clase ya está cargada y esperando aprobación.'
+      : 'No se pudo mandar: '+err.message;
+  });
+}
+$('gGuardar').onclick=guardarAtrasada;
+
+/* Lo que cargó cada profe queda a la vista: si se rechaza, tiene que enterarse
+   y poder cargarla de nuevo corregida. Sin esto, un rechazo desaparece. */
+function escucharAtrasadas(){
+  var ref=firebase.database().ref('atrasadas_v1');
+  if(_atrasRef){ _atrasRef.off(); }
+  _atrasRef=ref;
+  ref.on('value', function(s){
+    atrasadas = s.val() || {};
+    pintarMias();
+    var n=0;
+    Object.keys(atrasadas).forEach(function(k){
+      var a=atrasadas[k];
+      if(a && a.porCorreo===miCorreo && a.estado==='pendiente') n++;
+    });
+    $('atrasCont').textContent = n ? ('  ·  '+n+' esperando') : '';
+  }, function(){});
+}
+function pintarMias(){
+  var c=$('gMias'); if(!c) return;
+  var mias=Object.keys(atrasadas).map(function(k){
+    var a=atrasadas[k]||{}; a._k=k; return a;
+  }).filter(function(a){ return a.porCorreo===miCorreo; })
+    .sort(function(a,b){ return (b.ts||0)-(a.ts||0); }).slice(0,12);
+
+  if(!mias.length){ c.innerHTML=''; return; }
+  c.innerHTML = '<div class="titsec">Lo que cargaste</div><div class="mias">'+
+    mias.map(function(a){
+      var cls = a.estado==='rechazado' ? ' rech' : (a.estado==='aprobado' ? ' apro' : '');
+      var et  = a.estado==='rechazado' ? 'Rechazada' : (a.estado==='aprobado' ? 'Aprobada' : 'Esperando');
+      var sub = (a.hora||'')+' · '+(SEDE_NICE[a.sede]||a.sede||'')+' · '+(a.profe||'')+' · '+(a.mod||'');
+      if(a.estado==='rechazado' && a.resueltoMotivo) sub += ' — '+a.resueltoMotivo;
+      return '<div class="fila'+cls+'"><b>'+et+'</b> · '+esc(a.alumno||'')+' · '+esc(a.fecha||'')+
+             '<small>'+esc(sub)+'</small></div>';
+    }).join('')+'</div>';
+}
+
 /* En el celular, cuando se abre el teclado la pantalla se achica pero las ventanas
    flotantes no se enteran: quedan ancladas al tamaño original y el pie se va abajo
    del teclado. Esto las ajusta a lo que realmente se ve. */
 function ajustarVentanas(){
   var vv = window.visualViewport;
   if(!vv) return;
-  ['ov','ovAcc'].forEach(function(id){
+  ['ov','ovAcc','ovAtras'].forEach(function(id){
     var e=$(id); if(!e) return;
     e.style.height = vv.height + 'px';
     e.style.top    = (vv.offsetTop || 0) + 'px';
