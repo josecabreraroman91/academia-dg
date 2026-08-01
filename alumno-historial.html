@@ -75,9 +75,9 @@
   .vacio{color:var(--sec);text-align:center;padding:40px 10px;font-size:14px}
   #cargando{color:var(--sec);text-align:center;padding:36px 0}
 
-  #ov{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:none;
+  #ov,#ovRech{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:none;
     align-items:center;justify-content:center;padding:16px}
-  #ov.show{display:flex}
+  #ov.show,#ovRech.show{display:flex}
   .caja{background:var(--panel);border:1px solid var(--linea);border-radius:14px;
     padding:18px 16px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto}
   .caja h3{margin:0 0 3px;font-size:17px}
@@ -96,6 +96,26 @@
 
   #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:80;
     background:#1d5a34;color:#d6ffe4;padding:11px 18px;border-radius:12px;font-size:14px;display:none}
+
+  /* ---- Clases para aprobar ---- */
+  #aprobar{margin-bottom:18px}
+  .apTit{font-size:13px;font-weight:700;color:var(--ambar);letter-spacing:.3px;
+    text-transform:uppercase;margin:0 0 9px;display:flex;align-items:center;gap:8px}
+  .apFila{background:var(--panel);border:1px solid #6b4a12;border-radius:11px;
+    padding:11px 13px;margin-bottom:8px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  .apFila .info{flex:1;min-width:190px}
+  .apFila .l1{font-size:14.5px;font-weight:600}
+  .apFila .l2{font-size:12.5px;color:var(--sec)}
+  .apFila .l3{font-size:12px;color:var(--sec);margin-top:3px}
+  .apFila .nota{font-size:12.5px;color:var(--txt);margin-top:4px;
+    border-left:2px solid var(--linea);padding-left:8px}
+  .apAcc{display:flex;gap:7px}
+  .apAcc button{white-space:nowrap}
+  .apAcc .no{border-color:#5a2a2a;color:var(--rojo)}
+  .apAcc .si{background:var(--verde);border-color:var(--verde);color:#06240f;font-weight:700}
+  .marca{font-size:11px;padding:3px 9px;border-radius:20px;white-space:nowrap;
+    background:#3a2f12;color:#f5d98a;border:1px solid #6b4a12}
+  .apVacio{color:var(--sec);font-size:13px}
 
   #login,#nopuede{position:fixed;inset:0;z-index:99;background:var(--bg);display:none;
     align-items:center;justify-content:center;flex-direction:column;padding:26px;text-align:center}
@@ -121,6 +141,8 @@
 <div class="wrap" id="app" style="display:none">
   <header><h1>Historial del alumno</h1><span class="sub">Y corregir si se cobra</span></header>
   <div class="yo">Conectado como <b id="yoMail"></b><a href="#" id="btnSalir">Salir</a></div>
+
+  <div id="aprobar"></div>
 
   <div class="buscador">
     <input id="q" type="text" autocomplete="off" placeholder="Buscá un alumno por su nombre…">
@@ -159,6 +181,23 @@
     <div class="acc">
       <button class="b" id="cCancel">Cancelar</button>
       <button class="b pri" id="cGuardar" style="flex:1">Guardar el cambio</button>
+    </div>
+  </div>
+</div>
+
+<div id="ovRech">
+  <div class="caja">
+    <h3>Rechazar la clase</h3>
+    <div class="donde" id="rDonde"></div>
+    <div class="campo">
+      <label>Por qué la rechazás</label>
+      <input id="rMotivo" type="text" autocomplete="off" placeholder="Ej: ese día no hubo clase, alumno equivocado">
+    </div>
+    <div style="font-size:12px;color:var(--sec);margin-top:9px">El profe lo va a ver en su celular y puede volver a cargarla corregida.</div>
+    <div class="err" id="rErr"></div>
+    <div class="acc">
+      <button class="b" id="rCancel">Cancelar</button>
+      <button class="b pri" id="rGuardar" style="flex:1">Rechazar</button>
     </div>
   </div>
 </div>
@@ -548,6 +587,165 @@ function anotarEnHistorial(c, estado, cobro, motivo){
   }catch(e){}
 }
 
+/* ============================================================
+   CLASES PARA APROBAR
+   Los profes cargan desde el celular las clases que se olvidaron de marcar en
+   la tablet. Quedan en atrasadas_v1 esperando. Acá se aprueban o se rechazan.
+
+   Al aprobar, la clase se manda a HISTORIAL con la MISMA forma que usa el
+   cierre del día: diez campos, la sede en mayúscula y la hora como texto. El
+   puente tiene su propio control anti-duplicados por fecha + alumno + hora +
+   sede, así que aprobar dos veces por error no cobra dos veces.
+
+   Nada se borra nunca: una clase rechazada queda con su motivo.
+   ============================================================ */
+var SEDE_NICE = {lomas:'LOMAS', elite:'ELITE', segurola:'SEGUROLA', adefinir:'A DEFINIR'};
+var atrasadas = {}, rechazando = null;
+
+function idDelAlumno(nombre){
+  var k=normNom(nombre);
+  for(var i=0;i<alumnos.length;i++){ if(normNom(alumnos[i].nombre)===k) return alumnos[i].id||''; }
+  return '';
+}
+function isoDeHoy(){
+  var d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+/* A los profesores se les paga por semana. Una clase de una semana anterior
+   cambia un total que ya se pagó: no lo impide, pero lo avisa antes de tocar. */
+function lunesDeEstaSemana(){
+  var d=new Date(); var wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function haceCuanto(ts){
+  if(!ts) return '';
+  var m=Math.floor((Date.now()-ts)/60000);
+  if(m<60) return 'hace '+m+' min';
+  if(m<1440) return 'hace '+Math.floor(m/60)+' h';
+  return 'hace '+Math.floor(m/1440)+' días';
+}
+
+function escucharAtrasadas(){
+  firebase.database().ref('atrasadas_v1').on('value', function(s){
+    atrasadas = s.val() || {};
+    pintarAprobar();
+  }, function(e){ console.warn('atrasadas_v1:', e.message); });
+}
+
+function pendientes(){
+  return Object.keys(atrasadas).map(function(k){
+    var a=atrasadas[k]||{}; a._k=k; return a;
+  }).filter(function(a){ return a.estado==='pendiente'; })
+    .sort(function(a,b){ return String(a.fecha).localeCompare(String(b.fecha)); });
+}
+
+function pintarAprobar(){
+  var c=$('aprobar'); if(!c) return;
+  var ps=pendientes();
+  if(!ps.length){ c.innerHTML=''; return; }
+  var lun=lunesDeEstaSemana();
+  c.innerHTML='<div class="apTit">⏳ Clases para aprobar ('+ps.length+')</div>'+
+    ps.map(function(a){
+      var vieja = String(a.fecha) < lun;
+      var sede  = SEDE_NICE[a.sede] || String(a.sede||'').toUpperCase();
+      return '<div class="apFila" data-k="'+esc(a._k)+'">'+
+        '<div class="info">'+
+          '<div class="l1">'+esc(a.alumno||'')+'</div>'+
+          '<div class="l2">'+esc(fechaLarga(a.fecha))+' · '+esc(a.hora||'')+' · '+esc(sede)+
+            ' · '+esc(a.profe||'')+' · '+esc(a.mod||'')+'</div>'+
+          '<div class="l3">cargada por '+esc(a.porNombre||a.porCorreo||'')+' '+esc(haceCuanto(a.ts))+'</div>'+
+          (a.nota?('<div class="nota">'+esc(a.nota)+'</div>'):'')+
+        '</div>'+
+        (vieja?'<span class="marca">⚠ semana ya pagada</span>':'')+
+        '<div class="apAcc">'+
+          '<button class="b no" data-ac="no">Rechazar</button>'+
+          '<button class="b si" data-ac="si">Aprobar</button>'+
+        '</div></div>';
+    }).join('');
+}
+
+$('aprobar').onclick=function(ev){
+  var b=ev.target.closest('button[data-ac]'); if(!b) return;
+  var fila=b.closest('.apFila'); if(!fila) return;
+  var k=fila.dataset.k, a=atrasadas[k];
+  if(!a) return;
+  if(b.dataset.ac==='si') aprobarClase(k, a, b);
+  else abrirRechazo(k, a);
+};
+
+function aprobarClase(k, a, boton){
+  var vieja = String(a.fecha) < lunesDeEstaSemana();
+  var sede  = SEDE_NICE[a.sede] || String(a.sede||'').toUpperCase();
+  var txt = a.alumno+'\n'+fechaLarga(a.fecha)+' · '+(a.hora||'')+' · '+sede+' · '+(a.profe||'')+' · '+(a.mod||'')+
+            '\n\nSe cobra al alumno y se le paga al profesor.'+
+            (vieja?'\n\n⚠ Es de una semana que ya se pagó: el total de esa semana va a cambiar.':'');
+  if(!confirm(txt)) return;
+
+  boton.disabled=true; boton.textContent='…';
+  /* Los diez campos del cierre del día, en el mismo orden. */
+  var filaHist=[a.fecha, a.alumno, a.hora||'', sede, a.profe||'', a.mod||'',
+                'Presente', 'Sí', 'cargada tarde por '+(a.porNombre||a.porCorreo||''),
+                idDelAlumno(a.alumno)];
+
+  firebase.auth().currentUser.getIdToken().then(function(tk){
+    return enviarAlPuente('historial', {filas:[filaHist]}, tk);
+  }).then(function(){
+    /* Recién después de mandarla a la planilla se marca como aprobada. Si se
+       marcara antes y el puente fallara, la clase quedaría perdida: nadie la
+       vería más y nunca habría llegado. */
+    return firebase.database().ref('atrasadas_v1/'+k).update({
+      estado:'aprobado', resueltoTs:Date.now(), resueltoPor:miCorreo
+    });
+  }).then(function(){
+    anotarAtrasadaEnOps(a, 'aprobó', sede, '');
+    toast('✅ Aprobada y enviada a la planilla');
+  }).catch(function(e){
+    boton.disabled=false; boton.textContent='Aprobar';
+    alert('No se pudo aprobar: '+e.message);
+  });
+}
+
+function abrirRechazo(k, a){
+  rechazando={k:k, a:a};
+  var sede = SEDE_NICE[a.sede] || String(a.sede||'').toUpperCase();
+  $('rDonde').textContent = a.alumno+' · '+fechaLarga(a.fecha)+' · '+(a.hora||'')+' · '+sede;
+  $('rMotivo').value=''; $('rErr').textContent='';
+  $('ovRech').classList.add('show');
+  try{ $('rMotivo').focus(); }catch(e){}
+}
+$('rCancel').onclick=function(){ $('ovRech').classList.remove('show'); rechazando=null; };
+$('rGuardar').onclick=function(){
+  if(!rechazando) return;
+  var motivo=$('rMotivo').value.trim();
+  if(motivo.length<3){ $('rErr').textContent='Escribí por qué. El profe lo va a leer.'; return; }
+  var b=$('rGuardar'); b.disabled=true; b.textContent='…';
+  var k=rechazando.k, a=rechazando.a;
+  firebase.database().ref('atrasadas_v1/'+k).update({
+    estado:'rechazado', resueltoTs:Date.now(), resueltoPor:miCorreo,
+    resueltoMotivo:motivo.slice(0,300)
+  }).then(function(){
+    anotarAtrasadaEnOps(a, 'rechazó', SEDE_NICE[a.sede]||a.sede, motivo);
+    b.disabled=false; b.textContent='Rechazar';
+    $('ovRech').classList.remove('show'); rechazando=null;
+    toast('Rechazada. El profe la va a ver');
+  }).catch(function(e){
+    b.disabled=false; b.textContent='Rechazar';
+    $('rErr').textContent='No se pudo: '+e.message;
+  });
+};
+
+/* Todo queda en el historial general, con tu nombre. */
+function anotarAtrasadaEnOps(a, que, sede, motivo){
+  try{
+    firebase.database().ref('ops_v1/'+isoDeHoy()).push({
+      tipo:'atrasada', alumno:a.alumno||'',
+      detalle:que+' la clase del '+a.fecha+' '+(a.hora||'')+' '+sede+' '+(a.profe||'')+
+              ' · cargada por '+(a.porNombre||a.porCorreo||'')+(motivo?(' · '+motivo):''),
+      porCorreo:miCorreo, porNombre:window._yoNombre||miCorreo, ts:Date.now()
+    }).catch(function(){});
+  }catch(e){}
+}
+
 /* ---------- Entrada ---------- */
 $('btnEntrar').onclick=function(){
   firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
@@ -574,6 +772,7 @@ firebase.auth().onAuthStateChanged(function(u){
     $('app').style.display='block';
     $('yoMail').textContent=miCorreo;
     $('cargando').style.display='block';
+    escucharAtrasadas();
     Promise.all([cargarAlumnos(), cargarHistorial()]).then(function(){
       $('cargando').style.display='none';
       pintarDetalle();          // arranca mostrando a todos, con los filtros
