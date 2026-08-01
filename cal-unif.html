@@ -4209,7 +4209,26 @@ async function cerrarYGuardarDia(){
           filasAuto.push([fecha,'AYUDANTE',HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.ayudante,'AYUDA','Ayudante','—','ayuda a '+(rec.profe||''),'']);
           return;
         }
-        if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO/i.test(rec.nombre)){ // AR: se paga al profe
+        if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO/i.test(rec.nombre)){
+          /* Un bloque de ALTO RENDIMIENTO con lista adentro se abre en una fila por
+             alumno: son clases de verdad, se cobran y aportan a la bolsa de la hora
+             como cualquier otra. El tipo dice la duración (AR60 / AR30), que es lo
+             que define cuánto aporta. */
+          var _lista = rec.lista && rec.lista.length ? rec.lista : null;
+          if(_lista && /ALTO RENDIMIENTO/i.test(rec.nombre)){
+            var _tipoAR = (rec.dur===30) ? 'AR30' : 'AR60';
+            var _marc = rec.arAsis || {};
+            _lista.forEach(function(nomAl){
+              var _falto = _marc[nomAl]==='ausente';
+              filasAuto.push([fecha, nomAl, HORAS[rec.horaIdx]||'', SEDE_NICE[sk]||sk,
+                rec.profe||'', _tipoAR,
+                _falto ? 'Ausente (avisó)' : 'Presente',
+                _falto ? 'No' : 'Sí',
+                _falto ? 'alto rendimiento · faltó' : 'alto rendimiento',
+                idDeAlumno(nomAl)]);
+            });
+            return;
+          }
           filasAuto.push([fecha,'ALTO RENDIMIENTO',HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'','AR','Bloque','—','','']);
           return;
         }
