@@ -119,6 +119,7 @@
     <button class="navtab" data-go="lib">📓 Libreta</button>
     <button class="navtab" data-go="ahi">🧾 Hist. alumno</button>
     <button class="navtab" data-go="caj">🏦 Caja</button>
+    <button class="navtab" data-go="gan">📈 Ganancias</button>
     <button class="navtab" data-go="his">🕘 Historial</button>
     <button class="navtab" data-go="pan">🔑 Accesos</button>
   </div>
@@ -181,6 +182,12 @@
       <div class="arrow">›</div>
     </div>
 
+    <div class="mcard" data-go="gan">
+      <div class="ico">📈</div>
+      <div class="info"><div class="t">Ganancias</div><div class="d">Cuánto lleva cobrado cada profesor, por período</div></div>
+      <div class="arrow">›</div>
+    </div>
+
     <div class="mcard" data-go="caj">
       <div class="ico">🏦</div>
       <div class="info"><div class="t">Caja</div><div class="d">Cobros por alumno, pago a profesores e informes de la academia</div></div>
@@ -214,6 +221,7 @@
   <iframe id="frLib" data-src="libreta.html" title="Libreta" referrerpolicy="no-referrer"></iframe>
   <iframe id="frAhi" data-src="alumno-historial.html" title="Historial del alumno" referrerpolicy="no-referrer"></iframe>
   <iframe id="frCaj" data-src="caja.html" title="Caja" referrerpolicy="no-referrer"></iframe>
+  <iframe id="frGan" data-src="ganancias.html" title="Ganancias" referrerpolicy="no-referrer"></iframe>
   <iframe id="frHis" data-src="historial.html" title="Historial" referrerpolicy="no-referrer"></iframe>
   <iframe id="frPan" data-src="panel.html" title="Accesos" referrerpolicy="no-referrer"></iframe>
 </div>
@@ -229,6 +237,7 @@
   const frCob=document.getElementById('frCob');
   const frNiv=document.getElementById('frNiv');
   const frCaj=document.getElementById('frCaj');
+  const frGan=document.getElementById('frGan');
   const frPan=document.getElementById('frPan');
   const loaded={cal:false, prof:false, alu:false, pag:false, cob:false, niv:false, pan:false};
 
@@ -237,7 +246,7 @@
       menu.classList.remove('hide');
       stage.classList.remove('show');
       topbar.classList.remove('show');
-      frCal.classList.remove('show'); frProf.classList.remove('show'); frAlu.classList.remove('show'); frPag.classList.remove('show'); frCob.classList.remove('show'); frNiv.classList.remove('show'); frCaj.classList.remove('show'); frPan.classList.remove('show');
+      frCal.classList.remove('show'); frProf.classList.remove('show'); frAlu.classList.remove('show'); frPag.classList.remove('show'); frCob.classList.remove('show'); frNiv.classList.remove('show'); frCaj.classList.remove('show'); frGan.classList.remove('show'); frPan.classList.remove('show');
       document.querySelectorAll('.navtab').forEach(t=>t.classList.remove('active'));
       return;
     }
@@ -256,6 +265,7 @@
     if(dest==='lib' && !loaded.lib){ frLib.src=frLib.dataset.src+'?v='+Date.now(); loaded.lib=true; }
     if(dest==='ahi' && !loaded.ahi){ frAhi.src=frAhi.dataset.src+'?v='+Date.now(); loaded.ahi=true; }
     if(dest==='caj' && !loaded.caj){ frCaj.src=frCaj.dataset.src+'?v='+Date.now(); loaded.caj=true; }
+    if(dest==='gan' && !loaded.gan){ frGan.src=frGan.dataset.src+'?v='+Date.now(); loaded.gan=true; }
     if(dest==='his' && !loaded.his){ frHis.src=frHis.dataset.src+'?v='+Date.now(); loaded.his=true; }
     if(dest==='pan' && !loaded.pan){ frPan.src=frPan.dataset.src+'?v='+Date.now(); loaded.pan=true; }
     frCal.classList.toggle('show', dest==='cal');
@@ -268,12 +278,13 @@
     frLib.classList.toggle('show', dest==='lib');
     frAhi.classList.toggle('show', dest==='ahi');
     frCaj.classList.toggle('show', dest==='caj');
+    frGan.classList.toggle('show', dest==='gan');
     frHis.classList.toggle('show', dest==='his');
     /* Aviso a la sección que se está mostrando. Los recuadros quedan cargados al
        cambiar de sección, así que conservan lo que había escrito; con esto cada app
        puede limpiar lo suyo al volver. */
     try{
-      const fr={cal:frCal,prof:frProf,alu:frAlu,pag:frPag,cob:frCob,niv:frNiv,age:frAge,lib:frLib,ahi:frAhi,caj:frCaj,his:frHis,pan:frPan}[dest];
+      const fr={cal:frCal,prof:frProf,alu:frAlu,pag:frPag,cob:frCob,niv:frNiv,age:frAge,lib:frLib,ahi:frAhi,caj:frCaj,gan:frGan,his:frHis,pan:frPan}[dest];
       if(fr && fr.contentWindow) setTimeout(()=>{ try{ fr.contentWindow.postMessage({adg:'mostrar'}, '*'); }catch(e){} }, 60);
     }catch(e){}
     frPan.classList.toggle('show', dest==='pan');
@@ -301,7 +312,7 @@
   };
   // Qu\u00e9 permiso necesita cada secci\u00f3n
   var REQUIERE = { cal:'calendario', prof:'profes', alu:'alumnos', pag:'__oculto__', cob:'__oculto__',
-                   niv:'nivelacion', age:'agenda', lib:'agente', ahi:'__admin__', caj:'caja', his:'historial', pan:'__admin__' };
+                   niv:'nivelacion', age:'agenda', lib:'agente', ahi:'__admin__', caj:'caja', gan:'ganancias', his:'historial', pan:'__admin__' };
 
   function $(id){ return document.getElementById(id); }
   function show(m, salir){
