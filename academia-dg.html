@@ -30,11 +30,16 @@
   #btnTabs{display:inline-block;font-weight:800}
   #topbar{position:relative}
   .tabsbar{position:absolute;top:100%;left:8px;z-index:60;display:flex;flex-direction:column;
-    gap:4px;background:var(--panel2,#12283f);border:1px solid var(--line,#2a3a4a);
-    border-radius:12px;padding:8px;margin-top:6px;min-width:210px;
-    box-shadow:0 14px 34px rgba(0,0,0,.35);max-height:75vh;overflow-y:auto}
+    gap:2px;background:#ffffff;border:1px solid #cfd8e0;
+    border-radius:12px;padding:6px;margin-top:6px;min-width:230px;
+    box-shadow:0 16px 38px rgba(10,40,55,.30);max-height:75vh;overflow-y:auto}
   .tabsbar.plegada{display:none}
-  .tabsbar .navtab{width:100%;text-align:left}
+  /* Colores propios del menú: no dependen del tema, así siempre se lee. */
+  .tabsbar .navtab{width:100%;text-align:left;background:transparent;border:1px solid transparent;
+    color:#17262f;font-weight:700;font-size:14px;padding:10px 12px;border-radius:9px}
+  .tabsbar .navtab:hover{background:#eef4f8;border-color:#cfd8e0}
+  .tabsbar .navtab.active{background:#0e7c9e;border-color:#0e7c9e;color:#ffffff}
+  .tabsbar .navtab.home{border-bottom:1px solid #e6edf2;border-radius:9px 9px 0 0;margin-bottom:2px}
   #tapaTabs{position:fixed;inset:0;z-index:55;display:none}
   #tapaTabs.on{display:block}
 
@@ -103,7 +108,7 @@
   <button class="navtab" id="btnTabs" title="Mostrar las secciones">▾ Secciones</button>
   <div id="tapaTabs"></div>
   <div class="tabsbar plegada" id="tabsbar">
-    <button class="navtab home" data-go="menu">☰</button>
+    <button class="navtab home" data-go="menu">☰ Menú de inicio</button>
     <button class="navtab" data-go="cal">🎾 Calendario</button>
     <button class="navtab" data-go="prof">📋 Vista Profes</button>
     <button class="navtab" data-go="alu">👥 Alumnos</button>
