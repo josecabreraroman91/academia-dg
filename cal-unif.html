@@ -1481,15 +1481,57 @@ function asegurarSemanas(){
   if(!state.semActiva) state.semActiva='actual';
   if(!state.madreSync) propagarMadreASemana();   // primera vez: toma la referencia
 }
+/* ============================================================
+   AVANZAR SEMANA
+
+   Al avanzar, la semana en la que se cae es una COPIA FIEL DE LA MADRE del
+   momento. Igual la próxima. Las dos arrancan limpias.
+
+   Esto quiere decir que lo que se haya editado en "la que viene" NO sobrevive
+   al lunes: esa vista sirve para mirar cómo va a quedar, no para planificar.
+   Lo que tiene que valer todas las semanas va en la MADRE.
+
+   Antes no era así: "la que viene" pasaba a ser "esta semana" con sus ediciones
+   encima. Eso traía un problema silencioso: un alumno fijo agregado a la MADRE
+   a mitad de semana bajaba a la semana en curso, pero NO estaba en "la que
+   viene" (que se había copiado antes del cambio). Al lunes siguiente faltaba la
+   semana entera, y recién reaparecía a la tercera. Nadie se enteraba: no daba
+   error, el profe simplemente veía un alumno de menos.
+
+   Sacando la copia de la MADRE en el momento de avanzar, eso no puede pasar.
+   ============================================================ */
 function avanzarSemana(){
-  if(!confirm('▸ Avanzar de semana.\n\n"La que viene" pasa a ser "ESTA semana", se genera una nueva próxima desde la MADRE, y la semana que pasó se descarta.\n\n¿Confirmás?')) return;
+  /* Los cambios que los profes dejaron sin aplicar se pierden de vista al
+     avanzar: viven etiquetados con el lunes de su semana. Se avisa antes. */
+  let pend = 0;
+  try{ pend = resvPendientes().length + fijosPendientes().length; }catch(e){}
+
+  const aviso = '▸ Avanzar de semana.\n\n' +
+    'La semana nueva arranca como COPIA FIEL DE LA MADRE.\n\n' +
+    '• Lo cargado en "esta semana" se descarta (la semana terminó).\n' +
+    '• Lo cargado en "la que viene" TAMBIÉN se descarta: esa vista es para mirar, no para planificar.\n' +
+    '• Lo que tiene que valer todas las semanas va en la MADRE.\n' +
+    (pend ? ('\n⚠️ Hay ' + pend + ' cambio(s) de profesores sin aplicar. Si avanzás ahora, no los vas a ver más.\n') : '') +
+    '\n¿Confirmás?';
+  if(!confirm(aviso)) return;
+
   backupAuto('antes de avanzar semana');
-  state.semana = state.semanaProxima;
-  state.semanaProxima = JSON.parse(JSON.stringify(state.madre));
-  state.lunesActual = isoDe(isoMas(state.lunesActual,7));
+
+  const deLaMadre = () => JSON.parse(JSON.stringify(state.madre));
+  state.semana        = deLaMadre();
+  state.semanaProxima = deLaMadre();
+  state.lunesActual   = isoDe(isoMas(state.lunesActual,7));
+
+  /* El cuaderno de la propagación se rehace desde cero. Lleva anotado qué
+     celdas de la MADRE ya bajaron; si quedara el viejo, un alumno agregado la
+     semana pasada figuraría como "ya resuelto" y no volvería a bajar nunca. */
+  state.madreSync = null;
+  try{ propagarMadreASemana(); }catch(e){}
+
   state.semActiva='actual';
   saveState(); renderAll();
-  alert('✅ Semana avanzada. Ahora "esta semana" arranca el lunes '+ddmm(isoMas(state.lunesActual,0))+'.');
+  alert('✅ Semana avanzada. Ahora "esta semana" arranca el lunes '+ddmm(isoMas(state.lunesActual,0))+
+        ' y es una copia de la MADRE.');
 }
 
 function loadState(){
