@@ -3414,12 +3414,21 @@ function keyAlumno(s){
   return t.replace(/\.+$/,'').trim();
 }
 
-/* Nombres de la grilla que no son alumnos: no van a la lista de envíos */
+/* Nombres de la grilla que no son alumnos: no van a la lista de envíos.
+   La MISMA regla que usa la Caja, para que las dos apps piensen igual.
+
+   El largo se mide sobre el nombre TAL CUAL ESTÁ ESCRITO, nunca sobre el
+   limpio: si se mide sobre el limpio, un alumno de nombre corto queda en dos
+   letras, el sistema lo toma por decoración y DEJA DE RECIBIR el mensaje de
+   confirmación sin que nadie se entere. */
+const DECORATIVOS_CAL=/alto\s*rendimiento|alto\s*r\b|almuerzo|\blibre\b|pretemporada|no\s*hay\s*cancha|nohaycancha|\bferiado\b|\bvacaciones\b|cancelad|suspendid|\bentrenamiento\b/i;
 function esBloque(nombre){
-  const t = keyAlumno(nombre).replace(/\./g,'').trim();
-  return t==='' || t==='-' || t.length<=2 ||
-         t==='alto rendimiento' || t==='alto r' ||
-         t==='almuerzo' || t==='libre';
+  const crudo=String(nombre==null?'':nombre).trim();
+  if(DECORATIVOS_CAL.test(crudo)) return true;
+  const letras=crudo.replace(/[^a-z0-9]/gi,'');
+  if(!letras) return true;
+  if(keyAlumno(nombre).replace(/\./g,'').trim()==='') return true;
+  return letras.length<=2;
 }
 
 /* Las mismas fichas, indexadas con la clave flexible */
