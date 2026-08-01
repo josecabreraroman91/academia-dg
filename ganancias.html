@@ -212,16 +212,16 @@ function parsearHistorial(paq){
   }
 }
 
-function guardarColumnas(lista){
-  lista=lista||[];
-  profesores={}; noProfe={};
-  var arr=Array.isArray(lista)?lista:Object.keys(lista).map(function(k){ return lista[k]; });
-  arr.forEach(function(p){
-    if(!p||!p.dim) return;
-    var d=String(p.dim).trim().toUpperCase();
-    profesores[d]=p.nombre||p.dim;
-    if(p.noEsProfe) noProfe[d]=true;
+function guardarColumnas(v){
+  v=v||{}; noProfe={};
+  Object.keys(v).forEach(function(k){
+    if(v[k] && v[k].noEsProfe) noProfe[String(k).trim().toUpperCase()]=true;
   });
+}
+function guardarNombresProfes(lista){
+  lista=lista||[]; profesores={};
+  var arr=Array.isArray(lista)?lista:Object.keys(lista).map(function(k){ return lista[k]; });
+  arr.forEach(function(p){ if(p&&p.dim) profesores[String(p.dim).trim().toUpperCase()]=p.nombre||p.dim; });
 }
 function esColumnaSinProfe(dim){ return !!noProfe[String(dim||'').trim().toUpperCase()]; }
 function nombreProfe(dim){ return profesores[String(dim||'').trim().toUpperCase()] || dim; }
@@ -443,8 +443,12 @@ firebase.auth().onAuthStateChanged(function(u){
     db.ref('tipos_v1').on('value', function(s){ tipos=s.val()||{}; pintar(); },
       function(e){ console.warn('tipos_v1:', e.message); });
 
+    db.ref('columnas_v1').on('value', function(s){
+      guardarColumnas(s.val()); pintar();
+    }, function(e){ console.warn('columnas_v1:', e.message); });
+
     db.ref('calendario_v2/profesores').on('value', function(s){
-      guardarColumnas(s.val());
+      guardarNombresProfes(s.val());
       /* Se busca cuál columna es la del que está mirando, para resaltarla. */
       var mio=normNom(miNombre);
       if(mio) Object.keys(profesores).forEach(function(d){
