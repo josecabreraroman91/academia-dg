@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ganancias · Academia DG</title>
+<style>
+  :root{
+    --fondo:#eef3f6; --tarjeta:#ffffff; --linea:#dbe4ea;
+    --texto:#17262f; --suave:#6a7f8b;
+    --teal:#0e7c9e; --teal-osc:#0a5c75; --teal-claro:#e3f1f6;
+    --verde:#15803d; --ambar:#8a5a00; --ambar-claro:#fdf3e2; --rojo:#b42318;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--fondo);color:var(--texto);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5}
+  .wrap{max-width:820px;margin:0 auto;padding:20px 14px 70px}
+  h1{font-size:23px;margin:0 0 2px;letter-spacing:-.4px}
+  .sub{color:var(--suave);font-size:13px}
+  .yo{color:var(--suave);font-size:12px;margin:4px 0 16px}
+  .yo a{color:var(--teal);text-decoration:none;margin-left:10px}
+
+  button{font-family:inherit;font-size:14px;padding:9px 15px;border-radius:9px;
+    border:1px solid var(--linea);background:var(--tarjeta);color:var(--texto);cursor:pointer}
+  button:hover{border-color:var(--suave)}
+  button.on{border-color:var(--teal);background:var(--teal-claro);color:var(--teal-osc);font-weight:700}
+  button.chico{font-size:12.5px;padding:6px 11px}
+
+  .rangos{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+  .rangos button{border-radius:20px;font-size:13.5px;padding:8px 14px}
+
+  .fechas{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;
+    background:var(--tarjeta);border:1px solid var(--linea);border-radius:12px;padding:10px 13px}
+  .fechas label{font-size:12px;color:var(--suave);font-weight:600}
+  .fechas input{background:var(--tarjeta);border:1px solid var(--linea);border-radius:9px;
+    padding:8px 10px;font-family:inherit;font-size:14px;color:var(--texto)}
+  .fechas input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-claro)}
+
+  .cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:11px;margin-bottom:16px}
+  .cifra{background:var(--tarjeta);border:1px solid var(--linea);border-radius:12px;padding:12px 14px}
+  .cifra b{display:block;font-size:22px;font-weight:600;line-height:1.15;letter-spacing:-.5px}
+  .cifra span{font-size:12px;color:var(--suave)}
+  .cifra.plata b{color:var(--verde)}
+
+  .caja{background:var(--tarjeta);border:1px solid var(--linea);border-radius:14px;
+    padding:14px 15px;margin-bottom:14px}
+  .caja h3{margin:0 0 10px;font-size:15px}
+  .pie{color:var(--suave);font-size:12px;margin-top:10px}
+
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th{text-align:left;color:var(--suave);font-size:11px;font-weight:700;letter-spacing:.4px;
+    text-transform:uppercase;padding:7px 8px;border-bottom:2px solid var(--linea);white-space:nowrap}
+  td{padding:10px 8px;border-bottom:1px solid var(--linea)}
+  tr:last-child td{border-bottom:0}
+  td.num,th.num{text-align:right;white-space:nowrap}
+  tr.click{cursor:pointer}
+  tr.click:hover td{background:var(--teal-claro)}
+  tr.yo td{background:#f2fbf5}
+  tr.yo td:first-child{box-shadow:inset 3px 0 0 var(--verde)}
+  .pin{font-size:10px;padding:2px 7px;border-radius:20px;font-weight:700;white-space:nowrap;
+    background:var(--teal-claro);color:var(--teal-osc);margin-left:5px}
+
+  .aviso{background:var(--ambar-claro);border:1px solid #eccf9a;color:var(--ambar);
+    border-radius:10px;padding:10px 13px;font-size:13px;margin-bottom:14px}
+  .aviso b{color:#6b4600}
+  .vacio{text-align:center;color:var(--suave);padding:34px 14px;font-size:14px}
+
+  #ov{position:fixed;inset:0;z-index:50;background:rgba(15,35,45,.45);display:none;
+    align-items:flex-start;justify-content:center;padding:18px;overflow-y:auto}
+  #ov.show{display:flex}
+  .ficha{background:var(--tarjeta);border-radius:16px;width:100%;max-width:600px;margin:auto;
+    box-shadow:0 18px 50px rgba(10,50,65,.22);overflow:hidden}
+  .f-cab{padding:15px 16px 10px;display:flex;align-items:center;gap:8px}
+  .f-cab h2{margin:0;font-size:19px;flex:1}
+  .f-cab button{padding:5px 9px;font-size:15px;color:var(--suave)}
+  .f-cuerpo{padding:0 16px 18px}
+
+  #login,#nopuede{position:fixed;inset:0;z-index:99;background:var(--fondo);display:none;
+    align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center}
+  #login h2,#nopuede h2{margin:0 0 8px;font-size:21px}
+  #login p,#nopuede p{color:var(--suave);max-width:350px;margin:0 0 20px;white-space:pre-line}
+  .err{color:var(--rojo);font-size:13px;margin-top:8px;min-height:16px}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <h2>Ganancias</h2>
+  <p>Cuánto lleva cobrado cada profesor. Se actualiza solo.</p>
+  <button id="btnEntrar" style="font-size:15px;padding:11px 20px">Entrar con Google</button>
+  <div class="err" id="errLogin"></div>
+</div>
+
+<div id="nopuede">
+  <h2>No tenés acceso</h2>
+  <p id="nopuedeTxt"></p>
+  <button id="btnSalir2">Salir</button>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <h1>Ganancias</h1>
+  <div class="sub" id="sub">—</div>
+  <div class="yo"><span id="yoMail"></span><a href="#" id="btnSalir">salir</a></div>
+
+  <div class="rangos" id="rangos">
+    <button data-r="hoy">Hoy</button>
+    <button data-r="semana" class="on">Esta semana</button>
+    <button data-r="mes">Este mes</button>
+    <button data-r="mespas">Mes pasado</button>
+    <button data-r="todo">Todo</button>
+  </div>
+
+  <div class="fechas">
+    <label for="fDesde">Desde</label><input type="date" id="fDesde">
+    <label for="fHasta">hasta</label><input type="date" id="fHasta">
+    <button class="chico" id="btnAplicar">Ver ese rango</button>
+  </div>
+
+  <div id="cargando" class="vacio">Leyendo el historial…</div>
+  <div id="pantalla"></div>
+</div>
+
+<div id="ov"><div class="ficha" id="ficha"></div></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain: "academia-dg.firebaseapp.com",
+  databaseURL: "https://academia-dg-default-rtdb.firebaseio.com",
+  projectId: "academia-dg",
+  storageBucket: "academia-dg.firebasestorage.app",
+  messagingSenderId: "623967243039",
+  appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
+});
+
+/* ============================================================
+   GANANCIAS — cuánto lleva cobrado cada profesor
+
+   Usa EXACTAMENTE la misma cuenta que la Caja, para que nunca den distinto:
+
+     · La bolsa de cada hora se arma con lo que aportan los alumnos PRESENTES
+       de esa hora, juntando las tres sedes.
+     · Se reparte en partes iguales entre los profes que tenían clase esa hora.
+     · Las columnas que no son un profesor (Sin profe) no cobran.
+     · El profe ayudante cobra su parte aunque no tenga alumnos propios.
+
+   Todos ven lo de todos: es un dato de la academia, no un secreto entre profes.
+   Se actualiza solo, sin recargar.
+   ============================================================ */
+
+var MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+var DIAS=['dom','lun','mar','mié','jue','vie','sáb'];
+
+var $=function(id){ return document.getElementById(id); };
+var miCorreo=null, miNombre='', miDim='';
+var historial=[], tipos={}, profesores={}, noProfe={};
+var rango='semana', desde='', hasta='';
+
+function esc(t){ return String(t==null?'':t)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function aClave(m){ return String(m).trim().toLowerCase().replace(/\./g, ','); }
+function gs(n){ return Math.round(n||0).toLocaleString('es-PY'); }
+function soloDigitos(s){ return String(s==null?'':s).replace(/\D/g,''); }
+function normNom(s){
+  return String(s==null?'':s).replace(/\u2060/g,'').replace(/\u200b/g,'')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+}
+function fechaCorta(iso){
+  var d=new Date(iso+'T00:00:00');
+  return DIAS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
+}
+function hoyISO(){
+  var d=new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+function parseCSV(txt){
+  var rows=[], row=[], cur='', q=false;
+  for(var i=0;i<txt.length;i++){ var c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"') q=true;
+      else if(c===','){ row.push(cur); cur=''; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(c!=='\r') cur+=c; }
+  }
+  if(cur.length||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+
+/* HISTORIAL: Fecha · Alumno · Hora · Sede · Profe · Tipo · Estado · Cobro · Motivo · ID */
+function parsearHistorial(paq){
+  if(!paq) return;
+  var csv=(typeof paq==='string')?paq:paq.csv;
+  if(!csv) return;
+  var rows=parseCSV(csv); if(rows.length<2) return;
+  historial=[];
+  for(var i=1;i<rows.length;i++){
+    var r=rows[i];
+    var fecha=(r[0]||'').trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
+    var nom=(r[1]||'').trim(); if(!nom) continue;
+    var estado=(r[6]||'').trim();
+    historial.push({
+      fecha:fecha, alumno:nom, hora:(r[2]||'').trim(), sede:(r[3]||'').trim(),
+      profe:(r[4]||'').trim(), tipo:(r[5]||'').trim(), estado:estado,
+      presente: estado.indexOf('Presente')===0
+    });
+  }
+}
+
+function guardarColumnas(lista){
+  lista=lista||[];
+  profesores={}; noProfe={};
+  var arr=Array.isArray(lista)?lista:Object.keys(lista).map(function(k){ return lista[k]; });
+  arr.forEach(function(p){
+    if(!p||!p.dim) return;
+    var d=String(p.dim).trim().toUpperCase();
+    profesores[d]=p.nombre||p.dim;
+    if(p.noEsProfe) noProfe[d]=true;
+  });
+}
+function esColumnaSinProfe(dim){ return !!noProfe[String(dim||'').trim().toUpperCase()]; }
+function nombreProfe(dim){ return profesores[String(dim||'').trim().toUpperCase()] || dim; }
+function claveTipo(t){ return String(t||'(sin tipo)').trim().replace(/[.#$/\[\]]/g,'_')||'(sin tipo)'; }
+function aporteDe(tipo){ var t=tipos[claveTipo(tipo)]; return t&&t.aporte?+t.aporte:0; }
+function esAyudante(h){
+  return String(h&&h.tipo||'').toUpperCase()==='AYUDA' ||
+         String(h&&h.alumno||'').toUpperCase()==='AYUDANTE';
+}
+
+/* La misma cuenta que la Caja. Si cambia una, hay que cambiar la otra. */
+function calcularPozo(filas){
+  var horas={};
+  filas.forEach(function(h){
+    var k=h.fecha+'|'+h.hora;
+    if(!horas[k]) horas[k]={fecha:h.fecha, hora:h.hora, total:0, profes:{}, presentes:0, sinTipo:0};
+    var b=horas[k];
+    if(esColumnaSinProfe(h.profe)) return;
+    if(esAyudante(h)){ if(h.profe) b.profes[h.profe]=true; return; }
+    if(h.profe) b.profes[h.profe]=true;
+    if(h.presente){
+      b.presentes++;
+      var ap=aporteDe(h.tipo);
+      if(!ap) b.sinTipo++;
+      b.total+=ap;
+    }
+  });
+  var porProfe={}, total=0, sinTipo=0;
+  Object.keys(horas).forEach(function(k){
+    var b=horas[k], ps=Object.keys(b.profes);
+    sinTipo+=b.sinTipo;
+    if(!ps.length||!b.total) return;
+    b.parte=b.total/ps.length;
+    total+=b.total;
+    ps.forEach(function(p){
+      if(!porProfe[p]) porProfe[p]={profe:p, monto:0, horas:0, alumnos:0};
+      porProfe[p].monto+=b.parte;
+      porProfe[p].horas++;
+    });
+  });
+  filas.forEach(function(h){
+    if(esColumnaSinProfe(h.profe)||esAyudante(h)) return;
+    if(h.profe && porProfe[h.profe] && h.presente) porProfe[h.profe].alumnos++;
+  });
+  return { horas:horas, porProfe:porProfe, total:total, sinTipo:sinTipo };
+}
+
+/* ---------- El rango de fechas ---------- */
+function lunesDe(d){
+  var x=new Date(d+'T00:00:00');
+  var dia=x.getDay(), resta=(dia===0?6:dia-1);
+  x.setDate(x.getDate()-resta);
+  return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
+}
+function calcularRango(){
+  var hoy=hoyISO();
+  if(rango==='hoy')     return { d:hoy, h:hoy, txt:'hoy' };
+  if(rango==='semana')  return { d:lunesDe(hoy), h:hoy, txt:'esta semana' };
+  if(rango==='mes')     return { d:hoy.slice(0,8)+'01', h:hoy, txt:MESES[+hoy.slice(5,7)-1] };
+  if(rango==='mespas'){
+    var y=+hoy.slice(0,4), m=+hoy.slice(5,7)-1;
+    if(m===0){ m=12; y--; }
+    var mm=String(m).padStart(2,'0');
+    var ult=new Date(y, m, 0).getDate();
+    return { d:y+'-'+mm+'-01', h:y+'-'+mm+'-'+ult, txt:MESES[m-1]+' '+y };
+  }
+  if(rango==='libre')   return { d:desde, h:hasta, txt:'del '+fechaCorta(desde)+' al '+fechaCorta(hasta) };
+  return { d:'0000-01-01', h:'9999-12-31', txt:'todo el historial' };
+}
+function filasDelRango(){
+  var r=calcularRango();
+  return historial.filter(function(h){ return h.fecha>=r.d && h.fecha<=r.h; });
+}
+
+/* ---------- Pintar ---------- */
+function pintar(){
+  var r=calcularRango();
+  var filas=filasDelRango();
+  var pozo=calcularPozo(filas);
+  var lista=Object.keys(pozo.porProfe).map(function(k){ return pozo.porProfe[k]; })
+    .sort(function(a,b){ return b.monto-a.monto; });
+
+  var dias={}; filas.forEach(function(f){ dias[f.fecha]=true; });
+  var loMio=miDim && pozo.porProfe[miDim] ? pozo.porProfe[miDim].monto : 0;
+
+  var html='<div class="cifras">'+
+    (miDim?'<div class="cifra plata"><b>'+gs(loMio)+'</b><span>lo tuyo · '+esc(r.txt)+'</span></div>':'')+
+    '<div class="cifra"><b>'+gs(pozo.total)+'</b><span>total del período</span></div>'+
+    '<div class="cifra"><b>'+gs(lista.length)+'</b><span>profesores</span></div>'+
+    '<div class="cifra"><b>'+gs(Object.keys(dias).length)+'</b><span>días con clases</span></div>'+
+  '</div>';
+
+  if(pozo.sinTipo) html+='<div class="aviso"><b>'+gs(pozo.sinTipo)+' clases</b> tienen un tipo de clase '+
+    'sin aporte cargado y todavía no suman. El total real va a ser mayor.</div>';
+
+  html+='<div class="caja"><h3>Cuánto lleva cada uno · '+esc(r.txt)+'</h3>';
+  if(!lista.length){
+    html+='<div class="vacio">No hay clases cerradas en este período.</div>';
+  } else {
+    html+='<table><thead><tr><th>Profesor</th><th class="num">Horas</th>'+
+      '<th class="num">Alumnos</th><th class="num">A cobrar</th><th></th></tr></thead><tbody>';
+    lista.forEach(function(p){
+      var esMio = miDim && p.profe===miDim;
+      html+='<tr class="click'+(esMio?' yo':'')+'" data-p="'+esc(p.profe)+'">'+
+        '<td><b>'+esc(p.profe)+'</b> <span style="color:var(--suave);font-weight:400">'+
+          esc(nombreProfe(p.profe))+'</span>'+(esMio?'<span class="pin">vos</span>':'')+'</td>'+
+        '<td class="num">'+gs(p.horas)+'</td>'+
+        '<td class="num">'+gs(p.alumnos)+'</td>'+
+        '<td class="num"><b>'+gs(p.monto)+'</b></td>'+
+        '<td class="num"><button class="chico">Detalle</button></td></tr>';
+    });
+    html+='</tbody></table>';
+  }
+  html+='<div class="pie">La bolsa de cada hora se arma con los alumnos presentes de las tres sedes '+
+    'y se reparte en partes iguales entre los profes que tenían clase esa hora. '+
+    'Se actualiza solo cuando se cierra un día.</div></div>';
+
+  $('pantalla').innerHTML=html;
+  document.querySelectorAll('tr.click').forEach(function(tr){
+    tr.onclick=function(){ abrirDetalle(tr.dataset.p, pozo, r); };
+  });
+  $('sub').textContent = historial.length
+    ? gs(historial.length)+' clases en el historial · se actualiza solo'
+    : 'todavía sin clases cerradas';
+}
+
+function abrirDetalle(profe, pozo, r){
+  var hs=Object.keys(pozo.horas).map(function(k){ return pozo.horas[k]; })
+    .filter(function(b){ return b.profes[profe] && b.total; })
+    .sort(function(a,b){ return (a.fecha+a.hora)<(b.fecha+b.hora)?-1:1; });
+  var tot=0; hs.forEach(function(b){ tot+=b.parte; });
+
+  var porDia={};
+  hs.forEach(function(b){ porDia[b.fecha]=(porDia[b.fecha]||0)+b.parte; });
+
+  var h='<div class="f-cab"><h2>'+esc(profe)+' · '+esc(nombreProfe(profe))+'</h2>'+
+        '<button id="fCerrar">✕</button></div><div class="f-cuerpo">'+
+        '<div class="cifras"><div class="cifra plata"><b>'+gs(tot)+'</b><span>'+esc(r.txt)+'</span></div>'+
+        '<div class="cifra"><b>'+gs(hs.length)+'</b><span>horas trabajadas</span></div></div>';
+
+  h+='<div class="caja"><h3>Por día</h3><table><thead><tr><th>Día</th><th class="num">A cobrar</th></tr></thead><tbody>';
+  Object.keys(porDia).sort().forEach(function(f){
+    h+='<tr><td>'+esc(fechaCorta(f))+'</td><td class="num">'+gs(porDia[f])+'</td></tr>';
+  });
+  h+='</tbody></table></div>';
+
+  h+='<div class="caja"><h3>Hora por hora</h3><table><thead><tr><th>Día</th><th>Hora</th>'+
+     '<th class="num">Bolsa</th><th class="num">Profes</th><th class="num">Le toca</th></tr></thead><tbody>';
+  hs.forEach(function(b){
+    h+='<tr><td>'+esc(fechaCorta(b.fecha))+'</td><td>'+esc(b.hora)+'</td>'+
+       '<td class="num">'+gs(b.total)+'</td><td class="num">'+Object.keys(b.profes).length+'</td>'+
+       '<td class="num">'+gs(b.parte)+'</td></tr>';
+  });
+  h+='</tbody></table></div></div>';
+
+  $('ficha').innerHTML=h;
+  $('ov').classList.add('show');
+  document.body.style.overflow='hidden';
+  $('fCerrar').onclick=cerrar;
+  try{ history.pushState({f:1},''); }catch(e){}
+}
+function cerrar(){ $('ov').classList.remove('show'); document.body.style.overflow=''; }
+$('ov').onclick=function(e){ if(e.target===$('ov')) cerrar(); };
+window.addEventListener('popstate', function(){ if($('ov').classList.contains('show')) cerrar(); });
+
+/* ---------- Controles ---------- */
+document.querySelectorAll('#rangos button').forEach(function(b){
+  b.onclick=function(){
+    document.querySelectorAll('#rangos button').forEach(function(x){ x.classList.remove('on'); });
+    b.classList.add('on'); rango=b.dataset.r; pintar();
+  };
+});
+$('btnAplicar').onclick=function(){
+  var d=$('fDesde').value, h=$('fHasta').value;
+  if(!d || !h){ alert('Elegí las dos fechas.'); return; }
+  if(d>h){ var t=d; d=h; h=t; }
+  desde=d; hasta=h; rango='libre';
+  document.querySelectorAll('#rangos button').forEach(function(x){ x.classList.remove('on'); });
+  pintar();
+};
+
+/* ---------- Entrada ---------- */
+$('btnEntrar').onclick=function(){
+  firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(function(e){ $('errLogin').textContent=e.message; });
+};
+$('btnSalir').onclick=function(e){ e.preventDefault(); firebase.auth().signOut(); };
+$('btnSalir2').onclick=function(){ firebase.auth().signOut(); };
+
+/* Todo lo que lee Firebase corre después del login. */
+firebase.auth().onAuthStateChanged(function(u){
+  if(!u){ $('login').style.display='flex'; $('nopuede').style.display='none'; $('app').style.display='none'; return; }
+  miCorreo=u.email.toLowerCase();
+  firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
+    var f=s.val()||{}, p=f.permisos||{};
+    /* Permiso propio `ganancias`, que se da desde el panel de Accesos.
+       Todos los que lo tienen ven lo de todos: no es un secreto entre profes. */
+    var puede = p.admin===true || p.ganancias==='leer' || p.ganancias==='escribir';
+    if(f.activo!==true || !puede){
+      $('login').style.display='none';
+      $('nopuedeTxt').textContent=miCorreo+'\n\nNo tenés el permiso de Ganancias.\nPedíselo a José desde el panel de Accesos.';
+      $('nopuede').style.display='flex';
+      return;
+    }
+    miNombre=f.nombre||'';
+    $('login').style.display='none'; $('nopuede').style.display='none';
+    $('app').style.display='block';
+    $('yoMail').textContent=miCorreo;
+    var hoy=hoyISO();
+    $('fHasta').value=hoy; $('fDesde').value=lunesDe(hoy);
+
+    var db=firebase.database();
+    /* En vivo: cuando se cierra un día o cambia un aporte, la pantalla se
+       actualiza sola sin recargar. */
+    db.ref('historial_v1').on('value', function(s){
+      parsearHistorial(s.val()); $('cargando').style.display='none'; pintar();
+    }, function(e){ console.warn('historial_v1:', e.message); $('cargando').textContent='No pude leer el historial.'; });
+
+    db.ref('tipos_v1').on('value', function(s){ tipos=s.val()||{}; pintar(); },
+      function(e){ console.warn('tipos_v1:', e.message); });
+
+    db.ref('calendario_v2/profesores').on('value', function(s){
+      guardarColumnas(s.val());
+      /* Se busca cuál columna es la del que está mirando, para resaltarla. */
+      var mio=normNom(miNombre);
+      if(mio) Object.keys(profesores).forEach(function(d){
+        if(normNom(profesores[d])===mio) miDim=d;
+      });
+      pintar();
+    }, function(e){ console.warn('profesores:', e.message); });
+  }).catch(function(e){
+    $('login').style.display='none';
+    $('nopuedeTxt').textContent='No se pudo verificar tu acceso. '+e.message;
+    $('nopuede').style.display='flex';
+  });
+});
+</script>
+</body>
+</html>
