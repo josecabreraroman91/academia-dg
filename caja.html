@@ -321,6 +321,7 @@ function corregirAlumno(ficha, precioTxt, tipo){
   });
 }
 var TOPE_ABONO=500000;      // más que esto es un abono mensual, no un precio por clase
+var ZONA_DUDA=400000;       // de acá al tope: se cobra por clase, pero se avisa por las dudas
 var TOPE_FILAS=80;          // cuántos alumnos se muestran antes del botón "ver más"
 
 var MESES=['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
@@ -358,11 +359,26 @@ function normNom(s){
    aparte, con esBloque(). */
 var SUFIJOS=['lomas','elite','segurola','dual','duales','individual','ind','grupal','g','d',
              'noche','ar','pretemporada','prete','grupo'];
+/* Las letras sueltas g y d están en la lista porque en la grilla se escribe
+   "Pedro Gomez G" para grupal. Pero también son INICIALES de apellido, y ahí
+   borrarlas mezcla a dos personas: "Jose M. G." y "Jose M. D." quedaban los dos
+   como "jose m", y si sus clases llegaban sin ID se les sumaban las clases y se
+   les cobraba cruzado. La regla: una letra suelta se borra solo si lo que viene
+   antes NO es otra letra suelta. "Pedro Gomez G" sí; "Jose M. G." no. */
+function esSufijoBorrable(palabras, i){
+  var p=palabras[i];
+  if(SUFIJOS.indexOf(p)<0) return false;
+  if(p.length===1 && i>0 && palabras[i-1].length===1) return false;   // es una inicial
+  /* Y nunca se borra si lo que queda es demasiado corto para identificar a
+     alguien: "Lu G" quedaría en "lu", dos letras que pueden chocar con otro. */
+  if(palabras.slice(0,i).join(' ').replace(/\s/g,'').length < 3) return false;
+  return true;
+}
 function keyAlumno(s){
   /* Se conservan los NÚMEROS: sin ellos "Alto1" y "Alto2" quedaban iguales y el
      sistema los fusionaba en un solo alumno. */
   var w=normNom(s).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim().split(' ');
-  while(w.length>1 && SUFIJOS.indexOf(w[w.length-1])>=0) w.pop();
+  while(w.length>1 && esSufijoBorrable(w, w.length-1)) w.pop();
   return w.join(' ');
 }
 function soloDigitos(s){ return String(s==null?'':s).replace(/\D/g,''); }
@@ -407,6 +423,15 @@ function fechaCorta(iso){
   return DIAS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
 }
 function mesDe(iso){ return iso.slice(0,7); }
+/* La bolsa de los profes se agrupa por el TEXTO de la hora. Si una fila dice
+   "07:00" y otra "7:00" se arman DOS bolsas y cada profe cobra la suya entera
+   en vez de repartir. Hoy todo sale de la misma lista, pero una corrección
+   escrita a mano en la planilla lo partiría sin que nadie lo note. */
+function normHora(h){
+  var t=String(h==null?'':h).trim();
+  var m=t.match(/^(\d{1,2})\s*[:.]?\s*(\d{2})?$/);
+  return m ? ((+m[1])+':'+(m[2]||'00')) : t;
+}
 function mesNombre(m){ var p=m.split('-'); return MESES[(+p[1])-1]+' '+p[0]; }
 function mesCorto(m){ var p=m.split('-'); return MESES_CORTO[(+p[1])-1]+' '+p[0].slice(2); }
 
@@ -439,7 +464,7 @@ function parsearHistorial(paq){
     var nom=(r[1]||'').trim(); if(!nom) continue;
     var estado=(r[6]||'').trim();
     historial.push({
-      fecha:fecha, alumno:nom, hora:(r[2]||'').trim(), sede:(r[3]||'').trim(),
+      fecha:fecha, alumno:nom, hora:normHora((r[2]||'').trim()), sede:(r[3]||'').trim(),
       profe:(r[4]||'').trim(), tipo:(r[5]||'').trim(),
       estado:estado, cobro:(r[7]||'').trim(), motivo:(r[8]||'').trim(),
       id:(r[9]||'').trim(),
@@ -904,6 +929,11 @@ function marcas(a){
   if(f.beca) p+='<span class="pin mn">becado</span>';
   else if(!f.precio) p+='<span class="pin sp">sin precio</span>';
   else if(f.precio>TOPE_ABONO) p+='<span class="pin mn">abono mensual</span>';
+  /* El corte del abono es "más de 500.000". Un abono cargado en 400.000 o en
+     500.000 exactos cae del otro lado y se multiplica por clase: a un alumno de
+     20 clases se le cobrarían 10 millones. Acá no se decide nada, solo se avisa
+     para que una persona lo mire. */
+  else if(f.precio>=ZONA_DUDA) p+='<span class="pin sp">¿precio por clase o abono?</span>';
   var tr=telRaro(f.tel);
   if(tr) p+='<span class="pin tl">'+esc(tr==='sin teléfono'?'sin teléfono':'teléfono')+'</span>';
   return p;
