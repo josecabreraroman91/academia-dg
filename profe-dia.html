@@ -99,13 +99,6 @@
   .profe-nom{font-size:13px;color:var(--muted);font-weight:700}
   .profe-cnt{margin-left:auto;font-size:12px;color:var(--muted);background:var(--panel2);border:1px solid var(--line);border-radius:20px;padding:3px 10px;font-weight:700}
 
-  .zoomctl{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;
-    overflow:hidden;background:var(--panel);margin-right:4px}
-  .zoomctl button{background:transparent;border:none;color:var(--txt);font-weight:800;cursor:pointer;
-    padding:4px 10px;font-size:14px;line-height:1}
-  .zoomctl button:active{background:#ffffff1a}
-  .zoomctl .zlbl{font-size:10.5px;font-weight:700;min-width:42px;text-align:center;
-    border-left:1px solid var(--line);border-right:1px solid var(--line);padding:4px}
   .arTog{cursor:pointer}
   .arTog:hover{filter:brightness(1.15)}
   .arBox{margin:6px 0 4px 8px;display:flex;flex-direction:column;gap:4px}
@@ -247,11 +240,6 @@
   </div>
 
   <div class="leyenda">
-    <div class="zoomctl" title="Acercar / alejar la vista">
-      <button id="zOut" aria-label="Alejar">−</button>
-      <button class="zlbl" id="zReset" title="Volver a 100%">100%</button>
-      <button id="zIn" aria-label="Acercar">+</button>
-    </div>
     <span>Tocá un alumno para marcar <b>ausente</b></span>
     <span><i class="pill aus"></i> Ausente</span>
     <span>👀 = no confirmó</span>
@@ -542,19 +530,6 @@ function profesLibresEn(h){
     return !conAlumnos[p] && !ayudando[p] && !PLACE[p];
   }).sort(function(x,y){ return profeIdx(x)-profeIdx(y); });
 }
-
-/* ---- Acercar / alejar la vista, igual que en el calendario ----
-   Queda guardado en el dispositivo: cada tablet se ajusta a su pantalla. */
-var _zoom = 1;
-try{ var _z=localStorage.getItem('profedia_zoom'); if(_z) _zoom=Math.max(0.6, Math.min(1.6, parseFloat(_z)||1)); }catch(e){}
-function aplicarZoom(){
-  var w=document.getElementById('wrap');
-  if(w) w.style.zoom=_zoom;
-  var l=document.getElementById('zReset');
-  if(l) l.textContent=Math.round(_zoom*100)+'%';
-  try{ localStorage.setItem('profedia_zoom', String(_zoom)); }catch(e){}
-}
-function cambiarZoom(d){ _zoom=Math.max(0.6, Math.min(1.6, Math.round((_zoom+d)*100)/100)); aplicarZoom(); }
 
 var _arAbierto = {};   // qué bloques de alto rendimiento están desplegados
 function bloqueEmoji(a){ if(/ALMUERZO/i.test(a.nombre||'')) return '🍽️'; return '🏋️'; }
@@ -852,11 +827,6 @@ function quitarAyudante(cid){
     .then(function(){ try{ render(); }catch(e){} })
     .catch(function(e){ alert('No se pudo sacar.\n\n'+e.message); });
 }
-
-document.getElementById('zOut').onclick=()=>cambiarZoom(-0.1);
-document.getElementById('zIn').onclick=()=>cambiarZoom(0.1);
-document.getElementById('zReset').onclick=()=>{ _zoom=1; aplicarZoom(); };
-aplicarZoom();
 
 document.getElementById('acCancel').onclick=cerrarAcople;
 document.getElementById('meCancel').onclick=cerrarMenuEstado;
