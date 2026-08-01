@@ -1724,6 +1724,20 @@ function _limpiarTumbas(upd){
   });
 }
 
+/* Qué columnas no son un profesor. Se lee de `columnas_v1` y se mantiene al día
+   sola: si otro administrador la marca, acá aparece en un segundo. */
+var _noEsProfe = {};
+function escucharColumnas(){
+  if(!_fbdb) return;
+  try{
+    _fbdb.ref('columnas_v1').on('value', function(s){
+      var v=s.val()||{}; _noEsProfe={};
+      Object.keys(v).forEach(function(k){ if(v[k] && v[k].noEsProfe) _noEsProfe[String(k).toUpperCase()]=true; });
+      try{ if(typeof renderProfList==='function' && document.getElementById('overlayProfs') && document.getElementById('overlayProfs').classList.contains('show')) renderProfList(); }catch(e){}
+    }, function(e){ console.warn('columnas_v1:', e.message); });
+  }catch(e){}
+}
+
 function empujarCalendario(){
   if(!_calRef) return;
   try{ sanearEstado(); }catch(e){}
@@ -1820,18 +1834,7 @@ function iniciarCalendarioCompartido(){
     }catch(e){}
     _ultimoTsRemoto = r._ts || _ultimoTsRemoto || 0;
     _aplicandoRemoto = true;
-    /* Las columnas de la nube mandan, pero se conserva la marca "no es profe" de
-       las que ya la tenían localmente y llegan sin ella. Un dispositivo con una
-       copia vieja publicaba su lista sin la marca y la borraba para todos: se
-       tildaba, se guardaba bien, y a los segundos desaparecía sola. */
-    if(r.profesores){
-      var _marcadas={};
-      (state.profesores||[]).forEach(function(p){ if(p&&p.dim&&p.noEsProfe) _marcadas[String(p.dim).toUpperCase()]=true; });
-      state.profesores = r.profesores.map(function(p){
-        if(p && p.dim && !p.noEsProfe && _marcadas[String(p.dim).toUpperCase()]) p.noEsProfe=true;
-        return p;
-      });
-    }
+    state.profesores    = r.profesores    || state.profesores;
     state.sedesPorDia   = r.sedesPorDia   || state.sedesPorDia;
     state.madre         = r.madre         || state.madre;
     state.semana        = r.semana        || state.semana;
@@ -1841,6 +1844,7 @@ function iniciarCalendarioCompartido(){
     if(r.lunesActual) state.lunesActual = r.lunesActual;
     try{ escucharReservasProfes(); }catch(e){}
     try{ escucharLibreta(); }catch(e){}
+    try{ escucharColumnas(); }catch(e){}
     // Registro de la MADRE: se UNEN el de acá y el de la nube. Marcar de más solo
     // evita que alguien baje dos veces; marcar de menos lo trae de vuelta sin querer.
     // Ante un mismo alumno con distinto nombre, manda la nube (va con la MADRE que llega).
@@ -2484,7 +2488,9 @@ function saveEditor(){
        Sin esto, apretar "Guardar" lo convertía en un alumno normal y borraba todo. */
     if(mismaPersona && previo.mod==='BLOQUE'){
       nuevo.mod='BLOQUE';
-      if(previo.dur) nuevo.dur=previo.dur;
+      /* La duración del bloque (60 o 30 minutos) define cuánto aporta al pozo:
+         si se pierde al guardar, el alto rendimiento se paga mal. */
+      nuevo.dur = previo.dur || 60;
       if(previo.lista && previo.lista.length) nuevo.lista=previo.lista.slice();
     }
     book().alumnos[k]=nuevo;
@@ -2505,6 +2511,8 @@ function guardarBloque(nombre, dur){
   const previo=book().alumnos[k]||{};
   const cel={ nombre, nivel:'', lado:'', mod:'BLOQUE', nota:'' };
   if(dur) cel.dur=dur;
+  else if(previo.dur) cel.dur=previo.dur;
+  else if(/ALTO\s*RENDIMIENTO/i.test(nombre)) cel.dur=60;   // por defecto, una hora
   if(previo.lista && previo.lista.length) cel.lista=previo.lista.slice();  // no se pierde la lista
   book().alumnos[k]=cel;
   saveState(); closeEditor(); renderGrid();
@@ -2599,14 +2607,30 @@ function renderProfList(){
       </label>
       <button class="pdel" data-i="${i}">Borrar</button>
     </div>`).join('');
+  /* ============================================================
+     COLUMNAS QUE NO SON UN PROFESOR
+
+     La marca vive en su PROPIO cajón (`columnas_v1`), no adentro de la lista de
+     profesores. Razón: el calendario se publica entero, así que un dispositivo
+     con una copia vieja de esa lista borraba la marca sin querer. En un cajón
+     aparte nadie la pisa, porque solo se escribe cuando se toca la casilla.
+     ============================================================ */
   el.querySelectorAll('.pnp-edit').forEach(chk=>{
-    const i=+chk.dataset.i; chk.checked = !!state.profesores[i].noEsProfe;
+    const i=+chk.dataset.i;
+    const dim=(state.profesores[i].dim||'').toUpperCase();
+    chk.checked = !!_noEsProfe[dim];
     chk.onchange=()=>{
-      /* Una columna marcada así sigue existiendo en la grilla y se le pueden
-         estacionar alumnos, pero NO se le paga: no cuenta al repartir la bolsa
-         de la hora entre los profesores. Lo lee la app de Caja. */
-      state.profesores[i].noEsProfe = chk.checked;
-      saveState(); renderAll();
+      const val=chk.checked;
+      _noEsProfe[dim]=val;                      // se ve al instante
+      if(_fbdb){
+        _fbdb.ref('columnas_v1/'+dim.replace(/[.#$/\[\]]/g,'_'))
+          .set(val ? { noEsProfe:true, ts:Date.now(), por:_yoCorreo||'' } : null)
+          .catch(e=>{
+            chk.checked=!val; _noEsProfe[dim]=!val;
+            alert('No se pudo guardar.\n\n'+e.message+
+              '\n\nSi dice que no tenés permiso, falta agregar el cajón columnas_v1 a las reglas de Firebase.');
+          });
+      }
     };
   });
   el.querySelectorAll('.pdim-edit').forEach(inp=>{
@@ -4227,7 +4251,9 @@ async function cerrarYGuardarDia(){
              que define cuánto aporta. */
           var _lista = rec.lista && rec.lista.length ? rec.lista : null;
           if(_lista && /ALTO RENDIMIENTO/i.test(rec.nombre)){
-            var _tipoAR = (rec.dur===30) ? 'AR30' : 'AR60';
+            /* Si el bloque quedó sin duración —por una versión vieja o un guardado raro—
+               se toma como de una hora, que es lo más común. Nunca queda sin tipo. */
+            var _tipoAR = (Number(rec.dur)===30) ? 'AR30' : 'AR60';
             var _marc = rec.arAsis || {};
             _lista.forEach(function(nomAl){
               var _falto = _marc[nomAl]==='ausente';
