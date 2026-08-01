@@ -352,10 +352,16 @@ function normNom(s){
 /* Misma limpieza que usa el calendario: saca el sufijo de sede o de tipo de clase
    pegado al nombre ("Pedro Gomez LOMAS", "Rob Wilkie DUAL"). Sin esto, el mismo
    alumno queda partido en dos. */
+/* Sufijos de sede o tipo de clase pegados al nombre ("Pedro Gomez LOMAS").
+   OJO: 'alto' y 'rendimiento' NO van acá — borraban palabras del medio de un
+   nombre y hacían que "Alto1" quedara como "alto". Los bloques se reconocen
+   aparte, con esBloque(). */
 var SUFIJOS=['lomas','elite','segurola','dual','duales','individual','ind','grupal','g','d',
-             'noche','ar','alto','rendimiento','pretemporada','prete','grupo','chicos'];
+             'noche','ar','pretemporada','prete','grupo'];
 function keyAlumno(s){
-  var w=normNom(s).replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim().split(' ');
+  /* Se conservan los NÚMEROS: sin ellos "Alto1" y "Alto2" quedaban iguales y el
+     sistema los fusionaba en un solo alumno. */
+  var w=normNom(s).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim().split(' ');
   while(w.length>1 && SUFIJOS.indexOf(w[w.length-1])>=0) w.pop();
   return w.join(' ');
 }
@@ -554,20 +560,27 @@ function aplicarVivo(){
    define la columna. Acá solo se lee.
    ============================================================ */
 function cargarColumnas(){
-  return firebase.database().ref('calendario_v2/profesores').once('value').then(function(s){
+  return firebase.database().ref('columnas_v1').once('value').then(function(s){
     guardarColumnas(s.val());
-  }).catch(function(e){ console.warn('calendario_v2/profesores:', e.message); });
+  }).catch(function(e){ console.warn('columnas_v1:', e.message); });
 }
-function guardarColumnas(lista){
-  lista = lista || [];
-  profesores={}; noProfe={};
-  var arr = Array.isArray(lista) ? lista : Object.keys(lista).map(function(k){ return lista[k]; });
-  arr.forEach(function(p){
-    if(!p || !p.dim) return;
-    var d=String(p.dim).trim().toUpperCase();
-    profesores[d]=p.nombre||p.dim;
-    if(p.noEsProfe) noProfe[d]=true;
+/* Qué columnas NO son un profesor. Viven en su propio cajón: el calendario se
+   publica entero, así que una copia vieja borraba la marca sin querer. */
+function guardarColumnas(v){
+  v=v||{}; noProfe={};
+  Object.keys(v).forEach(function(k){
+    if(v[k] && v[k].noEsProfe) noProfe[String(k).trim().toUpperCase()]=true;
   });
+}
+function guardarNombresProfes(lista){
+  lista=lista||[]; profesores={};
+  var arr=Array.isArray(lista)?lista:Object.keys(lista).map(function(k){ return lista[k]; });
+  arr.forEach(function(p){ if(p&&p.dim) profesores[String(p.dim).trim().toUpperCase()]=p.nombre||p.dim; });
+}
+function cargarNombres(){
+  return firebase.database().ref('calendario_v2/profesores').once('value').then(function(s){
+    guardarNombresProfes(s.val());
+  }).catch(function(e){ console.warn('profesores:', e.message); });
 }
 function esColumnaSinProfe(dim){ return !!noProfe[String(dim||'').trim().toUpperCase()]; }
 function nombreProfe(dim){ return profesores[String(dim||'').trim().toUpperCase()] || dim; }
@@ -582,10 +595,10 @@ function esAyudante(h){
 }
 
 function esBloque(nombre){
+  var crudo=String(nombre==null?'':nombre).trim();
+  if(/alto\s*rendimiento|alto\s*r\b|almuerzo|libre|pretemporada/i.test(crudo)) return true;
   var t=keyAlumno(nombre).replace(/\./g,'').trim();
-  return t==='' || t==='-' || t.length<=2 ||
-         t==='alto rendimiento' || t==='alto r' ||
-         t==='almuerzo' || t==='libre';
+  return t==='' || t==='-' || t.length<=2;
 }
 
 function cargarTipos(){
@@ -770,8 +783,12 @@ function escucharTodo(){
     alumnosVivo=s.val()||{}; aplicarVivo(); datosLlegaron();
   }, function(e){ console.warn('alumnos_v2:', e.message); });
 
-  db.ref('calendario_v2/profesores').on('value', function(s){
+  db.ref('columnas_v1').on('value', function(s){
     guardarColumnas(s.val()); datosLlegaron();
+  }, function(e){ console.warn('columnas_v1:', e.message); });
+
+  db.ref('calendario_v2/profesores').on('value', function(s){
+    guardarNombresProfes(s.val()); datosLlegaron();
   }, function(e){ console.warn('profesores:', e.message); });
 
   db.ref('tipos_v1').on('value', function(s){
@@ -794,7 +811,7 @@ function refrescar(){
   var b=$('btnRefrescar');
   var antesH=histActualizado, antesP=padActualizado;
   b.disabled=true; b.textContent='Actualizando…';
-  Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas()]).then(function(){
+  Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas(), cargarNombres()]).then(function(){
     armarAlumnos(); pintar(); pintarFrescura();
     b.disabled=false; b.textContent='🔄 Actualizar ahora';
     refrescando=false;
@@ -1593,7 +1610,7 @@ firebase.auth().onAuthStateChanged(function(u){
     $('login').style.display='none'; $('nopuede').style.display='none';
     $('app').style.display='block';
     $('yoMail').textContent=miCorreo;
-    Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas()]).then(function(){
+    Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas(), cargarNombres()]).then(function(){
       armarAlumnos();
       leidoTs=Date.now();
       $('cargando').style.display='none';
