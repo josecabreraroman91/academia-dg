@@ -25,14 +25,13 @@
   .navtab{padding:7px 13px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
   .navtab.active{background:var(--panel2);color:var(--txt);border-color:var(--clay)}
   .navtab.home{padding:7px 11px}
-  #btnTabs{display:none}
-  /* En pantallas chicas las pestañas se pliegan: ocupaban casi toda la pantalla. */
-  @media (max-width:760px){
-    #btnTabs{display:inline-block;font-weight:800}
-    #topbar{flex-wrap:wrap}
-    .tabsbar{display:none;width:100%;margin-top:6px}
-    .tabsbar.abierta{display:flex;flex-wrap:wrap;gap:6px}
-  }
+  /* Las pestañas se pueden plegar en cualquier pantalla. En el celular arrancan
+     plegadas, porque ocupaban casi todo el alto disponible. */
+  #btnTabs{display:inline-block;font-weight:800}
+  #topbar{flex-wrap:wrap}
+  .tabsbar{display:flex;flex-wrap:wrap;gap:6px}
+  .tabsbar.plegada{display:none}
+  @media (max-width:760px){ .tabsbar{width:100%;margin-top:6px} }
 
   /* contenedor de iframes */
   #stage{flex:1;position:relative;min-height:0;display:none}
@@ -269,7 +268,8 @@
     frPan.classList.toggle('show', dest==='pan');
     document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('active', t.dataset.go===dest));
     /* Al elegir una sección, las pestañas se vuelven a plegar en el celular */
-    var _tb=document.getElementById('tabsbar'); if(_tb) _tb.classList.remove('abierta');
+    var _tb=document.getElementById('tabsbar');
+    if(_tb && window.innerWidth<=760){ _tb.classList.add('plegada'); _pintarBtnTabs(); }
   }
 
   document.querySelectorAll('[data-go]').forEach(b=> b.onclick=()=>go(b.dataset.go));
@@ -353,12 +353,16 @@
 })();
 
 /* Plegar y desplegar las secciones en pantallas chicas */
+function _pintarBtnTabs(){
+  var b=document.getElementById('btnTabs'), tb=document.getElementById('tabsbar');
+  if(b && tb) b.textContent = tb.classList.contains('plegada') ? '▾ Secciones' : '▴ Secciones';
+}
 (function(){
   var b=document.getElementById('btnTabs'), tb=document.getElementById('tabsbar');
-  if(b && tb) b.onclick=function(){
-    tb.classList.toggle('abierta');
-    b.textContent = tb.classList.contains('abierta') ? '▴ Secciones' : '▾ Secciones';
-  };
+  if(!b || !tb) return;
+  if(window.innerWidth<=760) tb.classList.add('plegada');   // en el celular, plegadas
+  _pintarBtnTabs();
+  b.onclick=function(){ tb.classList.toggle('plegada'); _pintarBtnTabs(); };
 })();
 </script>
 </body>
