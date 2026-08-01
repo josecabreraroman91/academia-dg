@@ -109,6 +109,9 @@
   .apFila .l3{font-size:12px;color:var(--sec);margin-top:3px}
   .apFila .nota{font-size:12.5px;color:var(--txt);margin-top:4px;
     border-left:2px solid var(--linea);padding-left:8px}
+  .apFila.choca{border-color:var(--rojo)}
+  .apFila .choque{font-size:12.5px;color:var(--rojo);margin-top:6px;
+    border-left:2px solid var(--rojo);padding-left:8px}
   .apAcc{display:flex;gap:7px}
   .apAcc button{white-space:nowrap}
   .apAcc .no{border-color:#5a2a2a;color:var(--rojo)}
@@ -648,13 +651,17 @@ function pintarAprobar(){
     ps.map(function(a){
       var vieja = String(a.fecha) < lun;
       var sede  = SEDE_NICE[a.sede] || String(a.sede||'').toUpperCase();
-      return '<div class="apFila" data-k="'+esc(a._k)+'">'+
+      var ya    = filaYaExiste(a);
+      return '<div class="apFila'+(ya?' choca':'')+'" data-k="'+esc(a._k)+'">'+
         '<div class="info">'+
           '<div class="l1">'+esc(a.alumno||'')+'</div>'+
           '<div class="l2">'+esc(fechaLarga(a.fecha))+' · '+esc(a.hora||'')+' · '+esc(sede)+
             ' · '+esc(a.profe||'')+' · '+esc(a.mod||'')+'</div>'+
           '<div class="l3">cargada por '+esc(a.porNombre||a.porCorreo||'')+' '+esc(haceCuanto(a.ts))+'</div>'+
           (a.nota?('<div class="nota">'+esc(a.nota)+'</div>'):'')+
+          (ya?('<div class="choque">⚠ Esa clase <b>ya está en el historial</b> como <b>'+esc(ya.estado||'')+
+               '</b> ('+(ya.cobro==='Sí'?'se cobra':'no se cobra')+'). Aprobarla acá puede no cambiar nada: '+
+               'lo seguro es buscar al alumno abajo y corregir esa clase.</div>'):'')+
         '</div>'+
         (vieja?'<span class="marca">⚠ semana ya pagada</span>':'')+
         '<div class="apAcc">'+
@@ -662,6 +669,32 @@ function pintarAprobar(){
           '<button class="b si" data-ac="si">Aprobar</button>'+
         '</div></div>';
     }).join('');
+}
+
+/* ¿El cierre del día ya escribió una fila para esa misma clase?
+   Pasa cuando el alumno SÍ estaba en el calendario y el profe solo no marcó la
+   asistencia: a las 23:00 la fila se escribió igual, como "Sin confirmar". El
+   puente empareja por fecha + alumno + hora + sede, así que aprobarla acá puede
+   no cambiar nada. En ese caso el camino correcto es corregir la clase que ya
+   está, no cargarla de nuevo. */
+function filaYaExiste(a){
+  var f=String(a.fecha), n=normNom(a.alumno||'');
+  var h=normHoraTxt(a.hora||'');
+  var sede=String(SEDE_NICE[a.sede]||a.sede||'').toUpperCase();
+  for(var i=0;i<historial.length;i++){
+    var x=historial[i];
+    if(x.fecha!==f) continue;
+    if(normNom(x.alumno)!==n) continue;
+    if(normHoraTxt(x.hora)!==h) continue;
+    if(String(x.sede||'').toUpperCase()!==sede) continue;
+    return x;
+  }
+  return null;
+}
+function normHoraTxt(h){
+  var t=String(h==null?'':h).trim();
+  var m=t.match(/^(\d{1,2})\s*[:.]?\s*(\d{2})?$/);
+  return m ? ((+m[1])+':'+(m[2]||'00')) : t;
 }
 
 $('aprobar').onclick=function(ev){
@@ -775,6 +808,7 @@ firebase.auth().onAuthStateChanged(function(u){
     escucharAtrasadas();
     Promise.all([cargarAlumnos(), cargarHistorial()]).then(function(){
       $('cargando').style.display='none';
+      pintarAprobar();          // ahora que el historial está, puede detectar choques
       pintarDetalle();          // arranca mostrando a todos, con los filtros
       $('q').focus();
     });
