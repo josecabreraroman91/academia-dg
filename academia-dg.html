@@ -25,13 +25,18 @@
   .navtab{padding:7px 13px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
   .navtab.active{background:var(--panel2);color:var(--txt);border-color:var(--clay)}
   .navtab.home{padding:7px 11px}
-  /* Las pestañas se pueden plegar en cualquier pantalla. En el celular arrancan
-     plegadas, porque ocupaban casi todo el alto disponible. */
+  /* Todas las secciones viven dentro del botón "Secciones": se despliegan encima
+     de la pantalla, sin ocupar lugar fijo arriba. */
   #btnTabs{display:inline-block;font-weight:800}
-  #topbar{flex-wrap:wrap}
-  .tabsbar{display:flex;flex-wrap:wrap;gap:6px}
+  #topbar{position:relative}
+  .tabsbar{position:absolute;top:100%;left:8px;z-index:60;display:flex;flex-direction:column;
+    gap:4px;background:var(--panel2,#12283f);border:1px solid var(--line,#2a3a4a);
+    border-radius:12px;padding:8px;margin-top:6px;min-width:210px;
+    box-shadow:0 14px 34px rgba(0,0,0,.35);max-height:75vh;overflow-y:auto}
   .tabsbar.plegada{display:none}
-  @media (max-width:760px){ .tabsbar{width:100%;margin-top:6px} }
+  .tabsbar .navtab{width:100%;text-align:left}
+  #tapaTabs{position:fixed;inset:0;z-index:55;display:none}
+  #tapaTabs.on{display:block}
 
   /* contenedor de iframes */
   #stage{flex:1;position:relative;min-height:0;display:none}
@@ -96,7 +101,8 @@
 <div id="topbar">
   <div class="brand"><span class="dot"></span> Academia DG</div>
   <button class="navtab" id="btnTabs" title="Mostrar las secciones">▾ Secciones</button>
-  <div class="tabsbar" id="tabsbar">
+  <div id="tapaTabs"></div>
+  <div class="tabsbar plegada" id="tabsbar">
     <button class="navtab home" data-go="menu">☰</button>
     <button class="navtab" data-go="cal">🎾 Calendario</button>
     <button class="navtab" data-go="prof">📋 Vista Profes</button>
@@ -268,8 +274,7 @@
     frPan.classList.toggle('show', dest==='pan');
     document.querySelectorAll('.navtab').forEach(t=>t.classList.toggle('active', t.dataset.go===dest));
     /* Al elegir una sección, las pestañas se vuelven a plegar en el celular */
-    var _tb=document.getElementById('tabsbar');
-    if(_tb && window.innerWidth<=760){ _tb.classList.add('plegada'); _pintarBtnTabs(); }
+    if(window._cerrarSecciones) window._cerrarSecciones();   // al elegir, se cierra
   }
 
   document.querySelectorAll('[data-go]').forEach(b=> b.onclick=()=>go(b.dataset.go));
@@ -355,14 +360,23 @@
 /* Plegar y desplegar las secciones en pantallas chicas */
 function _pintarBtnTabs(){
   var b=document.getElementById('btnTabs'), tb=document.getElementById('tabsbar');
-  if(b && tb) b.textContent = tb.classList.contains('plegada') ? '▾ Secciones' : '▴ Secciones';
+  if(b && tb) b.textContent = tb.classList.contains('plegada') ? '☰ Secciones' : '✕ Secciones';
 }
 (function(){
   var b=document.getElementById('btnTabs'), tb=document.getElementById('tabsbar');
   if(!b || !tb) return;
-  if(window.innerWidth<=760) tb.classList.add('plegada');   // en el celular, plegadas
+  /* Se recuerda cómo lo dejaste en ESTE dispositivo: si lo plegás una vez, queda
+     plegado. Por defecto, en el celular arranca plegado y en la compu abierto. */
+  var guardado=null;
+  try{ guardado=localStorage.getItem('hub_secciones'); }catch(e){}
+  var tapa=document.getElementById('tapaTabs');
+  function cerrar(){ tb.classList.add('plegada'); if(tapa) tapa.classList.remove('on'); _pintarBtnTabs(); }
+  function abrir(){ tb.classList.remove('plegada'); if(tapa) tapa.classList.add('on'); _pintarBtnTabs(); }
   _pintarBtnTabs();
-  b.onclick=function(){ tb.classList.toggle('plegada'); _pintarBtnTabs(); };
+  b.onclick=function(e){ e.stopPropagation();
+    if(tb.classList.contains('plegada')) abrir(); else cerrar(); };
+  if(tapa) tapa.onclick=cerrar;
+  window._cerrarSecciones=cerrar;
 })();
 </script>
 </body>
