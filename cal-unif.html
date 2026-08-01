@@ -339,7 +339,6 @@
     <button class="btn" id="btnAddProf" style="display:none">+ Columna profe</button>
     <button class="btn" id="btnReservas" style="display:none;background:#12283f;border-color:#2f81f7;color:#cfe4ff;font-weight:700">➕ Cambios de profes <span id="resvN"></span></button>
     <button class="btn" id="btnAvanzar">▸ Avanzar semana</button>
-    <button class="btn" id="btnCerrarDia">💾 Cerrar y guardar día</button>
     <div class="dropdown" id="ddAcciones">
       <button class="btn" id="btnAcciones">⚙️ Acciones ▾</button>
       <div class="dropdown-menu" id="accionesMenu">
@@ -543,18 +542,6 @@
 </div>
 
 <!-- MODAL: clasificar ausentes al cerrar el día -->
-<div class="overlay" id="ovAusentes">
-  <div class="sheet">
-    <h3>⚠️ Clasificar ausentes · <span id="ausFecha"></span></h3>
-    <p style="font-size:11.5px;color:var(--muted);margin-bottom:12px">Elegí el motivo de cada ausencia. Define si se le cobra al alumno. Después guarda el día.</p>
-    <div id="ausLista"></div>
-    <div class="sheet-actions">
-      <button class="btn" id="ausCancel">Cancelar</button>
-      <button class="btn primary" id="ausGuardar">💾 Guardar día</button>
-    </div>
-  </div>
-</div>
-
 <!-- Pantalla de ENVÍOS (integrada) -->
 <div class="envios-screen" id="enviosScreen">
   <div class="ev-head">
@@ -4028,7 +4015,6 @@ setTimeout(snapshotAuto, 20000);
 setInterval(snapshotAuto, 30*60*1000);
 document.getElementById('btnAvanzar').onclick=avanzarSemana;
 document.getElementById('btnPublicar').onclick=()=>publicarDiaHoy(false);
-document.getElementById('btnCerrarDia').onclick=cerrarYGuardarDia;
 document.getElementById('btnBackup').onclick=()=>{
   const data=localStorage.getItem('cal_dg_unif')||JSON.stringify(state);
   const blob=new Blob([data],{type:'application/json'});
@@ -4046,8 +4032,6 @@ document.getElementById('fileRestore').onchange=(e)=>{
     }catch(err){ alert('Ese archivo no es un backup válido:\n\n'+err.message); } };
   r.readAsText(file); e.target.value='';
 };
-document.getElementById('ausGuardar').onclick=guardarHistorialFinal;
-document.getElementById('ausCancel').onclick=()=>{ cerrarClasificarAusentes(); _cierrePend=null; };
 // ===== CIERRE DE VENTANAS TOCANDO EL FONDO =====
 // Regla: la ventana se cierra SOLO si el gesto entero fue un toque limpio en el fondo.
 // Si empezó adentro del panel (típico al seleccionar texto y soltar afuera), si el dedo/
@@ -4114,29 +4098,6 @@ async function enviarAlPuente(action, payload){
     form.submit();
   });
 }
-const HIST_TAB='HISTORIAL';
-const HIST_HEADER=['Fecha','Alumno','Hora','Sede','Profe','Tipo','Estado','Cobro','Motivo','ID Alumno'];
-const MOTIVOS={
-  noaviso:{label:'No avisó',      estado:'Ausente (no avisó)',     cobro:'Sí'},
-  aviso:  {label:'Avisó',         estado:'Ausente (avisó)',        cobro:'No'},
-  fuerza: {label:'Fuerza mayor',  estado:'Ausente (fuerza mayor)', cobro:'No'}
-};
-// Resuelve el estado final y si se cobra, según la regla acordada
-function resolverEstado(rec){
-  const asis=rec.asis||'sin';
-  if(asis==='presente') return {estado: rec.acople?'Presente (acople)':'Presente', cobro:'Sí'};
-  // ausente o sin marcar -> depende de si estaba confirmado
-  if(rec.confirmado) return {estado:'Ausente sin aviso', cobro:'Sí'};     // ✅ + no vino = se cobra
-  return {estado:'Reagendable', cobro:'No'};                              // 👀 + no vino = reagenda
-}
-async function sheetsMeta(){ const id=state.sheetId||DEFAULT_SHEET_ID; const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+id+'?fields=sheets.properties.title',{headers:{Authorization:'Bearer '+_gtoken}}); if(!r.ok) throw new Error('No pude leer la planilla ('+r.status+')'); return r.json(); }
-async function sheetsAddTab(title){ const id=state.sheetId||DEFAULT_SHEET_ID; const r=await fetch('https://sheets.googleapis.com/v4/spreadsheets/'+id+':batchUpdate',{method:'POST',headers:{Authorization:'Bearer '+_gtoken,'Content-Type':'application/json'},body:JSON.stringify({requests:[{addSheet:{properties:{title}}}]})}); if(!r.ok) throw new Error('No pude crear la hoja ('+r.status+')'); return r.json(); }
-async function sheetsAppend(range, values){ const id=state.sheetId||DEFAULT_SHEET_ID; const u='https://sheets.googleapis.com/v4/spreadsheets/'+id+'/values/'+encodeURIComponent(range)+':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS'; const r=await fetch(u,{method:'POST',headers:{Authorization:'Bearer '+_gtoken,'Content-Type':'application/json'},body:JSON.stringify({values})}); if(!r.ok) throw new Error('No pude escribir ('+r.status+')'); return r.json(); }
-async function asegurarHistorial(){
-  const meta=await sheetsMeta();
-  const existe=(meta.sheets||[]).some(s=>s.properties && s.properties.title===HIST_TAB);
-  if(!existe){ await sheetsAddTab(HIST_TAB); await sheetsAppend(HIST_TAB+'!A1',[HIST_HEADER]); }
-}
 // Limpia de Firebase los días anteriores (mantiene hoy + 2 previos). El historial ya quedó en la planilla.
 /* ============================================================
    LIMPIEZA DE LOS CAJONES DE PROPUESTAS
@@ -4154,9 +4115,24 @@ async function asegurarHistorial(){
 const RESERVAS_DIAS = 35;      // 5 semanas: para entonces ya se aplicó todo
 const HISTORIAL_DIAS = 730;    // 2 años de historial
 
+/* Las lecturas de abajo van por la vía REST (es la única que sabe contestar
+   "dame solo las llaves" sin bajarse el nodo entero). Esa vía NO usa la sesión
+   del navegador: hay que firmarla a mano con el token, o Firebase contesta que
+   no y la limpieza no borra nada sin avisar nunca. Eso es exactamente lo que
+   venía pasando. */
+const RAIZ_RTDB='https://academia-dg-default-rtdb.firebaseio.com';
+async function leerRTDB(ruta, soloLlaves){
+  const u=firebase.auth().currentUser;
+  if(!u) return null;
+  const tk=await u.getIdToken();
+  const url=RAIZ_RTDB+ruta+'.json?auth='+encodeURIComponent(tk)+(soloLlaves?'&shallow=true':'');
+  const res=await fetch(url);
+  if(!res.ok){ console.warn('limpieza · '+ruta+' devolvió '+res.status); return null; }
+  return (await res.json())||{};
+}
+
 async function limpiarCajonesViejos(){
   if(!_fbdb) return;
-  const RAIZ='https://academia-dg-default-rtdb.firebaseio.com';
   const corteISO=(dias)=>{
     const d=new Date(); d.setHours(0,0,0,0); d.setDate(d.getDate()-dias);
     return isoDe(d);
@@ -4164,9 +4140,8 @@ async function limpiarCajonesViejos(){
 
   // --- reservas_v1: semanas viejas enteras. 'madre' NO se toca acá. ---
   try{
-    const res=await fetch(RAIZ+'/reservas_v1.json?shallow=true');
-    if(res.ok){
-      const obj=await res.json()||{};
+    const obj=await leerRTDB('/reservas_v1', true);
+    if(obj){
       const corte=corteISO(RESERVAS_DIAS);
       const viejas=Object.keys(obj).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k) && k<corte);
       for(const k of viejas){ await _fbdb.ref('reservas_v1/'+k).remove(); }
@@ -4176,9 +4151,8 @@ async function limpiarCajonesViejos(){
 
   // --- reservas_v1/madre: solo las ya resueltas y viejas. Las pendientes se quedan. ---
   try{
-    const res=await fetch(RAIZ+'/reservas_v1/madre.json');
-    if(res.ok){
-      const obj=await res.json()||{};
+    const obj=await leerRTDB('/reservas_v1/madre', false);
+    if(obj){
       const corte=Date.now()-RESERVAS_DIAS*86400000;
       let n=0;
       for(const k of Object.keys(obj)){
@@ -4193,9 +4167,8 @@ async function limpiarCajonesViejos(){
 
   // --- ops_v1: el historial. Solo lo que pasó el corte. ---
   try{
-    const res=await fetch(RAIZ+'/ops_v1.json?shallow=true');
-    if(res.ok){
-      const obj=await res.json()||{};
+    const obj=await leerRTDB('/ops_v1', true);
+    if(obj){
       const corte=corteISO(HISTORIAL_DIAS);
       const viejos=Object.keys(obj).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k) && k<corte);
       for(const k of viejos){ await _fbdb.ref('ops_v1/'+k).remove(); }
@@ -4204,12 +4177,31 @@ async function limpiarCajonesViejos(){
   }catch(e){ console.warn('limpieza ops_v1:', e.message); }
 }
 
+/* ============================================================
+   LA LIMPIEZA, UNA VEZ POR DÍA
+
+   Antes las dos limpiezas de arriba colgaban del botón "Cerrar y guardar día".
+   Ese botón se sacó —el día se cierra solo a las 23:00 y decidía distinto—, así
+   que ahora corren solas: la primera vez que se abre el calendario cada día.
+
+   Ocho segundos después de entrar, para no pelear con la carga del calendario.
+   La marca de "ya se hizo hoy" vive en este navegador nomás: si se abre en dos
+   computadoras el mismo día, la segunda no encuentra nada que borrar y listo.
+   ============================================================ */
+async function limpiezaDiaria(){
+  try{
+    const hoy=isoDe(new Date());
+    if(localStorage.getItem('cal_dg_limpieza')===hoy) return;
+    localStorage.setItem('cal_dg_limpieza', hoy);
+    await limpiarDiasViejos();
+    await limpiarCajonesViejos();
+  }catch(e){ console.warn('limpieza diaria:', e.message); }
+}
+
 async function limpiarDiasViejos(){
   if(!_fbdb) return;
   try{
-    const res=await fetch('https://academia-dg-default-rtdb.firebaseio.com/dia.json?shallow=true');
-    if(!res.ok) return;
-    const obj=await res.json(); if(!obj) return;
+    const obj=await leerRTDB('/dia', true); if(!obj) return;
     const fechas=Object.keys(obj).filter(k=>/^\d{4}-\d{2}-\d{2}$/.test(k));
     const corte=new Date(); corte.setHours(0,0,0,0); corte.setDate(corte.getDate()-2); // mantener hoy y 2 anteriores
     const corteISO=isoDe(corte);
@@ -4218,142 +4210,6 @@ async function limpiarDiasViejos(){
     if(viejos.length) console.log('🧹 Firebase: '+viejos.length+' día(s) viejo(s) borrado(s): '+viejos.join(', '));
   }catch(e){ console.warn('No pude limpiar días viejos de Firebase:', e.message); }
 }
-let _cierrePend=null;
-async function cerrarYGuardarDia(){
-  if(!_fbdb){ alert('Firebase no está disponible en este momento.'); return; }
-  const fecha=isoDe(new Date());
-  try{
-    /* Los ID tienen que estar ANTES de armar ninguna fila: acá se arman las de los
-       presentes, y en guardarHistorialFinal las de los ausentes. */
-    if(!_idsListos){ try{ await cargarIdsAlumnos(); }catch(e){} }
-    // 1) leer todas las sedes del día desde Firebase; separar presentes (auto) y ausentes (a clasificar)
-    const sedes=['lomas','elite','segurola','adefinir'];
-    const filasAuto=[]; const ausentes=[];
-    for(const sk of sedes){
-      const snap=await _fbdb.ref('dia/'+fecha+'/'+sk).once('value');
-      const data=snap.val()||{};
-      Object.values(data).forEach(rec=>{
-        if(!rec||!rec.nombre) return;
-        if(rec.borrado) return;                                        // sacado del día por el profe
-        if(/ALMUERZO/i.test(rec.nombre)) return;                       // almuerzo no va
-        /* PROFE AYUDANTE: no es un alumno, es un profe que se sumó a la clase de
-           otro. Se guarda igual en HISTORIAL porque es la única forma de que el
-           pago del mes sepa que trabajó esa hora: la copia del día se borra a las
-           48 horas. No se cobra a nadie y no aporta al pozo. */
-        if(rec.ayudante){
-          filasAuto.push([fecha,'AYUDANTE',HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.ayudante,'AYUDA','Ayudante','—','ayuda a '+(rec.profe||''),'']);
-          return;
-        }
-        if(rec.mod==='BLOQUE' || /ALTO RENDIMIENTO/i.test(rec.nombre)){
-          /* Un bloque de ALTO RENDIMIENTO con lista adentro se abre en una fila por
-             alumno: son clases de verdad, se cobran y aportan a la bolsa de la hora
-             como cualquier otra. El tipo dice la duración (AR60 / AR30), que es lo
-             que define cuánto aporta. */
-          var _lista = rec.lista && rec.lista.length ? rec.lista : null;
-          if(_lista && /ALTO RENDIMIENTO/i.test(rec.nombre)){
-            /* Si el bloque quedó sin duración —por una versión vieja o un guardado raro—
-               se toma como de una hora, que es lo más común. Nunca queda sin tipo. */
-            var _tipoAR = (Number(rec.dur)===30) ? 'AR30' : 'AR60';
-            var _marc = rec.arAsis || {};
-            _lista.forEach(function(nomAl){
-              var _falto = _marc[nomAl]==='ausente';
-              filasAuto.push([fecha, nomAl, HORAS[rec.horaIdx]||'', SEDE_NICE[sk]||sk,
-                rec.profe||'', _tipoAR,
-                _falto ? 'Ausente (avisó)' : 'Presente',
-                _falto ? 'No' : 'Sí',
-                _falto ? 'alto rendimiento · faltó' : 'alto rendimiento',
-                idDeAlumno(nomAl)]);
-            });
-            return;
-          }
-          filasAuto.push([fecha,'ALTO RENDIMIENTO',HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'','AR','Bloque','—','','']);
-          return;
-        }
-        if(rec.asis==='ausente'){
-          ausentes.push({rec, sede:SEDE_NICE[sk]||sk, motivo:'noaviso'}); // por defecto: no avisó (se cobra)
-        }else{
-          const estado=rec.acople?'Presente (acople)':'Presente';
-          filasAuto.push([fecha,rec.nombre,HORAS[rec.horaIdx]||'',SEDE_NICE[sk]||sk,rec.profe||'',rec.mod||'',estado,'Sí','',idDeAlumno(rec.nombre)]);
-        }
-      });
-    }
-    if(!filasAuto.length && !ausentes.length){ alert('No hay asistencia registrada hoy para guardar.'); return; }
-    _cierrePend={fecha, filasAuto, ausentes};
-    // 2) si hay ausentes, clasificarlos; si no, guardar directo
-    if(ausentes.length){ abrirClasificarAusentes(); }
-    else { if(confirm('💾 Cerrar y guardar el día '+fecha+'?\n\n'+filasAuto.length+' clases, sin ausentes.')) await guardarHistorialFinal(); else _cierrePend=null; }
-  }catch(e){ alert('No pude leer el día:\n\n'+e.message); }
-}
-function abrirClasificarAusentes(){
-  if(!_cierrePend) return;
-  document.getElementById('ausFecha').textContent=_cierrePend.fecha;
-  const cont=document.getElementById('ausLista');
-  cont.innerHTML=_cierrePend.ausentes.map((a,i)=>{
-    const rec=a.rec;
-    return `<div class="aus-row">
-      <div class="aus-info"><b>${esc(rec.nombre)}</b><div class="aus-sub">${HORAS[rec.horaIdx]||''} · ${esc(a.sede)} · ${esc(rec.profe||'')}${rec.mod?(' ('+esc(rec.mod)+')'):''}</div></div>
-      <div class="aus-ms">
-        <button class="aus-m noaviso${a.motivo==='noaviso'?' on':''}" data-i="${i}" data-m="noaviso">🔴 No avisó · se cobra</button>
-        <button class="aus-m aviso${a.motivo==='aviso'?' on':''}" data-i="${i}" data-m="aviso">🟡 Avisó · no se cobra</button>
-        <button class="aus-m fuerza${a.motivo==='fuerza'?' on':''}" data-i="${i}" data-m="fuerza">🟢 Fuerza mayor · no se cobra</button>
-      </div>
-    </div>`;
-  }).join('');
-  cont.querySelectorAll('.aus-m').forEach(b=>{ b.onclick=()=>{ _cierrePend.ausentes[+b.dataset.i].motivo=b.dataset.m; abrirClasificarAusentes(); }; });
-  document.getElementById('ovAusentes').classList.add('show');
-}
-function cerrarClasificarAusentes(){ document.getElementById('ovAusentes').classList.remove('show'); }
-async function guardarHistorialFinal(){
-  if(!_cierrePend) return;
-  /* El ID tiene que estar cargado ANTES de armar las filas, en los dos caminos.
-     Si no se pudo leer, las filas salen sin ID: nunca frena el cierre del día. */
-  if(!_idsListos){ try{ await cargarIdsAlumnos(); }catch(e){} }
-  const {fecha, filasAuto, ausentes}=_cierrePend;
-  const filas=filasAuto.slice();
-  ausentes.forEach(a=>{ const m=MOTIVOS[a.motivo]||MOTIVOS.noaviso; const rec=a.rec;
-    filas.push([fecha, rec.nombre, HORAS[rec.horaIdx]||'', a.sede, rec.profe||'', rec.mod||'', m.estado, m.cobro, m.label, idDeAlumno(rec.nombre)]); });
-  // ── PUENTE: guardar el día SIN login (el puente hace el upsert anti-duplicados) ──
-  if(PUENTE_URL){
-    try{
-      await enviarAlPuente('historial', {filas});
-      limpiarDiasViejos(); cerrarClasificarAusentes(); _cierrePend=null;
-      const sinId=filas.filter(f=>!f[9]).length;
-      /* El puente se llama con un formulario en un recuadro invisible y NADIE lee
-         la respuesta: si falla, falla en silencio. Por eso el cartel no puede decir
-         "guardado" — solo puede decir que se mandó. */
-      alert('📤 Día '+fecha+': se enviaron '+filas.length+' registros a la planilla.'+
-            (sinId?('\n\n⚠️ '+sinId+' sin ID de alumno.'):'')+
-            '\n\nVerificá en la hoja HISTORIAL que hayan llegado.');
-    }catch(e){ alert('No pude guardar el día:\n\n'+e.message); }
-    return;
-  }
-  // ── Método anterior (login de Google) ──
-  try{
-    if(!_gtoken) await pedirToken();
-    await asegurarHistorial();
-    if(!_idsListos) { try{ await cargarIdsAlumnos(); }catch(e){} }   // el ID tiene que estar antes de escribir
-    let prev={values:[]}; try{ prev=await sheetsGet(HIST_TAB+'!A2:J'); }catch(e){}
-    const existentes={};
-    (prev.values||[]).forEach((r,i)=>{ const k=[r[0],(r[1]||'').trim(),r[2],r[3]].join('||'); existentes[k]={row:i+2, vals:r}; });
-    const nuevas=[], updates=[]; let iguales=0;
-    filas.forEach(f=>{
-      const k=[f[0],(f[1]||'').trim(),f[2],f[3]].join('||');
-      const ex=existentes[k];
-      if(!ex){ nuevas.push(f); return; }
-      const cambio=[4,5,6,7,8,9].some(i=>String(ex.vals[i]||'')!==String(f[i]||''));  // profe,tipo,estado,cobro,motivo,id
-      if(cambio) updates.push({range:HIST_TAB+'!A'+ex.row+':J'+ex.row, values:[f]});
-      else iguales++;
-    });
-    if(updates.length) await sheetsBatchUpdate(updates);
-    if(nuevas.length)  await sheetsAppend(HIST_TAB+'!A1', nuevas);
-    limpiarDiasViejos();
-    try{ limpiarCajonesViejos(); }catch(e){}
-    cerrarClasificarAusentes(); _cierrePend=null;
-    if(!nuevas.length && !updates.length){ alert('✅ Día '+fecha+' ya estaba guardado y sin cambios.'); return; }
-    alert('✅ Día '+fecha+' guardado.\n\n➕ Nuevas: '+nuevas.length+'\n♻️ Actualizadas: '+updates.length+'\n✓ Sin cambios: '+iguales);
-  }catch(e){ alert('No pude guardar el día:\n\n'+e.message+'\n\nSi pide permisos de Google, aceptá y volvé a intentar.'); }
-}
-
 // deriva de la MADRE el horario semanal de cada alumno: { normName: {nombre, dias:{LUNES:Set,...}} }
 function horariosDesdeMadre(){
   const DIAS_SEM=['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
@@ -4438,6 +4294,7 @@ fillAlumnosDatalist();
           try{ cargarIdsAlumnos(); }catch(e){}
           escucharAlumnosVivo();           // alumnos nuevos disponibles al instante
           setTimeout(function(){ publicarDiaHoy(true); }, 1200);
+          setTimeout(limpiezaDiaria, 8000);
         }
       } else {
         show('');
