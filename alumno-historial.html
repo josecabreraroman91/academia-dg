@@ -344,7 +344,10 @@ function pintarFiltros(){
   if(!claves.length){ $('filtros').style.display='none'; return; }
   $('filtros').style.display='block';
 
+  var nAus=base.filter(function(x){ return /ausente/i.test(x.estado||''); }).length;
   var h='<button data-e="todos"'+(fEstado==='todos'?' class="on"':'')+'>Todos <b>'+base.length+'</b></button>';
+  /* Atajo: todas las formas de ausencia juntas, que es lo que se mira siempre. */
+  if(nAus) h+='<button data-e="__ausentes"'+(fEstado==='__ausentes'?' class="on"':'')+'>Solo ausentes <b>'+nAus+'</b></button>';
   claves.forEach(function(e){
     h+='<button data-e="'+esc(e)+'"'+(fEstado===e?' class="on"':'')+'>'+esc(e)+' <b>'+c[e]+'</b></button>';
   });
@@ -362,6 +365,7 @@ function pintarFiltros(){
 function clasesAMostrar(){
   var base = elegido ? clasesDe(elegido) : historial;
   if(fEstado==='todos') return base;
+  if(fEstado==='__ausentes') return base.filter(function(x){ return /ausente/i.test(x.estado||''); });
   return base.filter(function(x){ return ((x.estado||'—').trim()||'—')===fEstado; });
 }
 
