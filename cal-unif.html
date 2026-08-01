@@ -805,6 +805,12 @@ function propagarMadreASemana(){
   let bajaron = 0;
   const chocaron = [];      // no bajaron porque la celda estaba ocupada
 
+  /* Foto del registro ANTES de tocar nada. La parte que agrega lo va pisando
+     mientras trabaja, y sin esta foto un reemplazo en la MADRE (sale uno, entra
+     otro en el mismo casillero) borraría el rastro del que salió: se quedaría
+     en la semana para siempre. */
+  const syncPrevio = Object.assign({}, state.madreSync);
+
   Object.keys(M).forEach(k=>{
     const al = M[k];
     if(!al || !al.nombre) return;
@@ -869,9 +875,41 @@ function propagarMadreASemana(){
 
   window._madreChoques = chocaron;
 
-  // Lo que se sacó de la MADRE deja de estar registrado, sin tocar la semana
-  Object.keys(state.madreSync).forEach(k=>{
-    if(!M[k] || !M[k].nombre) delete state.madreSync[k];
+  /* ---------- LO QUE SE SACÓ DE LA MADRE ----------
+     Si un alumno se da de baja, sacarlo de la MADRE tiene que sacarlo también
+     de la semana en curso. Antes no pasaba: quedaba en la semana hasta el lunes
+     siguiente, el profe lo seguía viendo en la tablet y le llegaba el WhatsApp.
+
+     La condición es que la persona haya desaparecido de TODA la MADRE, no de un
+     casillero. Si solo cambió de lugar dentro de la MADRE, no es una baja: es un
+     movimiento, y de eso se encarga la parte de arriba. Con este criterio no hay
+     forma de que un cambio de horario borre a nadie por error.
+
+     Cuando sí es una baja, se saca de todos sus casilleros de la semana: si dejó
+     la academia, no tiene que quedar en ninguno. */
+  const vivosEnMadre = {};
+  Object.keys(M).forEach(k=>{ if(M[k] && M[k].nombre) vivosEnMadre[normName(M[k].nombre)]=true; });
+
+  const sacados = {};
+  Object.keys(syncPrevio).forEach(k=>{
+    const nombreViejo = syncPrevio[k];
+    const siguePorAhi = vivosEnMadre[normName(nombreViejo)];
+    const sigueAcá = M[k] && M[k].nombre && normName(M[k].nombre)===normName(nombreViejo);
+
+    if(!siguePorAhi){
+      Object.keys(state.semana.alumnos).forEach(k2=>{
+        const a = state.semana.alumnos[k2];
+        if(a && a.nombre && normName(a.nombre)===normName(nombreViejo)){
+          delete state.semana.alumnos[k2];      // el borrado deja lápida al guardarse
+          sacados[nombreViejo] = (sacados[nombreViejo]||0)+1;
+        }
+      });
+    }
+    if(!sigueAcá && state.madreSync[k]===nombreViejo) delete state.madreSync[k];
+  });
+  window._madreSacados = Object.keys(sacados).map(n=>{
+    const c = sacados[n];
+    return c>1 ? (n+' ('+c+' clases)') : n;
   });
 
   return bajaron;
@@ -883,16 +921,18 @@ function propagarMadreASemana(){
 function revisarMadre(){
   const n = propagarMadreASemana();
   const ch = window._madreChoques || [];
-  /* Solo se avisa cuando BAJÓ alguien. Si no bajó nadie no hay nada que contar,
-     así que borrar en la MADRE ya no dispara ningún cartel. */
-  if(!n) return;
+  const sacados = window._madreSacados || [];
+  if(!n && !sacados.length) return;                   // no pasó nada que contar
   if(state.mode!=='madre') return;                    // en la semana editable, nunca
-  let msg = '✅ ' + n + ' alumno(s) de la MADRE quedaron cargados en la semana.';
+  let msg = '';
+  if(n) msg += '✅ ' + n + ' alumno(s) de la MADRE quedaron cargados en la semana.\n\n';
+  if(sacados.length) msg += '🗑️ ' + sacados.length + ' alumno(s) se sacaron también de esta semana:\n\n· ' +
+                            sacados.join('\n· ') + '\n\n';
   if(ch.length){
-    msg += '\n\n⚠️ Estos no entraron porque esa hora está completa:\n\n· ' + ch.join('\n· ') +
+    msg += '⚠️ Estos no entraron porque esa hora está completa:\n\n· ' + ch.join('\n· ') +
            '\n\nBajan solos cuando se libere un lugar.';
   }
-  setTimeout(()=>alert(msg), 200);
+  setTimeout(()=>alert(msg.trim()), 200);
 }
 
 /* ============================================================
@@ -3491,7 +3531,57 @@ function idxFlex(){
   });
   return _idxFlex;
 }
-function resetIdxFlex(){ _idxFlex=null; }
+function resetIdxFlex(){ _idxFlex=null; _idxTel=null; }
+
+/* ============================================================
+   BUSCAR EL TELÉFONO CUANDO EL NOMBRE TIENE ALGO PEGADO
+
+   En la grilla, al nombre se le pega una marca para que se vea de un vistazo
+   qué entrenamiento tiene ese día alguien que hace más de uno: "José Cabrera
+   INDIVIDUAL". Es una ayuda visual para Diego. El tipo de clase REAL vive en
+   el campo del casillero y no se toca acá: esta función solo busca un teléfono.
+
+   El problema: en el padrón esa persona figura pelada, "José Cabrera". Sin esto
+   el calendario no la encuentra, no tiene su número, y ese día NO recibe el
+   mensaje de confirmación. El cobro y el pago salen bien igual: no dependen del
+   nombre.
+
+   Se saca solo del FINAL del nombre, nunca del medio, y con dos frenos:
+   · una letra suelta detrás de otra letra suelta es una inicial de apellido,
+     no una marca ("Jose M. G." no se toca);
+   · nunca se recorta hasta dejar menos de 3 letras, o la llave sería tan corta
+     que podría chocar con la de otra persona.
+   ============================================================ */
+const MARCAS_NOMBRE = ['lomas','elite','segurola','dual','duales','individual','ind',
+                       'grupal','g','d','noche','ar','pretemporada','prete','grupo'];
+function keyTelefono(s){
+  const w = keyAlumno(s).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim().split(' ');
+  while(w.length>1){
+    const u = w[w.length-1];
+    if(MARCAS_NOMBRE.indexOf(u) < 0) break;
+    if(u.length===1 && w.length>1 && w[w.length-2].length===1) break;      // es una inicial
+    if(w.slice(0,-1).join('').length < 3) break;                            // quedaría muy corto
+    w.pop();
+  }
+  return w.join(' ');
+}
+let _idxTel=null;
+function idxTel(){
+  if(_idxTel) return _idxTel;
+  _idxTel={};
+  const cargar = o => Object.values(o||{}).forEach(c=>{
+    if(!c||!c.nombre) return;
+    const k=keyTelefono(c.nombre);
+    if(k && !_idxTel[k]) _idxTel[k]=c;
+  });
+  cargar(state.contactos); cargar(contactosLocal);
+  Object.values(alumnosVivo||{}).forEach(a=>{
+    if(!a||!a.nombre) return;
+    const k=keyTelefono(a.nombre);
+    if(k && !_idxTel[k]) _idxTel[k]={nombre:a.nombre, tel:a.tel||''};
+  });
+  return _idxTel;
+}
 
 function telDeAlumno(nombre){
   const k=normName(nombre);
@@ -3504,7 +3594,13 @@ function telDeAlumno(nombre){
   const vivo = Object.values(alumnosVivo).find(function(c){
     return c && c.nombre && normName(c.nombre)===k;
   });
-  return vivo ? {nombre:vivo.nombre, tel:vivo.tel||''} : null;
+  if(vivo) return {nombre:vivo.nombre, tel:vivo.tel||''};
+  /* Y recién acá, si no apareció de ninguna forma, se prueba sacando la marca
+     del final del nombre ("José Cabrera INDIVIDUAL" → "José Cabrera"). Va al
+     final a propósito: primero mandan las coincidencias exactas, así nadie
+     recibe el mensaje de otro por parecerse. */
+  const porMarca = idxTel()[keyTelefono(nombre)];
+  return porMarca || null;
 }
 
 function csvCell(v){
@@ -3795,15 +3891,23 @@ function renderEnvios(){
     html+='</div>';
   }
 
-  // Sección SIN TELÉFONO: quiénes son, para poder buscarlos
+  // Sección SIN TELÉFONO: quiénes son, POR QUÉ, y qué hacer con cada uno
   const sinTelList=all.filter(c=>c.sedeKey!=='adefinir' && !phoneOk(c.tel));
   if(sinTelList.length){
     html+='<div class="ev-notel-head">⚠ Sin teléfono — '+sinTelList.length+' alumno(s) · no se les puede enviar (buscá su número)</div>';
     html+='<div class="ev-list notel">';
     sinTelList.forEach(c=>{
+      /* Hay dos motivos distintos y se arreglan en lugares distintos:
+         · la ficha existe pero el número está vacío o mal → se corrige en el padrón
+         · no hay ficha con ese nombre → o está mal escrito en la grilla, o falta darlo de alta */
+      const ficha = telDeAlumno(c.nombre);
+      const motivo = ficha
+        ? 'está en el padrón, pero sin número cargado → completá su teléfono en la planilla'
+        : 'no se encontró en el padrón → revisá cómo está escrito en la grilla, o falta darlo de alta';
       html+='<div class="ev-row notel"><div class="ev-info">'+
         '<div class="ev-nm">'+esc(c.nombre)+(c.confirmado?' <span class="mini ok">✅</span>':'')+'</div>'+
         '<div class="ev-meta">'+esc(c.hora)+' · '+esc(c.sede)+' · profe '+esc(c.profesor)+'</div>'+
+        '<div class="ev-meta" style="color:#d29922">'+esc(motivo)+'</div>'+
         '</div></div>';
     });
     html+='</div>';
