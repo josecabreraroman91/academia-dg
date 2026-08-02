@@ -1069,9 +1069,29 @@ function autoAplicarLibreta(){
       }
 
       if(a.tipo === 'pedido'){
-        if(!al.revisar){ al.revisar = true; hechos.push('🔵 '+a.alumno+' pidió un cambio — '+lugarTxt(hit.k)); }
-        /* El pedido NO se cierra: sigue pendiente en la libreta hasta que una
-           persona lo resuelva. Solo se pinta para que se vea en la grilla. */
+        /* El alumno pide cambiar de día u horario. Se lo mueve a A DEFINIR, en
+           la MISMA hora, y ahí queda hasta que alguien lo reubique durante el
+           día. Su lugar queda libre para otro.
+
+           El pedido NO se cierra: sigue pendiente en la libreta hasta que una
+           persona lo resuelva. Mover no es resolver. */
+        const dia = hit.k.split('|')[0], hi = hit.k.split('|')[3];
+        const libro = (hit.B === state.semanaProxima) ? 'semanaProxima' : 'semana';
+        let destino = null;
+        for(let si=0; si<SLOTS_POR_HORA; si++){
+          const k2 = dia+'|adefinir|0|'+hi+'|'+si;
+          if(!hit.B.alumnos[k2] && !_hayTumba(libro, k2)){ destino = k2; break; }
+        }
+        if(destino){
+          hit.B.alumnos[destino] = { ...al, revisar:true };
+          delete hit.B.alumnos[hit.k];
+          hechos.push('🔵 '+a.alumno+' pidió un cambio — de '+lugarTxt(hit.k)+' a A DEFINIR');
+        } else {
+          /* A DEFINIR llena a esa hora: se deja donde está, pintado, para que
+             no se pierda. Nunca se descarta un pedido por falta de lugar. */
+          if(!al.revisar){ al.revisar = true; }
+          hechos.push('🔵 '+a.alumno+' pidió un cambio — '+lugarTxt(hit.k)+' (A DEFINIR está lleno)');
+        }
         try{ logOp('agente_pedido', a.alumno+' — '+lugarTxt(hit.k)); }catch(e){}
         return;
       }
