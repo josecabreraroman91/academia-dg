@@ -273,7 +273,8 @@ async function enviarAlPuente(action, payload){
     form.submit();
   });
 }
-const STORE_KEY='alumnos_dg';
+const STORE_KEY='alumnos_dg';           // el viejo, solo para migrar una vez
+const PEND_KEY ='alumnos_dg_pendientes';
 const DIAS=[['LUNES','LUN'],['MARTES','MAR'],['MIERCOLES','MIÉ'],['JUEVES','JUE'],['VIERNES','VIE'],['SABADO','SÁB']];
 
 // ===== Estado =====
@@ -306,8 +307,52 @@ function normPhone(t){
 function attachMiles(inp){ if(!inp||inp._m) return; inp._m=true; inp.addEventListener('input',()=>{ const d=inp.value.replace(/\D/g,''); inp.value=d?Number(d).toLocaleString('es-PY').replace(/,/g,'.'):''; }); }
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
 
-function load(){ try{ alumnos=JSON.parse(localStorage.getItem(STORE_KEY)||'[]'); }catch(e){ alumnos=[]; } if(!Array.isArray(alumnos)) alumnos=[]; }
-function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(alumnos)); }
+/* ============================================================
+   LA LISTA YA NO VIVE EN CADA COMPUTADORA
+
+   Antes esta app guardaba los 900 alumnos en el navegador de cada uno. El
+   resultado: en una máquina se veían 911 y en otra 898, sin que nadie
+   entendiera por qué. Los dos números estaban mal — el padrón real tenía 895.
+   La diferencia eran FANTASMAS: alumnos creados en ese dispositivo que nunca
+   llegaron a la planilla y que nadie limpiaba, porque el traído del padrón
+   solo agregaba y nunca sacaba.
+
+   Ahora la lista se arma cada vez desde las dos únicas casas del dato:
+     · el padrón (alumnos_v1, la copia de la planilla)
+     · los alumnos creados recién (alumnos_v2, en vivo)
+
+   Lo único que queda guardado acá es lo que TODAVÍA NO SALIÓ: un alumno que
+   creaste y que aún no llegó a la planilla. Eso no se puede perder, así que
+   se conserva hasta que aparezca allá. Es un buzón de salida, no una copia.
+   ============================================================ */
+function load(){
+  alumnos=[];
+  try{
+    var p=JSON.parse(localStorage.getItem(PEND_KEY)||'[]');
+    if(Array.isArray(p)) alumnos=p;
+  }catch(e){ alumnos=[]; }
+
+  /* Migración, una sola vez: de la lista vieja se rescata SOLO lo que estaba
+     sin guardar. El resto eran los fantasmas. */
+  try{
+    var viejo=localStorage.getItem(STORE_KEY);
+    if(viejo){
+      var v=JSON.parse(viejo);
+      if(Array.isArray(v)){
+        v.filter(function(a){ return a && a._dirty && a.nombre; }).forEach(function(a){
+          if(!alumnos.some(function(b){ return normName(b.nombre)===normName(a.nombre); })) alumnos.push(a);
+        });
+      }
+      localStorage.removeItem(STORE_KEY);
+    }
+  }catch(e){}
+}
+/* Se guarda únicamente lo pendiente. Todo lo demás se vuelve a traer solo. */
+function save(){
+  try{
+    localStorage.setItem(PEND_KEY, JSON.stringify(alumnos.filter(function(a){ return a && a._dirty; })));
+  }catch(e){}
+}
 
 // ===== Render lista =====
 /* Sacar un día fijo desde la ficha del alumno: escribe en la MADRE del
@@ -580,6 +625,7 @@ async function traerDePlanilla(silencioso){
       if(min > 60) toast('Ojo: la copia es de hace '+min+' minutos');
     }
     const rows=parseCSV(txt);
+    const vistos={};
     const det=detectarCols(rows);
     if(!det){ estadoPadron('⚠ No encontré las columnas del padrón.', true);
               if(!silencioso) alert('No pude encontrar las columnas en la planilla.'); return; }
@@ -608,6 +654,7 @@ async function traerDePlanilla(silencioso){
         comentarios: '',
         horarios
       };
+      vistos[normName(nombre)]=true;
       const exist=alumnos.find(a=>normName(a.nombre)===normName(nombre));
       if(exist){
         // completar solo lo que esté vacío (no piso ediciones manuales)
@@ -623,10 +670,27 @@ async function traerDePlanilla(silencioso){
         alumnos.push(Object.assign({id:uid(),_dirty:false},datos)); nuevos++;
       }
     }
+
+    /* SACAR LOS FANTASMAS. Todo el que no esté en el padrón y no esté esperando
+       salir, no existe: es basura que quedó de una carga que nunca llegó.
+       Antes esto no se hacía y por eso los números no coincidían nunca. */
+    var fantasmas=0;
+    alumnos = alumnos.filter(function(a){
+      if(!a || !a.nombre) return false;
+      if(vistos[normName(a.nombre)]) return true;      // está en el padrón
+      if(a._dirty) return true;                        // todavía no salió de acá
+      if(a._vivo)  return true;                        // recién creado en otro lado
+      fantasmas++; return false;
+    });
+
     save(); render();
     var cuando = paq.actualizado ? Math.round((Date.now()-new Date(paq.actualizado).getTime())/60000) : null;
+    var pend=alumnos.filter(function(a){ return a._dirty; }).length;
     estadoPadron('Padrón: '+alumnos.length+' alumnos'+
-      (nuevos?' · se agregaron '+nuevos+' que faltaban acá':' · al día')+
+      (nuevos?' · +'+nuevos+' que faltaban acá':'')+
+      (fantasmas?' · se limpiaron '+fantasmas+' que no existían':'')+
+      (pend?' · '+pend+' esperando salir':'')+
+      (!nuevos&&!fantasmas&&!pend?' · al día':'')+
       (cuando!==null?' · copia de hace '+cuando+' min':''));
     if(silencioso){
       if(nuevos) toast('👥 '+nuevos+' alumno(s) que faltaban en este dispositivo');
@@ -1000,6 +1064,11 @@ load(); render();
           var ex = porNombre[claveAlumno_(r.nombre)];
           if(!ex){
             alumnos.push({
+              /* Marcado como vivo: viene de alumnos_v2, o sea que existe de
+                 verdad aunque todavía no haya llegado a la copia del padrón,
+                 que se refresca cada 15 minutos. Sin esta marca, la limpieza
+                 de fantasmas lo borraría al abrir. */
+              _vivo: true,
               id: uid(), nombre: r.nombre,
               cat: r.cat||'', lado: r.lado||'', tipo: r.tipo||'',
               precio: Number(r.precio)||0,
