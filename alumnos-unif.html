@@ -146,6 +146,7 @@
 </header>
 
 <main>
+  <div id="estadoPadron" style="font-size:12px;color:#8b949e;margin:2px 0 10px"></div>
   <div class="stats">
     <div class="stat"><div class="k">Alumnos</div><div class="v" id="stTotal">0</div></div>
     <div class="stat"><div class="k">Con teléfono</div><div class="v" id="stTel">0</div></div>
@@ -547,7 +548,16 @@ function detectarCols(rows){
    MADRE, que está más al día que la copia de la planilla (que se refresca
    cada 15 minutos). Pisarlos con datos viejos haría parpadear los días.
    ============================================================ */
+/* El estado queda a la vista SIEMPRE. Antes, si esto fallaba, no se enteraba
+   nadie: el error iba a un registro que nadie mira, y en un dispositivo se veían
+   898 alumnos y en otro 911 sin ninguna explicación. */
+function estadoPadron(txt, mal){
+  var e=document.getElementById('estadoPadron'); if(!e) return;
+  e.textContent = txt;
+  e.style.color = mal ? '#d29922' : '#8b949e';
+}
 async function traerDePlanilla(silencioso){
+  estadoPadron('Trayendo el padrón…');
   if(!silencioso){
     if(!confirm('Voy a traer los alumnos de la planilla (hoja ALUMNOS). Los que ya tengas con el mismo nombre NO se duplican: se actualizan los datos vacíos.\n\n¿Continuar?')) return;
     toast('Trayendo de la planilla…');
@@ -560,6 +570,7 @@ async function traerDePlanilla(silencioso){
     const snap = await firebase.database().ref('alumnos_v1').once('value');
     const paq = snap.val();
     if(!paq || !paq.csv){
+      estadoPadron('⚠ No encontré la copia del padrón en Firebase. Hay que correr sincronizarAlumnos.', true);
       if(!silencioso) alert('No encontré la copia de la planilla en Firebase.\n\nCorré el script sincronizarAlumnos en Apps Script y volvé a intentar.');
       return;
     }
@@ -570,7 +581,8 @@ async function traerDePlanilla(silencioso){
     }
     const rows=parseCSV(txt);
     const det=detectarCols(rows);
-    if(!det){ if(!silencioso) alert('No pude encontrar las columnas en la planilla.'); return; }
+    if(!det){ estadoPadron('⚠ No encontré las columnas del padrón.', true);
+              if(!silencioso) alert('No pude encontrar las columnas en la planilla.'); return; }
     const {hr,idx}=det;
     let nuevos=0, actualizados=0;
     for(let r=hr+1;r<rows.length;r++){
@@ -612,12 +624,17 @@ async function traerDePlanilla(silencioso){
       }
     }
     save(); render();
+    var cuando = paq.actualizado ? Math.round((Date.now()-new Date(paq.actualizado).getTime())/60000) : null;
+    estadoPadron('Padrón: '+alumnos.length+' alumnos'+
+      (nuevos?' · se agregaron '+nuevos+' que faltaban acá':' · al día')+
+      (cuando!==null?' · copia de hace '+cuando+' min':''));
     if(silencioso){
       if(nuevos) toast('👥 '+nuevos+' alumno(s) que faltaban en este dispositivo');
     } else {
       alert(`✅ Importación lista.\n\nNuevos: ${nuevos}\nActualizados: ${actualizados}\nTotal: ${alumnos.length}`);
     }
   }catch(e){
+    estadoPadron('⚠ No pude traer el padrón: '+(e && e.message), true);
     if(silencioso) console.warn('No pude traer el padrón solo:', e.message);
     else alert('No pude traer de la planilla. Asegurate de abrir la app desde GitHub Pages (https), no como archivo local.\n\nDetalle: '+e.message);
   }
