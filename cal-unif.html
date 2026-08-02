@@ -1069,29 +1069,17 @@ function autoAplicarLibreta(){
       }
 
       if(a.tipo === 'pedido'){
-        /* El alumno pide cambiar de día u horario. Se lo mueve a A DEFINIR, en
-           la MISMA hora, y ahí queda hasta que alguien lo reubique durante el
-           día. Su lugar queda libre para otro.
+        /* El alumno pide cambiar de día u horario. Se pinta de celeste y NADA
+           MÁS: no se lo mueve ni se le libera el lugar. Lo resuelve una persona
+           durante el día, que es quien sabe si hay lugar en el horario nuevo.
 
-           El pedido NO se cierra: sigue pendiente en la libreta hasta que una
-           persona lo resuelva. Mover no es resolver. */
-        const dia = hit.k.split('|')[0], hi = hit.k.split('|')[3];
-        const libro = (hit.B === state.semanaProxima) ? 'semanaProxima' : 'semana';
-        let destino = null;
-        for(let si=0; si<SLOTS_POR_HORA; si++){
-          const k2 = dia+'|adefinir|0|'+hi+'|'+si;
-          if(!hit.B.alumnos[k2] && !_hayTumba(libro, k2)){ destino = k2; break; }
-        }
-        if(destino){
-          hit.B.alumnos[destino] = { ...al, revisar:true };
-          delete hit.B.alumnos[hit.k];
-          hechos.push('🔵 '+a.alumno+' pidió un cambio — de '+lugarTxt(hit.k)+' a A DEFINIR');
-        } else {
-          /* A DEFINIR llena a esa hora: se deja donde está, pintado, para que
-             no se pierda. Nunca se descarta un pedido por falta de lugar. */
-          if(!al.revisar){ al.revisar = true; }
-          hechos.push('🔵 '+a.alumno+' pidió un cambio — '+lugarTxt(hit.k)+' (A DEFINIR está lleno)');
-        }
+           Se probó moverlo solo a A DEFINIR y se descartó: el alumno perdía su
+           clase antes de tener otra, y quien miraba la grilla no entendía por
+           qué había cambiado de lugar.
+
+           El pedido NO se cierra: sigue pendiente en la libreta hasta que
+           alguien lo marque resuelto. Pintar no es resolver. */
+        if(!al.revisar){ al.revisar = true; hechos.push('🔵 '+a.alumno+' pidió un cambio — '+lugarTxt(hit.k)); }
         try{ logOp('agente_pedido', a.alumno+' — '+lugarTxt(hit.k)); }catch(e){}
         return;
       }
