@@ -1026,6 +1026,34 @@ function marcarAnotacion(id, extra){
     .catch(e=>console.warn('no pude marcar la anotación '+id+':', e.message));
 }
 
+/* ============================================================
+   LOS CAMBIOS DEL AGENTE, EN EL HISTORIAL
+
+   El agente saca alumnos de la grilla y marca celestes igual que una persona.
+   Si eso no queda registrado, alguien abre el calendario, ve una clase vacía y
+   no tiene forma de saber por qué: no aparece en el Historial, y el rastro que
+   había quedaba en `log_ops`, que es un cajón técnico que nadie abre.
+
+   Se escribe en `ops_admin`, el MISMO cajón donde van los cambios de los
+   administradores, así el Historial lo muestra sin tocar nada más. Firma con
+   su propio nombre, así que se lo puede filtrar aparte de las personas.
+   ============================================================ */
+function anotarOpAgente(tipo, alumno, detalle){
+  try{
+    if(!_fbdb) return;
+    const d=new Date();
+    const fecha=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    _fbdb.ref('ops_admin/'+fecha).push({
+      tipo: tipo,
+      alumno: String(alumno||'').slice(0,80),
+      detalle: String(detalle||'').slice(0,200),
+      porCorreo: 'agente@academiadg',
+      porNombre: '🤖 Agente de WhatsApp',
+      ts: Date.now()
+    }).catch(()=>{});
+  }catch(e){ console.warn('no pude anotar el cambio del agente:', e.message); }
+}
+
 function autoAplicarLibreta(){
   if(!_fbdb || !_calListo || _aplicandoRemoto || _aplicandoLibreta) return;
 
@@ -1049,6 +1077,7 @@ function autoAplicarLibreta(){
         marcarAnotacion(id, { estado:'aplicado' });
         hechos.push('🔵 '+a.alumno+' — ausencia, '+n+' clase(s) marcadas para revisar');
         try{ logOp('agente_ausencia', a.alumno+' — marcada para revisar ('+n+' clases)'); }catch(e){}
+        anotarOpAgente('revisar', a.alumno, 'Avisó una ausencia · '+n+' clase(s) marcadas para revisar');
         return;
       }
 
@@ -1062,7 +1091,11 @@ function autoAplicarLibreta(){
       const al = hit.B.alumnos[hit.k];
 
       if(a.tipo === 'confirma'){
-        if(!al.confirmado){ al.confirmado = true; hechos.push('🟢 '+a.alumno+' confirmó — '+lugarTxt(hit.k)); }
+        if(!al.confirmado){
+          al.confirmado = true;
+          hechos.push('🟢 '+a.alumno+' confirmó — '+lugarTxt(hit.k));
+          anotarOpAgente('confirmar', a.alumno, lugarTxt(hit.k)+' · confirmó por WhatsApp');
+        }
         marcarAnotacion(id, { estado:'aplicado' });
         try{ logOp('agente_confirma', a.alumno+' — '+lugarTxt(hit.k)); }catch(e){}
         return;
@@ -1079,7 +1112,11 @@ function autoAplicarLibreta(){
 
            El pedido NO se cierra: sigue pendiente en la libreta hasta que
            alguien lo marque resuelto. Pintar no es resolver. */
-        if(!al.revisar){ al.revisar = true; hechos.push('🔵 '+a.alumno+' pidió un cambio — '+lugarTxt(hit.k)); }
+        if(!al.revisar){
+          al.revisar = true;
+          hechos.push('🔵 '+a.alumno+' pidió un cambio — '+lugarTxt(hit.k));
+          anotarOpAgente('revisar', a.alumno, lugarTxt(hit.k)+' · pidió un cambio por WhatsApp');
+        }
         try{ logOp('agente_pedido', a.alumno+' — '+lugarTxt(hit.k)); }catch(e){}
         return;
       }
@@ -1087,6 +1124,7 @@ function autoAplicarLibreta(){
       if(a.tipo === 'cancela'){
         delete hit.B.alumnos[hit.k];
         hechos.push('❌ '+a.alumno+' canceló — '+lugarTxt(hit.k)+' (queda libre)');
+        anotarOpAgente('sacar', a.alumno, lugarTxt(hit.k)+' · canceló por WhatsApp, queda libre');
         marcarAnotacion(id, { estado:'aplicado' });
         try{ logOp('agente_cancela', a.alumno+' — '+lugarTxt(hit.k)); }catch(e){}
         /* Y en la copia del día: AUSENTE, nunca borrado. Solo si el registro ya
