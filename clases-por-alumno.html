@@ -70,6 +70,31 @@
     font-weight:700;cursor:pointer;line-height:1.1;text-align:center}
   .cnt:hover{border-color:var(--teal);background:#d2e9f1}
   .cnt small{display:block;font-size:9.5px;font-weight:500;opacity:.75}
+
+  /* ---- MARCAS DE COBRANZA ----
+     Dos marcas que pone Diego a mano mientras cobra: si ya le mandó el mensaje
+     al alumno, y si ese mes ya se lo pagaron. No salen de ningún archivo: las
+     pone y las saca él. */
+  .chk{width:26px;height:26px;flex:none;border-radius:8px;border:1.5px solid var(--linea);
+    background:#fff;color:var(--suave);font-size:14px;line-height:1;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0;font-family:inherit}
+  .chk:hover{border-color:var(--teal)}
+  .chk.on{background:var(--verde-claro);border-color:var(--verde);color:var(--verde)}
+  .td.nomc.enviado>span{opacity:.45;text-decoration:line-through}
+  .mespar{display:flex;align-items:center;gap:5px}
+  .pag{width:22px;height:34px;flex:none;border-radius:8px;border:1.5px solid var(--linea);
+    background:#fff;color:#c3cdd4;font-size:12px;line-height:1;cursor:pointer;padding:0;
+    display:flex;align-items:center;justify-content:center;font-family:inherit}
+  .pag:hover{border-color:var(--verde)}
+  .pag.on{background:var(--verde);border-color:var(--verde);color:#fff}
+  .cnt.pagado{background:var(--verde-claro);color:var(--verde);opacity:.75}
+  /* La barra de arriba: cuántos van, de cuándo es lo guardado, y las copias. */
+  .marcabar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+    background:var(--tarjeta);border:1px solid var(--linea);border-radius:12px;
+    padding:9px 12px;margin-bottom:10px;font-size:13px}
+  .marcabar .cuenta{font-weight:700}
+  .marcabar .cuando{color:var(--suave);font-size:12px}
+  .marcabar .der{margin-left:auto;display:flex;gap:7px;flex-wrap:wrap}
   .sin{color:#c3ced5;font-size:15px;user-select:none}
   .pin{font-size:9.5px;padding:2px 6px;border-radius:20px;font-weight:700;white-space:nowrap}
   .pin.no{background:var(--rojo-claro);color:var(--rojo)}
@@ -192,6 +217,15 @@
   <div id="todo" hidden>
     <div class="cifras" id="cifras"></div>
     <div id="avisos"></div>
+    <div class="marcabar" id="marcabar" hidden>
+      <span class="cuenta" id="mcCuenta"></span>
+      <span class="cuando" id="mcCuando"></span>
+      <span class="der">
+        <button class="chico" id="mcBajar">⬇️ Bajar copia</button>
+        <button class="chico" id="mcTraer">⬆️ Traer copia</button>
+        <input type="file" id="mcArchivo" accept=".json,application/json" hidden>
+      </span>
+    </div>
     <div class="barra">
       <input id="q" type="search" autocomplete="off" placeholder="Buscar un alumno por su nombre…">
       <button class="chico" id="btnOtro">Empezar de nuevo</button>
@@ -534,6 +568,97 @@ function marcas(a){
   return h;
 }
 
+/* ============================================================
+   LAS MARCAS DE COBRANZA
+
+   Dos marcas que pone Diego a mano: si ya le mandó el mensaje al alumno, y si
+   ese mes ya se lo pagaron. No salen de ningún archivo — las pone y las saca él.
+
+   Se guardan en ESTA computadora, no en la base del sistema. La herramienta es
+   provisoria y no vale la pena montarle un login para un mes de cobranza. A
+   cambio hay dos botones para bajar y traer una copia: si Diego cambia de
+   máquina, o el navegador se limpia, la recupera con un archivo.
+
+   Las llaves son el nombre del alumno y el mes, así que las marcas SOBREVIVEN
+   a volver a cargar los CSV: no dependen del archivo, sino de quién es.
+   ============================================================ */
+const MARCAS_LLAVE = 'cxa_marcas_v1';
+let MARCAS = { enviado:{}, pagado:{}, ts:0 };
+
+function cargarMarcas(){
+  try{
+    const g = JSON.parse(localStorage.getItem(MARCAS_LLAVE)||'null');
+    if(g && typeof g==='object'){
+      MARCAS = { enviado:g.enviado||{}, pagado:g.pagado||{}, ts:g.ts||0 };
+    }
+  }catch(e){ console.warn('no pude leer las marcas guardadas:', e.message); }
+}
+
+function guardarMarcas(){
+  MARCAS.ts = Date.now();
+  try{ localStorage.setItem(MARCAS_LLAVE, JSON.stringify(MARCAS)); }
+  catch(e){
+    /* Si el navegador no deja guardar, hay que decirlo: callarse sería dejar a
+       Diego marcando cosas que no se están guardando en ningún lado. */
+    alert('No pude guardar las marcas en esta computadora.\n\n'+e.message+
+          '\n\nBajá una copia con el botón de arriba para no perder lo que llevás.');
+  }
+  pintarMarcabar();
+}
+
+const llavePago = (k,m) => k+'|'+m;
+
+function cuandoTxt(ts){
+  if(!ts) return '';
+  const d=new Date(ts);
+  const dd=String(d.getDate()), mm=String(d.getMonth()+1);
+  const hh=String(d.getHours()).padStart(2,'0'), mi=String(d.getMinutes()).padStart(2,'0');
+  return 'guardado el '+dd+'/'+mm+' a las '+hh+':'+mi;
+}
+
+/* El cartel de arriba. Sirve para darse cuenta EN EL ACTO si un día las marcas
+   desaparecieron, en vez de descubrirlo tres días después. */
+function pintarMarcabar(){
+  const barra=$('marcabar'); if(!barra) return;
+  if(!REP){ barra.hidden=true; return; }
+  barra.hidden=false;
+  const env = Object.keys(MARCAS.enviado).filter(k=>MARCAS.enviado[k]).length;
+  const pag = Object.keys(MARCAS.pagado).filter(k=>MARCAS.pagado[k]).length;
+  $('mcCuenta').textContent = env+(env===1?' mensaje enviado':' mensajes enviados')+
+                              ' · '+pag+(pag===1?' mes cobrado':' meses cobrados');
+  $('mcCuando').textContent = (env||pag) ? cuandoTxt(MARCAS.ts) : 'todavía no marcaste nada';
+}
+
+/* Bajar y traer copia: el seguro barato contra perder un mes de trabajo. */
+function bajarCopia(){
+  const txt = JSON.stringify(MARCAS, null, 2);
+  const d=new Date();
+  const nom = 'marcas-cobranza-'+d.getFullYear()+'-'+
+    String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')+'.json';
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type:'application/json'}));
+  a.download=nom; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+}
+
+function traerCopia(texto){
+  let g;
+  try{ g=JSON.parse(texto); }
+  catch(e){ alert('Ese archivo no es una copia de marcas.'); return; }
+  if(!g || typeof g!=='object' || (!g.enviado && !g.pagado)){
+    alert('Ese archivo no es una copia de marcas.'); return;
+  }
+  const env=Object.keys(g.enviado||{}).length, pag=Object.keys(g.pagado||{}).length;
+  /* Se suma a lo que ya hay, no se pisa: si Diego marcó cosas hoy y trae una
+     copia de ayer, no puede perder lo de hoy por traer un archivo. */
+  if(!confirm('La copia trae '+env+' mensajes enviados y '+pag+' meses cobrados.\n\n'+
+              'Se suman a lo que ya tenés marcado. ¿Sigo?')) return;
+  MARCAS.enviado = Object.assign({}, MARCAS.enviado, g.enviado||{});
+  MARCAS.pagado  = Object.assign({}, MARCAS.pagado,  g.pagado||{});
+  guardarMarcas();
+  pintarLista();
+}
+
 function pintarLista(){
   const q=clave($('q').value);
   let lista=REP.alumnos;
@@ -541,20 +666,33 @@ function pintarLista(){
   if(!lista.length){ $('lista').innerHTML='<div class="vacio">Ningún alumno coincide con eso.</div>'; return; }
 
   const muestra=lista.slice(0,TOPE);
-  const cols='minmax(190px,1fr) repeat('+REP.meses.length+', 74px)';
+  const cols='minmax(210px,1fr) repeat('+REP.meses.length+', 100px)';
   let html='<div class="tabla"><div class="tgrid" style="grid-template-columns:'+cols+'">';
   html+='<div class="th nomh">Alumno</div>';
   REP.meses.forEach(m=>{ html+='<div class="th">'+esc(mesCorto(m))+'</div>'; });
   muestra.forEach((a,i)=>{
     const fin=(i===muestra.length-1)?' fin':'';
-    html+='<div class="td nomc'+fin+'"><span>'+esc(a.nombre)+'</span>'+marcas(a)+'</div>';
+    const env=!!MARCAS.enviado[a.k];
+    html+='<div class="td nomc'+fin+(env?' enviado':'')+'">'+
+      '<button class="chk'+(env?' on':'')+'" data-env="'+esc(a.k)+'" '+
+        'title="'+(env?'Ya le mandaste el mensaje — tocá para sacar la marca':'Marcar que ya le mandaste el mensaje')+'">'+
+        (env?'✓':'')+'</button>'+
+      '<span>'+esc(a.nombre)+'</span>'+marcas(a)+'</div>';
     REP.meses.forEach(m=>{
       const mm=a.meses.get(m);
       html+='<div class="td mesc'+fin+'">';
-      html+= mm
-        ? '<button class="cnt" data-k="'+esc(a.k)+'" data-m="'+m+'">'+gs(mm.clases)+
-          '<small>'+(mm.clases===1?'clase':'clases')+'</small></button>'
-        : '<span class="sin">·</span>';
+      if(mm){
+        const pg=!!MARCAS.pagado[llavePago(a.k,m)];
+        html+='<span class="mespar">'+
+          '<button class="cnt'+(pg?' pagado':'')+'" data-k="'+esc(a.k)+'" data-m="'+m+'">'+gs(mm.clases)+
+            '<small>'+(mm.clases===1?'clase':'clases')+'</small></button>'+
+          '<button class="pag'+(pg?' on':'')+'" data-pag="'+esc(a.k)+'" data-pagm="'+m+'" '+
+            'title="'+(pg?'Este mes está cobrado — tocá para sacar la marca':'Marcar este mes como cobrado')+'">'+
+            (pg?'✓':'')+'</button>'+
+        '</span>';
+      } else {
+        html+='<span class="sin">·</span>';
+      }
       html+='</div>';
     });
   });
@@ -564,6 +702,23 @@ function pintarLista(){
   $('lista').querySelectorAll('button.cnt').forEach(b=>{
     b.onclick=()=>abrirFicha(b.dataset.k,b.dataset.m);
   });
+  /* Las dos marcas se prenden y se apagan tocándolas. Se guardan al instante:
+     no hay ningún botón de "guardar" que Diego se pueda olvidar de apretar. */
+  $('lista').querySelectorAll('button[data-env]').forEach(b=>{
+    b.onclick=()=>{
+      const k=b.dataset.env;
+      if(MARCAS.enviado[k]) delete MARCAS.enviado[k]; else MARCAS.enviado[k]=true;
+      guardarMarcas(); pintarLista();
+    };
+  });
+  $('lista').querySelectorAll('button[data-pag]').forEach(b=>{
+    b.onclick=()=>{
+      const kk=llavePago(b.dataset.pag, b.dataset.pagm);
+      if(MARCAS.pagado[kk]) delete MARCAS.pagado[kk]; else MARCAS.pagado[kk]=true;
+      guardarMarcas(); pintarLista();
+    };
+  });
+  pintarMarcabar();
   if($('masBtn')) $('masBtn').onclick=()=>{TOPE+=80;pintarLista();};
 }
 
@@ -886,11 +1041,24 @@ function leer(texto){
   });
 });
 $('q').oninput=()=>{TOPE=60;pintarLista();};
+
+/* ---- las marcas de cobranza ---- */
+cargarMarcas();
+$('mcBajar').onclick=bajarCopia;
+$('mcTraer').onclick=()=>$('mcArchivo').click();
+$('mcArchivo').onchange=ev=>{
+  const f=ev.target.files&&ev.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=()=>{ traerCopia(r.result); ev.target.value=''; };
+  r.readAsText(f,'utf-8');
+};
 $('btnOtro').onclick=()=>{
   REP=null;IDX=null;CLAVES=[];CRUCE={};
   $('todo').hidden=true; $('q').value=''; $('error').innerHTML='';
   ['cajaR','cajaP'].forEach(i=>$(i).classList.remove('listo'));
   $('estR').hidden=true; $('estP').hidden=true;
+  /* "Empezar de nuevo" cambia los archivos, NO borra las marcas: son de Diego,
+     no del reporte. Se vuelven a ver en cuanto cargue los CSV otra vez. */
 };
 </script>
 </body>
