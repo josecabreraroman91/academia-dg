@@ -42,6 +42,14 @@
   .tabsbar .navtab.home{border-bottom:1px solid #e6edf2;border-radius:9px 9px 0 0;margin-bottom:2px}
   #tapaTabs{position:fixed;inset:0;z-index:55;display:none}
   #tapaTabs.on{display:block}
+  /* Atajos fijos: Calendario y Alumnos quedan siempre a la vista, afuera del
+     botón "Secciones". Siguen estando también adentro del menú, así nadie los
+     pierde de vista si ya estaba acostumbrado a buscarlos ahí. */
+  #topbar{flex-wrap:wrap}
+  .navtab.atajo{font-weight:800}
+  @media (max-width:560px){
+    .navtab.atajo{padding:7px 9px;font-size:12.5px}
+  }
 
   /* contenedor de iframes */
   #stage{flex:1;position:relative;min-height:0;display:none}
@@ -106,6 +114,8 @@
 <div id="topbar">
   <div class="brand"><span class="dot"></span> Academia DG</div>
   <button class="navtab" id="btnTabs" title="Mostrar las secciones">▾ Secciones</button>
+  <button class="navtab atajo" data-go="cal" title="Ir al Calendario">🎾 Calendario</button>
+  <button class="navtab atajo" data-go="alu" title="Ir a Alumnos">👥 Alumnos</button>
   <div id="tapaTabs"></div>
   <div class="tabsbar plegada" id="tabsbar">
     <button class="navtab home" data-go="menu">☰ Menú de inicio</button>
