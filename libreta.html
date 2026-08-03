@@ -54,6 +54,19 @@
     align-items:flex-end;gap:6px}
   .hora{font-size:12px;color:var(--sec)}
 
+  /* ---- FILTROS ----
+     Con las cancelaciones cayendo acá, la lista se hace larga. Estos filtros
+     dejan mirar un caso por vez y resolverlo sin buscar de a uno. */
+  .filtros{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin:12px 0 4px}
+  .filtros .chip{font-family:inherit;font-size:12.5px;padding:5px 11px;border-radius:20px;
+    border:1px solid #30363d;background:transparent;color:#8b949e;cursor:pointer;white-space:nowrap}
+  .filtros .chip:hover{border-color:#58a6ff;color:#c9d1d9}
+  .filtros .chip.on{background:#1f6feb;border-color:#1f6feb;color:#fff;font-weight:700}
+  .filtros .chip .c{opacity:.65;margin-left:3px}
+  .filtros input{flex:1;min-width:150px;font-family:inherit;font-size:13px;padding:6px 10px;
+    border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#c9d1d9}
+  .filtros .limpiar{font-size:12px;color:#58a6ff;cursor:pointer;background:none;border:0;font-family:inherit}
+  .sinFiltro{color:#8b949e;font-size:12.5px;padding:10px 2px}
   button.b{font-family:inherit;font-size:12.5px;padding:5px 12px;border-radius:8px;
     border:1px solid var(--linea);background:transparent;color:var(--txt);cursor:pointer;
     white-space:nowrap}
@@ -124,6 +137,20 @@
 
   <div id="cargando">Cargando…</div>
   <div id="todo" style="display:none">
+
+    <div class="filtros" id="filtros">
+      <button class="chip on" data-f="todo">Todo <span class="c" id="fTodo"></span></button>
+      <button class="chip" data-f="pedido">⇄ Celestes <span class="c" id="fPedido"></span></button>
+      <button class="chip" data-f="confirma">✓ Confirmaron <span class="c" id="fConfirma"></span></button>
+      <button class="chip" data-f="ausencia">⏸ Ausencias <span class="c" id="fAusencia"></span></button>
+      <button class="chip" data-f="cancela">✕ Cancelaciones <span class="c" id="fCancela"></span></button>
+      <button class="chip" data-f="nada">? No entendió <span class="c" id="fNada"></span></button>
+      <button class="chip" data-f="viejos">⏳ De días anteriores <span class="c" id="fViejos"></span></button>
+      <input id="fBuscar" type="search" autocomplete="off" placeholder="Buscar por nombre o teléfono…">
+      <button class="limpiar" id="fLimpiar">limpiar</button>
+    </div>
+
+    <div id="avisoFiltro"></div>
 
     <h2 class="secc">Pedidos de cambio abiertos <span class="cnt" id="cPed"></span></h2>
     <div class="ayuda">No se archivan solos. Salen de acá cuando alguien los resuelve.</div>
@@ -243,10 +270,49 @@ function filaHTML(r, botones){
   '</div>';
 }
 
+var FILTRO = 'todo', BUSCA = '';
+
+/* ¿Este renglón entra en el filtro elegido?
+   "viejos" no es un tipo: son los que vienen arrastrándose de días anteriores,
+   que son los que más conviene mirar primero. */
+function pasaFiltro(r){
+  if(BUSCA){
+    var txt = ((r.alumno||'')+' '+(r.tel||'')+' '+(r.texto||'')).toLowerCase();
+    if(txt.indexOf(BUSCA) < 0) return false;
+  }
+  if(FILTRO === 'todo')   return true;
+  if(FILTRO === 'viejos') return diasDesde(r.ts) >= 1;
+  return (r.tipo||'nada') === FILTRO;
+}
+
+function contarFiltros(abiertos){
+  function n(f){
+    var g = f==='viejos'
+      ? abiertos.filter(function(r){ return diasDesde(r.ts)>=1; })
+      : abiertos.filter(function(r){ return (r.tipo||'nada')===f; });
+    return g.length ? g.length : '';
+  }
+  $('fTodo').textContent     = abiertos.length ? abiertos.length : '';
+  $('fPedido').textContent   = n('pedido');
+  $('fConfirma').textContent = n('confirma');
+  $('fAusencia').textContent = n('ausencia');
+  $('fCancela').textContent  = n('cancela');
+  $('fNada').textContent     = n('nada');
+  $('fViejos').textContent   = n('viejos');
+}
+
 function pintar(){
-  var todos = Object.keys(anot).map(function(k){
+  var todosSinFiltrar = Object.keys(anot).map(function(k){
     var r = anot[k] || {}; r.id = k; return r;
   });
+
+  /* Los contadores de los filtros se calculan sobre TODO lo abierto, no sobre
+     lo filtrado: si no, al elegir un filtro los demás quedarían en cero. */
+  contarFiltros(todosSinFiltrar.filter(function(r){
+    return r.estado==='pendiente' || r.estado==='esperando';
+  }));
+
+  var todos = todosSinFiltrar.filter(pasaFiltro);
 
   var pedidos = todos.filter(function(r){
     return r.tipo==='pedido' && (r.estado==='pendiente' || r.estado==='esperando');
@@ -291,6 +357,15 @@ function pintar(){
   $('nada').innerHTML = nada.length
     ? nada.map(function(r){ return filaHTML(r, bIgn); }).join('')
     : '<div class="vacio">El agente entendió todo lo que le llegó.</div>';
+
+  /* Si un filtro está puesto, se dice, para que nadie crea que la libreta está
+     vacía cuando en realidad está filtrada. */
+  var hayFiltro = (FILTRO!=='todo' || BUSCA);
+  var vacio = !pedidos.length && !pendientes.length && !nada.length;
+  $('avisoFiltro').innerHTML = hayFiltro
+    ? '<div class="sinFiltro">Estás viendo un filtro' + (vacio ? ' y no hay nada que coincida.' : '.') +
+      ' Tocá <b>Todo</b> para ver la libreta entera.</div>'
+    : '';
 
   $('cCer').textContent = cerrados.length ? '('+cerrados.length+')' : '';
   $('cerrados').innerHTML = cerrados.length
@@ -423,6 +498,25 @@ $('btnEntrar').onclick = function(){
     $('errLogin').textContent = e.message;
   });
 };
+/* ---- los filtros ---- */
+$('filtros').querySelectorAll('button[data-f]').forEach(function(b){
+  b.onclick = function(){
+    FILTRO = b.dataset.f;
+    $('filtros').querySelectorAll('button[data-f]').forEach(function(x){
+      x.classList.toggle('on', x.dataset.f === FILTRO);
+    });
+    pintar();
+  };
+});
+$('fBuscar').oninput = function(){ BUSCA = this.value.trim().toLowerCase(); pintar(); };
+$('fLimpiar').onclick = function(){
+  FILTRO='todo'; BUSCA=''; $('fBuscar').value='';
+  $('filtros').querySelectorAll('button[data-f]').forEach(function(x){
+    x.classList.toggle('on', x.dataset.f==='todo');
+  });
+  pintar();
+};
+
 $('btnSalir').onclick  = function(e){ e.preventDefault(); firebase.auth().signOut(); };
 $('btnSalir2').onclick = function(){ firebase.auth().signOut(); };
 $('btnDemo').onclick   = function(e){ e.preventDefault(); demo ? salirDemo() : entrarDemo(); };
