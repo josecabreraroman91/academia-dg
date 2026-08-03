@@ -345,6 +345,7 @@
         <button class="btn profs" id="btnProfsMenu">👥 Profesores</button>
         <div class="grp">TODOS LOS DÍAS</div>
         <button class="btn" id="btnPublicar">📲 Publicar día a tablets</button>
+        <button class="btn" id="btnTel">🔄 Traer alumnos y teléfonos</button>
         <button class="btn envios" id="btnEnvios">📩 Enviar mensajes</button>
         <button class="btn" id="btnResumen">📋 Resumen del día (WhatsApp)</button>
         <div class="sep"></div>
@@ -668,6 +669,7 @@ let state = {
   sheetTab: DEFAULT_SHEET_TAB,
   contactos: {},          // normName(nombre) -> {tel, apodo, nombre}
   contactosInfo: '',      // texto de estado de la última sincronización
+  contactosTs: 0,         // cuándo se trajo por última vez la lista de alumnos
   tplEnvio: 'Holaa {nombre}👋🏻, cómo estás??\n🎾 Entrenamos mañana a las *{hora}*?\n🏡 -> Tu entrenamiento será en *{club}*',
   cc: '595',              // código de país
   enviados: {},           // { 'dd/mm/yyyy': { sesion_id: true } }
@@ -1666,6 +1668,7 @@ function loadState(){
       if(!state.sheetTab) state.sheetTab = DEFAULT_SHEET_TAB;
       if(!state.contactos) state.contactos = {};
       if(state.contactosInfo===undefined) state.contactosInfo = '';
+      if(state.contactosTs===undefined) state.contactosTs = 0;
       if(!state.tplEnvio) state.tplEnvio = 'Holaa {nombre}👋🏻, cómo estás??\n🎾 Entrenamos mañana a las *{hora}*?\n🏡 -> Tu entrenamiento será en *{club}*';
       if(!state.cc) state.cc = '595';
       if(!state.enviados) state.enviados = {};
@@ -1971,6 +1974,7 @@ function iniciarCalendarioCompartido(){
                       madreSync:{}, revisar:{}, libros:{}, borrados:{} };
       LIBROS_SYNC.forEach(L=>{ _baseRemota.libros[L]={alumnos:{},libres:{}}; _baseRemota.borrados[L]={}; });
       empujarCalendario(); _calListo=true;
+      try{ asegurarContactos(); }catch(e){}   // la lista de alumnos, en cuanto hay nube
       try{ reindexarAlumnos(); }catch(e){}
       try{ renderDayTabs(); renderSedeTabs(); renderGrid(); }catch(e){}
       return;
@@ -3545,6 +3549,7 @@ function construirContactos(iNom,iTel){
   state.contactos=map;
   const extra=[];
   if(iCat>-1) extra.push('categoría'); if(iLado>-1) extra.push('lado'); if(iTipo>-1) extra.push('tipo');
+  state.contactosTs = Date.now();
   state.contactosInfo='✅ '+Object.keys(map).length+' alumnos sincronizados · '+n+' con teléfono'+(extra.length?' · trae: '+extra.join(', '):'')+'. Ya disponibles en el buscador.';
   saveState();
   document.getElementById('telStatus').textContent=state.contactosInfo;
@@ -3908,7 +3913,46 @@ function openChat(c){
   if(w){ try{ w.focus(); }catch(e){} } else alert('El navegador bloqueó la ventana. Permití pop-ups para este archivo.');
 }
 
+/* ============================================================
+   LA LISTA DE ALUMNOS SE TRAE SOLA
+
+   Antes esta lista se traía UNA vez a mano y quedaba guardada en el navegador.
+   Mientras estuviera ahí, todo parecía automático. El día que esa memoria se
+   perdía —una limpieza, otra computadora, un cambio de estado— los envíos
+   mostraban "sin teléfono" a alumnos que sí lo tenían, y no había forma obvia
+   de recuperarla.
+
+   Ahora se trae sola: al abrir el calendario y antes de cada envío, si falta o
+   si tiene más de dos horas. El botón del menú sigue existiendo para forzarla.
+   ============================================================ */
+const CONTACTOS_VIDA_MS = 2*60*60*1000;      // dos horas
+let _traeContactos = null;                   // para no pedirla dos veces a la vez
+
+function contactosFaltanOViejos(){
+  const cuantos = Object.keys(state.contactos||{}).length;
+  if(!cuantos) return true;
+  const t = state.contactosTs || 0;
+  return (Date.now() - t) > CONTACTOS_VIDA_MS;
+}
+
+async function asegurarContactos(forzar){
+  if(!_fbdb) return false;
+  if(!forzar && !contactosFaltanOViejos()) return false;
+  if(_traeContactos) return _traeContactos;          // ya hay una en curso
+  _traeContactos = (async ()=>{
+    try{ await syncContactos(); }
+    catch(e){ console.warn('no pude traer los alumnos:', e.message); }
+    _traeContactos = null;
+  })();
+  return _traeContactos;
+}
+
 function openEnvios(){
+  /* Si la lista está vieja o no está, se trae y se vuelve a pintar sola.
+     No se frena la pantalla: se abre igual y se completa cuando llega. */
+  if(contactosFaltanOViejos()){
+    asegurarContactos().then(()=>{ try{ resetIdxFlex(); renderEnvios(); }catch(e){} });
+  }
   if(state.mode!=='semana'){ alert('Los envíos salen de la SEMANA. Cambiando a modo SEMANA.'); setMode('semana'); }
   document.getElementById('evTpl').value=state.tplEnvio||'';
   document.getElementById('evCC').value=state.cc||'595';
@@ -4171,6 +4215,12 @@ document.getElementById('zFit').onclick=ajustarZoomPantalla;
 document.getElementById('btnAddProf').onclick=addProf;
 document.getElementById('btnProfs').onclick=openProfs;
 document.getElementById('btnProfsMenu').onclick=openProfs;
+/* La pantalla para traer los alumnos y sus teléfonos existía y estaba completa,
+   pero se había quedado sin botón que la abriera. Sin ella el calendario nunca
+   refrescaba la copia del padrón, y en los envíos aparecían como "sin teléfono"
+   alumnos que sí lo tenían: no encontraba el nombre, no faltaba el número. */
+document.getElementById('btnTel').onclick=openTel;
+document.getElementById('btnTel').onclick=openTel;
 document.getElementById('btnCloseProfs').onclick=closeProfs;
 document.getElementById('btnAddProfesor').onclick=addProfesor;
 cerrarSoloSiTocasElFondo('overlayProfs', closeProfs);
