@@ -805,6 +805,7 @@ function propagarMadreASemana(){
 
   let bajaron = 0;
   const chocaron = [];      // no bajaron porque la celda estaba ocupada
+  const sobreTumba = [];    // bajaron a un casillero que alguien había vaciado antes
 
   /* Foto del registro ANTES de tocar nada. La parte que agrega lo va pisando
      mientras trabaja, y sin esta foto un reemplazo en la MADRE (sale uno, entra
@@ -817,9 +818,22 @@ function propagarMadreASemana(){
     if(!al || !al.nombre) return;
     if(state.madreSync[k] === al.nombre) return;      // ya estaba, no es nuevo
 
-    /* Si esa celda tiene LÁPIDA, alguien sacó a ese alumno a propósito.
-       La MADRE no lo vuelve a bajar: sería revivirlo por la puerta de atrás. */
-    if(_hayTumba('semana', k)) { state.madreSync[k] = al.nombre; return; }
+    /* ¿ESA CELDA TIENE LÁPIDA?
+       Antes acá se cortaba: si alguien había vaciado ese casillero alguna vez,
+       la MADRE no bajaba a nadie más. Y peor: lo marcaba como resuelto sin
+       haber hecho nada, así que cuando la lápida se limpiaba a los 30 días
+       tampoco bajaba. El casillero quedaba muerto para siempre, en silencio.
+
+       Se cambió por esto: un alta en la MADRE es un acto deliberado de un
+       administrador y GANA sobre una lápida vieja. La protección contra
+       revivir gente sigue intacta, pero la hace el cuaderno de más arriba
+       (`madreSync`), no la lápida: si un alumno sigue en la MADRE y alguien lo
+       saca de la semana, el cuaderno ya dice que estaba puesto y no vuelve a
+       bajar. Acá solo llegan los casilleros donde la MADRE CAMBIÓ.
+
+       Queda anotado para el aviso, así nunca pasa sin que nadie se entere. */
+    const teniaTumba = _hayTumba('semana', k);
+    if(teniaTumba) sobreTumba.push(al.nombre + ' (' + lugarTxt(k) + ')');
 
     const enSemana = state.semana.alumnos[k];
 
@@ -833,6 +847,9 @@ function propagarMadreASemana(){
 
     if(!enSemana || !enSemana.nombre){                // celda libre: baja
       state.semana.alumnos[k] = JSON.parse(JSON.stringify(al));
+      /* La lápida se levanta acá también, no solo al guardar: si no, la celda
+         sigue marcada como vaciada mientras dure esta pantalla. */
+      if(teniaTumba && state.borrados && state.borrados.semana) delete state.borrados.semana[k];
       bajaron++;
       state.madreSync[k] = al.nombre;
       return;
@@ -875,6 +892,7 @@ function propagarMadreASemana(){
   });
 
   window._madreChoques = chocaron;
+  window._madreSobreTumba = sobreTumba;
 
   /* ---------- LO QUE SE SACÓ DE LA MADRE ----------
      Si un alumno se da de baja, sacarlo de la MADRE tiene que sacarlo también
@@ -922,6 +940,7 @@ function propagarMadreASemana(){
 function revisarMadre(){
   const n = propagarMadreASemana();
   const ch = window._madreChoques || [];
+  const st = window._madreSobreTumba || [];
   const sacados = window._madreSacados || [];
   if(!n && !sacados.length) return;                   // no pasó nada que contar
   if(state.mode!=='madre') return;                    // en la semana editable, nunca
@@ -929,6 +948,10 @@ function revisarMadre(){
   if(n) msg += '✅ ' + n + ' alumno(s) de la MADRE quedaron cargados en la semana.\n\n';
   if(sacados.length) msg += '🗑️ ' + sacados.length + ' alumno(s) se sacaron también de esta semana:\n\n· ' +
                             sacados.join('\n· ') + '\n\n';
+  if(st.length){
+    msg += '📌 Estos entraron en un casillero que alguien había vaciado antes:\n\n· ' +
+           st.join('\n· ') + '\n\nSi no correspondía, sacalos a mano.\n\n';
+  }
   if(ch.length){
     msg += '⚠️ Estos no entraron porque esa hora está completa:\n\n· ' + ch.join('\n· ') +
            '\n\nBajan solos cuando se libere un lugar.';
