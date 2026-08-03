@@ -644,20 +644,27 @@ function pintarCobro(){
   const p=cr.precio||{estado:'sin',precios:[]};
   let h='';
   OPCIONES={};
+  /* Además del total, se guarda el precio unitario de cada opción. El mensaje
+     va discriminado por mes, y para eso hace falta saber si el precio es POR
+     CLASE (se multiplica por las clases de ese mes) o POR MES (mismo monto en
+     cada uno). Sin esto solo se podía escribir la suma. */
+  UNITARIO={};
 
   if(cr.como==='no'){
     h+=op('malo','Según el padrón','No está en el padrón',
       'No se puede saber su precio. Cargalo en Alumnos, o poné uno a mano con el botón ₲.');
   } else if(p.estado==='uno'){
     OPCIONES.padron=p.precio*n;
+    UNITARIO.padron={modo:'clase', valor:p.precio};
     h+=op('bien','Según el padrón','₲ '+gs(p.precio*n), gs(n)+' clases × ₲ '+gs(p.precio)+' por clase'+
       (cr.como==='parecido'?' · cruzado con "'+esc(cr.fichas[0].nombre)+'"':''), 'padron');
   } else if(p.estado==='varios'){
-    p.precios.forEach((x,i)=>{ OPCIONES['padron'+i]=x*n; });
+    p.precios.forEach((x,i)=>{ OPCIONES['padron'+i]=x*n; UNITARIO['padron'+i]={modo:'clase', valor:x}; });
     h+=p.precios.map((x,i)=>op('flojo','Según el padrón · ₲'+gs(x)+' por clase','₲ '+gs(x*n),
       'Está cargado con '+p.precios.length+' precios distintos. Elegí el que corresponde.','padron'+i)).join('');
   } else if(p.estado==='mensual'){
     OPCIONES.mensual=p.precios[0]*T.sel.length;
+    UNITARIO.mensual={modo:'mes', valor:p.precios[0]};
     h+=op('flojo','Según el padrón · abono mensual','₲ '+gs(p.precios[0]*T.sel.length),
       '₲'+gs(p.precios[0])+' por mes × '+T.sel.length+(T.sel.length===1?' mes':' meses')+
       '. <b>No se multiplica por clase</b>: parece un abono, así que las clases no cambian el monto.','mensual');
@@ -666,7 +673,7 @@ function pintarCobro(){
   }
 
   const man=MANUAL[VIENDO.k]||0;
-  if(man){ OPCIONES.mano=man*n;
+  if(man){ OPCIONES.mano=man*n; UNITARIO.mano={modo:'clase', valor:man};
     h+=op('bien','Precio puesto a mano','₲ '+gs(man*n), gs(n)+' clases × ₲ '+gs(man)+' por clase','mano'); }
 
   $('fCobro').innerHTML=h;
@@ -685,6 +692,7 @@ function pintarCobro(){
   pintarBotonWa();
 }
 let OPCIONES={};
+let UNITARIO={};
 
 function op(clase,et,nm,exp,id){
   return '<div class="op '+clase+'"'+(id?' data-op="'+id+'"':'')+'><div class="fila1"><span class="et">'+et+
@@ -707,20 +715,53 @@ function frasedias(dias){
   return p.slice(0,-1).join(', ')+' y '+p[p.length-1];
 }
 
+/* Cuánto sale UN mes por separado.
+   · Precio por clase → las clases de ese mes × el precio
+   · Abono mensual    → el mismo monto en cada mes
+   Sumando todos los meses da exactamente el total que se ve arriba. */
+function montoDelMes(mesK){
+  const u = UNITARIO[ELEGIDA];
+  if(!u || !VIENDO) return 0;
+  if(u.modo === 'mes') return u.valor;
+  const mm = VIENDO.meses.get(mesK);
+  return u.valor * (mm ? mm.clases : 0);
+}
+
 function armarMensaje(){
   if(!VIENDO) return '';
   const T=totalesSel();
-  const total=OPCIONES[ELEGIDA]||0;
+  if(!T.sel.length) return '';
   const primer=String(VIENDO.nombre).trim().split(/\s+/)[0];
 
-  /* Una frase por mes, encadenadas. Con un mes queda igual que antes. */
-  const partes=T.sel.map((m,i)=>{
-    const mm=VIENDO.meses.get(m); if(!mm) return '';
-    const ds=[...mm.dias.entries()].sort((a,b)=>a[0]-b[0]);
-    const mesNom=nombreMes(m).split(' ')[0];
-    return (i===0?'En '+mesNom+' entrenaste los días ':'y en '+mesNom+' los días ')+frasedias(ds);
-  }).filter(Boolean);
-  const frase=partes.join(', ')+' y el total es '+gs(total)+' Gs.';
+  /* El año solo se escribe si los meses elegidos son de años distintos. Cobrar
+     "enero" cuando hay dos eneros arriba de la mesa se presta a confusión. */
+  const variosAnios = new Set(T.sel.map(m=>m.split('-')[0])).size > 1;
+  function nombreDe(m){
+    const n = variosAnios ? nombreMes(m) : nombreMes(m).split(' ')[0];
+    return n.charAt(0).toUpperCase()+n.slice(1);
+  }
+  function diasDe(m){
+    const mm=VIENDO.meses.get(m);
+    return mm ? [...mm.dias.entries()].sort((a,b)=>a[0]-b[0]) : [];
+  }
+  /* "el día 3" cuando fue uno solo, "los días 2, 9 y 16" cuando fueron varios. */
+  function entrenasteLos(ds){
+    return (ds.length===1 ? 'entrenaste el día ' : 'entrenaste los días ')+frasedias(ds);
+  }
+
+  /* CADA MES CON SU MONTO, uno debajo del otro. No se suma un total: el alumno
+     tiene que poder mirar mes por mes y entender de dónde sale cada número. */
+  let frase;
+  if(T.sel.length === 1){
+    const m = T.sel[0];
+    frase = 'En '+nombreDe(m).toLowerCase()+' '+entrenasteLos(diasDe(m))+
+            ', y el monto es '+gs(montoDelMes(m))+' Gs.';
+  } else {
+    frase = T.sel.map(m=>
+      '*'+nombreDe(m)+':* '+entrenasteLos(diasDe(m))+
+      '\n👉 *'+gs(montoDelMes(m))+' Gs.*'
+    ).join('\n\n');
+  }
 
   /* Un renglón en blanco entre frase y frase: en WhatsApp se lee mucho mejor.
      Las dos líneas de la cuenta van juntas, sin espacio entre ellas. */
