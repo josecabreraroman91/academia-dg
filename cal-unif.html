@@ -1287,6 +1287,44 @@ function abrirResv(){
 }
 function cerrarResv(){ document.getElementById('overlayResv').classList.remove('show'); }
 
+/* ============================================================
+   LOS DATOS DEL ALUMNO AL ENTRAR DESDE UNA RESERVA
+
+   El profe elige un nombre de la lista: la reserva viaja con el nombre y, si su
+   app lo tiene, el tipo de clase. La categoría y el lado NUNCA viajan.
+   Antes el casillero se creaba con esos tres campos vacíos, así que el alumno
+   entraba en la grilla pelado —sin categoría, sin lado y muchas veces sin tipo—
+   y había que completarlo a mano sin que nada avisara.
+
+   Acá se completan desde el padrón, buscando en el mismo orden que usa el
+   editor cuando se escribe un nombre a mano:
+     1. los contactos traídos de la copia del padrón (alumnos_v1)
+     2. la app de Alumnos de este mismo navegador
+     3. los alumnos creados en vivo (alumnos_v2)
+     4. el propio calendario, donde ese alumno ya figure con datos
+
+   Reglas: lo que manda el profe gana (si eligió el tipo, ese queda), y si el
+   alumno no aparece en ningún lado se devuelve vacío, exactamente como antes.
+   ============================================================ */
+function datosDePadron(nombre){
+  const vacio = { nivel:'', lado:'', mod:'' };
+  try{
+    const k = normName(nombre);
+    if(!k) return vacio;
+    const c = (state.contactos && state.contactos[k]) ||
+              (typeof contactosLocal!=='undefined' && contactosLocal[k]) ||
+              (typeof _idxAlumnos!=='undefined' && _idxAlumnos[k]);
+    if(c) return { nivel:c.nivel||'', lado:c.lado||'', mod:c.mod||'' };
+    /* alumnos_v2 guarda los mismos datos con otros nombres de campo. */
+    if(typeof alumnosVivo!=='undefined'){
+      const v = Object.values(alumnosVivo||{})
+        .find(a=>a && a.nombre && normName(a.nombre)===k);
+      if(v) return { nivel:v.cat||'', lado:v.lado||'', mod:v.tipo||'' };
+    }
+    return vacio;
+  }catch(e){ return vacio; }
+}
+
 function aplicarReservas(){
   const lista=resvPendientes();
   if(!lista.length){ cerrarResv(); return; }
@@ -1356,7 +1394,8 @@ function aplicarReservas(){
       if(r.mod) B.alumnos[destino].mod=r.mod;
       hechos.push('↔️ '+r.alumno+': '+lugarTxt(r.desde)+' → '+lugarTxt(destino)+' — '+(r.porNombre||''));
     } else {
-      B.alumnos[destino]={ nombre:r.alumno, nivel:'', lado:'', mod:r.mod||'', nota:'' };
+      const dp=datosDePadron(r.alumno);
+      B.alumnos[destino]={ nombre:r.alumno, nivel:dp.nivel, lado:dp.lado, mod:(r.mod||dp.mod||''), nota:'' };
       hechos.push('➕ '+r.alumno+' entró en '+lugarTxt(destino)+' — '+(r.porNombre||''));
       if(r.fijo) fijos.push(r.alumno+' · '+lugarTxt(destino));
       crearAlumnoSiNoEsta(r);
@@ -1472,7 +1511,8 @@ function aprobarPropuesta(k){
         '\n\nLo pidió '+(r.porNombre||'')+'. ¿Confirmás?')) return;
     if(tipo==='mover'){ delete M[r.desde]; M[destino]=previo; if(r.mod) M[destino].mod=r.mod;
       detalle=lugarTxt(r.desde)+' → '+lugarTxt(destino); }
-    else { M[destino]={nombre:r.alumno, nivel:'', lado:'', mod:r.mod||'', nota:''};
+    else { const dp=datosDePadron(r.alumno);
+      M[destino]={nombre:r.alumno, nivel:dp.nivel, lado:dp.lado, mod:(r.mod||dp.mod||''), nota:''};
       detalle='entró en '+lugarTxt(destino); crearAlumnoSiNoEsta(r); }
     if(state.madreSync) state.madreSync[destino]=r.alumno;
   }
@@ -1528,7 +1568,8 @@ function pasarFijoAMadre(k){
   }
   if(!destino){ alert('En la MADRE esa hora está completa. Hay que liberar un lugar primero.'); return; }
   if(!confirm('⚠️ Vas a MODIFICAR la planilla MADRE.\n\nEntra '+r.alumno+' en '+lugarTxt(destino)+'.\n\n¿Confirmás?')) return;
-  M[destino]={ nombre:r.alumno, nivel:'', lado:'', mod:r.mod||'', nota:'' };
+  const dp=datosDePadron(r.alumno);
+  M[destino]={ nombre:r.alumno, nivel:dp.nivel, lado:dp.lado, mod:(r.mod||dp.mod||''), nota:'' };
   if(state.madreSync) state.madreSync[destino]=r.alumno;   // ya está en la semana: que no baje de nuevo
   marcarEnMadre(k);
   saveState(); renderGrid(); pintarFijos();
