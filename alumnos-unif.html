@@ -124,14 +124,14 @@
   <div id="adgLoginErr" style="color:#ff7b72;margin-top:18px;max-width:360px;line-height:1.5"></div>
 </div>
 <div id="adgVivo" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;font:12px system-ui;
-  background:rgba(13,17,23,.88);color:#7ee787;padding:6px 10px;border-radius:8px">&#9679; d&iacute;as en vivo &middot; v2026-08-04</div>
+  background:rgba(13,17,23,.88);color:#7ee787;padding:6px 10px;border-radius:8px">&#9679; d&iacute;as en vivo &middot; v2026-08-04b</div>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 
 <header>
-  <div class="title"><span class="dot"></span> Alumnos <span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.5;margin-left:6px">v2026-08-04</span></div>
+  <div class="title"><span class="dot"></span> Alumnos <span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.5;margin-left:6px">v2026-08-04b</span></div>
   <div class="searchbar">
     <input id="search" placeholder="Buscar alumno…" autocomplete="off">
     <button class="btn primary" id="btnNuevo">+ Nuevo</button>
@@ -683,6 +683,12 @@ async function traerDePlanilla(silencioso){
       fantasmas++; return false;
     });
 
+    /* La MADRE manda sobre los días fijos. Los que acaba de traer la planilla
+       son una copia de hasta 15 minutos atrás y encima vienen sin la dirección
+       de la celda, así que no permiten sacar el día. Si la MADRE ya llegó, se
+       vuelve a aplicar acá y pisa lo de la planilla. */
+    try{ if(window.__aplicarMadre) window.__aplicarMadre(); }catch(e){}
+
     save(); render();
     var cuando = paq.actualizado ? Math.round((Date.now()-new Date(paq.actualizado).getTime())/60000) : null;
     var pend=alumnos.filter(function(a){ return a._dirty; }).length;
@@ -1016,14 +1022,31 @@ load(); render();
   }
 
   function aplicar(mapa){
-    if(typeof alumnos === 'undefined' || !alumnos.length) return;
+    /* La MADRE se guarda SIEMPRE, aunque la lista de alumnos todavía esté
+       vacía. Antes se descartaba, y en un aparato nuevo (o en incógnito) pasaba
+       esto: la MADRE llegaba primero, no encontraba a nadie, y se iba; un
+       segundo después la copia de la planilla creaba los 902 alumnos con SUS
+       días, que no traen la dirección de la celda. Sin dirección no hay ✕.
+       Y la MADRE no volvía a intentarlo nunca, porque solo se despierta cuando
+       alguien la modifica. */
+    window.__madreMapa = mapa || {};
+    window.__aplicarMadre();
+  }
+
+  /* Se deja a mano para que la importación de la planilla pueda volver a
+     aplicarla al terminar. La MADRE es la única casa de los días fijos: la
+     planilla es una copia y sus días no sirven para borrar nada. */
+  window.__aplicarMadre = function(){
+    var mapa = window.__madreMapa;
+    if(!mapa) return false;
+    if(typeof alumnos === 'undefined' || !alumnos.length) return false;
     alumnos.forEach(function(a){
       var hs = mapa[keyCanonADG(a.nombre)];
       a.horarios = hs ? hs.slice() : [];
     });
-    try{ render(); }catch(e){}
     var v=document.getElementById('adgVivo'); if(v) v.style.display='block';
-  }
+    return true;
+  };
 
   try{
     firebase.initializeApp({
@@ -1050,6 +1073,7 @@ load(); render();
     /* .on() se queda escuchando: cada cambio en la MADRE llega solo */
     firebase.database().ref('calendario_v2/madre/alumnos').on('value', function(snap){
       aplicar(diasDeLaMadre(snap.val()));
+      try{ render(); }catch(e){}
     }, function(err){
       console.warn('No pude leer la MADRE:', err.message);
     });
