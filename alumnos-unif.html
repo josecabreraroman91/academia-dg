@@ -124,14 +124,14 @@
   <div id="adgLoginErr" style="color:#ff7b72;margin-top:18px;max-width:360px;line-height:1.5"></div>
 </div>
 <div id="adgVivo" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;font:12px system-ui;
-  background:rgba(13,17,23,.88);color:#7ee787;padding:6px 10px;border-radius:8px">&#9679; d&iacute;as en vivo</div>
+  background:rgba(13,17,23,.88);color:#7ee787;padding:6px 10px;border-radius:8px">&#9679; d&iacute;as en vivo &middot; v2026-08-04</div>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 
 <header>
-  <div class="title"><span class="dot"></span> Alumnos</div>
+  <div class="title"><span class="dot"></span> Alumnos <span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.5;margin-left:6px">v2026-08-04</span></div>
   <div class="searchbar">
     <input id="search" placeholder="Buscar alumno…" autocomplete="off">
     <button class="btn primary" id="btnNuevo">+ Nuevo</button>
@@ -964,6 +964,35 @@ load(); render();
       .toLowerCase().replace(/\s+/g,' ').trim();
   }
 
+  /* La MISMA regla que usa el calendario para emparejar un nombre de la grilla
+     con la ficha del alumno. En la grilla el nombre puede venir con una marca
+     pegada al final —"Alex Ebner GRUPAL", "Pedro Aguero IND", "Edgar Patiño
+     DUAL"— o con la sede o un emoji. Sin esta limpieza, esos días fijos
+     existen en la MADRE pero el resumen del alumno sale vacío. */
+  function keyAlumnoADG(v){
+    var t = norm(v)
+      .replace(/[\u{1F300}-\u{1FFFF}]/gu,' ')
+      .replace(/\uFE0F/g,' ')
+      .replace(/\s+/g,' ')
+      .trim();
+    var antes;
+    do { antes = t; t = t.replace(/\s+(lomas|segurola)\s*$/,'').trim(); } while (t !== antes);
+    return t.replace(/\.+$/,'').trim();
+  }
+  var MARCAS_NOMBRE_ADG = ['lomas','elite','segurola','dual','duales','individual','ind',
+                           'grupal','g','d','noche','ar','pretemporada','prete','grupo'];
+  function keyCanonADG(v){
+    var w = keyAlumnoADG(v).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim().split(' ');
+    while(w.length>1){
+      var u = w[w.length-1];
+      if(MARCAS_NOMBRE_ADG.indexOf(u) < 0) break;
+      if(u.length===1 && w.length>1 && w[w.length-2].length===1) break;  /* inicial de apellido */
+      if(w.slice(0,-1).join('').length < 3) break;                       /* quedaria muy corto */
+      w.pop();
+    }
+    return w.join(' ');
+  }
+
   /* Convierte las claves de la MADRE en { nombre: [{dia,hora}] } */
   function diasDeLaMadre(madre){
     var out = {};
@@ -976,7 +1005,7 @@ load(); render();
       if(DIAS.indexOf(dia) < 0) return;
       var hora = HORAS[Number(p[3])];
       if(!hora) return;
-      var k = norm(al.nombre);
+      var k = keyCanonADG(al.nombre);
       if(!out[k]) out[k] = [];
       var repetido = out[k].some(function(h){ return h.dia===dia && h.hora===hora; });
       /* Se guarda la clave de la celda: es la dirección exacta en la MADRE y
@@ -989,7 +1018,7 @@ load(); render();
   function aplicar(mapa){
     if(typeof alumnos === 'undefined' || !alumnos.length) return;
     alumnos.forEach(function(a){
-      var hs = mapa[norm(a.nombre)];
+      var hs = mapa[keyCanonADG(a.nombre)];
       a.horarios = hs ? hs.slice() : [];
     });
     try{ render(); }catch(e){}
