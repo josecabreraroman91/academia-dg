@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Alto rendimiento · Academia DG</title>
+<style>
+  :root{
+    --bg:#0d1117; --panel:#161b22; --linea:#30363d; --txt:#e6edf3;
+    --sec:#8b949e; --azul:#2f81f7; --verde:#3fb950; --rojo:#f85149;
+    --ambar:#d29922; --violeta:#a371f7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);
+    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:15px;line-height:1.5}
+  .wrap{max-width:900px;margin:0 auto;padding:18px 14px 80px}
+
+  header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:2px}
+  h1{font-size:21px;margin:0;letter-spacing:-.3px}
+  .sub{color:var(--sec);font-size:13px}
+  .yo{color:var(--sec);font-size:12px;margin:8px 0 16px}
+  .yo a{color:var(--azul);text-decoration:none;margin-left:8px}
+
+  /* ---- Elegir qué grilla se está mirando ---- */
+  .libros{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 6px}
+  .libros button{background:var(--panel);color:var(--sec);border:1px solid var(--linea);
+    border-radius:999px;padding:6px 14px;font-size:13px;cursor:pointer;font-family:inherit}
+  .libros button.on{background:#1f6feb22;border-color:var(--azul);color:var(--txt)}
+  .avisoLibro{font-size:12.5px;color:var(--sec);margin:2px 0 14px}
+  .avisoLibro b{color:var(--ambar)}
+
+  .nums{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .num{flex:1;min-width:110px;background:var(--panel);border:1px solid var(--linea);
+    border-radius:12px;padding:10px 14px}
+  .num .n{font-size:24px;font-weight:600;line-height:1.2}
+  .num .l{font-size:12px;color:var(--sec)}
+  .num.alerta{border-color:#6b4a12}
+  .num.alerta .n{color:var(--ambar)}
+
+  .acciones{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+  button.bt{background:var(--panel);color:var(--txt);border:1px solid var(--linea);
+    border-radius:10px;padding:8px 14px;font-size:14px;cursor:pointer;font-family:inherit}
+  button.bt:hover{border-color:var(--azul)}
+  button.bt.pri{background:#1f6feb;border-color:#1f6feb;color:#fff}
+  button.bt.peligro:hover{border-color:var(--rojo);color:var(--rojo)}
+  button.bt[disabled]{opacity:.45;cursor:default}
+
+  h2.dia{font-size:13px;letter-spacing:1px;color:var(--sec);margin:24px 0 10px;font-weight:600}
+
+  .bloque{background:var(--panel);border:1px solid var(--linea);border-radius:12px;
+    padding:12px 14px;margin-bottom:12px}
+  .bloque.vacio{border-color:#6b4a12}
+  .bTop{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .bDonde{font-weight:600;font-size:14.5px}
+  .bDonde .sede{color:var(--violeta)}
+  .bMeta{font-size:12.5px;color:var(--sec)}
+  .bDur{margin-left:auto;display:flex;gap:4px}
+  .bDur button{background:transparent;color:var(--sec);border:1px solid var(--linea);
+    border-radius:8px;padding:3px 10px;font-size:12px;cursor:pointer;font-family:inherit}
+  .bDur button.on{background:#1f6feb22;border-color:var(--azul);color:var(--txt)}
+
+  .alu{display:flex;align-items:center;gap:8px;padding:5px 0;border-top:1px solid #21262d}
+  .alu:first-of-type{border-top:1px solid var(--linea);margin-top:8px}
+  .alu .nom{flex:1;min-width:0;font-size:14px;word-break:break-word}
+  .alu .ojo{color:var(--ambar);font-size:12px}
+  .alu button{background:transparent;border:0;color:var(--sec);cursor:pointer;font-size:15px;padding:2px 6px}
+  .alu button:hover{color:var(--rojo)}
+  .sinAlu{font-size:13px;color:var(--ambar);padding:8px 0 2px;border-top:1px solid var(--linea);margin-top:8px}
+
+  .agregar{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+  .agregar input{flex:1;min-width:160px;background:#0d1117;color:var(--txt);
+    border:1px solid var(--linea);border-radius:8px;padding:7px 10px;font-size:14px;font-family:inherit}
+  .agregar input:focus{outline:none;border-color:var(--azul)}
+  .bPie{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .bPie button{font-size:12.5px;padding:5px 12px}
+
+  .vacioTotal{color:var(--sec);font-size:14px;background:var(--panel);
+    border:1px solid var(--linea);border-radius:12px;padding:22px 16px;text-align:center}
+
+  /* ---- Ventana de nuevo bloque / mover ---- */
+  .tapa{position:fixed;inset:0;background:#00000099;display:none;align-items:center;
+    justify-content:center;padding:16px;z-index:50}
+  .tapa.on{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--linea);border-radius:14px;
+    padding:18px;max-width:420px;width:100%}
+  .modal h3{margin:0 0 4px;font-size:17px}
+  .modal .ex{font-size:12.5px;color:var(--sec);margin-bottom:14px}
+  .campo{margin-bottom:11px}
+  .campo label{display:block;font-size:12px;color:var(--sec);margin-bottom:3px}
+  .campo select{width:100%;background:#0d1117;color:var(--txt);border:1px solid var(--linea);
+    border-radius:8px;padding:8px 10px;font-size:14px;font-family:inherit}
+  .campo select:focus{outline:none;border-color:var(--azul)}
+  .modalErr{color:var(--rojo);font-size:13px;min-height:18px;margin:4px 0 8px}
+  .modalPie{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+
+  /* ---- Entrada ---- */
+  .pant{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;
+    justify-content:center;padding:24px;text-align:center;z-index:60}
+  .pant.on{display:flex}
+  .pant .caja{max-width:400px}
+  .pant h2{font-size:19px;margin:0 0 8px}
+  .pant p{color:var(--sec);font-size:14px}
+  .pant button{margin-top:14px;background:#1f6feb;border:0;color:#fff;border-radius:10px;
+    padding:10px 20px;font-size:15px;cursor:pointer;font-family:inherit}
+
+  .cargando{color:var(--sec);font-size:14px;padding:30px 0;text-align:center}
+  .estado{position:fixed;left:0;right:0;bottom:0;background:#161b22ee;border-top:1px solid var(--linea);
+    padding:8px 14px;font-size:12.5px;color:var(--sec);text-align:center}
+  .estado b{color:var(--verde)}
+  .estado.mal b{color:var(--rojo)}
+</style>
+</head>
+<body>
+
+<!-- Entrada -->
+<div class="pant on" id="login">
+  <div class="caja">
+    <h2>Alto rendimiento</h2>
+    <p>Entrá con tu cuenta de Google de la academia.</p>
+    <button id="btnEntrar">Entrar</button>
+    <p id="errLogin" style="color:#f85149;font-size:13px"></p>
+  </div>
+</div>
+
+<div class="pant" id="nopuede">
+  <div class="caja">
+    <h2>No tenés acceso a esta sección</h2>
+    <p id="nopuedeTxt"></p>
+    <p>Pedile a José que te habilite <b>Alto rendimiento</b> en Accesos.</p>
+    <button id="btnSalir2">Salir</button>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <header>
+    <h1>Alto rendimiento</h1>
+    <span class="sub">Los bloques y quién entrena en cada uno</span>
+  </header>
+  <div class="yo"><span id="yoMail"></span><a href="#" id="btnSalir">salir</a></div>
+
+  <div class="libros" id="libros">
+    <button data-libro="madre" class="on">📋 MADRE</button>
+    <button data-libro="semana">🗓️ Esta semana</button>
+    <button data-libro="semanaProxima">➡️ La que viene</button>
+  </div>
+  <div class="avisoLibro" id="avisoLibro"></div>
+
+  <div class="nums">
+    <div class="num"><div class="n" id="nBloques">—</div><div class="l">bloques</div></div>
+    <div class="num"><div class="n" id="nAlumnos">—</div><div class="l">alumnos adentro</div></div>
+    <div class="num" id="cajaVacios"><div class="n" id="nVacios">—</div><div class="l">bloques sin nadie</div></div>
+  </div>
+
+  <div class="acciones">
+    <button class="bt pri" id="btnNuevo">➕ Nuevo bloque</button>
+  </div>
+
+  <div id="lista"><div class="cargando">Leyendo el calendario…</div></div>
+</div>
+
+<!-- Ventana de nuevo bloque / mover -->
+<div class="tapa" id="tapa">
+  <div class="modal">
+    <h3 id="mTitulo">Nuevo bloque</h3>
+    <div class="ex" id="mExplica"></div>
+    <div class="campo"><label>Día</label><select id="mDia"></select></div>
+    <div class="campo"><label>Sede</label><select id="mSede"></select></div>
+    <div class="campo"><label>Profesor (columna)</label><select id="mProfe"></select></div>
+    <div class="campo"><label>Hora</label><select id="mHora"></select></div>
+    <div class="campo" id="campoDur"><label>Duración</label>
+      <select id="mDur"><option value="60">Una hora</option><option value="30">Media hora</option></select>
+    </div>
+    <div class="modalErr" id="mErr"></div>
+    <div class="modalPie">
+      <button class="bt" id="mCancelar">Cancelar</button>
+      <button class="bt pri" id="mGuardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<datalist id="padron"></datalist>
+
+<div class="estado" id="estado" style="display:none"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+/* ============================================================================
+   ALTO RENDIMIENTO · pantalla propia
+
+   QUÉ ES ESTO
+   Los bloques de ALTO RENDIMIENTO ya vivían dentro del calendario: son una celda
+   con la marca BLOQUE, una duración (60 o 30 minutos) y una lista de alumnos
+   adentro. Hasta ahora había que abrirlos de a uno, buscándolos en la grilla.
+   Esta pantalla los muestra todos juntos y deja armarlos, moverlos y cargarles
+   la gente sin entrar al calendario.
+
+   LA REGLA DE LA CASA: el bloque SIGUE VIVIENDO EN EL CALENDARIO.
+   Acá no hay una segunda copia de nada. Esta pantalla lee y escribe exactamente
+   la misma celda de `calendario_v2` que usa el calendario grande. Si se cambia
+   algo acá, el calendario lo ve en un segundo, y al revés.
+   ========================================================================== */
+
+var cfg = {
+  apiKey:"AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain:"academia-dg.firebaseapp.com",
+  databaseURL:"https://academia-dg-default-rtdb.firebaseio.com",
+  projectId:"academia-dg",
+  storageBucket:"academia-dg.firebasestorage.app",
+  messagingSenderId:"623967243039",
+  appId:"1:623967243039:web:e22397b466b63aefdf3e2a"
+};
+try{ firebase.initializeApp(cfg); }catch(e){}
+
+var $ = function(id){ return document.getElementById(id); };
+
+/* ---- Las mismas constantes del calendario. Si allá cambian, acá también. ---- */
+var DIAS = ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
+var HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00','14:00','15:00',
+             '16:00','17:00','18:00','19:00','20:00','21:00'];
+var SLOTS_POR_HORA = 4;
+var LIBROS = ['madre','semana','semanaProxima','semanaAnterior'];
+
+var miCorreo = null, puedeEscribir = false;
+var LIBRO = 'madre';               // qué grilla se está mirando
+var nube = null;                   // lo último que llegó de calendario_v2
+var padron = {};                   // nombre normalizado -> nombre lindo
+var publicarPendiente = false;     // hay que bajar el día a las tablets tras el próximo dato
+var modalModo = null;              // 'nuevo' | 'mover'
+var modalClave = null;             // qué bloque se está moviendo
+
+/* ---------- Ayudas ---------- */
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function normName(s){
+  return String(s==null?'':s).trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\s+/g,' ');
+}
+function aClave(mail){ return String(mail).trim().toLowerCase().replace(/\./g,','); }
+/* Las claves del calendario ("LUNES|lomas|3|11|0") se escapan por las dudas,
+   igual que en el calendario. */
+function ruta(k){ return String(k).replace(/[.#$/\[\]]/g,'_'); }
+function tsServidor(){
+  try{ return firebase.database.ServerValue.TIMESTAMP; }catch(e){ return Date.now(); }
+}
+function isoDe(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function lunesDeHoy(){ var d=new Date(); var wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return isoDe(d); }
+function diaDeFecha(date){ var wd=date.getDay(); return (wd>=1&&wd<=6)?DIAS[wd-1]:null; }
+/* La misma clave que usa el calendario para la copia del día de las tablets. */
+function fbKey(hi,d,si,nombre){
+  var n=String(nombre).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  return hi+'_'+d+'_'+si+'_'+n;
+}
+function esBloqueAR(al){
+  return !!(al && al.mod==='BLOQUE' && /ALTO\s*RENDIMIENTO/i.test(al.nombre||''));
+}
+function libroTxt(L){
+  return L==='madre' ? 'la MADRE' : L==='semanaProxima' ? 'la semana que viene' : 'esta semana';
+}
+function avisar(txt, mal){
+  var e=$('estado'); e.textContent=''; e.className='estado'+(mal?' mal':'');
+  var b=document.createElement('b'); b.textContent=txt; e.appendChild(b);
+  e.style.display='block';
+  clearTimeout(avisar._t); avisar._t=setTimeout(function(){ e.style.display='none'; }, 4500);
+}
+
+/* ---------- Lo que hay en la nube ---------- */
+function libro(L){
+  var b = (nube && nube[L]) || {};
+  return { alumnos: b.alumnos || {}, libres: b.libres || {}, sedesPorDia: b.sedesPorDia || null };
+}
+/* Las columnas de profes de un día: primero las del libro, si no las generales. */
+function sedesDe(L, dia){
+  var b = libro(L);
+  var mapa = b.sedesPorDia || (nube && nube.sedesPorDia) || {};
+  return mapa[dia] || [];
+}
+function nombreSede(L, dia, sedeKey){
+  var ss = sedesDe(L, dia);
+  for(var i=0;i<ss.length;i++) if(ss[i].key===sedeKey) return ss[i].nombre || sedeKey;
+  return sedeKey;
+}
+function profeDe(L, dia, sedeKey, pi){
+  var ss = sedesDe(L, dia);
+  for(var i=0;i<ss.length;i++) if(ss[i].key===sedeKey){
+    var d = (ss[i].profes||[])[pi];
+    return (d && d!=='—') ? d : '';
+  }
+  return '';
+}
+
+/* Todos los bloques de alto rendimiento de una grilla, ordenados como se leen. */
+function bloquesDe(L){
+  var A = libro(L).alumnos, out = [];
+  Object.keys(A).forEach(function(k){
+    var cel = A[k];
+    if(!esBloqueAR(cel)) return;
+    var p = k.split('|');
+    if(p.length!==5) return;
+    out.push({
+      k:k, libro:L, dia:p[0], sede:p[1], pi:+p[2], hi:+p[3], si:+p[4],
+      cel:cel, lista:(cel.lista||[]).slice(), dur:cel.dur||60
+    });
+  });
+  out.sort(function(a,b){
+    var d = DIAS.indexOf(a.dia) - DIAS.indexOf(b.dia); if(d) return d;
+    if(a.hi!==b.hi) return a.hi-b.hi;
+    if(a.sede!==b.sede) return a.sede<b.sede?-1:1;
+    if(a.pi!==b.pi) return a.pi-b.pi;
+    return a.si-b.si;
+  });
+  return out;
+}
+
+/* ---------- Escribir en el calendario ---------- */
+/* Una celda se escribe igual que la escribe el calendario: se guarda el
+   contenido y se LEVANTA LA LÁPIDA de esa celda. Sin eso, el calendario ve la
+   lápida al recibir el cambio y saca lo que acabamos de poner. */
+function escribirCelda(L, k, cel, luego){
+  if(!puedeEscribir){ avisar('Solo podés mirar: no tenés permiso para editar', true); return; }
+  var upd = {};
+  upd[L+'/alumnos/'+ruta(k)] = cel;
+  upd['borrados/'+L+'/'+ruta(k)] = null;
+  upd['_ts'] = tsServidor();
+  /* El cambio se ve en pantalla en el acto, sin esperar a que Firebase conteste.
+     Si no, tocar "Agregar" dos veces seguidas rápido hacía que el segundo alumno
+     pisara al primero: los dos salían de la misma foto vieja. */
+  aplicarLocal(L, k, cel);
+  pintar();
+  publicarPendiente = true;
+  firebase.database().ref('calendario_v2').update(upd)
+    .then(function(){ avisar('Guardado'); if(luego) luego(); })
+    .catch(function(e){ publicarPendiente=false; avisar('No se pudo guardar: '+e.message, true); });
+}
+/* Deja el cambio en la copia que tenemos a mano. Cuando Firebase conteste, el
+   oyente va a traer la versión de verdad y esta se reemplaza. */
+function aplicarLocal(L, k, cel){
+  if(!nube) return;
+  if(!nube[L]) nube[L] = {alumnos:{}, libres:{}};
+  if(!nube[L].alumnos) nube[L].alumnos = {};
+  if(cel === null) delete nube[L].alumnos[k];
+  else nube[L].alumnos[k] = JSON.parse(JSON.stringify(cel));
+}
+/* Borrar no deja un hueco: deja LÁPIDA, igual que el calendario. Así el borrado
+   es un hecho registrado y no lo revive una copia vieja de otro dispositivo. */
+function borrarCelda(L, k, luego){
+  if(!puedeEscribir){ avisar('Solo podés mirar: no tenés permiso para editar', true); return; }
+  var upd = {};
+  upd[L+'/alumnos/'+ruta(k)] = null;
+  upd['borrados/'+L+'/'+ruta(k)] = tsServidor();
+  upd['_ts'] = tsServidor();
+  aplicarLocal(L, k, null);
+  pintar();
+  publicarPendiente = true;
+  firebase.database().ref('calendario_v2').update(upd)
+    .then(function(){ avisar('Bloque borrado'); if(luego) luego(); })
+    .catch(function(e){ publicarPendiente=false; avisar('No se pudo borrar: '+e.message, true); });
+}
+
+/* ============================================================================
+   LA MADRE BAJA A LAS SEMANAS, PERO NO SOLA
+
+   El calendario baja de la MADRE a la semana cuando CAMBIA EL NOMBRE de una
+   celda. Un bloque siempre se llama "ALTO RENDIMIENTO": si se le agrega un
+   alumno adentro, el nombre no cambia y ese cambio NO baja nunca.
+
+   Como lo que se cobra sale de la semana (no de la MADRE), un bloque editado
+   solo en la MADRE no le cobraría a nadie. Por eso, cuando se toca un bloque de
+   la MADRE, la misma lista se copia al MISMO casillero de las semanas donde ya
+   hay un bloque de alto rendimiento. De la MADRE hacia abajo y nunca al revés.
+   ========================================================================== */
+function tambienEnSemanas(k, cel){
+  var upd = {}, tocadas = [];
+  ['semana','semanaProxima'].forEach(function(L){
+    var otro = libro(L).alumnos[k];
+    if(!esBloqueAR(otro)) return;                    // ahí no hay bloque: no se inventa
+    var nuevo = JSON.parse(JSON.stringify(otro));
+    nuevo.dur = cel.dur;
+    if(cel.lista && cel.lista.length) nuevo.lista = cel.lista.slice();
+    else delete nuevo.lista;
+    upd[L+'/alumnos/'+ruta(k)] = nuevo;
+    upd['borrados/'+L+'/'+ruta(k)] = null;
+    aplicarLocal(L, k, nuevo);
+    tocadas.push(libroTxt(L));
+  });
+  if(!tocadas.length) return;
+  pintar();
+  upd['_ts'] = tsServidor();
+  publicarPendiente = true;
+  firebase.database().ref('calendario_v2').update(upd)
+    .then(function(){ avisar('También se actualizó en '+tocadas.join(' y en '));  })
+    .catch(function(e){ avisar('El cambio quedó en la MADRE pero no bajó: '+e.message, true); });
+}
+
+/* ============================================================================
+   BAJAR EL DÍA A LAS TABLETS
+
+   La copia que leen las tablets y el cierre de las 19:00 vive en `dia/{fecha}`.
+   La escribe el calendario cada vez que se toca algo, pero el calendario NO la
+   vuelve a escribir cuando el cambio llega de otro dispositivo. Si esta pantalla
+   no la escribiera, un bloque cargado acá no llegaría a la tablet hasta que
+   alguien tocara el calendario.
+
+   Se arma exactamente igual que allá: se recalcula el día entero desde la grilla
+   y se respeta lo que ya marcó el profe (presente/ausente, acoples y borrados).
+   Solo HOY y MAÑANA, que son los dos días que publica el calendario.
+   ========================================================================== */
+function libroDeFecha(fechaIso){
+  try{
+    var base = (nube && nube.lunesActual) || lunesDeHoy();
+    var dias = Math.round((new Date(fechaIso+'T00:00:00') - new Date(base+'T00:00:00'))/86400000);
+    if(dias>=7) return 'semanaProxima';
+    if(dias<0)  return 'semanaAnterior';
+  }catch(e){}
+  return 'semana';
+}
+function armarDiaDe(dia, L){
+  var B = libro(L);
+  var sedes = sedesDe(L, dia);
+  if(!sedes.length) return null;
+  var porSede = {};
+  sedes.forEach(function(s){
+    var recs = {};
+    (s.profes||[]).forEach(function(d, pi){
+      if(!d || d==='—') return;
+      for(var hi=0; hi<HORAS.length; hi++){
+        if(B.libres[dia+'|'+s.key+'|'+pi+'|'+hi]) continue;      // hora bloqueada
+        for(var si=0; si<SLOTS_POR_HORA; si++){
+          var al = B.alumnos[dia+'|'+s.key+'|'+pi+'|'+hi+'|'+si];
+          if(al && al.nombre){
+            var r = { nombre:al.nombre, horaIdx:hi, profe:d, mod:al.mod||'', confirmado:!!al.confirmado };
+            if(al.lista && al.lista.length) r.lista = al.lista.slice();
+            if(al.dur) r.dur = al.dur;
+            recs[fbKey(hi,d,si,al.nombre)] = r;
+          }
+        }
+      }
+    });
+    porSede[s.key] = recs;
+  });
+  return porSede;
+}
+function publicarFecha(offset){
+  var d = new Date(); d.setDate(d.getDate()+offset);
+  var dia = diaDeFecha(d); if(!dia) return;                      // domingo
+  var fecha = isoDe(d);
+  var porSede = armarDiaDe(dia, libroDeFecha(fecha)); if(!porSede) return;
+  Object.keys(porSede).forEach(function(sk){
+    var ref = firebase.database().ref('dia/'+fecha+'/'+sk);
+    ref.once('value').then(function(snap){
+      var prev = snap.val() || {}, nuevo = {};
+      /* GUARDIA: si el cálculo da vacío y en la tablet hay gente, no se publica.
+         Vaciar el día de las tablets por un error de acá sería sacarle la lista
+         al profe y dejar el día sin cobrar. */
+      var propios = 0;
+      Object.keys(prev).forEach(function(k){ if(prev[k] && !prev[k].acople) propios++; });
+      if(!Object.keys(porSede[sk]).length && propios>0){
+        console.warn('no publico '+sk+' el '+fecha+': me daba vacío y hay '+propios+' registros');
+        return;
+      }
+      Object.keys(prev).forEach(function(k){ if(prev[k] && prev[k].acople) nuevo[k]=prev[k]; });
+      Object.keys(porSede[sk]).forEach(function(k){
+        var p = prev[k] || {}, r = porSede[sk][k];
+        nuevo[k] = { nombre:r.nombre, horaIdx:r.horaIdx, profe:r.profe, mod:r.mod,
+                     confirmado:r.confirmado, asis: p.asis || 'presente' };
+        if(r.lista) nuevo[k].lista = r.lista;
+        if(r.dur)   nuevo[k].dur   = r.dur;
+        if(p.borrado) nuevo[k].borrado = true;
+      });
+      return ref.set(nuevo);
+    }).catch(function(e){ console.warn('dia/'+fecha+'/'+sk+':', e.message); });
+  });
+}
+function bajarALasTablets(){
+  try{ publicarFecha(0); publicarFecha(1); }catch(e){ console.warn('publicar:', e.message); }
+}
+
+/* ---------- Dibujar ---------- */
+function pintar(){
+  var cont = $('lista');
+  if(!nube){ cont.innerHTML = '<div class="cargando">Leyendo el calendario…</div>'; return; }
+
+  var bs = bloquesDe(LIBRO);
+  var alumnos = 0, vacios = 0;
+  bs.forEach(function(b){ alumnos += b.lista.length; if(!b.lista.length) vacios++; });
+  $('nBloques').textContent = bs.length;
+  $('nAlumnos').textContent = alumnos;
+  $('nVacios').textContent  = vacios;
+  $('cajaVacios').className = 'num' + (vacios ? ' alerta' : '');
+
+  $('avisoLibro').innerHTML = LIBRO==='madre'
+    ? 'Estás en la MADRE, la plantilla fija. Lo que cambies acá <b>se copia también a las semanas</b> donde ese bloque ya existe.'
+    : 'Estás en '+esc(libroTxt(LIBRO))+'. Lo que cambies acá vale solo para esa semana: <b>la MADRE no se toca</b>.';
+
+  if(!bs.length){
+    cont.innerHTML = '<div class="vacioTotal">No hay ningún bloque de alto rendimiento en '+
+      esc(libroTxt(LIBRO))+'.<br>Podés armar uno con <b>➕ Nuevo bloque</b>.</div>';
+    return;
+  }
+
+  var html = '', diaActual = null;
+  bs.forEach(function(b, idx){
+    if(b.dia !== diaActual){ diaActual = b.dia; html += '<h2 class="dia">'+esc(b.dia)+'</h2>'; }
+    var profe = profeDe(b.libro, b.dia, b.sede, b.pi) || '¿?';
+    var sede  = nombreSede(b.libro, b.dia, b.sede);
+    html += '<div class="bloque'+(b.lista.length?'':' vacio')+'" data-i="'+idx+'">'+
+      '<div class="bTop">'+
+        '<div class="bDonde"><span class="sede">'+esc(sede)+'</span> · '+esc(HORAS[b.hi]||'?')+' · '+esc(profe)+'</div>'+
+        '<div class="bDur">'+
+          '<button data-dur="60" class="'+(b.dur===60?'on':'')+'">Una hora</button>'+
+          '<button data-dur="30" class="'+(b.dur===30?'on':'')+'">Media hora</button>'+
+        '</div>'+
+      '</div>'+
+      '<div class="bMeta">'+(b.lista.length ? b.lista.length+' alumno'+(b.lista.length===1?'':'s') : 'sin alumnos')+'</div>';
+
+    if(b.lista.length){
+      b.lista.forEach(function(n, i){
+        var enPadron = !!padron[normName(n)];
+        html += '<div class="alu">'+
+          '<span class="nom">'+esc(n)+(enPadron?'':' <span class="ojo" title="No lo encuentro en el padrón">⚠ no está en el padrón</span>')+'</span>'+
+          (puedeEscribir?'<button data-quitar="'+i+'" title="Sacar del bloque">✕</button>':'')+
+        '</div>';
+      });
+    }else{
+      html += '<div class="sinAlu">⚠ Este bloque no le cobra a nadie: al cerrar el día deja una sola línea de constancia.</div>';
+    }
+
+    if(puedeEscribir){
+      html += '<div class="agregar">'+
+        '<input list="padron" placeholder="Nombre del alumno" data-nom="'+idx+'">'+
+        '<button class="bt" data-agregar="'+idx+'">Agregar</button>'+
+      '</div>'+
+      '<div class="bPie">'+
+        '<button class="bt" data-mover="'+idx+'">Mover a otro día u hora</button>'+
+        '<button class="bt peligro" data-borrar="'+idx+'">Borrar bloque</button>'+
+      '</div>';
+    }
+    html += '</div>';
+  });
+  cont.innerHTML = html;
+
+  /* ---- los botones de cada bloque ---- */
+  cont.querySelectorAll('.bloque').forEach(function(div){
+    var b = bs[+div.dataset.i];
+    div.querySelectorAll('.bDur button').forEach(function(btn){
+      btn.onclick = function(){
+        if(!puedeEscribir) return;
+        var dur = +btn.dataset.dur;
+        if(dur === b.dur) return;
+        var cel = JSON.parse(JSON.stringify(b.cel));
+        cel.dur = dur;
+        escribirCelda(b.libro, b.k, cel, function(){
+          if(b.libro==='madre') tambienEnSemanas(b.k, cel);
+        });
+      };
+    });
+    var inp = div.querySelector('input[data-nom]');
+    var btnAgr = div.querySelector('button[data-agregar]');
+    function agregar(){
+      var nom = (inp.value||'').trim();
+      if(!nom) return;
+      var ya = b.lista.some(function(x){ return normName(x)===normName(nom); });
+      if(ya){ inp.value=''; avisar('Ese alumno ya estaba en el bloque', true); return; }
+      var cel = JSON.parse(JSON.stringify(b.cel));
+      cel.lista = b.lista.concat([nom]);
+      inp.value='';
+      escribirCelda(b.libro, b.k, cel, function(){
+        if(b.libro==='madre') tambienEnSemanas(b.k, cel);
+      });
+    }
+    if(btnAgr) btnAgr.onclick = agregar;
+    if(inp) inp.onkeydown = function(ev){ if(ev.key==='Enter'){ ev.preventDefault(); agregar(); } };
+
+    div.querySelectorAll('button[data-quitar]').forEach(function(btn){
+      btn.onclick = function(){
+        var i = +btn.dataset.quitar;
+        var quien = b.lista[i];
+        if(!confirm('¿Sacar a '+quien+' de este bloque?')) return;
+        var cel = JSON.parse(JSON.stringify(b.cel));
+        var arr = b.lista.slice(); arr.splice(i,1);
+        if(arr.length) cel.lista = arr; else delete cel.lista;
+        escribirCelda(b.libro, b.k, cel, function(){
+          if(b.libro==='madre') tambienEnSemanas(b.k, cel);
+        });
+      };
+    });
+    var btnB = div.querySelector('button[data-borrar]');
+    if(btnB) btnB.onclick = function(){
+      var aviso = '¿Borrar este bloque de '+libroTxt(b.libro)+'?';
+      if(b.lista.length) aviso += '\n\nAdentro hay '+b.lista.length+' alumno(s). También se pierden.';
+      if(!confirm(aviso)) return;
+      borrarCelda(b.libro, b.k);
+    };
+    var btnM = div.querySelector('button[data-mover]');
+    if(btnM) btnM.onclick = function(){ abrirModal('mover', b); };
+  });
+}
+
+/* ---------- La ventana de nuevo bloque y de mover ---------- */
+function llenarSelect(sel, opciones, elegido){
+  sel.innerHTML = opciones.map(function(o){
+    return '<option value="'+esc(o.v)+'"'+(String(o.v)===String(elegido)?' selected':'')+'>'+esc(o.t)+'</option>';
+  }).join('');
+}
+function refrescarSedes(){
+  var dia = $('mDia').value;
+  var ss = sedesDe(LIBRO, dia);
+  llenarSelect($('mSede'), ss.map(function(s){ return {v:s.key, t:s.nombre||s.key}; }), $('mSede').value);
+  refrescarProfes();
+}
+function refrescarProfes(){
+  var dia = $('mDia').value, sedeKey = $('mSede').value;
+  var ss = sedesDe(LIBRO, dia), profes = [];
+  ss.forEach(function(s){
+    if(s.key!==sedeKey) return;
+    (s.profes||[]).forEach(function(d, pi){
+      if(d && d!=='—') profes.push({ v:pi, t:d });
+    });
+  });
+  llenarSelect($('mProfe'), profes.length?profes:[{v:'',t:'(esta sede no tiene columnas ese día)'}], $('mProfe').value);
+}
+function abrirModal(modo, b){
+  modalModo = modo; modalClave = b ? b.k : null;
+  $('mTitulo').textContent = modo==='nuevo' ? 'Nuevo bloque de alto rendimiento' : 'Mover el bloque';
+  $('mExplica').textContent = modo==='nuevo'
+    ? 'Se va a crear en '+libroTxt(LIBRO)+'.'
+    : 'Se saca de donde está y se pone en el lugar nuevo, con sus alumnos.';
+  $('campoDur').style.display = modo==='nuevo' ? '' : 'none';
+  $('mErr').textContent = '';
+  llenarSelect($('mDia'), DIAS.map(function(d){ return {v:d,t:d}; }), b?b.dia:DIAS[0]);
+  refrescarSedes();
+  if(b){ $('mSede').value = b.sede; refrescarProfes(); $('mProfe').value = b.pi; }
+  llenarSelect($('mHora'), HORAS.map(function(h,i){ return {v:i,t:h}; }), b?b.hi:12);
+  $('mDur').value = b ? String(b.dur) : '60';
+  $('tapa').classList.add('on');
+}
+function cerrarModal(){ $('tapa').classList.remove('on'); modalModo=null; modalClave=null; }
+
+/* Busca un casillero libre en esa hora y ese profe (hay cuatro por hora). */
+function casilleroLibre(L, dia, sede, pi, hi){
+  var A = libro(L).alumnos;
+  for(var si=0; si<SLOTS_POR_HORA; si++){
+    var k = dia+'|'+sede+'|'+pi+'|'+hi+'|'+si;
+    var oc = A[k];
+    if(!oc || !oc.nombre) return k;
+  }
+  return null;
+}
+function guardarModal(){
+  var dia = $('mDia').value, sede = $('mSede').value, pi = $('mProfe').value, hi = +$('mHora').value;
+  if(pi===''){ $('mErr').textContent = 'Elegí un profesor.'; return; }
+  pi = +pi;
+  if(libro(LIBRO).libres[dia+'|'+sede+'|'+pi+'|'+hi]){
+    $('mErr').textContent = 'Esa hora está bloqueada para ese profe en el calendario.'; return;
+  }
+  var k = casilleroLibre(LIBRO, dia, sede, pi, hi);
+  if(!k){ $('mErr').textContent = 'Los cuatro casilleros de esa hora están ocupados.'; return; }
+
+  if(modalModo==='nuevo'){
+    var cel = { nombre:'ALTO RENDIMIENTO', nivel:'', lado:'', mod:'BLOQUE', nota:'', dur:+$('mDur').value };
+    cerrarModal();
+    escribirCelda(LIBRO, k, cel, function(){ if(LIBRO==='madre') tambienEnSemanas(k, cel); });
+    return;
+  }
+
+  /* Mover: primero se pone en el lugar nuevo, después se saca del viejo. En ese
+     orden, si algo falla el bloque no desaparece. */
+  var viejo = libro(LIBRO).alumnos[modalClave];
+  if(!esBloqueAR(viejo)){ $('mErr').textContent = 'Ese bloque ya no está donde estaba. Recargá la pantalla.'; return; }
+  if(k === modalClave){ cerrarModal(); return; }
+  var copia = JSON.parse(JSON.stringify(viejo));
+  var viejaClave = modalClave;
+  cerrarModal();
+  escribirCelda(LIBRO, k, copia, function(){
+    borrarCelda(LIBRO, viejaClave, function(){
+      if(LIBRO==='madre'){ tambienEnSemanas(k, copia); }
+    });
+  });
+}
+
+/* ---------- El padrón, para escribir bien los nombres ---------- */
+function parseCSV(txt){
+  var rows=[], row=[], cur='', q=false;
+  for(var i=0;i<txt.length;i++){ var c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"') q=true;
+      else if(c===','){ row.push(cur); cur=''; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(c!=='\r') cur+=c; }
+  }
+  if(cur.length||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+function cargarPadron(){
+  firebase.database().ref('alumnos_v1/csv').once('value').then(function(s){
+    var csv = s.val(); if(!csv) return;
+    var rows = parseCSV(csv); if(rows.length<2) return;
+    /* La planilla tiene un título arriba y los encabezados de verdad más abajo:
+       se busca la fila que tenga "alumnos"/"nombre". Es la misma búsqueda que
+       hace el calendario. */
+    var headRow=-1, iNom=-1;
+    for(var r=0; r<Math.min(rows.length,12); r++){
+      var h = rows[r].map(function(x){ return normName(x); });
+      var n = h.findIndex(function(x){ return x==='alumnos'||x==='alumno'||x.indexOf('nombre')>-1; });
+      if(n>=0){ headRow=r; iNom=n; break; }
+    }
+    if(headRow<0) return;
+    var idx = {};
+    for(var r2=headRow+1; r2<rows.length; r2++){
+      var nom = (rows[r2][iNom]||'').trim(); if(!nom) continue;
+      idx[normName(nom)] = nom;
+    }
+    padron = idx;
+    var nombres = Object.keys(idx).map(function(k){ return idx[k]; }).sort();
+    $('padron').innerHTML = nombres.map(function(n){ return '<option value="'+esc(n)+'">'; }).join('');
+    pintar();
+  }).catch(function(e){ console.warn('padrón:', e.message); });
+}
+
+/* ---------- Escuchar el calendario ---------- */
+function escuchar(){
+  firebase.database().ref('calendario_v2').on('value', function(snap){
+    var r = snap.val();
+    if(!r){ nube = null; $('lista').innerHTML = '<div class="vacioTotal">No pude leer el calendario.</div>'; return; }
+    nube = r;
+    LIBROS.forEach(function(L){ if(nube[L]){ if(!nube[L].alumnos) nube[L].alumnos={}; if(!nube[L].libres) nube[L].libres={}; } });
+    pintar();
+    /* Recién cuando el cambio volvió confirmado desde la nube se baja el día a
+       las tablets: así nunca se publica con una foto vieja. */
+    if(publicarPendiente){ publicarPendiente = false; bajarALasTablets(); }
+  }, function(e){
+    $('lista').innerHTML = '<div class="vacioTotal">No tengo permiso para leer el calendario.<br>'+esc(e.message)+'</div>';
+  });
+}
+
+/* ---------- Botones de arriba ---------- */
+$('libros').querySelectorAll('button').forEach(function(b){
+  b.onclick = function(){
+    LIBRO = b.dataset.libro;
+    $('libros').querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x===b); });
+    pintar();
+  };
+});
+$('btnNuevo').onclick = function(){
+  if(!puedeEscribir){ avisar('Solo podés mirar: no tenés permiso para editar', true); return; }
+  abrirModal('nuevo', null);
+};
+$('mDia').onchange = refrescarSedes;
+$('mSede').onchange = refrescarProfes;
+$('mCancelar').onclick = cerrarModal;
+$('mGuardar').onclick = guardarModal;
+$('tapa').onclick = function(ev){ if(ev.target===$('tapa')) cerrarModal(); };
+
+/* ---------- Entrada ---------- */
+$('btnEntrar').onclick = function(){
+  var p = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(p).catch(function(e){ $('errLogin').textContent = e.message; });
+};
+$('btnSalir').onclick  = function(e){ e.preventDefault(); firebase.auth().signOut(); };
+$('btnSalir2').onclick = function(){ firebase.auth().signOut(); };
+
+/* Nada que lea Firebase corre antes del login. */
+firebase.auth().onAuthStateChanged(function(u){
+  if(!u){ $('login').classList.add('on'); $('nopuede').classList.remove('on'); $('app').style.display='none'; return; }
+  miCorreo = u.email.toLowerCase();
+  firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
+    var f = s.val() || {}, p = f.permisos || {};
+    var admin = p.admin === true;
+    var ar  = p.altorend  || 'no';
+    var cal = p.calendario || 'no';
+    /* Quien maneja el calendario ya manejaba estos bloques: se lo respeta, así
+       nadie se queda afuera el día que se sube esto. */
+    var puedeVer = admin || ar==='leer' || ar==='escribir' || cal==='leer' || cal==='escribir';
+    puedeEscribir = admin || ar==='escribir' || cal==='escribir';
+    if(f.activo!==true || !puedeVer){
+      $('login').classList.remove('on');
+      $('nopuedeTxt').textContent = miCorreo;
+      $('nopuede').classList.add('on');
+      return;
+    }
+    $('login').classList.remove('on'); $('nopuede').classList.remove('on');
+    $('app').style.display='block';
+    $('yoMail').textContent = miCorreo;
+    escuchar();
+    cargarPadron();
+  }).catch(function(e){
+    $('login').classList.remove('on');
+    $('nopuedeTxt').textContent = 'No se pudo verificar tu acceso. '+e.message;
+    $('nopuede').classList.add('on');
+  });
+});
+</script>
+</body>
+</html>
