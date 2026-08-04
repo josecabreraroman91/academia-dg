@@ -93,6 +93,11 @@
   .caja-agregar input{width:100%;border:1px solid var(--line);border-radius:5px;
     padding:4px 6px;font-size:12px;font-family:inherit;background:#fff}
   .caja-agregar input:focus{outline:none;border-color:var(--accent)}
+  .agBotones{display:flex;gap:4px;margin-top:4px}
+  .agBotones button{flex:1;border:1px solid var(--line);background:#fff;color:var(--txt);
+    border-radius:5px;font-size:11px;font-weight:700;padding:4px 0;cursor:pointer;font-family:inherit}
+  .agBotones .agOk{background:var(--accent);border-color:var(--accent);color:#fff}
+  .agBotones button:hover{filter:brightness(1.08)}
 
   .colPie{display:flex;align-items:center;gap:3px;padding:3px 4px;
     background:#f4f6f7;border-top:1px solid #00000012}
@@ -138,9 +143,12 @@
 
   .estado{position:fixed;left:0;right:0;bottom:0;background:#ffffffee;
     border-top:1px solid var(--line);padding:6px 14px;font-size:12px;
-    color:var(--muted);text-align:center}
+    color:var(--muted);text-align:center;z-index:40}
   .estado b{color:var(--verde)}
-  .estado.mal b{color:var(--rojo)}
+  .estado.mal{background:#fde7e6;border-top:2px solid var(--rojo);padding:10px 14px;
+    font-size:13px;cursor:pointer}
+  .estado.mal b{color:#8c1f16;font-weight:700}
+  .estado .cerrar{color:#8c1f16;font-weight:700;margin-left:6px}
 </style>
 </head>
 <body>
@@ -298,7 +306,18 @@ function avisar(txt, mal){
   var e=$('estado'); e.textContent=''; e.className='estado'+(mal?' mal':'');
   var b=document.createElement('b'); b.textContent=txt; e.appendChild(b);
   e.style.display='block';
-  clearTimeout(avisar._t); avisar._t=setTimeout(function(){ e.style.display='none'; }, 4500);
+  clearTimeout(avisar._t);
+  /* Un aviso de que algo salió mal NO se va solo: se queda hasta que lo toques.
+     Un problema que aparece dos segundos y desaparece es un problema que nadie
+     ve, y después parece que la pantalla no hace nada. */
+  if(mal){
+    var x=document.createElement('span'); x.className='cerrar'; x.textContent=' ✕';
+    e.appendChild(x);
+    e.onclick=function(){ e.style.display='none'; };
+  }else{
+    e.onclick=null;
+    avisar._t=setTimeout(function(){ e.style.display='none'; }, 3000);
+  }
 }
 
 /* ---------- Lo que hay en la nube ---------- */
@@ -580,7 +599,13 @@ function pintar(){
 
       if(puedeEscribir){
         html += '<div class="mas" data-abrir="1">+ agregar</div>'+
-          '<div class="caja-agregar"><input list="padron" placeholder="Nombre y Enter"></div>';
+          '<div class="caja-agregar">'+
+            '<input list="padron" placeholder="Nombre del alumno">'+
+            '<div class="agBotones">'+
+              '<button class="agOk" type="button">Agregar</button>'+
+              '<button class="agNo" type="button">Cancelar</button>'+
+            '</div>'+
+          '</div>';
       }
       html += '</div>';
 
@@ -621,22 +646,44 @@ function pintar(){
     var inp  = caja ? caja.querySelector('input') : null;
     var mas  = div.querySelector('.mas');
     if(mas) mas.onclick = function(){ caja.classList.add('on'); mas.style.display='none'; inp.focus(); };
-    if(inp) inp.onkeydown = function(ev){
-      if(ev.key === 'Escape'){ caja.classList.remove('on'); mas.style.display=''; inp.value=''; return; }
-      if(ev.key !== 'Enter') return;
-      ev.preventDefault();
+
+    /* Se puede guardar de tres formas, porque la gente usa las tres: apretando
+       el botón, con Enter, o eligiendo un nombre de la lista de sugerencias con
+       el mouse. Antes solo andaba con Enter y el nombre quedaba escrito sin
+       guardarse: parecía que la pantalla no hacía nada. */
+    var yaFue = false;
+    function sumar(){
+      if(yaFue) return;
       var nom = (inp.value||'').trim();
-      if(!nom) return;
+      if(!nom){ avisar('Escribí un nombre antes de agregar', true); return; }
       if(b.lista.some(function(x){ return normName(x)===normName(nom); })){
         inp.value=''; avisar('Ese alumno ya estaba en el bloque', true); return;
       }
+      yaFue = true;
       var cel = JSON.parse(JSON.stringify(b.cel));
       cel.lista = b.lista.concat([nom]);
       inp.value='';
       escribirCelda(b.libro, b.k, cel, function(){
         if(b.libro==='madre') tambienEnSemanas(b.k, cel);
       });
-    };
+    }
+    function cerrarAgregar(){
+      if(!caja) return;
+      caja.classList.remove('on'); if(mas) mas.style.display=''; inp.value='';
+    }
+    var bOk = caja ? caja.querySelector('.agOk') : null;
+    var bNo = caja ? caja.querySelector('.agNo') : null;
+    if(bOk) bOk.onclick = sumar;
+    if(bNo) bNo.onclick = cerrarAgregar;
+    if(inp){
+      inp.onkeydown = function(ev){
+        if(ev.key === 'Escape'){ cerrarAgregar(); return; }
+        if(ev.key === 'Enter'){ ev.preventDefault(); sumar(); }
+      };
+      /* Elegir un nombre de las sugerencias con el mouse dispara "change" y no
+         una tecla: sin esto, ese caso se perdía. */
+      inp.onchange = function(){ if((inp.value||'').trim()) sumar(); };
+    }
 
     div.querySelectorAll('button[data-quitar]').forEach(function(btn){
       btn.onclick = function(){
@@ -660,6 +707,15 @@ function pintar(){
     };
     var btnM = div.querySelector('button[data-mover]');
     if(btnM) btnM.onclick = function(){ abrirModal('mover', b); };
+    /* Tocando la hora o la sede se cambia el día, la hora, la sede o el profe.
+       Es el mismo cambio que el botón ⇄, pero donde uno lo busca primero. */
+    if(puedeEscribir){
+      div.querySelectorAll('.colHora, .colSede').forEach(function(z){
+        z.title = 'Tocá para cambiar el día, la hora, la sede o el profe';
+        z.style.cursor = 'pointer';
+        z.onclick = function(){ abrirModal('mover', b); };
+      });
+    }
   });
 }
 
@@ -688,10 +744,10 @@ function refrescarProfes(){
 }
 function abrirModal(modo, b){
   modalModo = modo; modalClave = b ? b.k : null;
-  $('mTitulo').textContent = modo==='nuevo' ? 'Nuevo bloque de alto rendimiento' : 'Mover el bloque';
+  $('mTitulo').textContent = modo==='nuevo' ? 'Nuevo bloque de alto rendimiento' : 'Cambiar día, hora, sede o profe';
   $('mExplica').textContent = modo==='nuevo'
     ? 'Se va a crear en '+libroTxt(LIBRO)+'.'
-    : 'Se saca de donde está y se pone en el lugar nuevo, con sus alumnos.';
+    : 'El bloque se pasa al lugar nuevo con todos sus alumnos adentro.';
   $('campoDur').style.display = modo==='nuevo' ? '' : 'none';
   $('mErr').textContent = '';
   llenarSelect($('mDia'), DIAS.map(function(d){ return {v:d,t:d}; }), b?b.dia:DIAS[0]);
