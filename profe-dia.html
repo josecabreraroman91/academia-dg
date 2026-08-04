@@ -101,15 +101,7 @@
 
   .arTog{cursor:pointer}
   .arTog:hover{filter:brightness(1.15)}
-  .arBox{margin:6px 0 4px 8px;display:flex;flex-direction:column;gap:4px}
-  .arAl{display:flex;align-items:center;gap:8px;padding:7px 10px;border:1px solid var(--line);
     border-radius:9px;font-size:14px;cursor:pointer;background:var(--panel)}
-  .arAl span:first-child{flex:1}
-  .arAl .arSt{font-size:11.5px;color:var(--muted);white-space:nowrap}
-  .arAl.presente{border-color:#2f7d4f;background:#12331f}
-  .arAl.presente .arSt{color:#3fb950}
-  .arAl.ausente{border-color:#7d3a35;background:#3a1a1a}
-  .arAl.ausente .arSt{color:#f85149}
   .ayuda{display:inline-flex;align-items:center;gap:4px;background:#e8f0fb;border:1px solid #b9cdea;
     color:#1d4b8f;border-radius:20px;padding:2px 9px;font-size:11.5px;font-weight:700;cursor:pointer}
   .ayuda:hover{border-color:#1d4b8f}
@@ -163,6 +155,34 @@
   /* menú de estado: centrado y con botones grandes */
   #ovEstado{align-items:center}
   .estado-sheet{max-width:360px;border-radius:18px;text-align:center}
+
+  /* ---- Ventana grande del bloque de ALTO RENDIMIENTO ----
+     El profe toca el bloque y ve a SUS alumnos en grande, uno por renglón,
+     con la categoría y el tipo de clase al lado. Un toque cambia entre
+     vino y faltó. Antes esto se desplegaba chiquito adentro de la lista y
+     en la tablet era difícil de acertar. */
+  .ar-sheet{max-width:520px;border-radius:18px}
+  .ar-top{text-align:center;padding-bottom:10px;border-bottom:1px solid var(--line)}
+  .ar-tit{font-size:21px;font-weight:900}
+  .ar-sub{font-size:13.5px;color:var(--muted);font-weight:700;margin-top:3px}
+  .ar-cuenta{margin:12px 0 10px;font-size:15px;font-weight:800}
+  .ar-cuenta b{color:var(--court,#2f7d4f)}
+  .ar-cuenta .faltan{color:#a5271c}
+  .ar-lista{display:flex;flex-direction:column;gap:9px}
+  .ar-fila{display:flex;align-items:center;gap:10px;padding:14px 14px;border-radius:13px;
+    border:2px solid var(--line);background:#f7fafb;cursor:pointer;text-align:left}
+  .ar-fila:active{transform:scale(.995)}
+  .ar-datos{flex:1;min-width:0}
+  .ar-nom{font-size:18px;font-weight:800;line-height:1.2}
+  .ar-meta{font-size:12px;color:var(--muted);font-weight:700;margin-top:2px}
+  .ar-est{font-size:15px;font-weight:900;white-space:nowrap}
+  .ar-fila.vino{border-color:#8fd0a8;background:#eef8f1}
+  .ar-fila.vino .ar-est{color:#2f7d4f}
+  .ar-fila.falto{border-color:#e8a49d;background:#fdeeec}
+  .ar-fila.falto .ar-est{color:#a5271c}
+  .ar-fila.falto .ar-nom{text-decoration:line-through;opacity:.75}
+  .ar-vacio{color:var(--muted);font-size:14px;text-align:center;padding:22px 8px}
+  .ar-ayuda{font-size:11.5px;color:var(--muted);text-align:center;margin-top:12px}
   .me-top{margin-bottom:4px}
   .me-nom{font-size:20px;font-weight:900;color:var(--txt)}
   .me-hora{font-size:13px;color:var(--muted);font-weight:700;margin-top:2px}
@@ -283,6 +303,23 @@
   </div>
 </div>
 
+<!-- MODAL: los alumnos de un bloque de ALTO RENDIMIENTO -->
+<div class="modal" id="ovAR">
+  <div class="sheet ar-sheet">
+    <div class="ar-top">
+      <div class="ar-tit" id="arTit">Alto rendimiento</div>
+      <div class="ar-sub" id="arSub"></div>
+    </div>
+    <div class="ar-cuenta" id="arCuenta"></div>
+    <div class="ar-lista" id="arLista"></div>
+    <div class="ar-ayuda">Tocá un alumno para cambiar entre <b>vino</b> y <b>faltó</b>.</div>
+    <div class="acts">
+      <button class="btn" id="arTodos">🟢 Vinieron todos</button>
+      <button class="btn court" id="arListo">Listo</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL: mover alumno a otro profe/hora -->
 <div class="modal" id="ovMover">
   <div class="sheet estado-sheet">
@@ -338,6 +375,7 @@ function normNombre(s){ return String(s||'').toLowerCase().normalize('NFD').repl
 let _nombresBase=[], _nombresVivo=[];
 
 let _listaAl=[];
+let _datosAl={};   // nombre normalizado -> {cat, tipo}, para la ventana del bloque
 /* Antes esto llenaba un <datalist> con cientos de nombres. En el celular ese
    desplegable del navegador se pone pesado; ahora la lista es propia y solo
    muestra lo que coincide con lo que se escribe. */
@@ -384,7 +422,35 @@ async function cargarAlumnosPlanilla(){
     const snap = await firebase.database().ref('alumnos_v1/csv').once('value');
     const csv = snap.val();
     if(!csv) throw new Error('la copia de alumnos está vacía');
-    _nombresBase = parseCSV(csv).map(r => (r[1]||'').trim()).filter(Boolean);
+    const filas = parseCSV(csv);
+    _nombresBase = filas.map(r => (r[1]||'').trim()).filter(Boolean);
+    /* Además de los nombres, se guarda la categoría y el tipo de clase de cada
+       uno. Es lo que se muestra al lado del nombre en la ventana del bloque de
+       alto rendimiento. La fila de encabezados no está fija: la planilla tiene
+       un título arriba, así que se busca la que diga "alumnos". */
+    try{
+      let hr=-1, iNom=-1, iCat=-1, iTipo=-1;
+      for(let r=0; r<Math.min(filas.length,12); r++){
+        const h=(filas[r]||[]).map(x=>normNombre(x));
+        const n=h.findIndex(x=>x==='alumnos'||x==='alumno');
+        if(n<0) continue;
+        hr=r; iNom=n;
+        iCat =h.findIndex(x=>x.indexOf('categor')===0);
+        iTipo=h.findIndex(x=>x.indexOf('tipo')===0);
+        break;
+      }
+      if(hr>=0){
+        const m={};
+        for(let r=hr+1; r<filas.length; r++){
+          const nom=((filas[r]||[])[iNom]||'').trim(); if(!nom) continue;
+          m[normNombre(nom)]={
+            cat:  iCat >=0 ? (filas[r][iCat] ||'').trim() : '',
+            tipo: iTipo>=0 ? (filas[r][iTipo]||'').trim() : ''
+          };
+        }
+        _datosAl=m;
+      }
+    }catch(e){ console.warn('no pude leer categoría y tipo:', e.message); }
     pintarAutocompletado();
   }catch(e){ console.warn('No pude cargar alumnos para autocompletar:', e.message); /* se puede escribir a mano igual */ }
 
@@ -530,7 +596,6 @@ function profesLibresEn(h){
   }).sort(function(x,y){ return profeIdx(x)-profeIdx(y); });
 }
 
-var _arAbierto = {};   // qué bloques de alto rendimiento están desplegados
 function bloqueEmoji(a){ if(/ALMUERZO/i.test(a.nombre||'')) return '🍽️'; return '🏋️'; }
 function modTxt(m){ return m ? '('+m+')' : ''; }
 
@@ -579,20 +644,11 @@ function render(){
             const lst=(a.lista&&a.lista.length)?a.lista:null;
             const dur=a.dur===30?" · 30'":(a.dur===60?' · 1h':'');
             if(!lst) return `<span class="blk">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}${dur}</span>`;
-            const abierto=_arAbierto[a.cid];
-            const vinieron=(a.arAsis||{});
             /* Como todos los alumnos: arrancan PRESENTES y el profe marca al que faltó. */
-            const nPres=lst.filter(n=>vinieron[n]!=='ausente').length;
-            let h=`<span class="blk arTog" data-artog="${a.cid}">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}${dur} · ${nPres}/${lst.length} ${abierto?'▾':'▸'}</span>`;
-            if(abierto){
-              h+='<div class="arBox">'+lst.map(n=>{
-                const st = vinieron[n]==='ausente' ? 'ausente' : 'presente';
-                return `<div class="arAl ${st}" data-arcid="${a.cid}" data-arnom="${escapeHtml(n)}">`+
-                       `<span>${escapeHtml(n)}</span>`+
-                       `<span class="arSt">${st==='ausente'?'✕ faltó':'✓ vino'}</span></div>`;
-              }).join('')+'</div>';
-            }
-            return h;
+            const nPres=lst.filter(n=>estadoAR(a,n)!=='ausente').length;
+            /* Tocar el bloque abre la ventana grande. Antes se desplegaba una
+               lista chiquita acá adentro y en la tablet era difícil de acertar. */
+            return `<span class="blk arTog" data-artog="${a.cid}">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}${dur} · ${nPres}/${lst.length} ▸</span>`;
           }
           const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';   // 👀 = no confirmó. Los acoples ya están presentes
           return `<span class="al presente${a.acople?' acople':''}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
@@ -613,12 +669,11 @@ function render(){
   }
   wrap.innerHTML=html;
   wrap.querySelectorAll('[data-artog]').forEach(el=>{
-    el.onclick=(ev)=>{ ev.stopPropagation();
-      const id=el.dataset.artog; _arAbierto[id]=!_arAbierto[id]; render(); };
+    el.onclick=(ev)=>{ ev.stopPropagation(); abrirAR(el.dataset.artog); };
   });
-  wrap.querySelectorAll('[data-arcid]').forEach(el=>{
-    el.onclick=(ev)=>{ ev.stopPropagation(); marcarAlumnoAR(el.dataset.arcid, el.dataset.arnom); };
-  });
+  /* Si la ventana del bloque está abierta y llega un cambio de otra tablet,
+     se repinta sola en vez de quedar mostrando lo de antes. */
+  if(_arVentana) pintarAR();
   wrap.querySelectorAll('[data-quitaayuda]').forEach(el=>{ el.onclick=(ev)=>{ ev.stopPropagation(); quitarAyudante(el.dataset.quitaayuda); }; });
   wrap.querySelectorAll('.al[data-id]').forEach(el=>{ el.onclick=()=>abrirMenuEstado(el.dataset.id); });
   wrap.querySelectorAll('.aus-item[data-id]').forEach(el=>{ el.onclick=()=>abrirMenuEstado(el.dataset.id); });
@@ -806,17 +861,98 @@ document.getElementById('acAyudante').onclick=function(){
   }).catch(function(e){ alert('No se pudo sumar el ayudante.\n\n'+e.message); });
 };
 
+/* El nombre no se puede usar tal cual como llave en Firebase: los puntos y
+   algunos signos están prohibidos. Al guardar ya se limpiaban, pero al LEER se
+   buscaba con el nombre crudo. Para un alumno con un punto en el nombre
+   ("Ma. Paz") la marca se guardaba y no se veía nunca. */
+function claveAR(nombre){ return String(nombre==null?'':nombre).replace(/[.#$/\[\]]/g,'_'); }
+function estadoAR(a, nombre){
+  const m=(a && a.arAsis) || {};
+  const v = m[claveAR(nombre)] !== undefined ? m[claveAR(nombre)] : m[nombre];
+  return v==='ausente' ? 'ausente' : 'presente';
+}
+
 /* Marcar a un alumno de un bloque de alto rendimiento.
-   Va rotando: sin marcar → vino → faltó → sin marcar.
+   Arranca en "vino" y con un toque pasa a "faltó", igual que los demás alumnos.
    Se guarda dentro del propio bloque, en `arAsis`, para que viaje con él. */
 function marcarAlumnoAR(cid, nombre){
   const a=cacheDia[cid]; if(!a) return;
-  const act=(a.arAsis&&a.arAsis[nombre])||'presente';
-  const sig = act==='ausente' ? 'presente' : 'ausente';
-  const ref=childRef(cid).child('arAsis').child(nombre.replace(/[.#$/\[\]]/g,'_'));
-  const p = ref.set(sig);
-  p.then(()=>{ try{ render(); }catch(e){} })
-   .catch(e=>alert('No se pudo marcar.\n\n'+e.message));
+  const sig = estadoAR(a, nombre)==='ausente' ? 'presente' : 'ausente';
+  const ref=childRef(cid).child('arAsis').child(claveAR(nombre));
+  ref.set(sig)
+     .then(()=>{ try{ render(); }catch(e){} })
+     .catch(e=>alert('No se pudo marcar.\n\n'+e.message));
+}
+
+/* ---- La ventana grande del bloque ----
+   Muestra a los alumnos de ESE bloque, en grande, con su categoría y su tipo
+   de clase. Un toque cambia entre vino y faltó. */
+let _arVentana=null;              // cid del bloque que se está mirando
+function abrirAR(cid){
+  const a=cacheDia[cid]; if(!a) return;
+  _arVentana=cid;
+  pintarAR();
+  document.getElementById('ovAR').classList.add('show');
+  ventanaAbierta(cerrarAR);
+}
+function cerrarAR(){
+  _arVentana=null;
+  ventanaCerrada();
+  document.getElementById('ovAR').classList.remove('show');
+}
+function pintarAR(){
+  const cid=_arVentana; if(!cid) return;
+  const a=cacheDia[cid];
+  /* El bloque puede haber desaparecido (lo sacaron del calendario mientras
+     esto estaba abierto). Se cierra en vez de quedar mostrando un fantasma. */
+  if(!a || a.borrado){ cerrarAR(); return; }
+
+  const lst=(a.lista&&a.lista.length)?a.lista:[];
+  const em=SEDE_EMOJI[a._sede]||'';
+  const dur=a.dur===30?"media hora":(a.dur===60?'una hora':'');
+  document.getElementById('arTit').textContent=(a.nombre||'Alto rendimiento')+' '+bloqueEmoji(a);
+  document.getElementById('arSub').textContent=
+    (HORAS[a.horaIdx]||'')+(a.profe?(' · '+a.profe):'')+(em?' '+em:'')+(dur?(' · '+dur):'');
+
+  const vinieron=lst.filter(n=>estadoAR(a,n)!=='ausente').length;
+  const faltaron=lst.length-vinieron;
+  document.getElementById('arCuenta').innerHTML= lst.length
+    ? '<b>'+vinieron+'</b> vinieron'+(faltaron?(' · <span class="faltan">'+faltaron+' faltaron</span>'):'')
+    : '';
+
+  const cont=document.getElementById('arLista');
+  if(!lst.length){
+    cont.innerHTML='<div class="ar-vacio">Este bloque todavía no tiene alumnos cargados.<br>Se cargan desde el calendario o desde Alto rendimiento.</div>';
+    return;
+  }
+  cont.innerHTML=lst.map((n,i)=>{
+    const falto = estadoAR(a,n)==='ausente';
+    const d=_datosAl[normNombre(n)]||{};
+    const meta=[d.cat?('Cat '+d.cat):'', d.tipo||''].filter(Boolean).join(' · ');
+    return '<div class="ar-fila '+(falto?'falto':'vino')+'" data-ari="'+i+'">'+
+             '<div class="ar-datos">'+
+               '<div class="ar-nom">'+escapeHtml(n)+'</div>'+
+               (meta?('<div class="ar-meta">'+escapeHtml(meta)+'</div>'):'')+
+             '</div>'+
+             '<div class="ar-est">'+(falto?'🔴 faltó':'🟢 vino')+'</div>'+
+           '</div>';
+  }).join('');
+  cont.querySelectorAll('[data-ari]').forEach(el=>{
+    el.onclick=()=>{ marcarAlumnoAR(cid, lst[+el.dataset.ari]); };
+  });
+}
+/* Deja a todos como vinieron. Es el arranque normal del día: sirve para
+   deshacer de una si el profe marcó de más. */
+function todosVinieronAR(){
+  const cid=_arVentana; if(!cid) return;
+  const a=cacheDia[cid]; if(!a) return;
+  const lst=(a.lista&&a.lista.length)?a.lista:[];
+  const upd={};
+  lst.forEach(n=>{ upd[claveAR(n)]='presente'; });
+  if(!Object.keys(upd).length) return;
+  childRef(cid).child('arAsis').update(upd)
+    .then(()=>{ try{ render(); }catch(e){} })
+    .catch(e=>alert('No se pudo marcar.\n\n'+e.message));
 }
 
 function quitarAyudante(cid){
@@ -827,6 +963,9 @@ function quitarAyudante(cid){
     .catch(function(e){ alert('No se pudo sacar.\n\n'+e.message); });
 }
 
+document.getElementById('arListo').onclick=cerrarAR;
+document.getElementById('arTodos').onclick=todosVinieronAR;
+document.getElementById('ovAR').onclick=(e)=>{ if(e.target.id==='ovAR') cerrarAR(); };
 document.getElementById('acCancel').onclick=cerrarAcople;
 document.getElementById('meCancel').onclick=cerrarMenuEstado;
 document.getElementById('ovEstado').onclick=(e)=>{ if(e.target.id==='ovEstado') cerrarMenuEstado(); };
