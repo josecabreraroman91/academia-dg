@@ -292,6 +292,15 @@
 /* Si está PRESENTE (verde) y además marcado para revisar, manda el verde y el celeste queda como borde */
 .slot.confirmado.revisar{background:#b9e3c6 !important;box-shadow:inset 0 0 0 2px #2ba6e0}
 .slot.confirmado.revisar .nm{color:#1d5a34}
+/* COACH: la clase que el profesor da por su cuenta. Se pinta celeste para
+   distinguirla de una clase de la academia. No aporta a la bolsa de la hora ni
+   se le cobra al alumno por el precio de su ficha: eso lo resuelve la Caja. */
+.slot.coach{background:#bfe9ff !important;border-left:3px solid #2ba6e0}
+.slot.coach .nm{color:#08405e}
+.slot.coach .tag,.slot.coach .tag.mod,.slot.coach .tag.nivel{background:#a8dcf5;color:#08405e}
+/* Si además está confirmado, manda el verde y el celeste queda en el borde */
+.slot.confirmado.coach{background:#b9e3c6 !important;border-left:3px solid #2ba6e0}
+.slot.confirmado.coach .nm{color:#1d5a34}
 .dropdown-menu .btn{width:100%;text-align:left}
   #panelAR{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
   .arTit{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;
@@ -411,6 +420,7 @@
           <option value="G">G (grupal)</option>
           <option value="D">D (dual)</option>
           <option value="IND">IND (individual)</option>
+          <option value="COACH">COACH (clase propia del profe)</option>
         </select>
       </div>
     </div>
@@ -2442,9 +2452,10 @@ function _renderGridReal(){
             if(al.mod) tags.push(`<span class="tag mod">${al.mod}</span>`);
             const conf = state.mode==='semana' && al.confirmado;
             const marcado = !!al.revisar;   // el estado se lee del ALUMNO, nunca de la celda
+            const esCoach = String(al.mod||'').toUpperCase()==='COACH';
             const checkBtn = state.mode==='semana'
               ? `<button class="check-btn" data-check="${c.sk}|${c.pi}|${hi}|${si}" title="${conf?'Confirmado':'Marcar asistencia'}">✓</button>` : '';
-            html+=`<div class="slot${conf?' confirmado':''}${marcado?' revisar':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
+            html+=`<div class="slot${conf?' confirmado':''}${marcado?' revisar':''}${esCoach?' coach':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
               <div class="nm">${esc(al.nombre)}</div>
               ${tags.length?`<div class="tags">${tags.join('')}</div>`:''}
               ${al.nota?`<div class="nota">${esc(al.nota)}</div>`:''}
