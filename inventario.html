@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inventario · Academia DG</title>
+<style>
+  /* Los mismos colores del calendario, para que se lea igual que el resto. */
+  :root{
+    --bg:#e9ebee; --panel:#ffffff; --line:#c9ced4; --txt:#1f2329; --muted:#6b7280;
+    --accent:#1080A5; --rojo:#c0392b; --verde:#2f9e57; --ambar:#b58900;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--bg);color:var(--txt);font-size:14px}
+  .wrap{max-width:1200px;margin:0 auto;padding:10px 12px 70px}
+
+  header{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:8px 12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  h1{font-size:15px;font-weight:800;letter-spacing:-.2px}
+  h1 span{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+  .yo{margin-left:auto;color:var(--muted);font-size:11.5px}
+  .yo a{color:var(--accent);text-decoration:none;margin-left:8px}
+
+  .barra{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px}
+  .buscar{flex:1;min-width:180px;background:var(--panel);border:1px solid var(--line);
+    border-radius:8px;padding:8px 12px;font-size:14px;font-family:inherit;color:var(--txt)}
+  .buscar:focus{outline:none;border-color:var(--accent)}
+  button.bt{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+    border-radius:8px;padding:8px 13px;font-size:13px;cursor:pointer;font-family:inherit;font-weight:700}
+  button.bt:hover{border-color:var(--accent)}
+  button.bt.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  .marcas{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .marcas .chip{background:var(--panel);border:1px solid var(--line);border-radius:999px;
+    padding:5px 13px;font-size:12px;font-weight:700;color:var(--muted);cursor:pointer}
+  .marcas .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+
+  .cuenta{font-size:11.5px;color:var(--muted);margin:0 0 10px 2px}
+  .cuenta b{color:var(--txt)}
+  .cuenta .ojo{color:var(--rojo);font-weight:700}
+
+  /* ---- Las tarjetas ---- */
+  .grilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(178px,1fr));gap:12px}
+  .prod{background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden;
+    display:flex;flex-direction:column}
+  .foto{height:132px;background:#f2f4f6;display:flex;align-items:center;justify-content:center;
+    border-bottom:1px solid var(--line);overflow:hidden}
+  .foto img{width:100%;height:100%;object-fit:cover}
+  .foto .sinfoto{font-size:34px;opacity:.35}
+  .cuerpo{padding:9px 11px 11px;flex:1;display:flex;flex-direction:column;gap:2px}
+  .marca{font-size:10.5px;font-weight:800;letter-spacing:.5px;color:var(--accent);text-transform:uppercase}
+  .nombre{font-size:14px;font-weight:700;line-height:1.25}
+  .nota{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .linea{display:flex;align-items:center;gap:8px;margin-top:8px}
+  .precio{font-size:15px;font-weight:800;flex:1}
+  .stock{font-size:11.5px;font-weight:800;padding:3px 9px;border-radius:999px;white-space:nowrap}
+  .stock.hay{background:#e6f5ec;color:#1d5a34}
+  .stock.poco{background:#fdf3d7;color:#7a5c00}
+  .stock.no{background:#fde7e6;color:#8c1f16}
+
+  .editar{display:flex;gap:5px;padding:7px 9px;background:#f4f6f7;border-top:1px solid var(--line)}
+  .editar button{border:1px solid var(--line);background:#fff;border-radius:6px;
+    font-size:13px;font-weight:800;padding:5px 0;cursor:pointer;font-family:inherit;flex:1}
+  .editar button:hover{border-color:var(--accent)}
+  .editar .men:hover{border-color:var(--rojo);color:var(--rojo)}
+  .editar .lapiz{flex:0 0 auto;padding:5px 10px}
+
+  .vacio{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:34px 16px;text-align:center;color:var(--muted);font-size:14px}
+  .cargando{color:var(--muted);text-align:center;padding:30px 0;font-size:13px}
+
+  /* ---- Ventana de cargar / editar ---- */
+  .tapa{position:fixed;inset:0;background:#0009;display:none;align-items:center;
+    justify-content:center;padding:16px;z-index:50}
+  .tapa.on{display:flex}
+  .modal{background:var(--panel);border-radius:12px;padding:16px;max-width:400px;width:100%;
+    box-shadow:0 10px 30px rgba(0,0,0,.25);max-height:92dvh;overflow:auto}
+  .modal h3{margin:0 0 12px;font-size:16px}
+  .campo{margin-bottom:9px}
+  .campo label{display:block;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:2px}
+  .campo input{width:100%;background:#fff;color:var(--txt);border:1px solid var(--line);
+    border-radius:7px;padding:8px 10px;font-size:14px;font-family:inherit}
+  .campo input:focus{outline:none;border-color:var(--accent)}
+  .campo .pista{font-size:10.5px;color:var(--muted);margin-top:3px}
+  .modalErr{color:var(--rojo);font-size:12px;min-height:16px;margin:2px 0 6px}
+  .modalPie{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap}
+  .modalPie .borrar{margin-right:auto;color:var(--rojo)}
+
+  /* ---- Entrada ---- */
+  .pant{position:fixed;inset:0;background:var(--bg);display:none;align-items:center;
+    justify-content:center;padding:24px;text-align:center;z-index:60}
+  .pant.on{display:flex}
+  .pant .caja{max-width:380px;background:var(--panel);border:1px solid var(--line);
+    border-radius:12px;padding:24px}
+  .pant h2{font-size:17px;margin:0 0 6px}
+  .pant p{color:var(--muted);font-size:13px;margin-bottom:4px}
+  .pant button{margin-top:12px;background:var(--accent);border:0;color:#fff;border-radius:8px;
+    padding:9px 18px;font-size:14px;cursor:pointer;font-family:inherit;font-weight:600}
+
+  .estado{position:fixed;left:0;right:0;bottom:0;background:#ffffffee;
+    border-top:1px solid var(--line);padding:6px 14px;font-size:12px;
+    color:var(--muted);text-align:center;z-index:40}
+  .estado b{color:var(--verde)}
+  .estado.mal{background:#fde7e6;border-top:2px solid var(--rojo);padding:10px 14px;
+    font-size:13px;cursor:pointer}
+  .estado.mal b{color:#8c1f16;font-weight:700}
+</style>
+</head>
+<body>
+
+<div class="pant on" id="login">
+  <div class="caja">
+    <h2>Inventario</h2>
+    <p>Entrá con tu cuenta de Google de la academia.</p>
+    <button id="btnEntrar">Entrar</button>
+    <p id="errLogin" style="color:#c0392b;font-size:13px"></p>
+  </div>
+</div>
+
+<div class="pant" id="nopuede">
+  <div class="caja">
+    <h2>No tenés acceso a esta sección</h2>
+    <p id="nopuedeTxt"></p>
+    <p>Pedile a José que te habilite <b>Inventario</b> en Accesos.</p>
+    <button id="btnSalir2">Salir</button>
+  </div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <header>
+    <h1>📦 Inventario <span>qué hay para vender y cuánto queda</span></h1>
+    <div class="yo"><span id="yoMail"></span><a href="#" id="btnSalir">salir</a></div>
+  </header>
+
+  <div class="barra">
+    <input class="buscar" id="buscar" placeholder="Buscar por nombre o marca…">
+    <button class="bt pri" id="btnNuevo" style="display:none">➕ Producto nuevo</button>
+  </div>
+
+  <div class="marcas" id="marcas"></div>
+  <div class="cuenta" id="cuenta"></div>
+  <div id="grilla"><div class="cargando">Leyendo el inventario…</div></div>
+</div>
+
+<div class="tapa" id="tapa">
+  <div class="modal">
+    <h3 id="mTitulo">Producto nuevo</h3>
+    <div class="campo"><label>Nombre</label><input id="mNombre" placeholder="Paleta Adidas Metalbone"></div>
+    <div class="campo"><label>Marca</label><input id="mMarca" placeholder="Adidas"></div>
+    <div class="campo"><label>Precio en guaraníes</label><input id="mPrecio" inputmode="numeric" placeholder="1.850.000"></div>
+    <div class="campo"><label>Cuántos hay</label><input id="mStock" inputmode="numeric" placeholder="3"></div>
+    <div class="campo"><label>Nota (opcional)</label><input id="mNota" placeholder="Queda una en Elite"></div>
+    <div class="campo"><label>Foto (opcional)</label><input id="mFoto" placeholder="https://…">
+      <div class="pista">La dirección de una imagen de internet. Si no ponés nada, sale un dibujo.</div>
+    </div>
+    <div class="modalErr" id="mErr"></div>
+    <div class="modalPie">
+      <button class="bt borrar" id="mBorrar" style="display:none">Borrar</button>
+      <button class="bt" id="mCancelar">Cancelar</button>
+      <button class="bt pri" id="mGuardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="estado" id="estado" style="display:none"></div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+/* ============================================================================
+   INVENTARIO
+
+   PARA QUÉ ES
+   Hoy nadie lleva la cuenta de lo que hay, y los profes preguntan porque no
+   tienen dónde mirar. Esta pantalla es ese lugar.
+
+   QUIÉN PUEDE QUÉ
+   Los profes MIRAN: ven la foto, el precio y cuánto queda, con el color del
+   stock. No pueden tocar nada.
+   José y Diego CARGAN: agregan productos, corrigen el precio y suben o bajan
+   el stock con dos botones.
+
+   DÓNDE VIVE EL DATO
+   En Firebase, en `inventario_v1`. Una sola casa. No hay planilla de por medio
+   ni copias que haya que sincronizar: lo que uno cambia, el otro lo ve en un
+   segundo.
+   ========================================================================== */
+
+var cfg = {
+  apiKey:"AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain:"academia-dg.firebaseapp.com",
+  databaseURL:"https://academia-dg-default-rtdb.firebaseio.com",
+  projectId:"academia-dg",
+  storageBucket:"academia-dg.firebasestorage.app",
+  messagingSenderId:"623967243039",
+  appId:"1:623967243039:web:e22397b466b63aefdf3e2a"
+};
+try{ firebase.initializeApp(cfg); }catch(e){}
+
+var $ = function(id){ return document.getElementById(id); };
+
+var POCO = 2;                  // de acá para abajo, el stock se pinta en amarillo
+var productos = {};            // lo que hay en Firebase
+var puedeEscribir = false;
+var miCorreo = null;
+var MARCA = 'TODAS';
+var BUSCA = '';
+var editando = null;           // id del producto que se está editando
+
+/* ---------- Ayudas ---------- */
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;')
+  .replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function norm(s){ return String(s==null?'':s).trim().toLowerCase()
+  .normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function aClave(mail){ return String(mail).trim().toLowerCase().replace(/\./g,','); }
+/* Los guaraníes se escriben con punto: 1.850.000 */
+function gs(n){ return (Math.round(Number(n)||0)).toLocaleString('es-PY').replace(/,/g,'.'); }
+function soloNumero(t){ var d=String(t==null?'':t).replace(/[^\d]/g,''); return d?parseInt(d,10):0; }
+function avisar(txt, mal){
+  var e=$('estado'); e.textContent=''; e.className='estado'+(mal?' mal':'');
+  var b=document.createElement('b'); b.textContent=txt; e.appendChild(b);
+  e.style.display='block';
+  clearTimeout(avisar._t);
+  /* Un aviso de que algo salió mal se queda hasta que lo toques: un problema
+     que aparece dos segundos y desaparece es un problema que nadie ve. */
+  if(mal){ e.onclick=function(){ e.style.display='none'; }; }
+  else { e.onclick=null; avisar._t=setTimeout(function(){ e.style.display='none'; }, 2500); }
+}
+/* Solo se muestran fotos de internet. Una dirección rara no se pinta. */
+function fotoValida(u){ return /^https:\/\//i.test(String(u||'').trim()); }
+
+/* ---------- Dibujar ---------- */
+function estadoStock(n){
+  if(n<=0)    return ['no','sin stock'];
+  if(n<=POCO) return ['poco', n+(n===1?' unidad':' unidades')];
+  return ['hay', n+' unidades'];
+}
+function lista(){
+  return Object.keys(productos).map(function(id){
+    var p=productos[id]||{};
+    return { id:id, nombre:p.nombre||'', marca:p.marca||'', nota:p.nota||'',
+             precio:Number(p.precio)||0, stock:Number(p.stock)||0, foto:p.foto||'' };
+  }).filter(function(p){ return p.nombre; })
+    .sort(function(a,b){
+      var m=(a.marca||'zzz').localeCompare(b.marca||'zzz'); if(m) return m;
+      return a.nombre.localeCompare(b.nombre);
+    });
+}
+function pintarMarcas(){
+  var todas=['TODAS'];
+  lista().forEach(function(p){
+    var m=(p.marca||'').toUpperCase();
+    if(m && todas.indexOf(m)<0) todas.push(m);
+  });
+  if(todas.length<=1){ $('marcas').innerHTML=''; return; }
+  $('marcas').innerHTML = todas.map(function(m){
+    return '<div class="chip'+(m===MARCA?' on':'')+'" data-m="'+esc(m)+'">'+esc(m)+'</div>';
+  }).join('');
+  $('marcas').querySelectorAll('.chip').forEach(function(c){
+    c.onclick=function(){ MARCA=c.dataset.m; pintarMarcas(); pintar(); };
+  });
+}
+function pintar(){
+  var todos=lista();
+  var vis=todos.filter(function(p){
+    var okM = MARCA==='TODAS' || (p.marca||'').toUpperCase()===MARCA;
+    var okB = !BUSCA || norm(p.nombre).indexOf(BUSCA)>=0 || norm(p.marca).indexOf(BUSCA)>=0;
+    return okM && okB;
+  });
+
+  var sinStock=todos.filter(function(p){ return p.stock<=0; }).length;
+  $('cuenta').innerHTML = '<b>'+todos.length+'</b> producto'+(todos.length===1?'':'s')+
+    (vis.length!==todos.length ? ' · mostrando '+vis.length : '') +
+    (sinStock ? ' · <span class="ojo">'+sinStock+' sin stock</span>' : '');
+
+  var cont=$('grilla');
+  if(!todos.length){
+    cont.innerHTML = '<div class="vacio">Todavía no hay nada cargado.' +
+      (puedeEscribir ? '<br>Empezá con <b>➕ Producto nuevo</b>.' : '') + '</div>';
+    return;
+  }
+  if(!vis.length){ cont.innerHTML='<div class="vacio">Nada coincide con lo que buscaste.</div>'; return; }
+
+  cont.innerHTML = '<div class="grilla">' + vis.map(function(p){
+    var st=estadoStock(p.stock);
+    return '<div class="prod" data-id="'+esc(p.id)+'">'+
+      '<div class="foto">'+ (fotoValida(p.foto)
+          ? '<img src="'+esc(p.foto)+'" loading="lazy" alt="">'
+          : '<span class="sinfoto">🎾</span>') +'</div>'+
+      '<div class="cuerpo">'+
+        (p.marca?'<div class="marca">'+esc(p.marca)+'</div>':'')+
+        '<div class="nombre">'+esc(p.nombre)+'</div>'+
+        (p.nota?'<div class="nota">'+esc(p.nota)+'</div>':'')+
+        '<div class="linea">'+
+          '<div class="precio">₲ '+gs(p.precio)+'</div>'+
+          '<div class="stock '+st[0]+'">'+esc(st[1])+'</div>'+
+        '</div>'+
+      '</div>'+
+      (puedeEscribir
+        ? '<div class="editar">'+
+            '<button class="men" data-menos="1" title="Sacar uno">−</button>'+
+            '<button data-mas="1" title="Sumar uno">+</button>'+
+            '<button class="lapiz" data-editar="1" title="Editar">✎</button>'+
+          '</div>'
+        : '') +
+    '</div>';
+  }).join('') + '</div>';
+
+  if(!puedeEscribir) return;
+  cont.querySelectorAll('.prod').forEach(function(div){
+    var id=div.dataset.id;
+    var bMenos=div.querySelector('[data-menos]');
+    var bMas=div.querySelector('[data-mas]');
+    var bEd=div.querySelector('[data-editar]');
+    if(bMenos) bMenos.onclick=function(){ mover(id,-1); };
+    if(bMas)   bMas.onclick=function(){ mover(id,1); };
+    if(bEd)    bEd.onclick=function(){ abrirModal(id); };
+  });
+}
+
+/* ---------- Escribir ---------- */
+/* Sube o baja de a uno. Nunca queda en negativo: si no hay, no hay. */
+function mover(id, cuanto){
+  if(!puedeEscribir) return;
+  var p=productos[id]; if(!p) return;
+  var nuevo=Math.max(0, (Number(p.stock)||0) + cuanto);
+  if(nuevo===(Number(p.stock)||0)){ avisar('Ya está en cero', true); return; }
+  p.stock=nuevo; pintar();                       // se ve al toque, sin esperar a Firebase
+  firebase.database().ref('inventario_v1/'+id).update({ stock:nuevo, ts:Date.now(), por:miCorreo })
+    .then(function(){ avisar('Queda '+nuevo); })
+    .catch(function(e){ avisar('No se pudo guardar: '+e.message, true); });
+}
+
+function abrirModal(id){
+  if(!puedeEscribir) return;
+  editando = id || null;
+  var p = id ? (productos[id]||{}) : {};
+  $('mTitulo').textContent = id ? 'Editar producto' : 'Producto nuevo';
+  $('mNombre').value = p.nombre||'';
+  $('mMarca').value  = p.marca||'';
+  $('mPrecio').value = p.precio ? gs(p.precio) : '';
+  $('mStock').value  = (p.stock!==undefined && p.stock!==null) ? String(p.stock) : '';
+  $('mNota').value   = p.nota||'';
+  $('mFoto').value   = p.foto||'';
+  $('mErr').textContent='';
+  $('mBorrar').style.display = id ? '' : 'none';
+  $('tapa').classList.add('on');
+  $('mNombre').focus();
+}
+function cerrarModal(){ $('tapa').classList.remove('on'); editando=null; }
+
+function guardarModal(){
+  var nombre=($('mNombre').value||'').trim();
+  if(!nombre){ $('mErr').textContent='Falta el nombre.'; return; }
+  var foto=($('mFoto').value||'').trim();
+  if(foto && !fotoValida(foto)){ $('mErr').textContent='La foto tiene que ser una dirección que empiece con https://'; return; }
+
+  var datos = {
+    nombre: nombre,
+    marca:  ($('mMarca').value||'').trim(),
+    precio: soloNumero($('mPrecio').value),
+    stock:  soloNumero($('mStock').value),
+    nota:   ($('mNota').value||'').trim(),
+    foto:   foto,
+    ts:     Date.now(),
+    por:    miCorreo
+  };
+  var id = editando || ('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+  productos[id]=datos; cerrarModal(); pintarMarcas(); pintar();
+  firebase.database().ref('inventario_v1/'+id).set(datos)
+    .then(function(){ avisar('Guardado'); })
+    .catch(function(e){ avisar('No se pudo guardar: '+e.message, true); });
+}
+
+function borrarProducto(){
+  if(!editando) return;
+  var p=productos[editando]||{};
+  if(!confirm('¿Borrar "'+(p.nombre||'este producto')+'" del inventario?')) return;
+  var id=editando;
+  delete productos[id]; cerrarModal(); pintarMarcas(); pintar();
+  firebase.database().ref('inventario_v1/'+id).remove()
+    .then(function(){ avisar('Borrado'); })
+    .catch(function(e){ avisar('No se pudo borrar: '+e.message, true); });
+}
+
+/* ---------- Escuchar ---------- */
+function escuchar(){
+  firebase.database().ref('inventario_v1').on('value', function(snap){
+    productos = snap.val() || {};
+    pintarMarcas(); pintar();
+  }, function(e){
+    $('grilla').innerHTML='<div class="vacio">No pude leer el inventario.<br>'+esc(e.message)+'</div>';
+  });
+}
+
+/* ---------- Botones ---------- */
+$('buscar').oninput = function(){ BUSCA = norm(this.value); pintar(); };
+$('btnNuevo').onclick = function(){ abrirModal(null); };
+$('mCancelar').onclick = cerrarModal;
+$('mGuardar').onclick = guardarModal;
+$('mBorrar').onclick = borrarProducto;
+$('tapa').onclick = function(ev){ if(ev.target===$('tapa')) cerrarModal(); };
+
+$('btnEntrar').onclick = function(){
+  var p = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(p).catch(function(e){ $('errLogin').textContent = e.message; });
+};
+$('btnSalir').onclick  = function(e){ e.preventDefault(); firebase.auth().signOut(); };
+$('btnSalir2').onclick = function(){ firebase.auth().signOut(); };
+
+/* Nada que lea Firebase corre antes del login. */
+firebase.auth().onAuthStateChanged(function(u){
+  if(!u){ $('login').classList.add('on'); $('nopuede').classList.remove('on'); $('app').style.display='none'; return; }
+  miCorreo = u.email.toLowerCase();
+  firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
+    var f = s.val() || {}, p = f.permisos || {};
+    var admin = p.admin === true;
+    var inv = p.inventario || 'no';
+    /* Cualquiera del sistema puede MIRAR el inventario: para eso está.
+       Editar es solo de los administradores o de quien tenga el permiso. */
+    var puedeVer = admin || f.activo===true;
+    puedeEscribir = admin || inv==='escribir';
+    if(f.activo!==true || !puedeVer){
+      $('login').classList.remove('on');
+      $('nopuedeTxt').textContent = miCorreo;
+      $('nopuede').classList.add('on');
+      return;
+    }
+    $('login').classList.remove('on'); $('nopuede').classList.remove('on');
+    $('app').style.display='block';
+    $('yoMail').textContent = miCorreo;
+    $('btnNuevo').style.display = puedeEscribir ? '' : 'none';
+    escuchar();
+  }).catch(function(e){
+    $('login').classList.remove('on');
+    $('nopuedeTxt').textContent = 'No se pudo verificar tu acceso. '+e.message;
+    $('nopuede').classList.add('on');
+  });
+});
+</script>
+</body>
+</html>
