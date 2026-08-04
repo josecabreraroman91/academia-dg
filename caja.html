@@ -654,6 +654,26 @@ function esBloque(nombre){
   return letras.length<=2;                                      // "-", "AR", "G" sueltos
 }
 
+/* ============================================================
+   LA CLASE DE COACH
+
+   El profesor la da por su cuenta. La plata la cobra la academia y se la pasa
+   entera a él, así que NO pasa por la bolsa de la hora.
+
+   Dos cosas tiene que respetar, y las dos son de plata:
+
+   · No aporta al pozo, y tampoco le da al profe derecho a una parte del pozo
+     de esa hora. Si contara como hora trabajada, el que dio el coach se
+     llevaría una parte de lo que aportaron las clases de las otras sedes.
+   · No se le cobra al alumno por el precio de su ficha. Tiene su propio precio.
+
+   Mientras el cobro y el pago del coach no estén hechos, estas filas quedan
+   registradas en el historial y no mueven un peso.
+   ============================================================ */
+function esCoach(h){
+  return String(h && h.tipo || '').trim().toUpperCase()==='COACH';
+}
+
 function cargarTipos(){
   return firebase.database().ref('tipos_v1').once('value').then(function(s){
     tipos=s.val()||{};
@@ -697,7 +717,7 @@ function calcularPozo(filas){
   var horas={};
   filas.forEach(function(h){
     var k=h.fecha+'|'+h.hora;
-    if(!horas[k]) horas[k]={fecha:h.fecha, hora:h.hora, total:0, profes:{}, presentes:0, clases:0, sinTipo:0, estacionados:0, ayudas:0, decorativos:0};
+    if(!horas[k]) horas[k]={fecha:h.fecha, hora:h.hora, total:0, profes:{}, presentes:0, clases:0, sinTipo:0, estacionados:0, ayudas:0, decorativos:0, coach:0};
     var b=horas[k];
     /* Una columna que no es un profesor no trabaja: ni cobra parte del pozo, ni
        lo que aporta el alumno estacionado ahí engorda la bolsa de los demás. */
@@ -708,6 +728,8 @@ function calcularPozo(filas){
     if(esBloqueAR(h.alumno)){ if(h.profe) b.profes[h.profe]=true; return; }
     /* Un casillero decorativo no es una clase: no aporta y no da hora trabajada. */
     if(esBloque(h.alumno)){ b.decorativos++; return; }
+    /* El coach es del profesor, no de la academia: ni aporta ni da hora trabajada. */
+    if(esCoach(h)){ b.coach++; return; }
     b.clases++;
     if(h.profe) b.profes[h.profe]=true;
     if(h.presente) b.presentes++;
@@ -729,11 +751,12 @@ function calcularPozo(filas){
       b.total+=ap;
     }
   });
-  var porProfe={}, sinTipoTotal=0, totalPozo=0, decorativosTotal=0;
+  var porProfe={}, sinTipoTotal=0, totalPozo=0, decorativosTotal=0, coachTotal=0;
   Object.keys(horas).forEach(function(k){
     var b=horas[k], ps=Object.keys(b.profes);
     sinTipoTotal+=b.sinTipo;
     decorativosTotal+=b.decorativos;
+    coachTotal+=b.coach;
     if(!ps.length || !b.total) return;
     b.parte=b.total/ps.length;
     totalPozo+=b.total;
@@ -749,13 +772,14 @@ function calcularPozo(filas){
     /* Ni el bloque de alto rendimiento ni los casilleros decorativos cuentan
        como una clase dada: el bloque ya se abre en una fila por alumno. */
     if(esBloqueAR(h.alumno) || esBloque(h.alumno)) return;
+    if(esCoach(h)) return;   // no es una clase de la academia
     if(h.profe && porProfe[h.profe]){
       porProfe[h.profe].clases++;
       if(h.presente) porProfe[h.profe].presentes++;
     }
   });
   return { horas:horas, porProfe:porProfe, total:totalPozo, clasesSinTipo:sinTipoTotal,
-           decorativos:decorativosTotal };
+           decorativos:decorativosTotal, coach:coachTotal };
 }
 
 /* ============================================================
@@ -770,6 +794,7 @@ function armarAlumnos(){
   historial.forEach(function(h){
     if(!h.seCobra) return;
     if(esAyudante(h) || esBloque(h.alumno)) return;   // no son alumnos
+    if(esCoach(h)) return;                            // el coach tiene su propio precio
     var f=fichaDe(h);
     var k=f?(f.id||keyAlumno(f.nombre)):('?'+keyAlumno(h.alumno));
     if(!mapa[k]) mapa[k]={ k:k, nombre:f?f.nombre:h.alumno, ficha:f, meses:{}, total:0 };
@@ -1379,6 +1404,10 @@ function pantallaProfes(){
   if(pozo.clasesSinTipo) html+='<div class="aviso"><b>'+gs(pozo.clasesSinTipo)+' clases</b> tienen un tipo '+
     'sin aporte cargado y no suman al pozo. Se cargan en <b>Tipos de clase</b>.</div>';
 
+  if(pozo.coach) html+='<div class="aviso"><b>'+gs(pozo.coach)+' clases de coach</b> este mes. '+
+    'No entran en la bolsa de la hora: esa plata es del profesor que la dio. '+
+    'El cobro y el pago del coach todavía no están hechos.</div>';
+
   if(pozo.decorativos) html+='<div class="aviso"><b>'+gs(pozo.decorativos)+' casilleros</b> del calendario '+
     '(LIBRE, ALMUERZO, no hay cancha) llegaron al historial como si fueran clases. No se cuentan: '+
     'no son alumnos. Conviene no cargarles un tipo de clase en la grilla.</div>';
@@ -1559,6 +1588,7 @@ function calcularCorregir(){
   var porAlumno={}, tiposSinAporte={};
   historial.forEach(function(h){
     if(esAyudante(h) || esBloque(h.alumno)) return;   // el ayudante y los bloques no son alumnos
+    if(esCoach(h)) return;                            // el coach no se cobra por precio de ficha
     var f=fichaDe(h);
     var k=f?(f.id||keyAlumno(f.nombre)):('?'+keyAlumno(h.alumno));
     if(!porAlumno[k]) porAlumno[k]={ nombre:f?f.nombre:h.alumno, ficha:f, clases:0, cobrables:0, tipos:{} };
