@@ -128,6 +128,7 @@
     <button class="navtab" data-go="age">➕ Agendar</button>
     <button class="navtab" data-go="lib">📓 Libreta</button>
     <button class="navtab" data-go="ar">🏋️ Alto rendimiento</button>
+    <button class="navtab" data-go="inv">📦 Inventario</button>
     <button class="navtab" data-go="ahi">🧾 Hist. alumno</button>
     <button class="navtab" data-go="caj">🏦 Caja</button>
     <button class="navtab" data-go="gan">📈 Ganancias</button>
@@ -186,6 +187,11 @@
       <div class="info"><div class="t">Alto rendimiento</div><div class="d">Los bloques de alto rendimiento y quién entrena en cada uno</div></div>
       <div class="arrow">›</div>
     </div>
+    <div class="mcard" data-go="inv">
+      <div class="ico">📦</div>
+      <div class="info"><div class="t">Inventario</div><div class="d">Qué hay para vender y cuánto queda de cada cosa</div></div>
+      <div class="arrow">›</div>
+    </div>
     <div class="mcard" data-go="lib">
       <div class="ico">📓</div>
       <div class="info"><div class="t">Libreta</div><div class="d">Lo que anota el agente de WhatsApp: confirmaciones, cancelaciones y pedidos</div></div>
@@ -236,6 +242,7 @@
   <iframe id="frAge" data-src="profe-agenda.html" title="Agendar alumnos" referrerpolicy="no-referrer"></iframe>
   <iframe id="frLib" data-src="libreta.html" title="Libreta" referrerpolicy="no-referrer"></iframe>
   <iframe id="frAr" data-src="alto-rendimiento.html" title="Alto rendimiento" referrerpolicy="no-referrer"></iframe>
+  <iframe id="frInv" data-src="inventario.html" title="Inventario" referrerpolicy="no-referrer"></iframe>
   <iframe id="frAhi" data-src="alumno-historial.html" title="Historial del alumno" referrerpolicy="no-referrer"></iframe>
   <iframe id="frCaj" data-src="caja.html" title="Caja" referrerpolicy="no-referrer"></iframe>
   <iframe id="frGan" data-src="ganancias.html" title="Ganancias" referrerpolicy="no-referrer"></iframe>
@@ -263,7 +270,7 @@
       menu.classList.remove('hide');
       stage.classList.remove('show');
       topbar.classList.remove('show');
-      frCal.classList.remove('show'); frProf.classList.remove('show'); frAlu.classList.remove('show'); frPag.classList.remove('show'); frCob.classList.remove('show'); frNiv.classList.remove('show'); frAr.classList.remove('show'); frCaj.classList.remove('show'); frGan.classList.remove('show'); frPan.classList.remove('show');
+      frCal.classList.remove('show'); frProf.classList.remove('show'); frAlu.classList.remove('show'); frPag.classList.remove('show'); frCob.classList.remove('show'); frNiv.classList.remove('show'); frAr.classList.remove('show'); frInv.classList.remove('show'); frCaj.classList.remove('show'); frGan.classList.remove('show'); frPan.classList.remove('show');
       document.querySelectorAll('.navtab').forEach(t=>t.classList.remove('active'));
       return;
     }
@@ -281,6 +288,7 @@
     if(dest==='age' && !loaded.age){ frAge.src=frAge.dataset.src+'?v='+Date.now(); loaded.age=true; }
     if(dest==='lib' && !loaded.lib){ frLib.src=frLib.dataset.src+'?v='+Date.now(); loaded.lib=true; }
     if(dest==='ar' && !loaded.ar){ frAr.src=frAr.dataset.src+'?v='+Date.now(); loaded.ar=true; }
+    if(dest==='inv' && !loaded.inv){ frInv.src=frInv.dataset.src+'?v='+Date.now(); loaded.inv=true; }
     if(dest==='ahi' && !loaded.ahi){ frAhi.src=frAhi.dataset.src+'?v='+Date.now(); loaded.ahi=true; }
     if(dest==='caj' && !loaded.caj){ frCaj.src=frCaj.dataset.src+'?v='+Date.now(); loaded.caj=true; }
     if(dest==='gan' && !loaded.gan){ frGan.src=frGan.dataset.src+'?v='+Date.now(); loaded.gan=true; }
@@ -295,6 +303,7 @@
     frAge.classList.toggle('show', dest==='age');
     frLib.classList.toggle('show', dest==='lib');
     frAr.classList.toggle('show', dest==='ar');
+    frInv.classList.toggle('show', dest==='inv');
     frAhi.classList.toggle('show', dest==='ahi');
     frCaj.classList.toggle('show', dest==='caj');
     frGan.classList.toggle('show', dest==='gan');
@@ -303,7 +312,7 @@
        cambiar de sección, así que conservan lo que había escrito; con esto cada app
        puede limpiar lo suyo al volver. */
     try{
-      const fr={cal:frCal,prof:frProf,alu:frAlu,pag:frPag,cob:frCob,niv:frNiv,age:frAge,lib:frLib,ar:frAr,ahi:frAhi,caj:frCaj,gan:frGan,his:frHis,pan:frPan}[dest];
+      const fr={cal:frCal,prof:frProf,alu:frAlu,pag:frPag,cob:frCob,niv:frNiv,age:frAge,lib:frLib,ar:frAr,inv:frInv,ahi:frAhi,caj:frCaj,gan:frGan,his:frHis,pan:frPan}[dest];
       if(fr && fr.contentWindow) setTimeout(()=>{ try{ fr.contentWindow.postMessage({adg:'mostrar'}, '*'); }catch(e){} }, 60);
     }catch(e){}
     frPan.classList.toggle('show', dest==='pan');
@@ -331,7 +340,7 @@
   };
   // Qu\u00e9 permiso necesita cada secci\u00f3n
   var REQUIERE = { cal:'calendario', prof:'profes', alu:'alumnos', pag:'__oculto__', cob:'__oculto__',
-                   niv:'nivelacion', age:'agenda', lib:'agente', ar:['altorend','calendario'], ahi:'__admin__', caj:'caja', gan:'ganancias', his:'historial', pan:'__admin__' };
+                   niv:'nivelacion', age:'agenda', lib:'agente', ar:['altorend','calendario'], inv:['inventario','agenda','profes','calendario'], ahi:'__admin__', caj:'caja', gan:'ganancias', his:'historial', pan:'__admin__' };
 
   function $(id){ return document.getElementById(id); }
   function show(m, salir){
