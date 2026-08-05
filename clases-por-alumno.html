@@ -672,11 +672,11 @@ function pintarLista(){
   if(!lista.length){ $('lista').innerHTML='<div class="vacio">Ningún alumno coincide con eso.</div>'; return; }
 
   const muestra=lista.slice(0,TOPE);
-  const cols='minmax(210px,1fr) 96px repeat('+REP.meses.length+', 100px)';
+  const cols='minmax(210px,1fr) repeat('+REP.meses.length+', 100px) 96px';
   let html='<div class="tabla"><div class="tgrid" style="grid-template-columns:'+cols+'">';
   html+='<div class="th nomh">Alumno</div>';
-  html+='<div class="th adelh" title="Marcá en verde a quien pagó agosto por adelantado">AGOSTO</div>';
   REP.meses.forEach(m=>{ html+='<div class="th">'+esc(mesCorto(m))+'</div>'; });
+  html+='<div class="th adelh" title="Marcá en verde a quien pagó agosto por adelantado">AGOSTO</div>';
   muestra.forEach((a,i)=>{
     const fin=(i===muestra.length-1)?' fin':'';
     const env=!!MARCAS.enviado[a.k];
@@ -685,11 +685,6 @@ function pintarLista(){
         'title="'+(env?'Ya le mandaste el mensaje — tocá para sacar la marca':'Marcar que ya le mandaste el mensaje')+'">'+
         (env?'✓':'')+'</button>'+
       '<span>'+esc(a.nombre)+'</span>'+marcas(a)+'</div>';
-    const adl=!!MARCAS.adelantado[a.k];
-    html+='<div class="td adelc'+fin+'">'+
-      '<button class="chk'+(adl?' on':'')+'" data-adel="'+esc(a.k)+'" '+
-        'title="'+(adl?'Pagó agosto por adelantado — tocá para sacar la marca':'Marcar que pagó agosto por adelantado')+'">'+
-        (adl?'✓':'')+'</button></div>';
     REP.meses.forEach(m=>{
       const mm=a.meses.get(m);
       html+='<div class="td mesc'+fin+'">';
@@ -707,6 +702,11 @@ function pintarLista(){
       }
       html+='</div>';
     });
+    const adl=!!MARCAS.adelantado[a.k];
+    html+='<div class="td adelc'+fin+'">'+
+      '<button class="chk'+(adl?' on':'')+'" data-adel="'+esc(a.k)+'" '+
+        'title="'+(adl?'Pagó agosto por adelantado — tocá para sacar la marca':'Marcar que pagó agosto por adelantado')+'">'+
+        (adl?'✓':'')+'</button></div>';
   });
   html+='</div></div>';
   if(lista.length>TOPE) html+='<button id="masBtn">Ver '+gs(lista.length-TOPE)+' alumnos más</button>';
