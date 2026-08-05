@@ -380,6 +380,10 @@
 </header>
 
 <main>
+  <div id="avisoConflicto" style="display:none;margin:0 0 8px;background:#3a1513;border:1px solid #e5534b;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <span style="font-size:13px;font-weight:700;color:#ff9b93">&#9888;&#65039; <span id="avisoConflictoTxt">Hay un alumno en dos lugares a la misma hora</span></span>
+    <button class="btn danger" id="btnVerConflicto" style="font-size:11px;padding:4px 10px">Ver y resolver</button>
+  </div>
   <div class="grid-wrap"><table id="grid"></table></div>
   <div class="resumen" id="resumen" style="display:none"></div>
   <p class="hint">Tocá una celda para cargar/editar un alumno. En modo SEMANA trabajás libre; en modo MADRE se protege la base.</p>
@@ -780,6 +784,22 @@ function quitarDeConflicto(k){
 /* Aplica UN movimiento. Nunca pisa a nadie: si el lugar exacto está ocupado
    busca otro casillero libre en esa misma hora y profe, y si los cuatro están
    llenos no toca nada y avisa. La MADRE no se modifica jamás. */
+// Aviso fijo arriba del calendario: aparece solo si hay un alumno en dos lugares
+// a la misma hora, y se va solo cuando se resuelve. Sin pop-up, no molesta a Diego.
+function avisoConflictoBarra(){
+  const box = document.getElementById('avisoConflicto');
+  const txt = document.getElementById('avisoConflictoTxt');
+  if(!box) return;
+  let cs = [];
+  try{ cs = conflictosHorario(); }catch(e){ cs = []; }
+  if(!cs.length){ box.style.display='none'; return; }
+  const n = cs.length;
+  txt.textContent = n===1
+    ? cs[0].alumno+' está en dos lugares a la misma hora'
+    : 'Hay '+n+' alumnos en dos lugares a la misma hora';
+  box.style.display='flex';
+}
+
 function pintarConflictos(){
   const box = document.getElementById('conflictoBox');
   const lista = document.getElementById('conflictoLista');
@@ -1006,6 +1026,106 @@ function escucharLibreta(){
 
 /* Traduce la dirección de la libreta (que habla del día publicado) a la celda
    del calendario, que está organizada distinto. Devuelve {k, B} o null. */
+/* ============================================================
+   RESOLVER UN PEDIDO PUNTUAL A OTRO DÍA (forma B)
+
+   El agente ya decidió que es puntual y a otro día, y dejó en la anotación el
+   destino: destinoFecha y destinoSede. Acá el calendario busca lugar SOLO en
+   esa sede, ese día, la MISMA hora que ya tenía el alumno, en este orden:
+     1) un grupo del mismo nivel y tipo con lugar   -> lo suma
+     2) un profe totalmente libre a esa hora        -> lo pone solo
+     3) nada de eso                                  -> A definir, ese día y hora
+
+   NUNCA toca la MADRE. Solo escribe en la semana editable que corresponda.
+   Devuelve {resultado:'grupo'|'vacio'|'adefinir', k, dia} o null si no se pudo ubicar el día/sede.
+   ============================================================ */
+function resolverPedidoEnCalendario(a){
+  if(!a || !a.destinoFecha || !a.destinoSede) return null;
+  const d = new Date(a.destinoFecha+'T00:00:00');
+  if(isNaN(d.getTime())) return null;
+  const dia = diaNombreDeFecha(d); if(!dia) return null;
+
+  /* Misma regla de semana que celdaDeAnotacion: fecha pasada no se toca. */
+  let B = state.semana;
+  try{
+    const base = state.lunesActual || lunesDeHoy();
+    const dias = Math.round((d - new Date(base+'T00:00:00'))/86400000);
+    if(dias < 0) return null;
+    if(dias >= 7) B = state.semanaProxima || state.semana;
+  }catch(e){}
+  if(!B || !B.alumnos) return null;
+
+  const sedeKey = a.destinoSede;
+  const sedes = (B.sedesPorDia || sedesSemana())[dia] || [];
+  let sede=null; for(const s of sedes){ if(s && s.key===sedeKey){ sede=s; break; } }
+  if(!sede) return null;
+
+  /* La hora destino: la misma que tenía en su clase actual (horaIdx de la anotación).
+     Si no vino, no se puede resolver a ciegas: null y que lo pinte celeste. */
+  const horaIdx = Number(a.horaIdx);
+  if(isNaN(horaIdx)) return null;
+
+  /* Nivel y tipo del alumno que se mueve: del padrón (una casa por dato). */
+  const dp = datosDePadron(a.alumno);
+  const nivA = String(dp.nivel==null?'':dp.nivel).trim().toUpperCase();
+  const modA = String(dp.mod||'').trim().toUpperCase();
+  const profes = sede.profes || [];
+
+  function estadoColumna(pi){
+    if(!profes[pi] || profes[pi]==='—') return null;
+    if(B.libres && B.libres[dia+'|'+sedeKey+'|'+pi+'|'+horaIdx]) return null;
+    let ocupados=0, libres=[], gente=[];
+    for(let si=0; si<SLOTS_POR_HORA; si++){
+      const al = B.alumnos[dia+'|'+sedeKey+'|'+pi+'|'+horaIdx+'|'+si];
+      if(al && al.nombre){ ocupados++; gente.push(al); } else libres.push(si);
+    }
+    return { ocupados, libres, gente };
+  }
+
+  /* Paso 1: grupo del mismo nivel y tipo, con lugar. Nivel vacío no califica. */
+  if(nivA !== ''){
+    for(let pi=0; pi<profes.length; pi++){
+      const c = estadoColumna(pi);
+      if(!c || !c.libres.length || !c.gente.length) continue;
+      const calza = c.gente.every(al =>
+        String(al.mod||'').trim().toUpperCase()===modA &&
+        String(al.nivel==null?'':al.nivel).trim().toUpperCase()===nivA);
+      if(calza){
+        const k = dia+'|'+sedeKey+'|'+pi+'|'+horaIdx+'|'+c.libres[0];
+        B.alumnos[k] = { nombre:a.alumno, nivel:dp.nivel, lado:dp.lado, mod:dp.mod, nota:'' };
+        return { resultado:'grupo', k, dia };
+      }
+    }
+  }
+  /* Paso 2: profe totalmente libre a esa hora. */
+  for(let pi=0; pi<profes.length; pi++){
+    const c = estadoColumna(pi);
+    if(!c) continue;
+    if(c.ocupados===0 && c.libres.length){
+      const k = dia+'|'+sedeKey+'|'+pi+'|'+horaIdx+'|'+c.libres[0];
+      B.alumnos[k] = { nombre:a.alumno, nivel:dp.nivel, lado:dp.lado, mod:dp.mod, nota:'' };
+      return { resultado:'vacio', k, dia };
+    }
+  }
+  /* Paso 3: A definir, ese día y hora. Busca el primer slot libre en la sede adefinir. */
+  const adKey='adefinir';
+  const adSede=(sedes.find(s=>s&&s.key===adKey));
+  if(adSede){
+    const adProfes=adSede.profes||[];
+    for(let pi=0; pi<adProfes.length; pi++){
+      if(!adProfes[pi]||adProfes[pi]==='—') continue;
+      for(let si=0; si<SLOTS_POR_HORA; si++){
+        const k = dia+'|'+adKey+'|'+pi+'|'+horaIdx+'|'+si;
+        if(!B.alumnos[k]){
+          B.alumnos[k] = { nombre:a.alumno, nivel:dp.nivel, lado:dp.lado, mod:dp.mod, nota:'' };
+          return { resultado:'adefinir', k, dia };
+        }
+      }
+    }
+  }
+  return { resultado:'adefinir', k:null, dia };  // no había ni lugar en A definir
+}
+
 function celdaDeAnotacion(a){
   if(!a || !a.fecha || !a.alumno || !a.sede) return null;
   const d = new Date(a.fecha+'T00:00:00');
@@ -1114,6 +1234,28 @@ function autoAplicarLibreta(){
         try{ logOp('agente_ausencia', a.alumno+' — marcada para revisar ('+n+' clases)'); }catch(e){}
         anotarOpAgente('revisar', a.alumno, 'Avisó una ausencia · '+n+' clase(s) marcadas para revisar');
         return;
+      }
+
+      /* PEDIDO PUNTUAL A OTRO DÍA (forma B): el agente ya decidió y dejó el
+         destino. Se resuelve ANTES de buscar la clase actual, porque el alumno
+         se va a otro día/lugar. Si no se puede ubicar el destino, cae al camino
+         normal (celeste). NUNCA toca la MADRE. */
+      if(a.tipo === 'pedido' && a.destinoResolver){
+        let rp = null;
+        try{ rp = resolverPedidoEnCalendario(a); }catch(e){ console.warn('resolverPedido falló:', e.message); rp = null; }
+        if(rp && rp.k){
+          if(rp.resultado === 'adefinir'){
+            hechos.push('🚨 '+a.alumno+' pidió cambio → A DEFINIR '+lugarTxt(rp.k));
+            anotarOpAgente('revisar', a.alumno, lugarTxt(rp.k)+' · pidió cambio de día, sin lugar exacto, quedó en A DEFINIR');
+          }else{
+            hechos.push('🟢 '+a.alumno+' pidió cambio → agendado '+lugarTxt(rp.k));
+            anotarOpAgente('agendar', a.alumno, lugarTxt(rp.k)+' · pidió cambio de día, el agente lo ubicó ('+rp.resultado+')');
+          }
+          marcarAnotacion(id, { estado:'aplicado' });
+          try{ logOp('agente_pedido_resuelto', a.alumno+' — '+rp.resultado+' — '+lugarTxt(rp.k)); }catch(e){}
+          return;
+        }
+        /* No se pudo ubicar el destino: sigue al camino normal y queda celeste. */
       }
 
       const hit = celdaDeAnotacion(a);
@@ -2371,7 +2513,7 @@ function remapColumnaBorrada(B, dia, sk, piBorrado){
 }
 
 function renderGrid(){
-  try{ _renderGridReal(); }
+  try{ _renderGridReal(); try{ avisoConflictoBarra(); }catch(e){} }
   catch(e){
     console.error('renderGrid falló:', e);
     try{ logOp('render_fallo', String(e && e.message).slice(0,90)); }catch(_){}
@@ -3936,8 +4078,27 @@ function buildEnvioList(){
   return out;
 }
 
-// Cola de envío masivo: con teléfono y que NO sean de "A definir"
-function sendQueue(){ return buildEnvioList().filter(c=>phoneOk(c.tel) && c.sedeKey!=='adefinir'); }
+// Junta las horas seguidas del mismo alumno en la misma sede en un solo mensaje.
+// Misma regla que usa el agente: seguidas + misma sede = una sola venida. No mira el profe.
+function agruparConsecutivas(lista){
+  const idx = h => HORAS.indexOf(h);
+  const grupos = {};
+  lista.forEach(c=>{ const k=c.nombre+'||'+c.sedeKey; (grupos[k]=grupos[k]||[]).push(c); });
+  const salida=[];
+  Object.values(grupos).forEach(g=>{
+    g.sort((a,b)=>idx(a.hora)-idx(b.hora));
+    let bloque=[g[0]];
+    for(let i=1;i<g.length;i++){
+      if(idx(g[i].hora)===idx(bloque[bloque.length-1].hora)+1) bloque.push(g[i]);
+      else { salida.push(bloque[0]); bloque=[g[i]]; }
+    }
+    salida.push(bloque[0]);
+  });
+  salida.sort((a,b)=>idx(a.hora)-idx(b.hora));
+  return salida;
+}
+// Cola de envío masivo: con teléfono, que NO sean de "A definir", y con las horas seguidas juntadas
+function sendQueue(){ return agruparConsecutivas(buildEnvioList().filter(c=>phoneOk(c.tel) && c.sedeKey!=='adefinir')); }
 // Alumnos de "A definir": van en sección aparte (mensaje personalizado, no envío masivo)
 function adefList(){ return buildEnvioList().filter(c=>c.sedeKey==='adefinir'); }
 
@@ -4148,8 +4309,7 @@ function gotoNextPending(openIt){
   if(!s.length) return;
   // buscar el primer pendiente desde la posición actual
   let found=-1;
-  for(let step=0;step<s.length;step++){
-    const i=(evQueueIdx+step)%s.length;
+  for(let i=evQueueIdx;i<s.length;i++){
     if(!isEnviado(s[i])){ found=i; break; }
   }
   if(found<0){ alert('✅ Ya enviaste a todos los del día. ¡Listo!'); return; }
@@ -4157,11 +4317,12 @@ function gotoNextPending(openIt){
   const c=s[found];
   if(openIt) openChat(c);
   markEnviado(c,true);
-  // mover el cursor al próximo pendiente para el siguiente Espacio
-  for(let step=1;step<=s.length;step++){
-    const i=(found+step)%s.length;
-    if(!isEnviado(s[i])){ evQueueIdx=i; break; }
+  // mover el cursor al próximo pendiente, SIEMPRE hacia abajo. Si no hay más abajo, queda donde está y no da la vuelta.
+  let prox=-1;
+  for(let i=found+1;i<s.length;i++){
+    if(!isEnviado(s[i])){ prox=i; break; }
   }
+  if(prox>=0) evQueueIdx=prox;
   renderEnvios();
 }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -4278,6 +4439,7 @@ document.getElementById('btnAddProfesor').onclick=addProfesor;
 cerrarSoloSiTocasElFondo('overlayProfs', closeProfs);
 cerrarSoloSiTocasElFondo('overlayResv', cerrarResv);
 document.getElementById('btnReservas').onclick   = abrirResv;
+  { const _b=document.getElementById('btnVerConflicto'); if(_b) _b.onclick=abrirResv; }
 document.getElementById('btnResvCerrar').onclick = cerrarResv;
 document.getElementById('btnResvAplicar').onclick= aplicarReservas;
 document.getElementById('btnEnvios').onclick=openEnvios;
