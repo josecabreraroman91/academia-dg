@@ -356,6 +356,7 @@
         <button class="btn" id="btnPublicar">📲 Publicar día a tablets</button>
         <button class="btn" id="btnTel">🔄 Traer alumnos y teléfonos</button>
         <button class="btn envios" id="btnEnvios">📩 Enviar mensajes</button>
+        <button class="btn envios" id="btnEnviarMeta" style="background:#12283f;border-color:#2f81f7;color:#cfe4ff">📨 Enviar por Meta (oficial)</button>
         <button class="btn" id="btnResumen">📋 Resumen del día (WhatsApp)</button>
         <div class="sep"></div>
         <div class="grp">DE VEZ EN CUANDO</div>
@@ -4443,6 +4444,77 @@ document.getElementById('btnReservas').onclick   = abrirResv;
 document.getElementById('btnResvCerrar').onclick = cerrarResv;
 document.getElementById('btnResvAplicar').onclick= aplicarReservas;
 document.getElementById('btnEnvios').onclick=openEnvios;
+
+/* ============================================================
+   ENVIAR CONFIRMACIONES POR META (oficial, vía el servidor)
+
+   Convive con el botón viejo de WhatsApp Web. Junta a los alumnos de mañana
+   (los mismos de sendQueue: con teléfono, sin A definir, horas seguidas ya
+   agrupadas), pide la contraseña, avisa si son más de 250, y se los pasa al
+   servidor. El servidor manda por Meta y devuelve el resumen.
+
+   La contraseña NO se guarda: se pide cada vez y se usa una sola vez.
+   ============================================================ */
+const SERVIDOR_AGENTE = 'https://academiadg-agente-production.up.railway.app';
+
+async function enviarPorMeta(){
+  const cola = (typeof sendQueue==='function') ? sendQueue() : [];
+  if(!cola.length){ alert('No hay alumnos con teléfono para enviar mañana.'); return; }
+
+  // Armar la lista para el servidor: nombre, hora, sede, tel
+  const alumnos = cola.map(c=>({
+    nombre: (c.nombreWpp || c.nombre || '').trim(),
+    hora:   c.hora,
+    sede:   c.sede,
+    tel:    c.tel
+  })).filter(a=>a.tel);
+
+  if(!alumnos.length){ alert('Ninguno de los alumnos de mañana tiene teléfono válido.'); return; }
+
+  // Aviso si son más de 250 (tope de Meta)
+  let forzar = '0';
+  if(alumnos.length > 250){
+    if(!confirm('Son '+alumnos.length+' mensajes, más que el tope de 250 de Meta.\n\n'+
+                'Si mandás igual, Meta puede cortar a mitad de camino y quedarte alumnos sin avisar.\n\n¿Mandar igual?')) return;
+    forzar = '1';
+  }
+
+  const clave = prompt('Contraseña del agente para enviar por Meta:\n\n'+
+                       'Se van a mandar '+alumnos.length+' confirmaciones de mañana.');
+  if(!clave) return;
+
+  const btn = document.getElementById('btnEnviarMeta');
+  const txtViejo = btn ? btn.textContent : '';
+  if(btn){ btn.disabled=true; btn.textContent='📨 Enviando '+alumnos.length+'...'; }
+
+  try{
+    const r = await fetch(SERVIDOR_AGENTE+'/enviar-confirmaciones', {
+      method:'POST', headers:{ 'Content-Type':'application/json' },
+      body: JSON.stringify({ clave, alumnos, forzar })
+    });
+    const d = await r.json().catch(()=>({}));
+
+    if(r.status===401){ alert('Contraseña incorrecta. No se mandó nada.'); return; }
+    if(r.status===409 && d.tope){ alert(d.error||'Son demasiados mensajes.'); return; }
+    if(!r.ok || !d.ok){ alert('No se pudo enviar: '+((d&&d.error)||('error '+r.status))); return; }
+
+    let msg = '📨 Envío por Meta terminado.\n\n'+
+              '✅ Salieron bien: '+d.bien+'\n'+
+              (d.mal ? '❌ Fallaron: '+d.mal : '❌ Fallaron: 0')+'\n'+
+              'Total: '+d.total;
+    if(d.mal && d.resultados){
+      const fallidos = d.resultados.filter(x=>!x.ok).slice(0,15)
+        .map(x=>'· '+x.nombre+' ('+(x.error||'sin motivo')+')').join('\n');
+      msg += '\n\nLos que fallaron:\n'+fallidos;
+    }
+    alert(msg);
+  }catch(e){
+    alert('No pude hablar con el servidor: '+e.message+'\n\nRevisá que Railway esté prendido.');
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent=txtViejo; }
+  }
+}
+{ const _b=document.getElementById('btnEnviarMeta'); if(_b) _b.onclick=enviarPorMeta; }
 document.getElementById('btnResumen').onclick=toggleResumen;
 document.getElementById('btnCloseTel').onclick=closeTel;
 document.getElementById('btnSync').onclick=syncContactos;
