@@ -124,14 +124,14 @@
   <div id="adgLoginErr" style="color:#ff7b72;margin-top:18px;max-width:360px;line-height:1.5"></div>
 </div>
 <div id="adgVivo" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;font:12px system-ui;
-  background:rgba(13,17,23,.88);color:#7ee787;padding:6px 10px;border-radius:8px">&#9679; d&iacute;as en vivo &middot; v2026-08-04b</div>
+  background:rgba(13,17,23,.88);color:#7ee787;padding:6px 10px;border-radius:8px">&#9679; d&iacute;as en vivo &middot; v2026-08-05</div>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 
 <header>
-  <div class="title"><span class="dot"></span> Alumnos <span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.5;margin-left:6px">v2026-08-04b</span></div>
+  <div class="title"><span class="dot"></span> Alumnos <span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.5;margin-left:6px">v2026-08-05</span></div>
   <div class="searchbar">
     <input id="search" placeholder="Buscar alumno…" autocomplete="off">
     <button class="btn primary" id="btnNuevo">+ Nuevo</button>
@@ -238,8 +238,7 @@
     </div>
 
     <div class="sheet-actions">
-      <!-- El botón de BORRAR se sacó a propósito: un alumno no se elimina, se edita.
-           Borrarlo pierde su historial de clases y de cobros. -->
+      <button class="btn ghost" id="btnDelete" style="color:#e5534b;border-color:#e5534b">🗑️ Borrar</button>
       <button class="btn ghost" id="btnCancel">Cancelar</button>
       <button class="btn primary" id="btnSave">Guardar</button>
     </div>
@@ -496,7 +495,6 @@ function openEditor(id){
   document.getElementById('fDir').value        = a?(a.dir||''):'';
   document.getElementById('fComent').value = a?(a.comentarios||''):'';
   attachMiles(document.getElementById('fPrecio'));
-  var _bd=document.getElementById('btnDelete'); if(_bd) _bd.style.display='none';   // el borrado se retiró a propósito
   document.getElementById('ov').classList.add('show');
 }
 function closeEditor(){ document.getElementById('ov').classList.remove('show'); editId=null; }
