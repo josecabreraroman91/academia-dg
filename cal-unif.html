@@ -356,7 +356,6 @@
         <button class="btn" id="btnPublicar">📲 Publicar día a tablets</button>
         <button class="btn" id="btnTel">🔄 Traer alumnos y teléfonos</button>
         <button class="btn envios" id="btnEnvios">📩 Enviar mensajes</button>
-        <button class="btn envios" id="btnEnviarMeta" style="background:#12283f;border-color:#2f81f7;color:#cfe4ff">📨 Enviar por Meta (oficial)</button>
         <button class="btn" id="btnResumen">📋 Resumen del día (WhatsApp)</button>
         <div class="sep"></div>
         <div class="grp">DE VEZ EN CUANDO</div>
@@ -602,6 +601,22 @@
       <button class="btn" id="evCSV">⬇️ Descargar CSV</button>
     </div>
 
+    <!-- ===== SECCIÓN ENVÍO POR META (oficial) ===== -->
+    <div id="metaSec" style="margin:6px 0 16px;border:2px solid #2f81f7;border-radius:12px;padding:12px;background:#f2f8ff">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <span style="font-size:14px;font-weight:800;color:#12283f">📨 Envío por Meta (oficial)</span>
+        <label style="font-size:12px;color:#12283f;font-weight:600">Plantilla:</label>
+        <select id="metaTpl" style="font-size:13px;font-weight:700;padding:5px 8px;border-radius:7px;border:1px solid #2f81f7;background:#fff;color:#12283f">
+          <option value="semana">Entre semana (nombre, hora, sede)</option>
+          <option value="sabado">Sábado (solo el nombre)</option>
+        </select>
+      </div>
+      <div id="metaAviso" style="font-size:12px;color:#12283f;margin-bottom:8px"></div>
+      <div id="metaLista" style="max-height:40vh;overflow-y:auto;border:1px solid #cfe0f5;border-radius:8px;background:#fff"></div>
+      <button class="btn" id="metaEnviar" style="margin-top:10px;width:100%;background:#12283f;border-color:#2f81f7;color:#fff;font-weight:800;font-size:14px;padding:10px">📨 Enviar todos por Meta</button>
+    </div>
+
+    <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;font-weight:700">📲 Envío por WhatsApp Web (con la barra espaciadora):</div>
     <div id="evQueue"></div>
   </div>
 </div>
@@ -4304,6 +4319,8 @@ function renderEnvios(){
     b.onclick=(e)=>{ e.stopPropagation(); const j=+b.dataset.adef; openChat(adef[j]); };
   });
   const act=body.querySelector('.ev-row.active'); if(act) act.scrollIntoView({block:'nearest'});
+
+  try{ renderMetaLista(); }catch(e){}
 }
 function gotoNextPending(openIt){
   const s=sendQueue();
@@ -4446,32 +4463,78 @@ document.getElementById('btnResvAplicar').onclick= aplicarReservas;
 document.getElementById('btnEnvios').onclick=openEnvios;
 
 /* ============================================================
-   ENVIAR CONFIRMACIONES POR META (oficial, vía el servidor)
+   ENVÍO POR META (oficial) — sección dentro de "Enviar mensajes"
 
-   Convive con el botón viejo de WhatsApp Web. Junta a los alumnos de mañana
-   (los mismos de sendQueue: con teléfono, sin A definir, horas seguidas ya
-   agrupadas), pide la contraseña, avisa si son más de 250, y se los pasa al
-   servidor. El servidor manda por Meta y devuelve el resumen.
+   Muestra la LISTA de alumnos de mañana (vista previa) para corroborar antes de
+   mandar, deja elegir entre las dos plantillas (semana / sábado), y con un solo
+   botón manda a todos. Convive con el envío por WhatsApp Web.
 
-   La contraseña NO se guarda: se pide cada vez y se usa una sola vez.
+   Dos plantillas:
+   · semana → confirmacion_entrenamiento: nombre + hora + sede
+   · sabado → confirmacion_sin_horario:  solo el nombre
+
+   La contraseña NO se guarda: se pide cada vez.
    ============================================================ */
 const SERVIDOR_AGENTE = 'https://academiadg-agente-production.up.railway.app';
 
-async function enviarPorMeta(){
+/* Junta a los alumnos de mañana para Meta (mismos de sendQueue). */
+function metaCola(){
   const cola = (typeof sendQueue==='function') ? sendQueue() : [];
-  if(!cola.length){ alert('No hay alumnos con teléfono para enviar mañana.'); return; }
-
-  // Armar la lista para el servidor: nombre, hora, sede, tel
-  const alumnos = cola.map(c=>({
+  return cola.map(c=>({
     nombre: (c.nombreWpp || c.nombre || '').trim(),
     hora:   c.hora,
     sede:   c.sede,
     tel:    c.tel
   })).filter(a=>a.tel);
+}
 
-  if(!alumnos.length){ alert('Ninguno de los alumnos de mañana tiene teléfono válido.'); return; }
+/* Dibuja la vista previa según la plantilla elegida. */
+function renderMetaLista(){
+  const cont = document.getElementById('metaLista');
+  const aviso = document.getElementById('metaAviso');
+  const sel = document.getElementById('metaTpl');
+  if(!cont || !sel) return;
+  const tpl = sel.value;   // 'semana' | 'sabado'
+  const lista = metaCola();
+  const dia = (_envioDia || state.dia || '');
 
-  // Aviso si son más de 250 (tope de Meta)
+  if(!lista.length){
+    aviso.innerHTML = '';
+    cont.innerHTML = '<div style="padding:14px;color:#8a94a6;font-size:13px">No hay alumnos con teléfono para este día.</div>';
+    return;
+  }
+
+  aviso.innerHTML = 'Le va a llegar a <b>'+lista.length+'</b> alumno(s) del día <b>'+dia+'</b>.'+
+    (tpl==='sabado' ? '  <span style="color:#a15c00">La plantilla de sábado manda SOLO el nombre (sin hora ni sede).</span>' : '');
+
+  let filas = lista.map((a,i)=>{
+    const datos = tpl==='sabado'
+      ? '<span style="color:#8a94a6">(solo nombre)</span>'
+      : a.hora+' · '+a.sede;
+    return '<div style="display:flex;gap:10px;align-items:center;padding:7px 10px;border-bottom:1px solid #eef2f7;font-size:13px">'+
+             '<span style="color:#8a94a6;min-width:26px">'+(i+1)+'</span>'+
+             '<span style="flex:1;font-weight:600;color:#1f2329">'+esc(a.nombre)+'</span>'+
+             '<span style="flex:1;color:#48505c">'+datos+'</span>'+
+             '<span style="color:#8a94a6;font-size:12px">'+esc(a.tel)+'</span>'+
+           '</div>';
+  }).join('');
+  cont.innerHTML = filas;
+}
+
+async function enviarPorMeta(){
+  const sel = document.getElementById('metaTpl');
+  const tpl = sel ? sel.value : 'semana';
+  const lista = metaCola();
+  if(!lista.length){ alert('No hay alumnos con teléfono para enviar este día.'); return; }
+
+  // La plantilla se manda al servidor; para sábado solo importa el nombre.
+  const alumnos = lista.map(a=>({
+    nombre: a.nombre,
+    hora:   tpl==='sabado' ? '' : a.hora,
+    sede:   tpl==='sabado' ? '' : a.sede,
+    tel:    a.tel
+  }));
+
   let forzar = '0';
   if(alumnos.length > 250){
     if(!confirm('Son '+alumnos.length+' mensajes, más que el tope de 250 de Meta.\n\n'+
@@ -4479,18 +4542,19 @@ async function enviarPorMeta(){
     forzar = '1';
   }
 
+  const nombrePlantilla = tpl==='sabado' ? 'de SÁBADO (solo nombre)' : 'de entre semana (nombre, hora, sede)';
   const clave = prompt('Contraseña del agente para enviar por Meta:\n\n'+
-                       'Se van a mandar '+alumnos.length+' confirmaciones de mañana.');
+                       'Se van a mandar '+alumnos.length+' confirmaciones '+nombrePlantilla+'.');
   if(!clave) return;
 
-  const btn = document.getElementById('btnEnviarMeta');
+  const btn = document.getElementById('metaEnviar');
   const txtViejo = btn ? btn.textContent : '';
   if(btn){ btn.disabled=true; btn.textContent='📨 Enviando '+alumnos.length+'...'; }
 
   try{
     const r = await fetch(SERVIDOR_AGENTE+'/enviar-confirmaciones', {
       method:'POST', headers:{ 'Content-Type':'application/json' },
-      body: JSON.stringify({ clave, alumnos, forzar })
+      body: JSON.stringify({ clave, alumnos, forzar, plantilla: tpl })
     });
     const d = await r.json().catch(()=>({}));
 
@@ -4500,7 +4564,7 @@ async function enviarPorMeta(){
 
     let msg = '📨 Envío por Meta terminado.\n\n'+
               '✅ Salieron bien: '+d.bien+'\n'+
-              (d.mal ? '❌ Fallaron: '+d.mal : '❌ Fallaron: 0')+'\n'+
+              '❌ Fallaron: '+(d.mal||0)+'\n'+
               'Total: '+d.total;
     if(d.mal && d.resultados){
       const fallidos = d.resultados.filter(x=>!x.ok).slice(0,15)
@@ -4514,7 +4578,8 @@ async function enviarPorMeta(){
     if(btn){ btn.disabled=false; btn.textContent=txtViejo; }
   }
 }
-{ const _b=document.getElementById('btnEnviarMeta'); if(_b) _b.onclick=enviarPorMeta; }
+{ const _b=document.getElementById('metaEnviar'); if(_b) _b.onclick=enviarPorMeta; }
+{ const _t=document.getElementById('metaTpl'); if(_t) _t.onchange=renderMetaLista; }
 document.getElementById('btnResumen').onclick=toggleResumen;
 document.getElementById('btnCloseTel').onclick=closeTel;
 document.getElementById('btnSync').onclick=syncContactos;
