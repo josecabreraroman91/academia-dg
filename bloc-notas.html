@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bloc de notas · Academia DG</title>
+<style>
+  /* Los mismos colores del calendario, para que se lea igual que el resto. */
+  :root{
+    --bg:#e9ebee; --panel:#ffffff; --line:#c9ced4; --txt:#1f2329; --muted:#6b7280;
+    --accent:#1080A5; --rojo:#c0392b; --verde:#2f9e57; --ambar:#b58900;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    background:var(--bg);color:var(--txt);font-size:14px}
+  .wrap{max-width:820px;margin:0 auto;padding:10px 12px 70px}
+
+  header{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+    padding:8px 12px;margin-bottom:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  h1{font-size:15px;font-weight:800;letter-spacing:-.2px}
+  h1 span{font-weight:400;color:var(--muted);font-size:12px;margin-left:6px}
+  .ver{font-size:10px;font-weight:600;opacity:.5;margin-left:6px}
+  .yo{margin-left:auto;color:var(--muted);font-size:11.5px}
+  .yo a{color:var(--accent);text-decoration:none;margin-left:8px}
+
+  /* ---- Caja para escribir una nota nueva ---- */
+  .nueva{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:12px;margin-bottom:14px;display:flex;flex-direction:column;gap:9px}
+  .nueva textarea{width:100%;min-height:64px;resize:vertical;border:1px solid var(--line);
+    border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;color:var(--txt);line-height:1.4}
+  .nueva textarea:focus{outline:none;border-color:var(--accent)}
+  .nueva .fila{display:flex;align-items:center;gap:10px}
+  .nueva .fila .quien{font-size:11.5px;color:var(--muted);flex:1}
+  .nueva .fila .quien b{color:var(--txt)}
+  button.bt{background:var(--panel);color:var(--txt);border:1px solid var(--line);
+    border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;font-family:inherit;font-weight:700}
+  button.bt:hover{border-color:var(--accent)}
+  button.bt.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.bt:disabled{opacity:.5;cursor:default}
+
+  /* ---- La lista de notas ---- */
+  .cuenta{font-size:11.5px;color:var(--muted);margin:0 0 10px 2px}
+  .cuenta b{color:var(--txt)}
+  .lista{display:flex;flex-direction:column;gap:10px}
+  .nota{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:12px 14px;display:flex;gap:12px;align-items:flex-start}
+  .nota .texto{flex:1;font-size:14.5px;line-height:1.45;white-space:pre-wrap;word-break:break-word}
+  .nota .pie{font-size:11.5px;color:var(--muted);margin-top:7px}
+  .nota .pie b{color:var(--txt);font-weight:700}
+  .nota .quitar{background:none;border:1px solid var(--line);color:var(--muted);
+    border-radius:8px;padding:7px 12px;font-size:12.5px;cursor:pointer;font-family:inherit;
+    font-weight:700;white-space:nowrap;flex-shrink:0}
+  .nota .quitar:hover{border-color:var(--verde);color:var(--verde);background:#effaf3}
+  .nota .quitar.no{visibility:hidden}
+
+  .vacio{text-align:center;color:var(--muted);font-size:13.5px;padding:40px 20px;
+    background:var(--panel);border:1px dashed var(--line);border-radius:12px}
+
+  /* ---- Login y sin acceso ---- */
+  .pantalla{display:none;min-height:70vh;align-items:center;justify-content:center;padding:20px}
+  .pantalla.on{display:flex}
+  .tarjeta{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+    padding:26px 24px;max-width:340px;text-align:center}
+  .tarjeta h2{font-size:16px;margin-bottom:8px}
+  .tarjeta p{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5}
+  .tarjeta .err{color:var(--rojo);font-size:12px;margin-top:10px}
+  #app{display:none}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login" class="pantalla">
+  <div class="tarjeta">
+    <h2>Bloc de notas</h2>
+    <p>Entrá con tu cuenta de la academia para ver y escribir las notas del equipo.</p>
+    <button class="bt pri" id="btnEntrar">Entrar con Google</button>
+    <div class="err" id="errLogin"></div>
+  </div>
+</div>
+
+<!-- SIN ACCESO -->
+<div id="nopuede" class="pantalla">
+  <div class="tarjeta">
+    <h2>Sin acceso</h2>
+    <p>Esta cuenta no tiene permiso todavía:<br><b id="nopuedeTxt"></b></p>
+    <button class="bt" id="btnSalir2">Salir</button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="wrap">
+    <header>
+      <h1>📝 Bloc de notas <span>lo que hay para hacer</span><span class="ver">v2026-08-05</span></h1>
+      <div class="yo">
+        <span id="yoNombre"></span>
+        <a href="#" id="btnSalir">salir</a>
+      </div>
+    </header>
+
+    <div class="nueva">
+      <textarea id="txtNota" placeholder="Escribí algo para hacer… (por ejemplo: llamar al proveedor de pelotas, arreglar la luz de la cancha 2)"></textarea>
+      <div class="fila">
+        <div class="quien">Se va a guardar a nombre de <b id="quienEscribe"></b></div>
+        <button class="bt pri" id="btnAgregar">Agregar nota</button>
+      </div>
+    </div>
+
+    <div class="cuenta" id="cuenta"></div>
+    <div class="lista" id="lista"></div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+var cfg = {
+  apiKey:"AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain:"academia-dg.firebaseapp.com",
+  databaseURL:"https://academia-dg-default-rtdb.firebaseio.com",
+  projectId:"academia-dg",
+  storageBucket:"academia-dg.firebasestorage.app",
+  messagingSenderId:"623967243039",
+  appId:"1:623967243039:web:e22397b466b63aefdf3e2a"
+};
+try{ firebase.initializeApp(cfg); }catch(e){}
+
+function $(id){ return document.getElementById(id); }
+function aClave(mail){ return String(mail).trim().toLowerCase().replace(/\./g,','); }
+function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+var miCorreo='', miNombre='', soyAdmin=false;
+var NOTAS=[];
+
+/* Fecha y hora lindas, con hora de Asunción. */
+function cuando(ms){
+  try{
+    var d=new Date(ms);
+    var f=d.toLocaleDateString('es-PY',{timeZone:'America/Asuncion',day:'2-digit',month:'2-digit'});
+    var h=d.toLocaleTimeString('es-PY',{timeZone:'America/Asuncion',hour:'2-digit',minute:'2-digit',hour12:false});
+    return f+' · '+h;
+  }catch(e){ return ''; }
+}
+
+/* ---- Login: nada lee Firebase antes de entrar ---- */
+$('btnEntrar').onclick = function(){
+  var p = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(p).catch(function(e){ $('errLogin').textContent = e.message; });
+};
+$('btnSalir').onclick  = function(e){ e.preventDefault(); firebase.auth().signOut(); };
+$('btnSalir2').onclick = function(){ firebase.auth().signOut(); };
+
+firebase.auth().onAuthStateChanged(function(u){
+  if(!u){ $('login').classList.add('on'); $('nopuede').classList.remove('on'); $('app').style.display='none'; return; }
+  miCorreo = (u.email||'').toLowerCase();
+  firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
+    var f = s.val() || {}, p = f.permisos || {};
+    soyAdmin = p.admin === true;
+    /* El bloc es SOLO para administradores. */
+    var puedeVer = soyAdmin;
+    miNombre = f.nombre || u.displayName || miCorreo;
+    if(!puedeVer){
+      $('login').classList.remove('on');
+      $('nopuedeTxt').textContent = miCorreo;
+      $('nopuede').classList.add('on');
+      return;
+    }
+    $('login').classList.remove('on'); $('nopuede').classList.remove('on');
+    $('app').style.display='block';
+    $('yoNombre').textContent = miNombre;
+    $('quienEscribe').textContent = miNombre;
+    escuchar();
+  }).catch(function(e){
+    $('login').classList.remove('on');
+    $('nopuedeTxt').textContent = 'No se pudo verificar tu acceso. '+e.message;
+    $('nopuede').classList.add('on');
+  });
+});
+
+/* ---- Escuchar las notas en vivo ---- */
+function escuchar(){
+  firebase.database().ref('bloc_notas').on('value', function(s){
+    var o = s.val() || {};
+    NOTAS = Object.keys(o).map(function(id){
+      var n = o[id] || {};
+      return { id:id, texto:n.texto||'', quien:n.quien||'', correo:n.correo||'', t:n.t||0 };
+    }).filter(function(n){ return n.texto; });
+    /* Las más nuevas arriba. */
+    NOTAS.sort(function(a,b){ return b.t - a.t; });
+    pintar();
+  });
+}
+
+/* ---- Dibujar la lista ---- */
+function pintar(){
+  var cont = $('lista');
+  if(!NOTAS.length){
+    $('cuenta').innerHTML = '';
+    cont.innerHTML = '<div class="vacio">No hay nada anotado. Cuando escribas una nota, aparece acá para todo el equipo.</div>';
+    return;
+  }
+  $('cuenta').innerHTML = 'Hay <b>'+NOTAS.length+'</b> '+(NOTAS.length===1?'nota':'notas')+' pendiente'+(NOTAS.length===1?'':'s')+'.';
+  cont.innerHTML = NOTAS.map(function(n){
+    /* Solo quien la escribió, o un admin, puede borrar. */
+    var puedeBorrar = soyAdmin || (n.correo && n.correo===miCorreo);
+    return '<div class="nota">'+
+      '<div style="flex:1">'+
+        '<div class="texto">'+esc(n.texto)+'</div>'+
+        '<div class="pie">Anotó <b>'+esc(n.quien||'alguien')+'</b> · '+cuando(n.t)+'</div>'+
+      '</div>'+
+      '<button class="quitar'+(puedeBorrar?'':' no')+'" '+(puedeBorrar?'onclick="resolver(\''+n.id+'\')"':'')+'>✓ Resuelto</button>'+
+    '</div>';
+  }).join('');
+}
+
+/* ---- Agregar una nota ---- */
+$('btnAgregar').onclick = function(){
+  var txt = $('txtNota').value.trim();
+  if(!txt){ $('txtNota').focus(); return; }
+  var btn = this; btn.disabled = true; btn.textContent = 'Guardando…';
+  firebase.database().ref('bloc_notas').push({
+    texto: txt,
+    quien: miNombre,
+    correo: miCorreo,
+    t: Date.now()
+  }).then(function(){
+    $('txtNota').value = '';
+  }).catch(function(e){
+    alert('No se pudo guardar la nota: '+e.message);
+  }).then(function(){
+    btn.disabled = false; btn.textContent = 'Agregar nota';
+  });
+};
+
+/* Enter para agregar (Shift+Enter hace salto de línea). */
+$('txtNota').addEventListener('keydown', function(e){
+  if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); $('btnAgregar').click(); }
+});
+
+/* ---- Resolver (borrar) una nota ---- */
+function resolver(id){
+  var n = NOTAS.find(function(x){ return x.id===id; });
+  if(!n) return;
+  var puedeBorrar = soyAdmin || (n.correo && n.correo===miCorreo);
+  if(!puedeBorrar){ alert('Solo quien la escribió (o un administrador) puede borrar esta nota.'); return; }
+  if(!confirm('¿Marcar como resuelta y borrar esta nota?\n\n"'+ (n.texto.length>80 ? n.texto.slice(0,80)+'…' : n.texto) +'"\n\nDesaparece para siempre.')) return;
+  firebase.database().ref('bloc_notas/'+id).remove().catch(function(e){
+    alert('No se pudo borrar: '+e.message);
+  });
+}
+window.resolver = resolver;
+</script>
+</body>
+</html>
