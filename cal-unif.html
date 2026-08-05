@@ -3914,22 +3914,37 @@ function idxTel(){
 
 function telDeAlumno(nombre){
   const k=normName(nombre);
-  if(state.contactos[k]) return state.contactos[k];
-  if(contactosLocal[k]) return contactosLocal[k];
-  // sin coincidencia exacta: probar con el nombre limpio (sin sede ni emojis)
+  /* Se juntan TODOS los que coinciden por nombre, en el mismo orden de preferencia
+     de siempre. Antes se devolvía el PRIMERO que coincidía, aunque tuviera el
+     teléfono vacío — y ahí estaba la trampa: un alumno que está en el padrón
+     (alumnos_v1) sin número, pero que SÍ tiene el número cargado en vivo desde la
+     app Alumnos (alumnos_v2), quedaba como "sin número". Ahora, si el primero no
+     tiene teléfono, se sigue buscando hacia abajo hasta encontrar uno que sí lo
+     tenga, y se le presta ese número (conservando apodo, nombre para WhatsApp, etc.
+     del registro bueno). Es lo mismo que ya hace la app Alumnos. */
+  const cands=[];
+  if(state.contactos[k]) cands.push(state.contactos[k]);
+  if(contactosLocal[k]) cands.push(contactosLocal[k]);
   const flex = idxFlex()[keyAlumno(nombre)];
-  if(flex) return flex;
-  // último recurso: el alumno recién creado, que todavía no se sincronizó
+  if(flex) cands.push(flex);
+  // el alumno creado/editado en vivo en la app Alumnos (alumnos_v2)
   const vivo = Object.values(alumnosVivo).find(function(c){
     return c && c.nombre && normName(c.nombre)===k;
   });
-  if(vivo) return {nombre:vivo.nombre, tel:vivo.tel||''};
-  /* Y recién acá, si no apareció de ninguna forma, se prueba sacando la marca
-     del final del nombre ("José Cabrera INDIVIDUAL" → "José Cabrera"). Va al
-     final a propósito: primero mandan las coincidencias exactas, así nadie
-     recibe el mensaje de otro por parecerse. */
+  if(vivo) cands.push({nombre:vivo.nombre, tel:vivo.tel||''});
+  /* Y recién al final, sacando la marca del final del nombre ("José Cabrera
+     INDIVIDUAL" → "José Cabrera"). Va último a propósito: primero mandan las
+     coincidencias exactas, así nadie recibe el mensaje de otro por parecerse. */
   const porMarca = idxTel()[keyTelefono(nombre)];
-  return porMarca || null;
+  if(porMarca) cands.push(porMarca);
+
+  if(!cands.length) return null;
+  const tieneTel = c => String((c&&c.tel)||'').replace(/\D/g,'').length >= 8;
+  const base = cands[0];                 // el mejor por nombre: trae apodo, nombreWpp, nivel…
+  if(tieneTel(base)) return base;        // ya tiene número: listo
+  const conTel = cands.find(tieneTel);   // el primero que sí tenga número
+  if(!conTel) return base;               // ninguno tiene: se devuelve igual (para "está en el padrón")
+  return Object.assign({}, base, { tel: conTel.tel });  // base + el número prestado
 }
 
 function csvCell(v){
