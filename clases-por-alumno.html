@@ -64,6 +64,8 @@
   .td.nomc{padding-left:16px;font-size:14.5px;font-weight:500;position:sticky;left:0;
     background:var(--tarjeta);z-index:1;gap:7px}
   .td.mesc{justify-content:center;padding:6px 8px}
+  .td.adelc{justify-content:center;padding:6px 8px}
+  .th.adelh{color:var(--verde)}
   .tgrid>.fin{border-bottom:0}
   .cnt{min-width:44px;padding:7px 9px;border-radius:9px;border:1px solid transparent;
     background:var(--teal-claro);color:var(--teal-osc);font-family:inherit;font-size:15px;
@@ -583,13 +585,13 @@ function marcas(a){
    a volver a cargar los CSV: no dependen del archivo, sino de quién es.
    ============================================================ */
 const MARCAS_LLAVE = 'cxa_marcas_v1';
-let MARCAS = { enviado:{}, pagado:{}, ts:0 };
+let MARCAS = { enviado:{}, pagado:{}, adelantado:{}, ts:0 };
 
 function cargarMarcas(){
   try{
     const g = JSON.parse(localStorage.getItem(MARCAS_LLAVE)||'null');
     if(g && typeof g==='object'){
-      MARCAS = { enviado:g.enviado||{}, pagado:g.pagado||{}, ts:g.ts||0 };
+      MARCAS = { enviado:g.enviado||{}, pagado:g.pagado||{}, adelantado:g.adelantado||{}, ts:g.ts||0 };
     }
   }catch(e){ console.warn('no pude leer las marcas guardadas:', e.message); }
 }
@@ -624,9 +626,11 @@ function pintarMarcabar(){
   barra.hidden=false;
   const env = Object.keys(MARCAS.enviado).filter(k=>MARCAS.enviado[k]).length;
   const pag = Object.keys(MARCAS.pagado).filter(k=>MARCAS.pagado[k]).length;
+  const adl = Object.keys(MARCAS.adelantado).filter(k=>MARCAS.adelantado[k]).length;
   $('mcCuenta').textContent = env+(env===1?' mensaje enviado':' mensajes enviados')+
-                              ' · '+pag+(pag===1?' mes cobrado':' meses cobrados');
-  $('mcCuando').textContent = (env||pag) ? cuandoTxt(MARCAS.ts) : 'todavía no marcaste nada';
+                              ' · '+pag+(pag===1?' mes cobrado':' meses cobrados')+
+                              ' · '+adl+' agosto adelantado';
+  $('mcCuando').textContent = (env||pag||adl) ? cuandoTxt(MARCAS.ts) : 'todavía no marcaste nada';
 }
 
 /* Bajar y traer copia: el seguro barato contra perder un mes de trabajo. */
@@ -645,16 +649,18 @@ function traerCopia(texto){
   let g;
   try{ g=JSON.parse(texto); }
   catch(e){ alert('Ese archivo no es una copia de marcas.'); return; }
-  if(!g || typeof g!=='object' || (!g.enviado && !g.pagado)){
+  if(!g || typeof g!=='object' || (!g.enviado && !g.pagado && !g.adelantado)){
     alert('Ese archivo no es una copia de marcas.'); return;
   }
   const env=Object.keys(g.enviado||{}).length, pag=Object.keys(g.pagado||{}).length;
+  const adl=Object.keys(g.adelantado||{}).length;
   /* Se suma a lo que ya hay, no se pisa: si Diego marcó cosas hoy y trae una
      copia de ayer, no puede perder lo de hoy por traer un archivo. */
-  if(!confirm('La copia trae '+env+' mensajes enviados y '+pag+' meses cobrados.\n\n'+
+  if(!confirm('La copia trae '+env+' mensajes enviados, '+pag+' meses cobrados y '+adl+' agosto adelantado.\n\n'+
               'Se suman a lo que ya tenés marcado. ¿Sigo?')) return;
   MARCAS.enviado = Object.assign({}, MARCAS.enviado, g.enviado||{});
   MARCAS.pagado  = Object.assign({}, MARCAS.pagado,  g.pagado||{});
+  MARCAS.adelantado = Object.assign({}, MARCAS.adelantado, g.adelantado||{});
   guardarMarcas();
   pintarLista();
 }
@@ -666,9 +672,10 @@ function pintarLista(){
   if(!lista.length){ $('lista').innerHTML='<div class="vacio">Ningún alumno coincide con eso.</div>'; return; }
 
   const muestra=lista.slice(0,TOPE);
-  const cols='minmax(210px,1fr) repeat('+REP.meses.length+', 100px)';
+  const cols='minmax(210px,1fr) 96px repeat('+REP.meses.length+', 100px)';
   let html='<div class="tabla"><div class="tgrid" style="grid-template-columns:'+cols+'">';
   html+='<div class="th nomh">Alumno</div>';
+  html+='<div class="th adelh" title="Marcá en verde a quien pagó agosto por adelantado">AGOSTO</div>';
   REP.meses.forEach(m=>{ html+='<div class="th">'+esc(mesCorto(m))+'</div>'; });
   muestra.forEach((a,i)=>{
     const fin=(i===muestra.length-1)?' fin':'';
@@ -678,6 +685,11 @@ function pintarLista(){
         'title="'+(env?'Ya le mandaste el mensaje — tocá para sacar la marca':'Marcar que ya le mandaste el mensaje')+'">'+
         (env?'✓':'')+'</button>'+
       '<span>'+esc(a.nombre)+'</span>'+marcas(a)+'</div>';
+    const adl=!!MARCAS.adelantado[a.k];
+    html+='<div class="td adelc'+fin+'">'+
+      '<button class="chk'+(adl?' on':'')+'" data-adel="'+esc(a.k)+'" '+
+        'title="'+(adl?'Pagó agosto por adelantado — tocá para sacar la marca':'Marcar que pagó agosto por adelantado')+'">'+
+        (adl?'✓':'')+'</button></div>';
     REP.meses.forEach(m=>{
       const mm=a.meses.get(m);
       html+='<div class="td mesc'+fin+'">';
@@ -715,6 +727,13 @@ function pintarLista(){
     b.onclick=()=>{
       const kk=llavePago(b.dataset.pag, b.dataset.pagm);
       if(MARCAS.pagado[kk]) delete MARCAS.pagado[kk]; else MARCAS.pagado[kk]=true;
+      guardarMarcas(); pintarLista();
+    };
+  });
+  $('lista').querySelectorAll('button[data-adel]').forEach(b=>{
+    b.onclick=()=>{
+      const k=b.dataset.adel;
+      if(MARCAS.adelantado[k]) delete MARCAS.adelantado[k]; else MARCAS.adelantado[k]=true;
       guardarMarcas(); pintarLista();
     };
   });
