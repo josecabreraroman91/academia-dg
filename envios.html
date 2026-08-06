@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Envíos por horario · Academia DG</title>
+<style>
+:root{
+  --fondo:#0f1720; --panel:#ffffff; --borde:#e3e8ef; --texto:#1f2329;
+  --suave:#6b7480; --azul:#0b6fa4; --verde:#0f9d58; --rojo:#c5221f;
+  --ambar:#a15c00; --celeste:#e8f4fb;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--fondo);color:var(--texto);
+     font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+.wrap{max-width:980px;margin:0 auto;padding:14px}
+header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+       color:#fff;padding:6px 2px 14px}
+header h1{font-size:19px;margin:0;font-weight:800}
+header .v{font-size:11px;color:#8fa0b3;font-weight:400}
+header .yo{margin-left:auto;font-size:12px;color:#8fa0b3}
+header .yo a{color:#8fa0b3;margin-left:8px}
+
+.caja{background:var(--panel);border:1px solid var(--borde);border-radius:12px;
+      padding:14px;margin-bottom:12px}
+.tit{font-weight:800;font-size:15px;margin:0 0 4px}
+.sub{color:var(--suave);font-size:12.5px;margin:0 0 12px}
+
+.dias{display:flex;gap:6px;flex-wrap:wrap}
+.dia{padding:8px 13px;border:1px solid var(--borde);background:#fff;border-radius:9px;
+     cursor:pointer;font-weight:700;font-size:13px;color:var(--texto)}
+.dia:hover{background:#f5f8fb}
+.dia.on{background:var(--azul);border-color:var(--azul);color:#fff}
+
+.barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.bt{padding:9px 14px;border:1px solid var(--borde);background:#fff;border-radius:9px;
+    cursor:pointer;font-weight:700;font-size:13px;color:var(--texto)}
+.bt:hover{background:#f5f8fb}
+.bt:disabled{opacity:.5;cursor:not-allowed}
+.bt.pri{background:var(--azul);border-color:var(--azul);color:#fff}
+.bt.ok{background:var(--verde);border-color:var(--verde);color:#fff}
+select{padding:8px 10px;border:1px solid var(--borde);border-radius:9px;font-size:13px;background:#fff}
+
+.resumen{background:var(--celeste);border:1px solid #cfe6f4;border-radius:10px;
+         padding:10px 12px;font-size:13px;margin-top:12px}
+.alerta{background:#fff4e5;border:1px solid #ffd9a0;border-radius:10px;
+        padding:10px 12px;font-size:13px;margin-top:12px;color:var(--ambar)}
+.malo{background:#fdecea;border:1px solid #f5c6c4;border-radius:10px;
+      padding:10px 12px;font-size:13px;margin-top:12px;color:var(--rojo)}
+
+.hora{border:1px solid var(--borde);border-radius:11px;margin-bottom:10px;overflow:hidden}
+.hora .cab{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f7fafc;
+           border-bottom:1px solid var(--borde);flex-wrap:wrap}
+.hora .cab b{font-size:15px}
+.hora .cab .cuenta{color:var(--suave);font-size:12.5px}
+.hora .cab .bts{margin-left:auto;display:flex;gap:7px}
+.fila{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid #f0f3f7;font-size:13px}
+.fila:last-child{border-bottom:none}
+.fila .n{color:var(--suave);min-width:24px;font-size:12px}
+.fila .nom{flex:1;font-weight:700;min-width:130px}
+.fila .det{color:#4a545f;min-width:150px}
+.fila .tel{color:var(--suave);font-size:12px;min-width:110px}
+.fila .x{border:1px solid var(--borde);background:#fff;border-radius:7px;cursor:pointer;
+         padding:3px 9px;font-size:12px;color:var(--rojo);font-weight:700}
+.fila .x:hover{background:#fdecea}
+.fila.fuera{opacity:.45}
+.fila.fuera .nom{text-decoration:line-through}
+.fila .volver{border:1px solid var(--borde);background:#fff;border-radius:7px;cursor:pointer;
+              padding:3px 9px;font-size:12px;color:var(--azul);font-weight:700}
+.pin{display:inline-block;border-radius:20px;padding:1px 9px;font-size:11px;font-weight:700}
+.pin.enviado{background:#e6f4ea;color:var(--verde)}
+.pin.parcial{background:#fff4e5;color:var(--ambar)}
+.pin.error{background:#fdecea;color:var(--rojo)}
+.vacio{color:var(--suave);text-align:center;padding:26px 0;font-size:13px}
+.log{background:#0d1117;color:#c9d1d9;border-radius:10px;padding:10px 12px;
+     font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;max-height:220px;overflow:auto;
+     white-space:pre-wrap;word-break:break-word;margin-top:10px}
+
+/* Portada de acceso */
+#puerta{max-width:430px;margin:70px auto;background:var(--panel);border-radius:14px;padding:26px;text-align:center}
+#puerta h2{margin:0 0 6px;font-size:19px}
+#puerta p{color:var(--suave);font-size:13px;margin:0 0 18px}
+</style>
+</head>
+<body>
+
+<div id="puerta" style="display:none">
+  <h2>📨 Envíos por horario</h2>
+  <p id="puertaTxt">Entrá con tu cuenta de Google para continuar.</p>
+  <button class="bt pri" id="btEntrar">Entrar con Google</button>
+  <div style="margin-top:14px"><button class="bt" id="btSalir2" style="display:none">Salir</button></div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+  <header>
+    <h1>📨 Envíos por horario <span class="v">v2026-08-06</span></h1>
+    <div class="yo"><span id="yoMail"></span><a href="#" id="btSalir">salir</a></div>
+  </header>
+
+  <div class="caja">
+    <p class="tit">1 · Elegí el día</p>
+    <p class="sub">Se traen los alumnos de ese día del calendario editable de esta semana.</p>
+    <div class="dias" id="dias"></div>
+    <div class="barra">
+      <label style="font-size:13px;font-weight:700">Plantilla:</label>
+      <select id="tpl">
+        <option value="semana">De entre semana (nombre, hora, sede)</option>
+        <option value="sabado">De sábado (solo el nombre)</option>
+      </select>
+      <button class="bt" id="btRecargar">🔄 Volver a traer del calendario</button>
+    </div>
+    <div id="resumen"></div>
+  </div>
+
+  <div id="listas"></div>
+
+  <div class="caja">
+    <p class="tit">Registro de lo que pasó</p>
+    <p class="sub">Se borra al recargar la página. Sirve para ver qué salió y qué no.</p>
+    <div class="log" id="log">Todavía no se mandó nada.</div>
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+/* ============================================================
+   ENVÍOS POR HORARIO — módulo aparte de Academia DG
+
+   Para qué existe: el envío de golpe (los 103 juntos) hace que Meta acepte
+   todo y después entregue solo una parte. Meta manda las campañas grandes por
+   lotes y corta si ve señales raras. Mandando de a poco, por horario, con un
+   respiro entre tanda y tanda, el envío se parece a algo natural y no a una
+   ráfaga.
+
+   Qué hace:
+     · Elegís el día → trae a los alumnos de ese día del calendario editable.
+     · Los agrupa POR HORARIO, y cada horario se manda por separado.
+     · Podés sacar a mano a cualquiera (por ejemplo si ya le escribiste vos).
+     · Va mostrando qué salió y qué falló, con nombre y apellido.
+
+   Lo que NO hace: no toca el calendario, no toca el padrón, no escribe nada
+   en ningún lado. Solo lee y manda. Si algo sale mal acá, no rompe nada.
+   ============================================================ */
+
+var VERSION = 'v2026-08-06';
+var SERVIDOR = 'https://academiadg-agente-production.up.railway.app';
+
+/* Quién puede entrar. Por ahora solo José, como pediste.
+   Si algún día querés que entre alguien más, se agrega el correo a esta lista. */
+var PERMITIDOS = ['josecabreraroman91@gmail.com'];
+
+var HORAS = ['6:00','7:00','8:00','9:00','10:00','11:00','12:00','13:00',
+             '14:00','15:00','16:00','17:00','18:00','19:00','20:00','21:00'];
+var SLOTS_POR_HORA = 4;
+var DIAS = ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
+
+var cfg = {
+  apiKey:"AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain:"academia-dg.firebaseapp.com",
+  databaseURL:"https://academia-dg-default-rtdb.firebaseio.com",
+  projectId:"academia-dg",
+  storageBucket:"academia-dg.firebasestorage.app",
+  messagingSenderId:"623967243039",
+  appId:"1:623967243039:web:e22397b466b63aefdf3e2a"
+};
+try{ firebase.initializeApp(cfg); }catch(e){}
+var db = null, auth = null;
+try{ db = firebase.database(); auth = firebase.auth(); }catch(e){}
+
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){
+  return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+/* ---------- estado ---------- */
+var CAL = null;            // el blob de calendario_v2
+var VIVO = {};             // alumnos_v2 (los creados/editados en vivo)
+var DIA = null;            // día elegido
+var LISTA = [];            // alumnos del día, ya con teléfono
+var FUERA = {};            // los que saqué a mano: clave -> true
+var ESTADO_HORA = {};      // hora -> {enviados, fallados, hecho}
+var LOG = [];
+
+function log(txt){
+  var h = new Date().toLocaleTimeString('es-PY',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  LOG.push('['+h+'] '+txt);
+  $('log').textContent = LOG.join('\n');
+  $('log').scrollTop = $('log').scrollHeight;
+}
+
+/* ---------- nombres y teléfonos (mismas reglas que el calendario) ---------- */
+function normName(s){
+  return String(s==null?'':s).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .toLowerCase().replace(/\s+/g,' ').trim();
+}
+/* En la grilla los nombres a veces traen la sede o la modalidad pegada
+   ("Pedro Gomez LOMAS", "Alex Ebner GRUPAL"). Para buscar el teléfono hay que
+   sacar esas colas, igual que hace el calendario. */
+var COLAS = ['individual','grupal','dual','ind','lomas','elite','segurola','x2','x3'];
+function keyAlumno(s){
+  var n = normName(s).split(' ').filter(function(p){ return COLAS.indexOf(p)<0; });
+  return n.join(' ').trim();
+}
+function normPhone(raw){
+  var d = String(raw==null?'':raw).replace(/\D/g,'');
+  if(!d) return '';
+  if(d.indexOf('0')===0) return '595'+d.replace(/^0+/,'');
+  while(d.indexOf('595595')===0) d = d.slice(3);
+  if(d.indexOf('5950')===0) d = '595'+d.slice(4);
+  if(d.indexOf('595')===0) return d;
+  if(d.length===9 && d.indexOf('9')===0) return '595'+d;
+  return d;
+}
+function phoneOk(t){ return !!t && t.length>=8 && t.length<=15; }
+
+/* Junta todos los lugares donde puede estar el teléfono de un alumno.
+   Se prueban en orden y se usa el PRIMERO que tenga número de verdad: si el
+   padrón lo tiene sin número pero la app Alumnos sí, vale el de la app. Es la
+   misma regla del calendario, y es la que evita que alguien quede "sin
+   teléfono" teniéndolo cargado. */
+function telDeAlumno(nombre){
+  var k = normName(nombre), kf = keyAlumno(nombre);
+  var C = (CAL && CAL.contactos) || {};
+  var cands = [];
+  if(C[k])  cands.push(C[k]);
+  if(C[kf]) cands.push(C[kf]);
+  // por si en contactos la clave está guardada con cola (busca flexible)
+  for(var kk in C){ if(keyAlumno(kk)===kf) cands.push(C[kk]); }
+  // los creados/editados en vivo
+  for(var id in VIVO){
+    var v = VIVO[id];
+    if(v && v.nombre && (normName(v.nombre)===k || keyAlumno(v.nombre)===kf)) cands.push(v);
+  }
+  var elegido = null;
+  for(var i=0;i<cands.length;i++){
+    var c = cands[i]; if(!c) continue;
+    var t = normPhone(c.tel || c.telefono || c.whatsapp || '');
+    if(phoneOk(t)){ elegido = { tel:t, nombreWpp:(c.nombreWpp||c.apodo||'') }; break; }
+    if(!elegido) elegido = { tel:'', nombreWpp:(c.nombreWpp||c.apodo||'') };
+  }
+  return elegido || { tel:'', nombreWpp:'' };
+}
+
+/* ---------- armar la lista del día ---------- */
+function esBloque(n){
+  var x = normName(n);
+  return x.indexOf('alto rendimiento')>=0 || x==='almuerzo' || x==='libre' ||
+         x.indexOf('bloque')>=0 || x.indexOf('torneo')>=0;
+}
+
+function armarLista(){
+  LISTA = []; FUERA = {}; ESTADO_HORA = {};
+  if(!CAL || !DIA) return;
+  var B = CAL.semana || {alumnos:{},libres:{}};
+  var alumnos = B.alumnos || {}, libres = B.libres || {};
+  var sedesPorDia = (B.sedesPorDia) || (CAL.sedesPorDia) || {};
+  var sedes = sedesPorDia[DIA] || [];
+
+  for(var hi=0; hi<HORAS.length; hi++){
+    for(var si2=0; si2<sedes.length; si2++){
+      var s = sedes[si2];
+      if(!s || !s.profes) continue;
+      for(var pi=0; pi<s.profes.length; pi++){
+        var dim = s.profes[pi];
+        if(!dim || dim==='—') continue;
+        if(libres[DIA+'|'+s.key+'|'+pi+'|'+hi]) continue;
+        for(var si=0; si<SLOTS_POR_HORA; si++){
+          var al = alumnos[DIA+'|'+s.key+'|'+pi+'|'+hi+'|'+si];
+          if(!al || !al.nombre) continue;
+          if(al.mod==='BLOQUE' || esBloque(al.nombre)) continue;
+          if(s.key==='adefinir') continue;        // esos van a mano, como siempre
+          var c = telDeAlumno(al.nombre);
+          LISTA.push({
+            clave: DIA+'|'+s.key+'|'+pi+'|'+hi+'|'+si,
+            nombre: al.nombre,
+            nombreWpp: c.nombreWpp || '',
+            hora: HORAS[hi], horaIdx: hi,
+            sede: s.nombre, sedeKey: s.key, profe: dim,
+            tel: c.tel
+          });
+        }
+      }
+    }
+  }
+
+  /* Si el mismo alumno tiene horas seguidas en la misma sede, es UNA sola
+     venida: se manda un mensaje con la primera hora, no dos. Misma regla que
+     usa el calendario y el agente. */
+  var grupos = {};
+  LISTA.forEach(function(c){
+    var k = keyAlumno(c.nombre)+'||'+c.sedeKey;
+    (grupos[k] = grupos[k] || []).push(c);
+  });
+  var salida = [];
+  Object.keys(grupos).forEach(function(k){
+    var g = grupos[k].sort(function(a,b){ return a.horaIdx-b.horaIdx; });
+    var i = 0;
+    while(i < g.length){
+      var j = i;
+      while(j+1 < g.length && g[j+1].horaIdx === g[j].horaIdx+1) j++;
+      salida.push(g[i]);     // se queda con la primera del bloque seguido
+      i = j+1;
+    }
+  });
+  LISTA = salida.sort(function(a,b){
+    if(a.horaIdx !== b.horaIdx) return a.horaIdx-b.horaIdx;
+    return a.nombre.localeCompare(b.nombre);
+  });
+}
+
+function porHora(){
+  var m = {};
+  LISTA.forEach(function(c){ (m[c.hora] = m[c.hora] || []).push(c); });
+  return m;
+}
+function activos(arr){ return arr.filter(function(c){ return phoneOk(c.tel) && !FUERA[c.clave]; }); }
+
+/* ---------- dibujar ---------- */
+function pintarDias(){
+  $('dias').innerHTML = DIAS.map(function(d){
+    return '<button class="dia'+(d===DIA?' on':'')+'" data-d="'+d+'">'+d+'</button>';
+  }).join('');
+  Array.prototype.forEach.call(document.querySelectorAll('.dia'), function(b){
+    b.onclick = function(){
+      DIA = b.getAttribute('d') || b.getAttribute('data-d');
+      // si es sábado, la plantilla de sábado suele ser la correcta
+      $('tpl').value = (DIA==='SABADO') ? 'sabado' : 'semana';
+      armarLista(); pintar();
+    };
+  });
+}
+
+function pintar(){
+  pintarDias();
+  var cont = $('listas'), res = $('resumen');
+
+  if(!DIA){
+    res.innerHTML = '';
+    cont.innerHTML = '<div class="caja"><div class="vacio">Elegí un día arriba para ver a quién le toca.</div></div>';
+    return;
+  }
+
+  var conTel = LISTA.filter(function(c){ return phoneOk(c.tel); });
+  var sinTel = LISTA.filter(function(c){ return !phoneOk(c.tel); });
+  var sacados = LISTA.filter(function(c){ return FUERA[c.clave]; }).length;
+  var aMandar = activos(LISTA).length;
+
+  var html = '<div class="resumen">Del día <b>'+DIA+'</b>: <b>'+LISTA.length+'</b> clase(s) en la grilla · '+
+             '<b>'+conTel.length+'</b> con teléfono · <b>'+aMandar+'</b> se van a mandar'+
+             (sacados? ' · <b>'+sacados+'</b> sacados a mano':'')+'.</div>';
+
+  if(LISTA.length && !conTel.length){
+    html += '<div class="malo">⚠️ No encontré el teléfono de NADIE. Eso casi seguro quiere decir '+
+            'que la lista de contactos no se cargó bien, no que no tengan número. '+
+            '<b>No mandes así.</b> Abrí el calendario, apretá «Traer alumnos y teléfonos», y volvé acá.</div>';
+  } else if(sinTel.length){
+    html += '<div class="alerta">'+sinTel.length+' alumno(s) sin teléfono: '+
+            esc(sinTel.slice(0,8).map(function(c){return c.nombre;}).join(', '))+
+            (sinTel.length>8?' y '+(sinTel.length-8)+' más':'')+'. A esos hay que escribirles a mano.</div>';
+  }
+  res.innerHTML = html;
+
+  var m = porHora();
+  var horas = Object.keys(m).sort(function(a,b){ return HORAS.indexOf(a)-HORAS.indexOf(b); });
+  if(!horas.length){
+    cont.innerHTML = '<div class="caja"><div class="vacio">Ese día no tiene alumnos en la grilla.</div></div>';
+    return;
+  }
+
+  var out = '';
+  horas.forEach(function(h){
+    var arr = m[h], act = activos(arr);
+    var st = ESTADO_HORA[h] || {};
+    var pin = '';
+    if(st.hecho){
+      if(st.fallados) pin = '<span class="pin parcial">'+st.enviados+' salieron · '+st.fallados+' fallaron</span>';
+      else pin = '<span class="pin enviado">✓ '+st.enviados+' enviados</span>';
+    }
+    out += '<div class="hora">'+
+      '<div class="cab"><b>'+h+'</b>'+
+        '<span class="cuenta">'+act.length+' para mandar'+(arr.length!==act.length?' (de '+arr.length+')':'')+'</span>'+
+        pin+
+        '<span class="bts">'+
+          '<button class="bt '+(st.hecho?'':'pri')+'" data-h="'+h+'" '+(act.length?'':'disabled')+'>'+
+            (st.hecho?'↻ Mandar de nuevo':'📨 Mandar estos '+act.length)+'</button>'+
+        '</span>'+
+      '</div>';
+    arr.forEach(function(c,i){
+      var fuera = !!FUERA[c.clave], sin = !phoneOk(c.tel);
+      out += '<div class="fila'+((fuera||sin)?' fuera':'')+'">'+
+        '<span class="n">'+(i+1)+'</span>'+
+        '<span class="nom">'+esc(c.nombre)+'</span>'+
+        '<span class="det">'+esc(c.sede)+' · '+esc(c.profe)+'</span>'+
+        '<span class="tel">'+(sin?'<i>sin teléfono</i>':esc(c.tel))+'</span>'+
+        (sin ? '<span style="width:74px"></span>'
+             : (fuera ? '<button class="volver" data-v="'+esc(c.clave)+'">volver a poner</button>'
+                      : '<button class="x" data-x="'+esc(c.clave)+'">sacar</button>'))+
+      '</div>';
+    });
+    out += '</div>';
+  });
+  cont.innerHTML = out;
+
+  Array.prototype.forEach.call(cont.querySelectorAll('[data-x]'), function(b){
+    b.onclick = function(){ FUERA[b.getAttribute('data-x')] = true; pintar(); };
+  });
+  Array.prototype.forEach.call(cont.querySelectorAll('[data-v]'), function(b){
+    b.onclick = function(){ delete FUERA[b.getAttribute('data-v')]; pintar(); };
+  });
+  Array.prototype.forEach.call(cont.querySelectorAll('[data-h]'), function(b){
+    b.onclick = function(){ mandarHora(b.getAttribute('data-h')); };
+  });
+}
+
+/* ---------- mandar una tanda ---------- */
+var CLAVE = null;    // la contraseña del agente; se pide una vez por sesión
+
+async function mandarHora(h){
+  var arr = activos(porHora()[h] || []);
+  if(!arr.length){ alert('No hay nadie para mandar en ese horario.'); return; }
+
+  var tpl = $('tpl').value;
+  var nom = (tpl==='sabado') ? 'de SÁBADO (solo el nombre)' : 'de entre semana (nombre, hora, sede)';
+
+  if(!confirm('Vas a mandar '+arr.length+' confirmacion(es) del horario '+h+', con la plantilla '+nom+'.\n\n'+
+              arr.slice(0,10).map(function(c){return '· '+c.nombre;}).join('\n')+
+              (arr.length>10?'\n· ...y '+(arr.length-10)+' más':'')+'\n\n¿Mando esta tanda?')) return;
+
+  if(!CLAVE){
+    CLAVE = prompt('Contraseña del agente (se pide una sola vez por sesión):');
+    if(!CLAVE) return;
+  }
+
+  var alumnos = arr.map(function(c){
+    return {
+      nombre: (c.nombreWpp || c.nombre.split(/\s+/)[0]),
+      hora:   tpl==='sabado' ? '' : c.hora,
+      sede:   tpl==='sabado' ? '' : c.sede,
+      tel:    c.tel
+    };
+  });
+
+  var btns = document.querySelectorAll('[data-h="'+h+'"]');
+  Array.prototype.forEach.call(btns, function(b){ b.disabled = true; b.textContent = 'Mandando '+arr.length+'...'; });
+  log('Horario '+h+': mandando '+arr.length+'...');
+
+  try{
+    var r = await fetch(SERVIDOR+'/enviar-confirmaciones', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ clave:CLAVE, alumnos:alumnos, forzar:'1', plantilla:tpl })
+    });
+    var d = await r.json().catch(function(){ return {}; });
+
+    if(!r.ok || !d.ok){
+      if(r.status===401){ CLAVE=null; log('Horario '+h+': CONTRASEÑA INCORRECTA. No se mandó nada.'); alert('La contraseña del agente no es correcta. Probá de nuevo.'); }
+      else { log('Horario '+h+': ERROR — '+((d && d.error) || ('HTTP '+r.status))); alert('No se pudo mandar: '+((d&&d.error)||('HTTP '+r.status))); }
+      ESTADO_HORA[h] = { hecho:false };
+      pintar(); return;
+    }
+
+    ESTADO_HORA[h] = { hecho:true, enviados:d.bien||0, fallados:d.mal||0 };
+    log('Horario '+h+': Meta aceptó '+(d.bien||0)+' y rechazó '+(d.mal||0)+'.');
+    if(d.mal && d.resultados){
+      d.resultados.filter(function(x){ return x && x.ok===false; })
+        .forEach(function(x){ log('   ✗ '+(x.nombre||'?')+' ('+(x.tel||'?')+'): '+(x.error||'sin motivo')); });
+    }
+    pintar();
+
+    alert('Tanda de las '+h+' terminada.\n\n'+
+          'Meta aceptó: '+(d.bien||0)+'\n'+
+          'Rechazó: '+(d.mal||0)+'\n\n'+
+          'Ojo: "aceptado" no es "entregado". Revisá en tu WhatsApp si llegaron '+
+          'antes de mandar la siguiente tanda.');
+
+  }catch(e){
+    log('Horario '+h+': ERROR de conexión — '+e.message);
+    alert('No me pude conectar con el servidor: '+e.message);
+    ESTADO_HORA[h] = { hecho:false };
+    pintar();
+  }
+}
+
+/* ---------- traer los datos ---------- */
+async function traer(){
+  $('resumen').innerHTML = '<div class="resumen">Trayendo el calendario y los teléfonos…</div>';
+  try{
+    var s1 = await db.ref('calendario_v2').once('value');
+    CAL = s1.val() || null;
+    try{ var s2 = await db.ref('alumnos_v2').once('value'); VIVO = s2.val() || {}; }
+    catch(e){ VIVO = {}; }
+
+    if(!CAL){
+      $('resumen').innerHTML = '<div class="malo">No pude leer el calendario. Probá recargar la página.</div>';
+      return;
+    }
+    var cuantos = CAL.contactos ? Object.keys(CAL.contactos).length : 0;
+    log('Calendario traído. Contactos con teléfono en memoria: '+cuantos+
+        ' · alumnos en vivo: '+Object.keys(VIVO).length);
+    if(DIA){ armarLista(); }
+    pintar();
+  }catch(e){
+    $('resumen').innerHTML = '<div class="malo">No pude leer el calendario: '+esc(e.message)+'</div>';
+  }
+}
+
+/* ---------- entrar ---------- */
+$('btEntrar').onclick = function(){
+  var p = new firebase.auth.GoogleAuthProvider();
+  auth.signInWithPopup(p).catch(function(e){ alert('No pude entrar: '+e.message); });
+};
+$('btSalir').onclick = function(ev){ ev.preventDefault(); auth.signOut(); };
+$('btSalir2').onclick = function(){ auth.signOut(); };
+$('btRecargar').onclick = function(){ traer(); };
+
+auth.onAuthStateChanged(function(u){
+  if(!u){
+    $('puerta').style.display='block'; $('app').style.display='none';
+    $('puertaTxt').textContent = 'Entrá con tu cuenta de Google para continuar.';
+    $('btEntrar').style.display=''; $('btSalir2').style.display='none';
+    return;
+  }
+  var mail = (u.email||'').toLowerCase();
+  if(PERMITIDOS.indexOf(mail)<0){
+    $('puerta').style.display='block'; $('app').style.display='none';
+    $('puertaTxt').textContent = 'Esta pantalla es solo para José. Entraste como '+mail+'.';
+    $('btEntrar').style.display='none'; $('btSalir2').style.display='';
+    return;
+  }
+  $('puerta').style.display='none'; $('app').style.display='block';
+  $('yoMail').textContent = mail;
+  pintar();
+  traer();
+});
+</script>
+</body>
+</html>
