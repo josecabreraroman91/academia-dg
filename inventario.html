@@ -129,7 +129,7 @@
 
 <div class="wrap" id="app" style="display:none">
   <header>
-    <h1>📦 Inventario <span>qué hay para vender y cuánto queda</span><span style="margin-left:8px;color:var(--muted);font-size:11px;font-weight:400">v2026-08-05</span></h1>
+    <h1>📦 Inventario <span>qué hay para vender y cuánto queda</span><span style="margin-left:8px;color:var(--muted);font-size:11px;font-weight:400">v2026-08-06</span></h1>
     <div class="yo"><span id="yoMail"></span><a href="#" id="btnSalir">salir</a></div>
   </header>
 
@@ -264,21 +264,31 @@ function pintarMarcas(){
 }
 function pintar(){
   var todos=lista();
-  var vis=todos.filter(function(p){
+  /* Los que SOLO miran (los profesores) no ven los productos sin stock: si algo
+     está en cero, no les aparece. Los que cargan (José, Diego, administradores)
+     siguen viendo todo, porque son los que lo reponen. */
+  var visibles = puedeEscribir ? todos : todos.filter(function(p){ return p.stock>0; });
+
+  var vis=visibles.filter(function(p){
     var okM = MARCA==='TODAS' || (p.marca||'').toUpperCase()===MARCA;
     var okB = !BUSCA || norm(p.nombre).indexOf(BUSCA)>=0 || norm(p.marca).indexOf(BUSCA)>=0;
     return okM && okB;
   });
 
-  var sinStock=todos.filter(function(p){ return p.stock<=0; }).length;
-  $('cuenta').innerHTML = '<b>'+todos.length+'</b> producto'+(todos.length===1?'':'s')+
-    (vis.length!==todos.length ? ' · mostrando '+vis.length : '') +
+  /* El aviso de "sin stock" es solo para los que cargan; el que solo mira ni se
+     entera de que existen productos en cero. */
+  var sinStock = puedeEscribir ? todos.filter(function(p){ return p.stock<=0; }).length : 0;
+  $('cuenta').innerHTML = '<b>'+visibles.length+'</b> producto'+(visibles.length===1?'':'s')+
+    (vis.length!==visibles.length ? ' · mostrando '+vis.length : '') +
     (sinStock ? ' · <span class="ojo">'+sinStock+' sin stock</span>' : '');
 
   var cont=$('grilla');
-  if(!todos.length){
-    cont.innerHTML = '<div class="vacio">Todavía no hay nada cargado.' +
-      (puedeEscribir ? '<br>Empezá con <b>➕ Producto nuevo</b>.' : '') + '</div>';
+  if(!visibles.length){
+    cont.innerHTML = '<div class="vacio">' +
+      (todos.length
+        ? 'No hay productos con stock por ahora.'
+        : 'Todavía no hay nada cargado.' + (puedeEscribir ? '<br>Empezá con <b>➕ Producto nuevo</b>.' : '')) +
+      '</div>';
     return;
   }
   if(!vis.length){ cont.innerHTML='<div class="vacio">Nada coincide con lo que buscaste.</div>'; return; }
