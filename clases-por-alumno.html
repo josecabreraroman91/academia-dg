@@ -266,7 +266,55 @@
   </div>
 </div>
 
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 <script>
+/* ============================================================
+   COMPARTIR LAS MARCAS EN VIVO
+   Las marcas ("ya le mandé", "ya me pagó", "agosto adelantado") se guardan en un
+   rincón APARTE de Firebase: cobros_diego_v1. No lee ni escribe ningún otro dato
+   del sistema — es una caja separada, solo de esta página. Si algún día no se usa
+   más, se borra ese rincón y no afecta nada de lo demás.
+
+   Se guarda TODO junto como un solo texto, para no chocar con nombres que tengan
+   puntos o barras. Si Firebase no cargara (sin internet, por ejemplo), la página
+   sigue andando igual: guarda solo en esta computadora, como antes. */
+var NUBE = null, _ultimoEscrito = null;
+try{
+  firebase.initializeApp({
+    apiKey:"AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+    authDomain:"academia-dg.firebaseapp.com",
+    databaseURL:"https://academia-dg-default-rtdb.firebaseio.com",
+    projectId:"academia-dg",
+    storageBucket:"academia-dg.firebasestorage.app",
+    messagingSenderId:"623967243039",
+    appId:"1:623967243039:web:e22397b466b63aefdf3e2a"
+  });
+  NUBE = firebase.database().ref('cobros_diego_v1/blob');
+}catch(e){ NUBE = null; }
+
+function guardarEnNube(){
+  if(!NUBE) return;
+  var txt = JSON.stringify(MARCAS);
+  _ultimoEscrito = txt;
+  NUBE.set(txt).catch(function(e){ console.warn('no pude compartir las marcas:', e.message); });
+}
+
+function escucharNube(){
+  if(!NUBE) return;
+  NUBE.on('value', function(snap){
+    var txt = snap.val();
+    if(!txt || txt === _ultimoEscrito) return;   // ignorar el eco de lo que uno mismo acaba de guardar
+    var g; try{ g = JSON.parse(txt); }catch(e){ return; }
+    if(!g || typeof g!=='object') return;
+    MARCAS = { enviado:g.enviado||{}, pagado:g.pagado||{}, adelantado:g.adelantado||{}, ts:g.ts||0 };
+    try{ localStorage.setItem(MARCAS_LLAVE, JSON.stringify(MARCAS)); }catch(e){}
+    pintarMarcabar();
+    if(typeof REP!=='undefined' && REP) pintarLista();
+    if(typeof VIENDO!=='undefined' && VIENDO) pintarCobro();
+  });
+}
+
 /* ============================================================
    NUCLEO: leer los dos archivos y cruzarlos.
    Se prueba aparte con node antes de meterlo en la app.
@@ -605,6 +653,7 @@ function guardarMarcas(){
     alert('No pude guardar las marcas en esta computadora.\n\n'+e.message+
           '\n\nBajá una copia con el botón de arriba para no perder lo que llevás.');
   }
+  guardarEnNube();          // además de esta computadora, lo comparte en vivo con el otro
   pintarMarcabar();
 }
 
@@ -1062,6 +1111,7 @@ $('q').oninput=()=>{TOPE=60;pintarLista();};
 
 /* ---- las marcas de cobranza ---- */
 cargarMarcas();
+escucharNube();          // engancha la caja compartida: lo que marque uno, lo ve el otro en vivo
 $('mcBajar').onclick=bajarCopia;
 $('mcTraer').onclick=()=>$('mcArchivo').click();
 $('mcArchivo').onchange=ev=>{
