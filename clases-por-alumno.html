@@ -7,8 +7,8 @@
 <style>
   :root{
     --fondo:#eef3f6; --tarjeta:#ffffff; --linea:#dbe4ea;
-    --texto:#17262f; --suave:#6a7f9b;
-    --teal:#0e7c8e; --teal-osc:#0a5c75; --teal-claro:#e3f1f6;
+    --texto:#17262f; --suave:#6a7f8b;
+    --teal:#0e7c9e; --teal-osc:#0a5c75; --teal-claro:#e3f1f6;
     --verde:#15803d; --verde-claro:#e8f5ec;
     --rojo:#b42318; --rojo-claro:#fdecea; --ambar:#8a5a00; --ambar-claro:#fdf3e2;
   }
@@ -20,7 +20,14 @@
   h1{font-size:24px;margin:0 0 2px;letter-spacing:-.4px}
   .sub{color:var(--suave);font-size:13.5px;margin-bottom:20px}
 
-  
+  button{font-family:inherit;font-size:14px;padding:10px 18px;border-radius:9px;
+    border:1px solid var(--linea);background:var(--tarjeta);color:var(--texto);cursor:pointer}
+  button:hover{border-color:var(--suave)}
+  button.pri{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:600}
+  button.pri:hover{background:var(--teal-osc)}
+  button.chico{font-size:12.5px;padding:6px 12px}
+  button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+
   /* ---- Los dos archivos ---- */
   .arch{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px;margin-bottom:18px}
   .caja{background:var(--tarjeta);border:1.5px dashed var(--linea);border-radius:14px;padding:18px 16px;
