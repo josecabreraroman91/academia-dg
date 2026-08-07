@@ -1021,23 +1021,17 @@ function armarMensaje(){
      viene en el reporte (70.000 = individual, el único que no se repite). No
      cambia el monto — el monto sale del padrón, como siempre. Es solo para que
      el alumno vea discriminadas las individuales, que son las más controladas. */
+  /* Qué días de ese mes fueron clase INDIVIDUAL. Sale del aporte del profe que
+     viene en el reporte (70.000 = individual, el único que no se repite).
+     En el mensaje va SOLO el aviso de cuáles fueron: los precios por tipo se
+     ven en la tarjeta de «cuánto pagar», que es para vos, no para el alumno. */
   function detalleIndividual(m){
     const mm = VIENDO.meses.get(m);
     if(!mm || !mm.individuales) return '';
     const ds = [...mm.indiv.keys()].sort((a,b)=>a-b);
     const n  = mm.individuales;
-    const u  = UNITARIO[ELEGIDA];
-    /* Si se está cobrando discriminado, se le muestra la cuenta al alumno: así
-       entiende por qué no son todas al mismo precio. Si no, solo se le avisa
-       cuáles fueron individuales. */
-    if(u && u.modo === 'mixto'){
-      const resto = mm.clases - n;
-      return '\n_'+n+(n===1?' clase individual':' clases individuales')+
-             ' (día'+(ds.length===1?' ':'s ')+ds.join(', ')+') × '+gs(u.alto)+' Gs.'+
-             (resto>0 ? '\n'+resto+(resto===1?' clase':' clases')+' × '+gs(u.bajo)+' Gs.' : '')+'_';
-    }
-    return (n===1 ? '\n_(1 fue clase individual: día ' : '\n_('+n+' fueron clases individuales: días ')+
-           ds.join(', ')+')_';
+    return (n===1 ? '\n(1 fue clase individual: día ' : '\n('+n+' fueron clases individuales: días ')+
+           ds.join(', ')+')';
   }
 
   /* CADA MES CON SU MONTO, uno debajo del otro, para que el alumno pueda mirar
