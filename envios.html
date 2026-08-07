@@ -93,7 +93,7 @@ select{padding:8px 10px;border:1px solid var(--borde);border-radius:9px;font-siz
 
 <div class="wrap" id="app" style="display:none">
   <header>
-    <h1>📨 Envíos por horario <span class="v">v2026-08-06b</span></h1>
+    <h1>📨 Envíos por horario <span class="v">v2026-08-07</span></h1>
     <div class="yo"><span id="yoMail"></span><a href="#" id="btSalir">salir</a></div>
   </header>
 
@@ -533,10 +533,17 @@ async function mandarHora(h){
     }
 
     ESTADO_HORA[h] = { hecho:true, enviados:d.bien||0, fallados:d.mal||0 };
-    log('Horario '+h+': Meta aceptó '+(d.bien||0)+' y rechazó '+(d.mal||0)+'.');
-    if(d.mal && d.resultados){
-      d.resultados.filter(function(x){ return x && x.ok===false; })
-        .forEach(function(x){ log('   ✗ '+(x.nombre||'?')+' ('+(x.tel||'?')+'): '+(x.error||'sin motivo')); });
+    log('Horario '+h+': Kapso aceptó '+(d.bien||0)+' y rechazó '+(d.mal||0)+'.');
+    /* Se muestra lo que contestó Kapso por CADA mensaje. Si un envío no trae
+       identificador, el mensaje nunca existió del otro lado, aunque el resumen
+       diga que salió bien. Es el dato que faltaba para dejar de adivinar. */
+    if(d.resultados){
+      d.resultados.forEach(function(x){
+        if(!x || !x.nombre) return;
+        if(x.ok) log('   ✓ '+x.nombre+' → id '+(x.id||'(sin id)')+(x.estado?' · '+x.estado:''));
+        else     log('   ✗ '+x.nombre+' ('+(x.tel||'?')+'): '+(x.error||'sin motivo')+
+                     (x.respuesta?'\n       Kapso dijo: '+x.respuesta:''));
+      });
     }
     pintar();
 
