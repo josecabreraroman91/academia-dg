@@ -191,6 +191,7 @@
     .f-cab,.f-cuerpo{padding-left:15px;padding-right:15px}
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.d.indiv{border-color:#0b6fa4;box-shadow:inset 0 0 0 1px #0b6fa4}
 </style>
 </head>
 <body>
@@ -401,14 +402,27 @@ function leerReporte(filas, cabIdx){
       const p=trozo.match(/^(.*?)\s*\(([\d.,\s]+)\)\s*$/);
       const nombre=limpiarNombre(p?p[1]:trozo);
       if(!nombre) continue;
+      /* El número entre paréntesis es lo que COBRA EL PROFE por esa clase, no
+         lo que paga el alumno. No sirve para cobrar, pero sí como pista del
+         tipo de clase. De toda la tabla de aportes, 70.000 es el único monto
+         que no se repite: solo lo tiene la clase individual. Los demás se
+         pisan entre sí (50.000 es grupal, dual y chicos individuales; 30.000 es
+         primera, chicos y profesores), así que con esos no se puede saber cuál
+         fue sin adivinar — y adivinar acá termina en una clase mal cobrada. */
+      const aporte = p ? Number(String(p[2]).replace(/[.\s,]/g,'')) : 0;
+      const esIndividual = (aporte === 70000);
       const k=clave(nombre);
       if(!k) continue;
       if(!porAlumno.has(k)) porAlumno.set(k,{k,nombre,meses:new Map()});
       const a=porAlumno.get(k);
-      if(!a.meses.has(mesK)) a.meses.set(mesK,{clases:0,dias:new Map()});
+      if(!a.meses.has(mesK)) a.meses.set(mesK,{clases:0,dias:new Map(),indiv:new Map(),individuales:0});
       const mm=a.meses.get(mesK);
       mm.clases++; clases++;
       mm.dias.set(dia,(mm.dias.get(dia)||0)+1);
+      if(esIndividual){
+        mm.indiv.set(dia,(mm.indiv.get(dia)||0)+1);
+        mm.individuales++;
+      }
     }
   }
   return { alumnos:[...porAlumno.values()].sort((a,b)=>a.nombre.localeCompare(b.nombre,'es')),
@@ -839,8 +853,14 @@ function pintarFicha(){
     clases+=mm.clases; dias+=ds.length;
     if(sel.length>1) html+='<div class="diasMes">'+esc(nombreMes(m))+' · '+gs(mm.clases)+
       (mm.clases===1?' clase':' clases')+'</div>';
-    html+=ds.map(x=>'<div class="d'+(x[1]>1?' varias':'')+'"><span class="n">'+x[0]+
-      '</span><span class="c">'+(x[1]===1?'1 clase':x[1]+' clases')+'</span></div>').join('');
+    html+=ds.map(x=>{
+      /* Se avisa cuáles fueron individuales para que lo veas ANTES de mandar. */
+      const ind = mm.indiv ? (mm.indiv.get(x[0])||0) : 0;
+      const et  = x[1]===1 ? '1 clase' : x[1]+' clases';
+      return '<div class="d'+(x[1]>1?' varias':'')+(ind?' indiv':'')+'"'+
+        (ind?' title="'+(ind===1?'clase individual':ind+' clases individuales')+'"':'')+
+        '><span class="n">'+x[0]+'</span><span class="c">'+et+(ind?' 🎾':'')+'</span></div>';
+    }).join('');
   });
   $('fRotulo').innerHTML='<b>'+gs(clases)+(clases===1?' clase':' clases')+'</b> en <b>'+
     gs(dias)+(dias===1?' día':' días')+'</b>'+
@@ -885,6 +905,25 @@ function pintarCobro(){
     p.precios.forEach((x,i)=>{ OPCIONES['padron'+i]=x*n; UNITARIO['padron'+i]={modo:'clase', valor:x}; });
     h+=p.precios.map((x,i)=>op('flojo','Según el padrón · ₲'+gs(x)+' por clase','₲ '+gs(x*n),
       'Está cargado con '+p.precios.length+' precios distintos. Elegí el que corresponde.','padron'+i)).join('');
+
+    /* MEZCLA: cuando hay dos precios y el reporte muestra que hubo individuales
+       Y clases de otro tipo, casi siempre el precio alto es el de la individual
+       y el bajo el del resto. Se ofrece esa cuenta ya hecha, en vez de obligar a
+       elegir un solo precio para todo. Es una opción más: no se aplica sola. */
+    const T2 = totalesSel();
+    let ind = 0, tot = 0;
+    T2.sel.forEach(mk=>{ const mm=VIENDO.meses.get(mk); if(mm){ ind+=(mm.individuales||0); tot+=mm.clases; } });
+    const resto = tot - ind;
+    if(p.precios.length===2 && ind>0 && resto>0){
+      const alto = Math.max(p.precios[0],p.precios[1]);
+      const bajo = Math.min(p.precios[0],p.precios[1]);
+      OPCIONES.mixto = ind*alto + resto*bajo;
+      UNITARIO.mixto = { modo:'mixto', alto:alto, bajo:bajo };
+      h+=op('bien','Discriminado por tipo de clase','₲ '+gs(ind*alto + resto*bajo),
+        gs(ind)+(ind===1?' individual':' individuales')+' × ₲'+gs(alto)+
+        ' &nbsp;+&nbsp; '+gs(resto)+(resto===1?' clase':' clases')+' × ₲'+gs(bajo)+
+        '. <b>Sale del reporte</b>: las individuales se reconocen porque el profe cobra ₲70.000 por ellas.','mixto');
+    }
   } else if(p.estado==='mensual'){
     OPCIONES.mensual=p.precios[0]*T.sel.length;
     UNITARIO.mensual={modo:'mes', valor:p.precios[0]};
@@ -947,7 +986,13 @@ function montoDelMes(mesK){
   if(!u || !VIENDO) return 0;
   if(u.modo === 'mes') return u.valor;
   const mm = VIENDO.meses.get(mesK);
-  return u.valor * (mm ? mm.clases : 0);
+  if(!mm) return 0;
+  /* Mezcla: las individuales al precio alto, todo lo demás al bajo. */
+  if(u.modo === 'mixto'){
+    const ind = mm.individuales || 0;
+    return ind*u.alto + (mm.clases - ind)*u.bajo;
+  }
+  return u.valor * mm.clases;
 }
 
 function armarMensaje(){
@@ -972,6 +1017,29 @@ function armarMensaje(){
     return (ds.length===1 ? 'entrenaste el día ' : 'entrenaste los días ')+frasedias(ds);
   }
 
+  /* Qué días de ese mes fueron clase INDIVIDUAL. Sale del aporte del profe que
+     viene en el reporte (70.000 = individual, el único que no se repite). No
+     cambia el monto — el monto sale del padrón, como siempre. Es solo para que
+     el alumno vea discriminadas las individuales, que son las más controladas. */
+  function detalleIndividual(m){
+    const mm = VIENDO.meses.get(m);
+    if(!mm || !mm.individuales) return '';
+    const ds = [...mm.indiv.keys()].sort((a,b)=>a-b);
+    const n  = mm.individuales;
+    const u  = UNITARIO[ELEGIDA];
+    /* Si se está cobrando discriminado, se le muestra la cuenta al alumno: así
+       entiende por qué no son todas al mismo precio. Si no, solo se le avisa
+       cuáles fueron individuales. */
+    if(u && u.modo === 'mixto'){
+      const resto = mm.clases - n;
+      return '\n_'+n+(n===1?' clase individual':' clases individuales')+
+             ' (día'+(ds.length===1?' ':'s ')+ds.join(', ')+') × '+gs(u.alto)+' Gs.'+
+             (resto>0 ? '\n'+resto+(resto===1?' clase':' clases')+' × '+gs(u.bajo)+' Gs.' : '')+'_';
+    }
+    return (n===1 ? '\n_(1 fue clase individual: día ' : '\n_('+n+' fueron clases individuales: días ')+
+           ds.join(', ')+')_';
+  }
+
   /* CADA MES CON SU MONTO, uno debajo del otro, para que el alumno pueda mirar
      mes por mes y entender de dónde sale cada número. Cuando son VARIOS meses
      se agrega abajo el total sumado, así no tiene que hacer la cuenta él. Con
@@ -980,11 +1048,13 @@ function armarMensaje(){
   if(T.sel.length === 1){
     const m = T.sel[0];
     frase = 'En '+nombreDe(m).toLowerCase()+' '+entrenasteLos(diasDe(m))+
-            ', y el monto es '+gs(montoDelMes(m))+' Gs.';
+            detalleIndividual(m)+
+            '\n\nEl monto es '+gs(montoDelMes(m))+' Gs.';
   } else {
     const total = T.sel.reduce((s,m)=> s + montoDelMes(m), 0);
     frase = T.sel.map(m=>
       '*'+nombreDe(m)+':* '+entrenasteLos(diasDe(m))+
+      detalleIndividual(m)+
       '\n👉 *'+gs(montoDelMes(m))+' Gs.*'
     ).join('\n\n');
     frase += '\n\n*TOTAL: '+gs(total)+' Gs.*';
