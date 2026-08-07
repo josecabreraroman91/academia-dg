@@ -972,18 +972,22 @@ function armarMensaje(){
     return (ds.length===1 ? 'entrenaste el día ' : 'entrenaste los días ')+frasedias(ds);
   }
 
-  /* CADA MES CON SU MONTO, uno debajo del otro. No se suma un total: el alumno
-     tiene que poder mirar mes por mes y entender de dónde sale cada número. */
+  /* CADA MES CON SU MONTO, uno debajo del otro, para que el alumno pueda mirar
+     mes por mes y entender de dónde sale cada número. Cuando son VARIOS meses
+     se agrega abajo el total sumado, así no tiene que hacer la cuenta él. Con
+     un mes solo no se pone total: repetir el mismo número dos veces confunde. */
   let frase;
   if(T.sel.length === 1){
     const m = T.sel[0];
     frase = 'En '+nombreDe(m).toLowerCase()+' '+entrenasteLos(diasDe(m))+
             ', y el monto es '+gs(montoDelMes(m))+' Gs.';
   } else {
+    const total = T.sel.reduce((s,m)=> s + montoDelMes(m), 0);
     frase = T.sel.map(m=>
       '*'+nombreDe(m)+':* '+entrenasteLos(diasDe(m))+
       '\n👉 *'+gs(montoDelMes(m))+' Gs.*'
     ).join('\n\n');
+    frase += '\n\n*TOTAL: '+gs(total)+' Gs.*';
   }
 
   /* Un renglón en blanco entre frase y frase: en WhatsApp se lee mucho mejor.
