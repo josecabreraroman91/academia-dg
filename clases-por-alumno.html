@@ -139,7 +139,7 @@
   .rotulo{font-size:13px;color:var(--suave);margin-bottom:10px}
   .rotulo b{color:var(--texto);font-weight:600}
   .dias{display:flex;gap:7px;flex-wrap:wrap}
-  .d{background:var(--teal);color:#fff;border-radius:9px;min-width:44px;padding:7px 8px;
+  .d{position:relative;background:var(--teal);color:#fff;border-radius:9px;min-width:44px;padding:7px 8px;
     text-align:center;line-height:1.15}
   .d.varias{background:var(--teal-osc)}
   .d .n{display:block;font-size:16px;font-weight:700}
@@ -192,6 +192,13 @@
   }
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 .d.indiv{border-color:#0b6fa4;box-shadow:inset 0 0 0 1px #0b6fa4}
+  .d .dx{position:absolute;top:-7px;right:-7px;width:21px;height:21px;border-radius:50%;
+    border:2px solid #fff;background:#c5221f;color:#fff;font-size:11px;font-weight:800;
+    line-height:1;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center}
+  .d .dx:hover{transform:scale(1.15)}
+  .d.off{background:#e6e9ee;color:#9aa3ad;text-decoration:line-through}
+  .d.off .dx{background:#0f9d58;text-decoration:none}
+  .d.indiv{box-shadow:0 0 0 2px #ffd166}
 </style>
 </head>
 <body>
@@ -805,8 +812,32 @@ function pintarLista(){
 }
 
 /* ---------- la ficha ---------- */
+/* Días que sacaste a mano en esta ficha (por ejemplo, clases sueltas que el
+   alumno ya pagó). Vive SOLO mientras la ficha está abierta: se limpia al abrir
+   cualquier alumno, no se guarda en ningún lado y no se comparte. Salís y
+   volvés a entrar, y están todos los días de nuevo. */
+let SACADOS = {};                       // "2026-07|15" -> true
+const claveDia = (m,d) => m+'|'+d;
+const estaSacado = (m,d) => !!SACADOS[claveDia(m,d)];
+
+/* Cuántas clases quedan de ese mes después de sacar los días marcados, y
+   cuántas de esas eran individuales. Todo lo que cobra usa esto. */
+function clasesDe(mesK){
+  const mm = VIENDO && VIENDO.meses.get(mesK);
+  if(!mm) return { clases:0, individuales:0, dias:[], indiv:[] };
+  let clases=0, individuales=0; const dias=[], indiv=[];
+  [...mm.dias.entries()].sort((a,b)=>a[0]-b[0]).forEach(([d,c])=>{
+    if(estaSacado(mesK,d)) return;
+    clases += c; dias.push([d,c]);
+    const i = mm.indiv ? (mm.indiv.get(d)||0) : 0;
+    if(i){ individuales += i; indiv.push(d); }
+  });
+  return { clases, individuales, dias, indiv };
+}
+
 function abrirFicha(k,mes){
   VIENDO=REP.alumnos.find(a=>a.k===k); if(!VIENDO) return;
+  SACADOS={};                   // cada ficha empieza limpia, a propósito
   MES_VER=(mes&&VIENDO.meses.has(mes))?mes:[...VIENDO.meses.keys()].sort().pop();
   MESES_SEL=[MES_VER];          // se abre con uno; el + suma los que haga falta
   ELEGIDA='';
@@ -817,7 +848,7 @@ function abrirFicha(k,mes){
   $('ov').classList.add('show');
   document.body.style.overflow='hidden';
 }
-function cerrarFicha(){ $('ov').classList.remove('show'); document.body.style.overflow=''; VIENDO=null; }
+function cerrarFicha(){ $('ov').classList.remove('show'); document.body.style.overflow=''; VIENDO=null; SACADOS={}; }
 
 function pintarFicha(){
   if(!VIENDO) return;
@@ -850,22 +881,38 @@ function pintarFicha(){
   sel.forEach(m=>{
     const mm=VIENDO.meses.get(m); if(!mm) return;
     const ds=[...mm.dias.entries()].sort((a,b)=>a[0]-b[0]);
-    clases+=mm.clases; dias+=ds.length;
-    if(sel.length>1) html+='<div class="diasMes">'+esc(nombreMes(m))+' · '+gs(mm.clases)+
-      (mm.clases===1?' clase':' clases')+'</div>';
+    const vivo = clasesDe(m);
+    clases+=vivo.clases; dias+=vivo.dias.length;
+    if(sel.length>1) html+='<div class="diasMes">'+esc(nombreMes(m))+' · '+gs(vivo.clases)+
+      (vivo.clases===1?' clase':' clases')+'</div>';
     html+=ds.map(x=>{
-      /* Se avisa cuáles fueron individuales para que lo veas ANTES de mandar. */
-      const ind = mm.indiv ? (mm.indiv.get(x[0])||0) : 0;
-      const et  = x[1]===1 ? '1 clase' : x[1]+' clases';
-      return '<div class="d'+(x[1]>1?' varias':'')+(ind?' indiv':'')+'"'+
-        (ind?' title="'+(ind===1?'clase individual':ind+' clases individuales')+'"':'')+
-        '><span class="n">'+x[0]+'</span><span class="c">'+et+(ind?' 🎾':'')+'</span></div>';
+      /* Se avisa cuáles fueron individuales para que lo veas ANTES de mandar.
+         La ✕ saca ese día del cobro (por ejemplo, una clase suelta que ya pagó).
+         Es solo por este rato: al cerrar la ficha vuelven todos. */
+      const ind  = mm.indiv ? (mm.indiv.get(x[0])||0) : 0;
+      const off  = estaSacado(m,x[0]);
+      const et   = x[1]===1 ? '1 clase' : x[1]+' clases';
+      return '<div class="d'+(x[1]>1?' varias':'')+(ind?' indiv':'')+(off?' off':'')+'"'+
+        ' title="'+(off?'Sacado del cobro — tocá para volver a contarlo'
+                      :(ind?(ind===1?'Clase individual. ':ind+' clases individuales. '):'')+'Tocá la ✕ para no cobrar este día')+'"'+
+        '><button class="dx" data-mes="'+esc(m)+'" data-dia="'+x[0]+'">'+(off?'↺':'✕')+'</button>'+
+        '<span class="n">'+x[0]+'</span><span class="c">'+et+(ind?' 🎾':'')+'</span></div>';
     }).join('');
   });
   $('fRotulo').innerHTML='<b>'+gs(clases)+(clases===1?' clase':' clases')+'</b> en <b>'+
     gs(dias)+(dias===1?' día':' días')+'</b>'+
     (sel.length>1?' · <b>'+sel.length+' meses juntos</b>':'');
   $('fDias').innerHTML=html;
+  /* La ✕ saca ese día del cobro; la ↺ lo vuelve a contar. Todo se recalcula al
+     instante: el rótulo de arriba, las tarjetas de precio y el mensaje. */
+  Array.prototype.forEach.call($('fDias').querySelectorAll('.dx'), function(b){
+    b.onclick = function(ev){
+      ev.stopPropagation();
+      const k = claveDia(b.getAttribute('data-mes'), Number(b.getAttribute('data-dia')));
+      if(SACADOS[k]) delete SACADOS[k]; else SACADOS[k] = true;
+      pintarFicha();
+    };
+  });
   pintarCobro();
 }
 let _mostrandoSumar=false;
@@ -875,7 +922,7 @@ $('fMasMes').onclick=()=>{ _mostrandoSumar=true; pintarFicha(); };
 function totalesSel(){
   const sel=MESES_SEL.slice().sort();
   let clases=0;
-  sel.forEach(m=>{ const mm=VIENDO.meses.get(m); if(mm) clases+=mm.clases; });
+  sel.forEach(m=>{ clases += clasesDe(m).clases; });   // descuenta los días sacados
   return { sel, clases };
 }
 
@@ -912,7 +959,7 @@ function pintarCobro(){
        elegir un solo precio para todo. Es una opción más: no se aplica sola. */
     const T2 = totalesSel();
     let ind = 0, tot = 0;
-    T2.sel.forEach(mk=>{ const mm=VIENDO.meses.get(mk); if(mm){ ind+=(mm.individuales||0); tot+=mm.clases; } });
+    T2.sel.forEach(mk=>{ const v=clasesDe(mk); ind+=v.individuales; tot+=v.clases; });
     const resto = tot - ind;
     if(p.precios.length===2 && ind>0 && resto>0){
       const alto = Math.max(p.precios[0],p.precios[1]);
@@ -985,14 +1032,11 @@ function montoDelMes(mesK){
   const u = UNITARIO[ELEGIDA];
   if(!u || !VIENDO) return 0;
   if(u.modo === 'mes') return u.valor;
-  const mm = VIENDO.meses.get(mesK);
-  if(!mm) return 0;
+  const v = clasesDe(mesK);            // ya descuenta los días sacados a mano
+  if(!v.clases) return 0;
   /* Mezcla: las individuales al precio alto, todo lo demás al bajo. */
-  if(u.modo === 'mixto'){
-    const ind = mm.individuales || 0;
-    return ind*u.alto + (mm.clases - ind)*u.bajo;
-  }
-  return u.valor * mm.clases;
+  if(u.modo === 'mixto') return v.individuales*u.alto + (v.clases - v.individuales)*u.bajo;
+  return u.valor * v.clases;
 }
 
 function armarMensaje(){
@@ -1009,8 +1053,7 @@ function armarMensaje(){
     return n.charAt(0).toUpperCase()+n.slice(1);
   }
   function diasDe(m){
-    const mm=VIENDO.meses.get(m);
-    return mm ? [...mm.dias.entries()].sort((a,b)=>a[0]-b[0]) : [];
+    return clasesDe(m).dias;      // sin los días que sacaste a mano
   }
   /* "el día 3" cuando fue uno solo, "los días 2, 9 y 16" cuando fueron varios. */
   function entrenasteLos(ds){
@@ -1026,10 +1069,10 @@ function armarMensaje(){
      En el mensaje va SOLO el aviso de cuáles fueron: los precios por tipo se
      ven en la tarjeta de «cuánto pagar», que es para vos, no para el alumno. */
   function detalleIndividual(m){
-    const mm = VIENDO.meses.get(m);
-    if(!mm || !mm.individuales) return '';
-    const ds = [...mm.indiv.keys()].sort((a,b)=>a-b);
-    const n  = mm.individuales;
+    const v = clasesDe(m);
+    if(!v.individuales) return '';
+    const ds = v.indiv;
+    const n  = v.individuales;
     return (n===1 ? '\n(1 fue clase individual: día ' : '\n('+n+' fueron clases individuales: días ')+
            ds.join(', ')+')';
   }
