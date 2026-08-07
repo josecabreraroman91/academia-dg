@@ -130,6 +130,8 @@
     <button class="navtab" data-go="lib">📓 Libreta</button>
     <button class="navtab" data-go="ar">🏋️ Alto rendimiento</button>
     <button class="navtab" data-go="inv">📦 Inventario</button>
+    <button class="navtab" data-go="env">📨 Envíos</button>
+    <button class="navtab" data-go="pau">⏸️ En pausa</button>
     <button class="navtab" data-go="blo">📝 Bloc de notas</button>
     <button class="navtab" data-go="ahi">🧾 Hist. alumno</button>
     <button class="navtab" data-go="caj">🏦 Caja</button>
@@ -251,6 +253,8 @@
   <iframe id="frAr" data-src="alto-rendimiento.html" title="Alto rendimiento" referrerpolicy="no-referrer"></iframe>
   <iframe id="frInv" data-src="inventario.html" title="Inventario" referrerpolicy="no-referrer"></iframe>
   <iframe id="frBlo" data-src="bloc-notas.html" title="Bloc de notas" referrerpolicy="no-referrer"></iframe>
+  <iframe id="frEnv" data-src="envios.html" title="Envíos por horario" referrerpolicy="no-referrer"></iframe>
+  <iframe id="frPau" data-src="pausas.html" title="Alumnos en pausa" referrerpolicy="no-referrer"></iframe>
   <iframe id="frAhi" data-src="alumno-historial.html" title="Historial del alumno" referrerpolicy="no-referrer"></iframe>
   <iframe id="frCaj" data-src="caja.html" title="Caja" referrerpolicy="no-referrer"></iframe>
   <iframe id="frGan" data-src="ganancias.html" title="Ganancias" referrerpolicy="no-referrer"></iframe>
@@ -298,6 +302,8 @@
     if(dest==='ar' && !loaded.ar){ frAr.src=frAr.dataset.src+'?v='+Date.now(); loaded.ar=true; }
     if(dest==='inv' && !loaded.inv){ frInv.src=frInv.dataset.src+'?v='+Date.now(); loaded.inv=true; }
     if(dest==='blo' && !loaded.blo){ frBlo.src=frBlo.dataset.src+'?v='+Date.now(); loaded.blo=true; }
+    if(dest==='env' && !loaded.env){ frEnv.src=frEnv.dataset.src+'?v='+Date.now(); loaded.env=true; }
+    if(dest==='pau' && !loaded.pau){ frPau.src=frPau.dataset.src+'?v='+Date.now(); loaded.pau=true; }
     if(dest==='ahi' && !loaded.ahi){ frAhi.src=frAhi.dataset.src+'?v='+Date.now(); loaded.ahi=true; }
     if(dest==='caj' && !loaded.caj){ frCaj.src=frCaj.dataset.src+'?v='+Date.now(); loaded.caj=true; }
     if(dest==='gan' && !loaded.gan){ frGan.src=frGan.dataset.src+'?v='+Date.now(); loaded.gan=true; }
@@ -314,6 +320,8 @@
     frAr.classList.toggle('show', dest==='ar');
     frInv.classList.toggle('show', dest==='inv');
     frBlo.classList.toggle('show', dest==='blo');
+    frEnv.classList.toggle('show', dest==='env');
+    frPau.classList.toggle('show', dest==='pau');
     frAhi.classList.toggle('show', dest==='ahi');
     frCaj.classList.toggle('show', dest==='caj');
     frGan.classList.toggle('show', dest==='gan');
@@ -322,7 +330,7 @@
        cambiar de sección, así que conservan lo que había escrito; con esto cada app
        puede limpiar lo suyo al volver. */
     try{
-      const fr={cal:frCal,prof:frProf,alu:frAlu,pag:frPag,cob:frCob,niv:frNiv,age:frAge,lib:frLib,ar:frAr,inv:frInv,blo:frBlo,ahi:frAhi,caj:frCaj,gan:frGan,his:frHis,pan:frPan}[dest];
+      const fr={cal:frCal,prof:frProf,alu:frAlu,pag:frPag,cob:frCob,niv:frNiv,age:frAge,lib:frLib,ar:frAr,inv:frInv,blo:frBlo,env:frEnv,pau:frPau,ahi:frAhi,caj:frCaj,gan:frGan,his:frHis,pan:frPan}[dest];
       if(fr && fr.contentWindow) setTimeout(()=>{ try{ fr.contentWindow.postMessage({adg:'mostrar'}, '*'); }catch(e){} }, 60);
     }catch(e){}
     frPan.classList.toggle('show', dest==='pan');
