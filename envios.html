@@ -48,7 +48,7 @@ select{padding:8px 10px;border:1px solid var(--borde);border-radius:9px;font-siz
 .malo{background:#fdecea;border:1px solid #f5c6c4;border-radius:10px;
       padding:10px 12px;font-size:13px;margin-top:12px;color:var(--rojo)}
 
-.hora{border:1px solid var(--borde);border-radius:11px;margin-bottom:10px;overflow:hidden}
+.hora{border:1px solid var(--borde);border-radius:11px;margin-bottom:10px;overflow:hidden;background:#fff}
 .hora .cab{display:flex;align-items:center;gap:10px;padding:10px 12px;background:#f7fafc;
            border-bottom:1px solid var(--borde);flex-wrap:wrap}
 .hora .cab b{font-size:15px}
@@ -93,7 +93,7 @@ select{padding:8px 10px;border:1px solid var(--borde);border-radius:9px;font-siz
 
 <div class="wrap" id="app" style="display:none">
   <header>
-    <h1>📨 Envíos por horario <span class="v">v2026-08-06</span></h1>
+    <h1>📨 Envíos por horario <span class="v">v2026-08-06b</span></h1>
     <div class="yo"><span id="yoMail"></span><a href="#" id="btSalir">salir</a></div>
   </header>
 
@@ -214,29 +214,98 @@ function normPhone(raw){
 }
 function phoneOk(t){ return !!t && t.length>=8 && t.length<=15; }
 
-/* Junta todos los lugares donde puede estar el teléfono de un alumno.
-   Se prueban en orden y se usa el PRIMERO que tenga número de verdad: si el
-   padrón lo tiene sin número pero la app Alumnos sí, vale el de la app. Es la
-   misma regla del calendario, y es la que evita que alguien quede "sin
-   teléfono" teniéndolo cargado. */
+/* ---------- leer el padrón de verdad (alumnos_v1/csv) ----------
+   Los teléfonos NO están en el calendario: están en la copia del padrón que
+   vive en Firebase como un CSV. El calendario la lee y la guarda en memoria,
+   pero esa copia puede estar vieja o incompleta. Acá se lee la fuente directa,
+   igual que hace el calendario, para no depender de que alguien haya apretado
+   antes el botón de «Traer alumnos y teléfonos». */
+function parseCSV(text){
+  var rows=[], row=[], cur='', q=false;
+  for(var i=0;i<text.length;i++){
+    var ch=text[i];
+    if(q){
+      if(ch==='"'){ if(text[i+1]==='"'){ cur+='"'; i++; } else q=false; }
+      else cur+=ch;
+    } else {
+      if(ch==='"') q=true;
+      else if(ch===','){ row.push(cur); cur=''; }
+      else if(ch==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(ch==='\r'){ /* ignora */ }
+      else cur+=ch;
+    }
+  }
+  if(cur!=='' || row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+function buscaCol(hs, opciones){
+  var H = hs.map(function(h){ return normName(h); });
+  for(var i=0;i<opciones.length;i++){
+    var j = H.findIndex(function(h){ return h.indexOf(opciones[i])>-1; });
+    if(j>-1) return j;
+  }
+  return -1;
+}
+
+var PADRON = {};        // clave del alumno -> {tel, nombreWpp}
+var PADRON_INFO = '';
+
+function armarPadron(csv){
+  PADRON = {};
+  var rows = parseCSV(csv||'');
+  if(rows.length < 2){ PADRON_INFO = 'la copia del padrón vino vacía'; return; }
+
+  /* La planilla tiene un título en la fila 1 y los encabezados reales en la 2,
+     y además columnas ocultas: las posiciones no son fijas. Se busca la fila
+     que tenga a la vez una columna de nombre y una de teléfono. */
+  var headRow=-1, iNom=-1, iTel=-1;
+  for(var r=0; r<Math.min(rows.length,12); r++){
+    var n = buscaCol(rows[r], ['alumnos','alumno','nombre completo','nombre']);
+    var t = buscaCol(rows[r], ['telefono','teléfono','whatsapp','celular','cel','tel']);
+    if(n>=0 && t>=0){ headRow=r; iNom=n; iTel=t; break; }
+  }
+  if(headRow<0){ PADRON_INFO = 'no encontré las columnas de nombre y teléfono'; return; }
+
+  var iWpp = buscaCol(rows[headRow], ['nombre_calendario','nombre p/ horario','nombre wpp','nombre_wpp','apodo','alias']);
+  var con=0, tot=0;
+  for(var r2=headRow+1; r2<rows.length; r2++){
+    var nom = (rows[r2][iNom]||'').trim(); if(!nom) continue;
+    tot++;
+    var tel = normPhone(rows[r2][iTel]||'');
+    var wpp = iWpp>-1 ? (rows[r2][iWpp]||'').trim() : '';
+    if(phoneOk(tel)) con++;
+    var dato = { tel: phoneOk(tel)?tel:'', nombreWpp: wpp };
+    /* Se guarda con las dos claves: la limpia (que saca la sede pegada al
+       nombre en la grilla) y la simple. Sin la limpia, "Pedro Gomez LOMAS"
+       nunca encuentra a "Pedro Gomez". */
+    var k1 = keyAlumno(nom), k2 = normName(nom);
+    if(k1 && (!PADRON[k1] || (!PADRON[k1].tel && dato.tel))) PADRON[k1] = dato;
+    if(k2 && (!PADRON[k2] || (!PADRON[k2].tel && dato.tel))) PADRON[k2] = dato;
+  }
+  PADRON_INFO = tot+' alumnos en el padrón · '+con+' con teléfono';
+}
+
+/* Busca el teléfono probando, en orden: el padrón, los alumnos creados en vivo,
+   y por último los contactos que el calendario tenga en memoria. Se queda con
+   el PRIMERO que tenga número de verdad. */
 function telDeAlumno(nombre){
   var k = normName(nombre), kf = keyAlumno(nombre);
-  var C = (CAL && CAL.contactos) || {};
   var cands = [];
-  if(C[k])  cands.push(C[k]);
-  if(C[kf]) cands.push(C[kf]);
-  // por si en contactos la clave está guardada con cola (busca flexible)
-  for(var kk in C){ if(keyAlumno(kk)===kf) cands.push(C[kk]); }
-  // los creados/editados en vivo
+  if(PADRON[kf]) cands.push(PADRON[kf]);
+  if(PADRON[k])  cands.push(PADRON[k]);
   for(var id in VIVO){
     var v = VIVO[id];
     if(v && v.nombre && (normName(v.nombre)===k || keyAlumno(v.nombre)===kf)) cands.push(v);
   }
+  var C = (CAL && CAL.contactos) || {};
+  if(C[k])  cands.push(C[k]);
+  if(C[kf]) cands.push(C[kf]);
+
   var elegido = null;
   for(var i=0;i<cands.length;i++){
     var c = cands[i]; if(!c) continue;
     var t = normPhone(c.tel || c.telefono || c.whatsapp || '');
-    if(phoneOk(t)){ elegido = { tel:t, nombreWpp:(c.nombreWpp||c.apodo||'') }; break; }
+    if(phoneOk(t)) return { tel:t, nombreWpp:(c.nombreWpp||c.apodo||'') };
     if(!elegido) elegido = { tel:'', nombreWpp:(c.nombreWpp||c.apodo||'') };
   }
   return elegido || { tel:'', nombreWpp:'' };
@@ -348,7 +417,11 @@ function pintar(){
 
   var html = '<div class="resumen">Del día <b>'+DIA+'</b>: <b>'+LISTA.length+'</b> clase(s) en la grilla · '+
              '<b>'+conTel.length+'</b> con teléfono · <b>'+aMandar+'</b> se van a mandar'+
-             (sacados? ' · <b>'+sacados+'</b> sacados a mano':'')+'.</div>';
+             (sacados? ' · <b>'+sacados+'</b> sacados a mano':'')+'.'+
+             '<div style="margin-top:5px;font-size:12px;color:#4a545f">'+
+               esc(PADRON_INFO||'padrón no leído')+
+               (_enganchado?' · 🟢 en vivo: si cambian el calendario, esta lista se actualiza sola':'')+
+             '</div></div>';
 
   if(LISTA.length && !conTel.length){
     html += '<div class="malo">⚠️ No encontré el teléfono de NADIE. Eso casi seguro quiere decir '+
@@ -481,26 +554,53 @@ async function mandarHora(h){
   }
 }
 
-/* ---------- traer los datos ---------- */
+/* ---------- traer los datos y quedarse escuchando ----------
+   Se usa .on() y no .once(): si Diego mueve o agrega a alguien en el editable,
+   esta pantalla se actualiza sola, sin recargar. Lo que hayas sacado a mano se
+   respeta, porque FUERA se guarda por clave de celda. */
+var _enganchado = false;
+
+function refrescar(){
+  if(DIA){ var f = FUERA, e = ESTADO_HORA; armarLista(); FUERA = f; ESTADO_HORA = e; }
+  pintar();
+}
+
 async function traer(){
   $('resumen').innerHTML = '<div class="resumen">Trayendo el calendario y los teléfonos…</div>';
   try{
-    var s1 = await db.ref('calendario_v2').once('value');
-    CAL = s1.val() || null;
+    /* el padrón: la fuente de los teléfonos */
+    try{
+      var sp = await db.ref('alumnos_v1/csv').once('value');
+      armarPadron(sp.val() || '');
+      log('Padrón: '+PADRON_INFO);
+    }catch(e){ PADRON_INFO='no pude leer el padrón: '+e.message; log(PADRON_INFO); }
+
+    /* los alumnos creados o editados en vivo */
     try{ var s2 = await db.ref('alumnos_v2').once('value'); VIVO = s2.val() || {}; }
     catch(e){ VIVO = {}; }
 
-    if(!CAL){
-      $('resumen').innerHTML = '<div class="malo">No pude leer el calendario. Probá recargar la página.</div>';
-      return;
-    }
-    var cuantos = CAL.contactos ? Object.keys(CAL.contactos).length : 0;
-    log('Calendario traído. Contactos con teléfono en memoria: '+cuantos+
-        ' · alumnos en vivo: '+Object.keys(VIVO).length);
-    if(DIA){ armarLista(); }
-    pintar();
+    if(_enganchado){ refrescar(); return; }
+
+    /* el calendario, escuchando en vivo */
+    db.ref('calendario_v2').on('value', function(snap){
+      CAL = snap.val() || null;
+      if(!CAL){
+        $('resumen').innerHTML = '<div class="malo">No pude leer el calendario. Probá recargar la página.</div>';
+        return;
+      }
+      if(!_enganchado){
+        _enganchado = true;
+        log('Calendario enganchado en vivo. Si alguien lo cambia, esta pantalla se actualiza sola.');
+      } else {
+        log('El calendario cambió: lista actualizada.');
+      }
+      refrescar();
+    }, function(err){
+      $('resumen').innerHTML = '<div class="malo">No pude leer el calendario: '+esc(err.message)+'</div>';
+    });
+
   }catch(e){
-    $('resumen').innerHTML = '<div class="malo">No pude leer el calendario: '+esc(e.message)+'</div>';
+    $('resumen').innerHTML = '<div class="malo">No pude traer los datos: '+esc(e.message)+'</div>';
   }
 }
 
