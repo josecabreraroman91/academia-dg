@@ -2608,6 +2608,10 @@ function _renderGridReal(){
             if(al.nivel) tags.push(`<span class="tag nivel">${al.nivel}</span>`);
             if(al.lado) tags.push(`<span class="tag">${al.lado}</span>`);
             if(al.mod) tags.push(`<span class="tag mod">${al.mod}</span>`);
+            /* Un bloque de alto rendimiento puede ser de una hora o de media, y
+               eso cambia lo que aporta al pozo (AR60 o AR30). Sin verlo en la
+               grilla, dos bloques a la misma hora se ven idénticos. */
+            if(al.mod==='BLOQUE' && Number(al.dur)===30) tags.push(`<span class="tag">30min</span>`);
             const conf = state.mode==='semana' && al.confirmado;
             const marcado = !!al.revisar;   // el estado se lee del ALUMNO, nunca de la celda
             const esCoach = String(al.mod||'').toUpperCase()==='COACH';
@@ -3137,7 +3141,13 @@ function buildResumen(){
               /* En el resumen que se manda por WhatsApp los bloques van cortos:
                  "ALTO RENDIMIENTO" ocupa media línea y se repite todo el día. */
               if(/ALMUERZO/i.test(al.nombre))            t='ALMUERZO 🥗';
-              else if(/ALTO RENDIMIENTO/i.test(al.nombre)) t='A.R. 🏋️';
+              else if(/ALTO RENDIMIENTO/i.test(al.nombre)){
+                /* Antes todos los bloques se aplastaban a "A.R. 🏋️" y no se
+                   distinguía ni el equipo ni si era de media hora. Se conserva
+                   lo que venga después de "ALTO RENDIMIENTO" (E1, E2, …). */
+                const eq = String(al.nombre).replace(/.*ALTO\s*RENDIMIENTO/i,'').trim();
+                t = 'A.R.'+(eq?' '+eq:'')+(Number(al.dur)===30?' 30min':'')+' 🏋️';
+              }
               else                                        t=al.nombre;
             } else {
               t=`${abrevNombre(al.nombre)} (${al.mod||''})`;
