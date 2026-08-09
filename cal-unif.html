@@ -327,7 +327,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v2026-08-09 · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-09b · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -752,18 +752,56 @@ function quitarSedesDeLibros(){
    Manda la de los libros, no la general, porque la de los libros es la que
    se venía viendo en pantalla. Después nunca más se vuelve a mirar. */
 const SEDES_UNIF='v1';
+let _unifRechazada=false;   // si dijiste que no, no se vuelve a preguntar en esta sesión
 function unificarSedesPorDia(){
   const avisos=[];
-  if(state.sedesUnif!==SEDES_UNIF){
+  if(state.sedesUnif!==SEDES_UNIF && !_unifRechazada){
     const fuentes=[['la MADRE','madre'],['esta semana','semana'],['la que viene','semanaProxima']]
       .map(([et,k])=>[et,(state[k]&&state[k].sedesPorDia)||null]).filter(x=>x[1]);
     if(fuentes.length){
       const elegido=fuentes[0][1];
       fuentes.slice(1).forEach(([et,otro])=>{
         if(JSON.stringify(otro)!==JSON.stringify(elegido))
-          avisos.push('las columnas de '+fuentes[0][0]+' y '+et+' no coincidían; quedó la de '+fuentes[0][0]);
+          avisos.push('las columnas de '+fuentes[0][0]+' y '+et+' no coincidían; queda la de '+fuentes[0][0]);
       });
       if(!state.sedesPorDia || typeof state.sedesPorDia!=='object') state.sedesPorDia={};
+
+      /* PREGUNTA ANTES DE TOCAR NADA. Esto corre una sola vez en la vida del
+         sistema y cambia la lista de columnas de todos los días, así que no
+         puede pasar en silencio: se muestra exactamente qué cambia y, si se
+         cancela, no se toca absolutamente nada. */
+      const cambios=[];
+      Object.keys(elegido).forEach(d=>{
+        (elegido[d]||[]).forEach(sedeNueva=>{
+          const vieja=(state.sedesPorDia[d]||[]).find(x=>x && x.key===sedeNueva.key);
+          const antes=vieja ? (vieja.profes||[]).length : 0;
+          const ahora=(sedeNueva.profes||[]).length;
+          if(!vieja) cambios.push('   • '+d+' / '+sedeNueva.nombre+': aparece con '+ahora+' columnas');
+          else if(antes!==ahora) cambios.push('   • '+d+' / '+sedeNueva.nombre+': '+antes+' → '+ahora+' columnas');
+          else if(JSON.stringify(vieja.profes)!==JSON.stringify(sedeNueva.profes))
+            cambios.push('   • '+d+' / '+sedeNueva.nombre+': mismas '+ahora+' columnas, distinto orden o nombres');
+        });
+      });
+
+      if(typeof confirm==='function'){
+        const ok=confirm(
+          'ORDENAR LAS COLUMNAS EN UN SOLO LUGAR\n\n'+
+          'Hasta hoy la lista de columnas estaba guardada en cuatro lugares distintos y no siempre coincidían. '+
+          'Por eso una columna borrada volvía sola.\n\n'+
+          'Voy a dejar UNA sola lista: la que venías viendo en pantalla.\n\n'+
+          (cambios.length ? ('Lo que cambia:\n'+cambios.join('\n')+'\n\n') : 'No cambia ninguna columna: las listas ya coincidían.\n\n')+
+          (avisos.length ? ('Ojo:\n   • '+avisos.join('\n   • ')+'\n\n') : '')+
+          'NINGÚN alumno se borra ni se mueve.\n\n'+
+          'Si cancelás no se toca nada y el calendario sigue funcionando como hasta ahora.\n\n¿Confirmás?'
+        );
+        if(!ok){
+          _unifRechazada=true;
+          try{ console.log('🏠 Unificación cancelada por el usuario. No se tocó nada.'); }catch(e){}
+          quitarSedesDeLibros();
+          return ['cancelada'];
+        }
+      }
+
       Object.keys(elegido).forEach(d=>{ state.sedesPorDia[d]=JSON.parse(JSON.stringify(elegido[d])); });
     }
     state.sedesUnif=SEDES_UNIF;
@@ -1282,6 +1320,26 @@ function anotarOpAgente(tipo, alumno, detalle){
   }catch(e){ console.warn('no pude anotar el cambio del agente:', e.message); }
 }
 
+/* Igual que la de arriba, pero firmada por el PROFE que lo hizo, no por el
+   agente. Se usa para el verde automático de los alumnos que agenda un profe:
+   si el historial dijera "🤖 Agente de WhatsApp" estaría mintiendo sobre quién
+   tomó la decisión, y esa firma es justamente lo que hay que poder mirar. */
+function anotarOpProfe(tipo, alumno, detalle, r){
+  try{
+    if(!_fbdb) return;
+    const d=new Date();
+    const fecha=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+    _fbdb.ref('ops_admin/'+fecha).push({
+      tipo: tipo,
+      alumno: String(alumno||'').slice(0,80),
+      detalle: String(detalle||'').slice(0,200),
+      porCorreo: String((r&&r.porCorreo)||'profe@academiadg'),
+      porNombre: String((r&&r.porNombre)||'Profesor'),
+      ts: Date.now()
+    }).catch(()=>{});
+  }catch(e){ console.warn('no pude anotar el cambio del profe:', e.message); }
+}
+
 function autoAplicarLibreta(){
   if(!_fbdb || !_calListo || _aplicandoRemoto || _aplicandoLibreta) return;
 
@@ -1620,8 +1678,21 @@ function aplicarReservas(){
       hechos.push('↔️ '+r.alumno+': '+lugarTxt(r.desde)+' → '+lugarTxt(destino)+' — '+(r.porNombre||''));
     } else {
       const dp=datosDePadron(r.alumno);
-      B.alumnos[destino]={ nombre:r.alumno, nivel:dp.nivel, lado:dp.lado, mod:(r.mod||dp.mod||''), nota:'' };
-      hechos.push('➕ '+r.alumno+' entró en '+lugarTxt(destino)+' — '+(r.porNombre||''));
+      /* ENTRA YA CONFIRMADO (decisión de Diego, 9 de agosto de 2026).
+         Un alumno que un profe agenda entra en verde, sin que nadie lo marque.
+
+         Esto NO es cosmético: el verde decide el cobro. Un alumno en verde al
+         que después marcan ausente SE COBRA igual, porque dijo que venía.
+         Sin verde, esa misma falta no se cobra.
+
+         Queda `confPor:'profe'` pegado al alumno para poder contar después
+         cuántas de estas terminaron en ausencia cobrada. Sin ese rastro, el
+         día que haya que discutirlo no habría con qué. */
+      B.alumnos[destino]={ nombre:r.alumno, nivel:dp.nivel, lado:dp.lado, mod:(r.mod||dp.mod||''), nota:'',
+                           confirmado:true, confPor:'profe' };
+      hechos.push('➕ '+r.alumno+' entró en '+lugarTxt(destino)+' 🟢 confirmado — '+(r.porNombre||''));
+      try{ logOp('confirma_por_profe', r.alumno+' — '+lugarTxt(destino)+' — agendado por '+(r.porNombre||'un profe')); }catch(e){}
+      try{ anotarOpProfe('confirmar', r.alumno, lugarTxt(destino)+' · entró confirmado al agendarlo', r); }catch(e){}
       if(r.fijo) fijos.push(r.alumno+' · '+lugarTxt(destino));
       crearAlumnoSiNoEsta(r);
     }
