@@ -327,7 +327,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v20 · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-09 · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -712,10 +712,67 @@ function book(){
   if(state.semActiva==='anterior') return state.semanaAnterior || state.semana;
   return state.semActiva==='proxima' ? state.semanaProxima : state.semana;
 }
-// Columnas de profes AHORA por planilla (madre/semana independientes)
-function bookSedes(){ const b=book(); if(!b.sedesPorDia) b.sedesPorDia=JSON.parse(JSON.stringify(state.sedesPorDia||{})); return b.sedesPorDia; }
-function sedesSemana(){ const b=state.semana||(state.semana={alumnos:{},libres:{}}); if(!b.sedesPorDia) b.sedesPorDia=JSON.parse(JSON.stringify(state.sedesPorDia||{})); return b.sedesPorDia; }
-function migrarSedesPorBook(){ const base=state.sedesPorDia||{}; ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{ if(state[k] && !state[k].sedesPorDia) state[k].sedesPorDia=JSON.parse(JSON.stringify(base)); }); }
+/* ============================================================
+   LAS COLUMNAS VIVEN EN UNA SOLA CASA   (cambió el 9 de agosto de 2026)
+
+   Antes cada libro (madre, semana, la que viene, la anterior) llevaba su
+   propia copia de la lista de columnas, adentro de `libro.sedesPorDia`.
+
+   El problema: al subir a la nube se manda de cada libro SOLO `alumnos` y
+   `libres`. La lista de columnas del libro no se manda nunca. Así que quitar
+   o agregar una columna no salía del navegador, y la copia vieja que estaba
+   guardada en la nube volvía en el siguiente mensaje y la columna reaparecía.
+   Los alumnos, en cambio, sí se habían corrido de lugar: la columna volvía y
+   la gente quedaba abajo del profe de al lado.
+
+   Ahora hay UNA SOLA lista, `state.sedesPorDia`, que sí viaja a la nube
+   entera en cada guardado. Los libros ya no llevan copia.
+
+   Consecuencia buscada: quitar una columna corre los alumnos en LOS CUATRO
+   libros, porque la grilla es la misma para todos. El cartel de confirmación
+   dice cuántos alumnos se borran y cuántos se corren en cada libro.
+   ============================================================ */
+function sedesTodas(){
+  if(!state.sedesPorDia || typeof state.sedesPorDia!=='object') state.sedesPorDia={};
+  return state.sedesPorDia;
+}
+function bookSedes(){ return sedesTodas(); }
+function sedesSemana(){ return sedesTodas(); }
+
+/* Saca las copias viejas de la lista de columnas que puedan venir adentro de
+   un libro (de la nube o de la memoria del navegador). Son inertes: ya nadie
+   las escribe. Se sacan para que no puedan volver a mandar. */
+function quitarSedesDeLibros(){
+  ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{
+    if(state[k] && state[k].sedesPorDia) delete state[k].sedesPorDia;
+  });
+}
+
+/* UNA SOLA VEZ: pasa la lista que traían los libros a la casa única.
+   Manda la de los libros, no la general, porque la de los libros es la que
+   se venía viendo en pantalla. Después nunca más se vuelve a mirar. */
+const SEDES_UNIF='v1';
+function unificarSedesPorDia(){
+  const avisos=[];
+  if(state.sedesUnif!==SEDES_UNIF){
+    const fuentes=[['la MADRE','madre'],['esta semana','semana'],['la que viene','semanaProxima']]
+      .map(([et,k])=>[et,(state[k]&&state[k].sedesPorDia)||null]).filter(x=>x[1]);
+    if(fuentes.length){
+      const elegido=fuentes[0][1];
+      fuentes.slice(1).forEach(([et,otro])=>{
+        if(JSON.stringify(otro)!==JSON.stringify(elegido))
+          avisos.push('las columnas de '+fuentes[0][0]+' y '+et+' no coincidían; quedó la de '+fuentes[0][0]);
+      });
+      if(!state.sedesPorDia || typeof state.sedesPorDia!=='object') state.sedesPorDia={};
+      Object.keys(elegido).forEach(d=>{ state.sedesPorDia[d]=JSON.parse(JSON.stringify(elegido[d])); });
+    }
+    state.sedesUnif=SEDES_UNIF;
+    if(avisos.length){ try{ logOp('unificar_columnas', avisos.join(' | ').slice(0,180)); }catch(e){} }
+    try{ console.log('🏠 Columnas unificadas en una sola casa.', avisos); }catch(e){}
+  }
+  quitarSedesDeLibros();
+  return avisos;
+}
 // ===== Dos semanas editables (esta + la que viene), con fechas =====
 function isoDe(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
 function lunesDeHoy(){ const d=new Date(); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return isoDe(d); }
@@ -1072,7 +1129,7 @@ function resolverPedidoEnCalendario(a){
   if(!B || !B.alumnos) return null;
 
   const sedeKey = a.destinoSede;
-  const sedes = (B.sedesPorDia || sedesSemana())[dia] || [];
+  const sedes = sedesTodas()[dia] || [];
   let sede=null; for(const s of sedes){ if(s && s.key===sedeKey){ sede=s; break; } }
   if(!sede) return null;
 
@@ -1158,7 +1215,7 @@ function celdaDeAnotacion(a){
   }catch(e){}
   if(!B || !B.alumnos) return null;
 
-  const sedes = (B.sedesPorDia || sedesSemana())[dia] || [];
+  const sedes = sedesTodas()[dia] || [];
   let sede = null;
   for(const s of sedes){ if(s && s.key === a.sede){ sede = s; break; } }
   if(!sede) return null;
@@ -1888,7 +1945,6 @@ function loadState(){
       let cambio=false;
       const _fixNombres = arr => (arr||[]).forEach(sd=>{ if(NOMBRES_SEDE[sd.key] && sd.nombre!==NOMBRES_SEDE[sd.key]){ sd.nombre=NOMBRES_SEDE[sd.key]; cambio=true; } });
       Object.values(state.sedesPorDia||{}).forEach(_fixNombres);
-      [state.madre,state.semana,state.semanaProxima].forEach(bk=>{ if(bk&&bk.sedesPorDia) Object.values(bk.sedesPorDia).forEach(_fixNombres); });
       if(cambio) saveState();
       // Si la grilla guardada es de una versión anterior (o no tiene la grilla real cargada),
       // recargar la MADRE desde la planilla CALENDARIO una sola vez.
@@ -1902,7 +1958,7 @@ function loadState(){
         state.lunesActual = SEED_LUNES;   // esta semana = semana de producción (Lun 20)
         saveState();
       }
-      migrarSedesPorBook();
+      unificarSedesPorDia();
       asegurarSemanas();
       return;
     }catch(e){}
@@ -1917,7 +1973,7 @@ function loadState(){
   state.semana = { alumnos: JSON.parse(JSON.stringify(SEED_CAL_SEMANA.alumnos)), libres: JSON.parse(JSON.stringify(SEED_CAL_SEMANA.libres)) };
   state.semanaProxima = JSON.parse(JSON.stringify(state.madre));
   state.lunesActual = SEED_LUNES;   // esta semana = semana de producción (Lun 20)
-  migrarSedesPorBook();
+  unificarSedesPorDia();
   asegurarSemanas();
   saveState();
 }
@@ -2007,14 +2063,26 @@ function _tsServidor(){
   try{ return firebase.database.ServerValue.TIMESTAMP; }catch(e){ return Date.now(); }
 }
 
-/* Arma la foto plana del calendario tal como va a la nube. */
+/* Arma la foto plana del calendario tal como va a la nube.
+
+   OJO CON LAS COPIAS (arreglado el 9 de agosto de 2026): esta foto se guarda
+   como "lo último confirmado en la nube" y después se compara contra el estado
+   para ver qué cambió. Si acá se guarda el objeto vivo en vez de una copia, la
+   foto cambia junto con el estado y la comparación siempre dice "no cambió
+   nada": el cambio no sale nunca y no hay ningún error a la vista.
+
+   Le pasaba a los tres campos que se modifican en el lugar: la lista de
+   columnas, la lista de profesores (por eso renombrar un diminutivo no llegaba
+   nunca a la nube) y el cuaderno de la propagación de la MADRE. */
 function _fotoCalendario(){
+  const copia = o => JSON.parse(JSON.stringify(o||{}));
   const f = {
     seedVersion: SEED_VERSION,
-    profesores: state.profesores || [],
-    sedesPorDia: state.sedesPorDia || {},
+    profesores: copia(state.profesores || []),
+    sedesPorDia: copia(state.sedesPorDia || {}),
+    sedesUnif: state.sedesUnif || null,
     lunesActual: state.lunesActual || '',
-    madreSync: state.madreSync || {},
+    madreSync: copia(state.madreSync || {}),
     revisar: { marks: _derivarMarcas(), upd: _ahora(), enAlumno: true },
     libros: {}, borrados: {}
   };
@@ -2034,7 +2102,7 @@ function _diffCalendario(base, ahora){
   const upd = {};
   let celdas = 0, bajas = 0, altas = 0;
 
-  ['profesores','sedesPorDia','lunesActual','madreSync','seedVersion'].forEach(campo=>{
+  ['profesores','sedesPorDia','sedesUnif','lunesActual','madreSync','seedVersion'].forEach(campo=>{
     if(JSON.stringify(base[campo]) !== JSON.stringify(ahora[campo])) upd[campo] = ahora[campo];
   });
 
@@ -2200,6 +2268,10 @@ function iniciarCalendarioCompartido(){
     _aplicandoRemoto = true;
     state.profesores    = r.profesores    || state.profesores;
     state.sedesPorDia   = r.sedesPorDia   || state.sedesPorDia;
+    /* Se copia TAL CUAL la nube (aunque no exista): así, si la nube todavía no
+       tiene la marca, la unificación corre y se sube. Si pusiéramos el valor
+       local, la marca nunca llegaría a la nube y cada aparato unificaría solo. */
+    state.sedesUnif     = r.sedesUnif     || null;
     state.madre         = r.madre         || state.madre;
     state.semana        = r.semana        || state.semana;
     state.semanaProxima = r.semanaProxima || state.semanaProxima;
@@ -2225,13 +2297,15 @@ function iniciarCalendarioCompartido(){
       _baseRemota = _fotoCalendario();
       if(_empujePendiente){ _empujePendiente = false; setTimeout(empujarCalendario, 0); }
     }catch(e){ console.warn('base:', e.message); }
+    /* Recién ACÁ se unifica: la foto de arriba tiene que ser lo que hay en la
+       nube. Si la unificación cambia algo, sale como cambio y se sube. */
+    unificarSedesPorDia();
     // Marcas "para revisar": si el que publicó ya usa el formato nuevo, las marcas vienen
     // dentro de cada alumno y el mapa se ignora. Si publicó un dispositivo con la versión
     // anterior, se importa su mapa hacia adentro de los alumnos (una sola vez).
     if(r.revisar && !r.revisar.enAlumno){ try{ importarMarcasViejas(r.revisar.marks||{}); }catch(e){} }
     guardarRevisar();
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
-    migrarSedesPorBook();
     _aplicandoRemoto = false; _calListo = true;
     try{ autoAplicarReservas(); }catch(e){}
     try{ autoAplicarLibreta(); }catch(e){}
@@ -2251,7 +2325,7 @@ function armarDiaHoy(){ const d=diaHoyNombre(); return d?armarDiaDe(d):null; }
 function armarDiaDe(dia, book){
   if(!dia) return null;
   const B=book||state.semana||{alumnos:{},libres:{}};
-  const sedesDia=(B.sedesPorDia||sedesSemana())[dia]; if(!sedesDia) return null;
+  const sedesDia=sedesTodas()[dia]; if(!sedesDia) return null;
   const porSede={};
   sedesDia.forEach(s=>{
     const recs={};
@@ -2416,14 +2490,22 @@ function sanearEstado(){
     state.profesores=JSON.parse(JSON.stringify(SEED_CAL.profesores)); reparado.push('profesores');
   }
   state.profesores=state.profesores.filter(p=>p&&p.dim);
-  state.sedesPorDia=sanearMapaSedes(state.sedesPorDia, 'base');
+  state.sedesPorDia=sanearMapaSedes(state.sedesPorDia, 'columnas');
   ['madre','semana','semanaProxima'].forEach(k=>{
     if(!state[k] || typeof state[k]!=='object'){ state[k]={alumnos:{},libres:{}}; reparado.push(k); }
     if(!state[k].alumnos || typeof state[k].alumnos!=='object'){ state[k].alumnos={}; reparado.push(k+'/alumnos'); }
     if(!state[k].libres  || typeof state[k].libres!=='object'){ state[k].libres={};  reparado.push(k+'/libres'); }
-    state[k].sedesPorDia=sanearMapaSedes(state[k].sedesPorDia, k);
-    // CLAVE: nunca dejar alumnos fuera de la vista por falta de columnas
-    DIAS.forEach(d=>{ const n=expandirParaNoOcultarNada(state[k].sedesPorDia[d], state[k], d); if(n) reparado.push(k+'/'+d+': +'+n+' col. para no ocultar datos'); });
+  });
+  quitarSedesDeLibros();   // una sola casa: los libros no llevan copia
+  /* CLAVE: nunca dejar alumnos fuera de la vista por falta de columnas.
+     Como la lista es una sola, tiene que alcanzar para el libro más exigente:
+     se mira lo que exige CADA libro, incluida la semana anterior. */
+  DIAS.forEach(d=>{
+    ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{
+      if(!state[k] || !state[k].alumnos) return;
+      const n=expandirParaNoOcultarNada(state.sedesPorDia[d], state[k], d);
+      if(n) reparado.push(d+': +'+n+' col. para no ocultar datos de '+k);
+    });
   });
   if(DIAS.indexOf(state.dia)<0){ state.dia='LUNES'; reparado.push('día activo'); }
   if(state.mode!=='madre' && state.mode!=='semana'){ state.mode='semana'; }
@@ -2535,12 +2617,15 @@ function renderGrid(){
     try{ logOp('render_fallo', String(e && e.message).slice(0,90)); }catch(_){}
     // 1er intento: reparar la estructura y volver a dibujar
     try{ sanearEstado(); _renderGridReal(); return; }catch(e2){}
-    // 2º intento: reconstruir el día desde la MADRE
+    // 2º intento: rehacer las columnas de este día desde la semilla del archivo
     try{
-      const B=book(), M=state.madre;
-      if(M && M.sedesPorDia && M.sedesPorDia[state.dia]){
-        B.sedesPorDia[state.dia]=JSON.parse(JSON.stringify(M.sedesPorDia[state.dia]));
-        expandirParaNoOcultarNada(B.sedesPorDia[state.dia], B, state.dia);   // respetar lo cargado esta semana
+      const SD=sedesTodas();
+      if(SEED_CAL.sedesPorDia && SEED_CAL.sedesPorDia[state.dia]){
+        SD[state.dia]=JSON.parse(JSON.stringify(SEED_CAL.sedesPorDia[state.dia]));
+        // respetar lo cargado en CUALQUIER libro: nadie queda escondido
+        ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{
+          if(state[k] && state[k].alumnos) expandirParaNoOcultarNada(SD[state.dia], state[k], state.dia);
+        });
         _renderGridReal(); return;
       }
     }catch(e3){}
@@ -2557,10 +2642,12 @@ function repararDiaActual(){
   try{
     backupAuto('antes de reparar '+state.dia);
     sanearEstado();
-    const B=book(), M=state.madre;
-    if(M && M.sedesPorDia && M.sedesPorDia[state.dia]) B.sedesPorDia[state.dia]=JSON.parse(JSON.stringify(M.sedesPorDia[state.dia]));
-    else if(SEED_CAL.sedesPorDia[state.dia]) B.sedesPorDia[state.dia]=JSON.parse(JSON.stringify(SEED_CAL.sedesPorDia[state.dia]));
-    const sumadas=expandirParaNoOcultarNada(B.sedesPorDia[state.dia], B, state.dia);  // conserva lo de esta semana
+    const B=book(), SD=sedesTodas();
+    if(SEED_CAL.sedesPorDia && SEED_CAL.sedesPorDia[state.dia]) SD[state.dia]=JSON.parse(JSON.stringify(SEED_CAL.sedesPorDia[state.dia]));
+    let sumadas=0;   // conserva lo cargado en todos los libros
+    ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{
+      if(state[k] && state[k].alumnos) sumadas+=expandirParaNoOcultarNada(SD[state.dia], state[k], state.dia);
+    });
     logOp('reparar_dia', state.dia+' (+'+sumadas+' col.)');
     saveState(); renderAll();
     const vis=Object.keys(B.alumnos||{}).filter(k=>k.split('|')[0]===state.dia).length;
@@ -2648,13 +2735,36 @@ function _renderGridReal(){
       const pi=+b.dataset.colx; const s=sedeByKey(b.dataset.sk);
       if(!s || s.profes[pi]===undefined){ renderGrid(); return; }  // la grilla cambió: no borrar a ciegas
       const nom=s.profes[pi];
-      if(!confirm(`¿Quitar la columna "${nom}" de ${s.nombre} (${state.dia})?`)) return;
+      /* La lista de columnas es UNA SOLA para los cuatro libros, así que sacar
+         una columna los toca a todos. Antes de preguntar se cuenta, libro por
+         libro, cuántos alumnos se borran (los de esa columna) y cuántos se
+         corren un lugar a la izquierda (los de las columnas de la derecha). */
+      const LIBROS_COL=[['la MADRE','madre'],['esta semana','semana'],['la que viene','semanaProxima'],['la semana anterior','semanaAnterior']];
+      const cuenta=LIBROS_COL.map(([et,k])=>{
+        const B=state[k]; if(!B || !B.alumnos) return null;
+        let enCol=0, aDerecha=0;
+        Object.keys(B.alumnos).forEach(kk=>{
+          const p=kk.split('|'); if(p[0]!==state.dia || p[1]!==s.key) return;
+          const c=parseInt(p[2],10);
+          if(c===pi) enCol++; else if(c>pi) aDerecha++;
+        });
+        return {et,k,enCol,aDerecha};
+      }).filter(Boolean);
+      const totalBorra=cuenta.reduce((a,x)=>a+x.enCol,0);
+      const totalMueve=cuenta.reduce((a,x)=>a+x.aDerecha,0);
+      const detalle=cuenta.filter(x=>x.enCol||x.aDerecha)
+        .map(x=>'   • '+x.et+': se borran '+x.enCol+', se corren '+x.aDerecha).join('\n');
+      if(!confirm('¿Quitar la columna "'+nom+'" de '+s.nombre+' ('+state.dia+')?\n\n'+
+        'La lista de columnas es UNA SOLA para la MADRE y las tres semanas, así que esto toca a las cuatro:\n'+
+        (detalle||'   • no hay alumnos en juego')+'\n\n'+
+        'En total se borran '+totalBorra+' alumno(s) y se corren '+totalMueve+' un lugar a la izquierda.\n\n'+
+        'Se guarda un backup automático antes de tocar nada.\n\n¿Confirmás?')) return;
       if(!confirmarSiMadre()) return;
       backupAuto('antes de borrar columna '+nom+' ('+state.dia+')');
-      logOp('borrar_columna', nom+' @ '+s.key+' ('+state.dia+')');
+      logOp('borrar_columna', nom+' @ '+s.key+' ('+state.dia+') — borra '+totalBorra+', corre '+totalMueve);
       // Reacomodar datos: borrar lo de esta columna y correr las de la derecha,
       // para que cada profe conserve SUS alumnos y bloqueos (no herede los del borrado)
-      remapColumnaBorrada(book(), state.dia, s.key, pi);
+      LIBROS_COL.forEach(([et,k])=>{ if(state[k] && state[k].alumnos) remapColumnaBorrada(state[k], state.dia, s.key, pi); });
       s.profes.splice(pi,1);
       saveState(); renderGrid(); publicarYa();
     };
@@ -2664,7 +2774,9 @@ function _renderGridReal(){
       if(!confirmarSiMadre()) return;
       const s=sedeByKey(b.dataset.addcol);
       const primer = state.profesores[0] ? state.profesores[0].dim : '—';
-      s.profes.push(primer); saveState(); renderGrid(); publicarYa();
+      s.profes.push(primer);
+      logOp('agregar_columna', primer+' @ '+s.key+' ('+state.dia+')');
+      saveState(); renderGrid(); publicarYa();
     };
   });
   grid.querySelectorAll('.slot[data-cell]').forEach(s=>{ s.onclick=()=>{ if(_dragMovedFlag){ _dragMovedFlag=false; return; } openEditor(s.dataset.cell); }; });
@@ -2990,8 +3102,7 @@ function addProf(){
 function openProfs(){ renderProfList(); document.getElementById('overlayProfs').classList.add('show'); }
 function closeProfs(){ document.getElementById('overlayProfs').classList.remove('show'); }
 function renombrarDim(viejo,nuevo){
-  const sd=Object.assign({}, state.sedesPorDia||{});
-  [state.madre,state.semana,state.semanaProxima].forEach(bk=>{ if(bk&&bk.sedesPorDia) Object.keys(bk.sedesPorDia).forEach(d=>{ (bk.sedesPorDia[d]||[]).forEach(sede=>{ const arr=sede&&sede.profes; if(Array.isArray(arr)) arr.forEach((x,i)=>{ if(x===viejo) arr[i]=nuevo; }); }); }); });
+  const sd=sedesTodas();
   Object.keys(sd).forEach(dia=>{ (sd[dia]||[]).forEach(sede=>{
     const arr=sede&&sede.profes; if(Array.isArray(arr)) arr.forEach((d,idx)=>{ if(d===viejo) arr[idx]=nuevo; });
   }); });
@@ -3513,8 +3624,7 @@ function resembrarTodo(){
   state.sedesPorDia = JSON.parse(JSON.stringify(SEED_CAL.sedesPorDia));
   state.madre  = { alumnos: JSON.parse(JSON.stringify(SEED_CAL.alumnos)),        libres: JSON.parse(JSON.stringify(SEED_CAL.libres)) };
   state.semana = { alumnos: JSON.parse(JSON.stringify(SEED_CAL_SEMANA.alumnos)), libres: JSON.parse(JSON.stringify(SEED_CAL_SEMANA.libres)) };
-  delete state.madre.sedesPorDia; delete state.semana.sedesPorDia;
-  migrarSedesPorBook();
+  quitarSedesDeLibros();   // la lista de columnas vive en un solo lugar
   logOp('resiembra_total','desde SEED');
   saveState(); renderAll();
   snapshotAuto();
@@ -3545,8 +3655,8 @@ function restaurarDiaDesdeMadre(){
   Object.keys(S.libres).forEach(k=>{ if(k.split('|')[0]===dia) delete S.libres[k]; });
   Object.keys(M.alumnos||{}).forEach(k=>{ if(k.split('|')[0]===dia) S.alumnos[k]=JSON.parse(JSON.stringify(M.alumnos[k])); });
   Object.keys(M.libres||{}).forEach(k=>{ if(k.split('|')[0]===dia) S.libres[k]=M.libres[k]; });
-  const msed=(state.madre&&state.madre.sedesPorDia)||state.sedesPorDia||{};
-  if(msed[dia]){ sedesSemana(); state.semana.sedesPorDia[dia]=JSON.parse(JSON.stringify(msed[dia])); }
+  /* Las columnas NO se tocan: son una sola lista, compartida por la MADRE y
+     las semanas. Restaurar un día copia alumnos y candados, nada más. */
   saveState(); renderGrid();
   alert('✅ '+dia+' restaurado desde la MADRE. Revisalo y publicá a tablets si corresponde.');
 }
@@ -4658,7 +4768,7 @@ document.getElementById('btnRevisarDatos').onclick=function(){
     if(!B) return;
     DIAS.forEach(d=>{
       const need=columnasQueExigenLosDatos(B,d);
-      const mapa=(B.sedesPorDia||{})[d]||[];
+      const mapa=sedesTodas()[d]||[];
       // (a) alumnos fuera de las columnas existentes
       Object.keys(need).forEach(sk=>{
         const sede=mapa.find(s=>s.key===sk);
