@@ -73,6 +73,7 @@
   button.b:hover{border-color:var(--sec)}
   button.b.pri{background:var(--azul);border-color:var(--azul);color:#fff;font-weight:600}
   button.b.gr{font-size:13.5px;padding:9px 16px}
+  button.b.btodo{padding:3px 10px;font-size:11.5px;margin-left:8px;vertical-align:middle}
 
   .cerrado{background:transparent;border:0;border-bottom:1px solid var(--linea);
     border-radius:0;padding:9px 2px;margin:0;display:flex;gap:10px;align-items:center;
@@ -115,7 +116,7 @@
 <div class="wrap" id="app" style="display:none">
   <header>
     <h1>Libreta</h1>
-    <span class="sub">Lo que anotó el agente</span>
+    <span class="sub">Lo que anotó el agente · v2026-08-10</span>
   </header>
   <div class="yo">Conectado como <b id="yoMail"></b>
     <a href="#" id="btnDemo">Ver ejemplo</a>
@@ -152,15 +153,15 @@
 
     <div id="avisoFiltro"></div>
 
-    <h2 class="secc">Pedidos de cambio abiertos <span class="cnt" id="cPed"></span></h2>
+    <h2 class="secc">Pedidos de cambio abiertos <span class="cnt" id="cPed"></span><span id="bulkPed"></span></h2>
     <div class="ayuda">No se archivan solos. Salen de acá cuando alguien los resuelve.</div>
     <div id="pedidos"></div>
 
-    <h2 class="secc">Pendientes de aplicar <span class="cnt" id="cPen"></span></h2>
+    <h2 class="secc">Pendientes de aplicar <span class="cnt" id="cPen"></span><span id="bulkPen"></span></h2>
     <div class="aviso">Estos se aplican solos al abrir el calendario. Acá se ven y se pueden descartar si el agente entendió mal.</div>
     <div id="pendientes"></div>
 
-    <h2 class="secc">No entendió <span class="cnt" id="cNada"></span></h2>
+    <h2 class="secc">No entendió <span class="cnt" id="cNada"></span><span id="bulkNada"></span></h2>
     <div class="ayuda">Mensajes que el agente no supo clasificar. Es la lista de qué falta enseñarle.</div>
     <div id="nada"></div>
 
@@ -198,6 +199,7 @@ var TIPO_ICO = {confirma:'✓', cancela:'✕', pedido:'⇄', ausencia:'⏸', nad
 var $ = function(id){ return document.getElementById(id); };
 var miCorreo = null, puedeEscribir = false, demo = false;
 var anot = {};          // id -> renglón
+var VIS_PEDIDOS=[], VIS_PENDIENTES=[], VIS_NADA=[];   // ids visibles ahora en cada sección (respeta el filtro)
 var refAnot = null;
 
 function esc(t){ return String(t==null?'':t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
@@ -358,6 +360,18 @@ function pintar(){
     ? nada.map(function(r){ return filaHTML(r, bIgn); }).join('')
     : '<div class="vacio">El agente entendió todo lo que le llegó.</div>';
 
+  /* Botones en masa. Trabajan sobre lo que se ve AHORA: si hay un filtro puesto
+     (p. ej. "Confirmaron"), cierran solo esa lista, no toda la sección. */
+  VIS_PEDIDOS    = pedidos.map(function(r){ return r.id; });
+  VIS_PENDIENTES = pendientes.map(function(r){ return r.id; });
+  VIS_NADA       = nada.map(function(r){ return r.id; });
+  $('bulkPed').innerHTML  = (puedeEscribir && pedidos.length)
+    ? '<button class="b btodo" data-acc="resolver-todos">Resolver todos ('+pedidos.length+')</button>' : '';
+  $('bulkPen').innerHTML  = (puedeEscribir && pendientes.length)
+    ? '<button class="b btodo" data-acc="ignorar-todos-pen">Ignorar todos ('+pendientes.length+')</button>' : '';
+  $('bulkNada').innerHTML = (puedeEscribir && nada.length)
+    ? '<button class="b btodo" data-acc="ignorar-todos-nada">Ignorar todos ('+nada.length+')</button>' : '';
+
   /* Si un filtro está puesto, se dice, para que nadie crea que la libreta está
      vacía cuando en realidad está filtrada. */
   var hayFiltro = (FILTRO!=='todo' || BUSCA);
@@ -401,20 +415,57 @@ function guardar(id, campos){
   });
 }
 
+/* Cierra en masa una lista de renglones, sin pedir detalle. Usa los mismos
+   campos que el cierre de a uno, así las reglas de Firebase ya los aceptan.
+   No borra nada: los renglones quedan marcados (ignorado o aplicado). */
+function cerrarTodos(ids, campos, verbo, etiqueta){
+  if(!puedeEscribir || !ids.length) return;
+  if(!confirm('¿'+verbo+' las '+ids.length+' anotaciones de "'+etiqueta+'"?\n\n'+
+              'Se cierran todas de una, sin pedir detalle. Queda registrado y NO se puede deshacer desde acá.\n\n'+
+              'Ojo: si estás filtrando, se cierran solo las que ves ahora.')) return;
+  var extra = {aplicadoTs:Date.now(), aplicadoPor:miCorreo||'demo'};
+  if(demo){
+    ids.forEach(function(id){
+      Object.keys(campos).forEach(function(c){ anot[id][c]=campos[c]; });
+      Object.keys(extra ).forEach(function(c){ anot[id][c]=extra[c];  });
+    });
+    pintar(); return;
+  }
+  var updates = {};
+  ids.forEach(function(id){
+    Object.keys(campos).forEach(function(c){ updates[id+'/'+c]=campos[c]; });
+    Object.keys(extra ).forEach(function(c){ updates[id+'/'+c]=extra[c];  });
+  });
+  firebase.database().ref('agente_v1/anotaciones').update(updates)
+    .then(function(){ /* el listener repinta solo */ })
+    .catch(function(e){
+      alert('No se pudieron cerrar todas.\n\n'+e.message+
+            '\n\nRevisá las reglas de Firebase: si algún campo no está declarado, se rechaza el lote entero.');
+    });
+}
+
 document.addEventListener('click', function(ev){
   var b = ev.target.closest ? ev.target.closest('button[data-acc]') : null;
   if(!b) return;
+  var acc = b.dataset.acc;
+
+  /* Acciones en masa: no cuelgan de una fila, así que van primero. */
+  if(acc==='ignorar-todos-pen'){  cerrarTodos(VIS_PENDIENTES, {estado:'ignorado'}, 'Ignorar', 'pendientes de aplicar'); return; }
+  if(acc==='ignorar-todos-nada'){ cerrarTodos(VIS_NADA,       {estado:'ignorado'}, 'Ignorar', 'no entendió');         return; }
+  if(acc==='resolver-todos'){     cerrarTodos(VIS_PEDIDOS, {estado:'aplicado', cierre:'cerrado en masa (sin detalle)'}, 'Resolver', 'pedidos de cambio'); return; }
+
+  /* Acciones de a una: necesitan la fila. */
   var fila = b.closest('.fila'); if(!fila) return;
   var id = fila.dataset.id;
   var r = anot[id]; if(!r) return;
 
-  if(b.dataset.acc==='ignorar'){
+  if(acc==='ignorar'){
     if(!confirm('¿Descartar esta anotación?\n\n'+(r.alumno||r.tel||'')+
                 '\n\nUsalo cuando el agente entendió mal. No se aplica nunca y queda registrada.')) return;
     guardar(id, {estado:'ignorado', aplicadoTs:Date.now(), aplicadoPor:miCorreo||'demo'});
   }
 
-  if(b.dataset.acc==='resolver'){
+  if(acc==='resolver'){
     var t = prompt('¿Qué pasó con este pedido?\n\nPor ejemplo: "lo pasé al jueves 18" o "habló conmigo, se queda igual".');
     if(t===null) return;
     t = String(t).trim();
