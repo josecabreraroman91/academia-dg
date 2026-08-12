@@ -552,17 +552,40 @@ function pintarFaltantes(){
   var vivos     = datos['alumnos_v2'];
   if(!padronCsv || !vivos){ caja.classList.add('oculto'); return; }
 
-  // nombres del padron
   var rows = parseCSV(String(padronCsv)), hr=-1, iNom=-1;
   for(var r=0;r<Math.min(6,rows.length);r++){
     var p = rows[r].map(norm).indexOf('alumnos');
     if(p>=0){ hr=r; iNom=p; break; }
   }
   if(hr<0){ caja.classList.add('oculto'); return; }
+
+  /* Un alumno no se llama de una sola forma en la planilla. Ademas del nombre
+     completo estan "Nombre p/ Horario" y "nombre_calendario", que son los
+     apodos con los que aparece en la grilla y en los mensajes. Y las apps dan
+     de alta usando el apodo.
+
+     Comparar solo contra el nombre completo hacia aparecer como faltantes a
+     alumnos que ya estaban: "Cami Miranda" figuraba como ausente cuando en la
+     planilla existe "Camila Miranda" con "Cami Miranda" en la columna de
+     horario. Bajarlos hubiera creado un duplicado y partido sus clases en dos.
+
+     Ojo con el encabezado: "Nombre p/ Horario" lleva un espacio despues de la
+     barra, asi que se busca por un pedazo del texto y nunca por el texto exacto. */
+  var enc = rows[hr].map(norm);
+  var iHor = -1, iCal = -1;
+  for(var c=0;c<enc.length;c++){
+    if(iHor<0 && enc[c].indexOf('horario')>=0)   iHor = c;
+    if(iCal<0 && enc[c].indexOf('calendario')>=0) iCal = c;
+  }
+
   var enPadron = {};
   for(var r2=hr+1;r2<rows.length;r2++){
-    var nom=(rows[r2][iNom]||'').trim();
-    if(nom) enPadron[normNombre(nom)] = nom;
+    var fila = rows[r2];
+    [iNom, iHor, iCal].forEach(function(ci){
+      if(ci<0) return;
+      var v = (fila[ci]||'').trim();
+      if(v) enPadron[normNombre(v)] = true;
+    });
   }
 
   // nombres de alumnos_v2
@@ -583,7 +606,10 @@ function pintarFaltantes(){
     h += '<div class="aviso a-alerta" style="margin-top:8px"><b>'+soloEnFirebase.length
       +  ' alumno(s) viven solo en Firebase.</b> Se crearon desde una app y el puente no los '
       +  'escribio en la planilla, o todavia no corrio. Existen y se los ve en el sistema, '
-      +  'pero si alguien mira solo la planilla, no estan.</div>'
+      +  'pero si alguien mira solo la planilla, no estan.<br><br>'
+      +  'Se compararon los tres nombres del padron: el completo, el de horario y el de '
+      +  'calendario. Aun asi, <b>antes de dar de alta a alguno buscalo a mano en la planilla</b>: '
+      +  'si esta escrito muy distinto, darlo de alta lo duplica y le parte las clases en dos.</div>'
       +  '<div class="lista">' + soloEnFirebase.map(function(n){
            return '<span>'+n.replace(/</g,'&lt;')+'</span>'; }).join('') + '</div>';
   }
