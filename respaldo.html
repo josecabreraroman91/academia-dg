@@ -73,6 +73,12 @@
   .dia.flojo .b i{background:var(--alerta)}
   .dia.flojo .n{color:#a97614}
 
+  /* Los nombres sueltos van en fichas, no en una lista larga: se leen de un
+     vistazo y entran muchos sin hacer scroll. */
+  .lista{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+  .lista span{background:var(--panel2);border:1px solid var(--line);border-radius:7px;
+    padding:5px 10px;font-size:12.5px;font-weight:600}
+
   .aviso{border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.55;margin-bottom:12px}
   .a-mal{background:#fbeae8;color:#8c2b20;border:1px solid #f0c4be}
   .a-ok{background:#e6f4ee;color:#1d6647;border:1px solid #b8e0cd}
@@ -151,6 +157,7 @@
         <tbody id="tbody"></tbody>
       </table>
     </div>
+    <div id="faltantes" class="oculto"></div>
     <div id="porDia" class="oculto"></div>
 
     <div class="fila-btn" style="margin-top:16px">
@@ -522,9 +529,66 @@ function pintarResultado(filas, peso, avisos){
       +  '<td><span class="est '+est[0]+'">'+est[1]+'</span></td></tr>';
   });
   $('tbody').innerHTML = h;
+  pintarFaltantes();
   pintarPorDia(filas);
   $('cardRes').classList.remove('oculto');
   $('cardRes').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+/* ---------- alumnos que estan en una casa y no en la otra ----------
+   Un alumno se crea desde las apps y queda al instante en alumnos_v2; recien
+   despues el puente lo escribe en la planilla. Pero el puente se llama desde un
+   recuadro invisible y nadie lee la respuesta: si falla, falla callado y ese
+   alumno queda viviendo SOLO en Firebase.
+
+   Aca se comparan las dos listas y se nombran los que faltan de cada lado. No
+   se arregla nada solo: se muestra, para poder decidir. */
+function normNombre(s){
+  return norm(s).replace(/\s+/g,' ');
+}
+function pintarFaltantes(){
+  var caja = $('faltantes');
+  var padronCsv = datos['alumnos_v1'] && datos['alumnos_v1'].csv;
+  var vivos     = datos['alumnos_v2'];
+  if(!padronCsv || !vivos){ caja.classList.add('oculto'); return; }
+
+  // nombres del padron
+  var rows = parseCSV(String(padronCsv)), hr=-1, iNom=-1;
+  for(var r=0;r<Math.min(6,rows.length);r++){
+    var p = rows[r].map(norm).indexOf('alumnos');
+    if(p>=0){ hr=r; iNom=p; break; }
+  }
+  if(hr<0){ caja.classList.add('oculto'); return; }
+  var enPadron = {};
+  for(var r2=hr+1;r2<rows.length;r2++){
+    var nom=(rows[r2][iNom]||'').trim();
+    if(nom) enPadron[normNombre(nom)] = nom;
+  }
+
+  // nombres de alumnos_v2
+  var soloEnFirebase = [];
+  Object.keys(vivos).forEach(function(k){
+    var a = vivos[k];
+    var nom = (a && a.nombre) ? String(a.nombre).trim() : '';
+    if(!nom) return;
+    if(!enPadron[normNombre(nom)]) soloEnFirebase.push(nom);
+  });
+  soloEnFirebase.sort();
+
+  var h = '<h2 style="margin-top:18px">Alumnos que estan en Firebase y no en la planilla</h2>';
+  if(!soloEnFirebase.length){
+    h += '<div class="aviso a-ok" style="margin-top:8px"><b>Ninguno.</b> Todos los alumnos '
+      +  'cargados desde las apps bajaron a la planilla. Las dos listas dicen lo mismo.</div>';
+  }else{
+    h += '<div class="aviso a-alerta" style="margin-top:8px"><b>'+soloEnFirebase.length
+      +  ' alumno(s) viven solo en Firebase.</b> Se crearon desde una app y el puente no los '
+      +  'escribio en la planilla, o todavia no corrio. Existen y se los ve en el sistema, '
+      +  'pero si alguien mira solo la planilla, no estan.</div>'
+      +  '<div class="lista">' + soloEnFirebase.map(function(n){
+           return '<span>'+n.replace(/</g,'&lt;')+'</span>'; }).join('') + '</div>';
+  }
+  caja.innerHTML = h;
+  caja.classList.remove('oculto');
 }
 
 /* ---------- el historial, dia por dia ----------
