@@ -61,6 +61,18 @@
   .c-baja{color:var(--mal)}
   .c-igual{color:var(--muted)}
 
+  /* Historial dia por dia: una barra por fecha, para ver de un vistazo si algun
+     dia quedo corto o directamente en cero. */
+  .dias{display:flex;flex-direction:column;gap:3px;margin-top:10px}
+  .dia{display:flex;align-items:center;gap:10px;font-size:12.5px}
+  .dia .f{width:74px;color:var(--muted);font-variant-numeric:tabular-nums;flex-shrink:0}
+  .dia .f i{font-style:normal;opacity:.65;font-size:11px}
+  .dia .b{flex:1;height:14px;background:var(--panel2);border-radius:3px;overflow:hidden;min-width:60px}
+  .dia .b i{display:block;height:100%;background:var(--azul);border-radius:3px}
+  .dia .n{width:46px;text-align:right;font-weight:700;font-variant-numeric:tabular-nums;flex-shrink:0}
+  .dia.flojo .b i{background:var(--alerta)}
+  .dia.flojo .n{color:#a97614}
+
   .aviso{border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.55;margin-bottom:12px}
   .a-mal{background:#fbeae8;color:#8c2b20;border:1px solid #f0c4be}
   .a-ok{background:#e6f4ee;color:#1d6647;border:1px solid #b8e0cd}
@@ -139,6 +151,8 @@
         <tbody id="tbody"></tbody>
       </table>
     </div>
+    <div id="porDia" class="oculto"></div>
+
     <div class="fila-btn" style="margin-top:16px">
       <button class="btn-ok" id="btnBajar">Bajar el archivo</button>
       <span style="font-size:12px;color:var(--muted)">Guardalo en Drive o en un pendrive, no solo en esta compu.</span>
@@ -196,9 +210,9 @@ var cfg = {
    'pesado' solo cambia si viene tildado por defecto. */
 var NODOS = [
   { k:'calendario_v2', nom:'Calendario (MADRE y semanas)',  medir:'calendario' },
-  { k:'alumnos_v1',    nom:'Padron, copia de la planilla',  medir:'csv' },
+  { k:'alumnos_v1',    nom:'Padron, copia de la planilla',  medir:'alumnos' },
   { k:'alumnos_v2',    nom:'Alumnos cargados desde las apps' },
-  { k:'historial_v1',  nom:'Historial de clases, 90 dias',  medir:'csv' },
+  { k:'historial_v1',  nom:'Historial de clases, 90 dias',  medir:'historial' },
   /* niveles_v1 y agente_v1 tienen el permiso de lectura puesto en los HIJOS,
      no en el nodo padre. En Firebase el permiso baja de padre a hijo pero nunca
      sube de hijo a padre: pedir el padre entero da permission_denied aunque cada
@@ -246,17 +260,79 @@ function pesoLindo(b){
 }
 function miles(n){ return (n||0).toLocaleString('es-PY'); }
 
-/* ---------- contar de forma que el numero signifique algo ---------- */
+/* ---------- leer el csv como lo leen las apps ----------
+   Partir por comas y saltos de linea NO alcanza: un comentario con una coma
+   adentro, o con un Enter, corre las columnas y el conteo sale cualquier cosa.
+   Este es el mismo recorrido caracter por caracter que usa la Caja. */
+function parseCSV(txt){
+  var rows=[], row=[], cur='', enComillas=false;
+  for(var i=0;i<txt.length;i++){
+    var c=txt[i];
+    if(enComillas){
+      if(c==='"'){ if(txt[i+1]==='"'){ cur+='"'; i++; } else enComillas=false; }
+      else cur+=c;
+    }else{
+      if(c==='"') enComillas=true;
+      else if(c===','){ row.push(cur); cur=''; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(c!=='\r') cur+=c;
+    }
+  }
+  if(cur.length||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+function norm(s){
+  return String(s||'').trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+function cuandoSeCopio(val){
+  return val && val.actualizado
+    ? (' · copia de ' + String(val.actualizado).slice(0,16).replace('T',' ')) : '';
+}
+
+/* ---------- contar de forma que el numero signifique algo ----------
+   La regla: contar IGUAL que la app que muestra ese dato, si no los numeros no
+   se pueden comparar y el respaldo no sirve para controlar nada.
+
+   El padron se cuenta como en alumnos-unif: la fila de encabezados es la que
+   dice "alumnos" (en la hoja ALUMNOS el titulo esta en la fila 1 y los
+   encabezados reales en la 2), y solo cuentan las filas que tienen nombre.
+   El historial se cuenta como en la Caja: desde la fila 2, y solo las filas
+   con fecha valida y alumno. */
 function contar(nodo, val){
   if(val===null || val===undefined) return { n:0, det:'vacio' };
 
-  if(nodo.medir==='csv'){
-    var csv = (val && val.csv) ? String(val.csv) : '';
-    if(!csv) return { n:0, det:'sin csv' };
-    // menos 1 por la fila de encabezados
-    var lineas = csv.split('\n').filter(function(l){ return l.trim()!==''; }).length;
-    var cuando = val.actualizado ? (' · copia de ' + String(val.actualizado).slice(0,16).replace('T',' ')) : '';
-    return { n: Math.max(0, lineas-1), det:'filas del csv'+cuando };
+  if(nodo.medir==='alumnos'){
+    var csvA = (val && val.csv) ? String(val.csv) : '';
+    if(!csvA) return { n:0, det:'sin csv' };
+    var rows = parseCSV(csvA), hr=-1, iNom=-1;
+    for(var r=0;r<Math.min(6,rows.length);r++){
+      var pos = rows[r].map(norm).indexOf('alumnos');
+      if(pos>=0){ hr=r; iNom=pos; break; }
+    }
+    if(hr<0) return { n:0, det:'no encontre la fila de encabezados' };
+    var nA=0;
+    for(var r2=hr+1;r2<rows.length;r2++){
+      if((rows[r2][iNom]||'').trim()) nA++;
+    }
+    return { n:nA, det:'alumnos con nombre'+cuandoSeCopio(val) };
+  }
+
+  if(nodo.medir==='historial'){
+    var csvH = (val && val.csv) ? String(val.csv) : '';
+    if(!csvH) return { n:0, det:'sin csv' };
+    var rowsH = parseCSV(csvH), nH=0, porDia={};
+    for(var i=1;i<rowsH.length;i++){
+      var f=(rowsH[i][0]||'').trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(f)) continue;      // como la Caja
+      if(!(rowsH[i][1]||'').trim()) continue;
+      nH++; porDia[f]=(porDia[f]||0)+1;
+    }
+    var dias=Object.keys(porDia).sort();
+    var det = dias.length
+      ? dias.length+' dias, del '+dias[0]+' al '+dias[dias.length-1]
+      : 'sin filas validas';
+    return { n:nH, det:det+cuandoSeCopio(val), porDia:porDia };
   }
 
   if(nodo.medir==='calendario'){
@@ -352,6 +428,7 @@ async function correr(){
       pesoTotal += bytes;
 
       fila.n = c.n; fila.det = c.det; fila.bytes = bytes;
+      if(c.porDia) fila.porDia = c.porDia;   // para el desglose de abajo
 
       if(val===null || c.n===0){ fila.estado='vacio'; avisos++; }
       else fila.estado='ok';
@@ -429,8 +506,58 @@ function pintarResultado(filas, peso, avisos){
       +  '<td><span class="est '+est[0]+'">'+est[1]+'</span></td></tr>';
   });
   $('tbody').innerHTML = h;
+  pintarPorDia(filas);
   $('cardRes').classList.remove('oculto');
   $('cardRes').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+/* ---------- el historial, dia por dia ----------
+   El total del historial solo no dice nada: 576 filas puede ser normal o puede
+   ser que falten dos dias enteros. Partido por fecha se ve al toque. Un dia en
+   cero es un cierre que no corrio; todos los dias parejos pero bajos apunta a
+   otra cosa (por ejemplo, marcas de la tablet despues de las 19:00, que quedan
+   sin confirmar y no se cobran ni se pagan). */
+function pintarPorDia(filas){
+  var f = filas.filter(function(x){ return x.porDia; })[0];
+  var caja = $('porDia');
+  if(!f){ caja.classList.add('oculto'); return; }
+
+  var dias = Object.keys(f.porDia).sort();
+  if(!dias.length){ caja.classList.add('oculto'); return; }
+
+  var nums = dias.map(function(d){ return f.porDia[d]; });
+  var max  = Math.max.apply(null, nums);
+  var suma = nums.reduce(function(a,b){ return a+b; }, 0);
+  var prom = suma/dias.length;
+
+  // Se marcan los dias flojos contra el promedio de los demas, no contra un
+  // numero inventado: la academia no tiene el mismo movimiento todos los dias.
+  var h = '<h2 style="margin-top:18px">Clases por dia en el historial</h2>'
+        + '<div class="hint">' + miles(suma) + ' clases en ' + dias.length + ' dias · '
+        + 'promedio ' + prom.toFixed(0) + ' por dia. '
+        + 'Las barras cortas son los dias con menos clases cargadas.</div>'
+        + '<div class="dias">';
+
+  dias.forEach(function(d){
+    var n = f.porDia[d];
+    var flojo = n < prom*0.5;
+    var dow = ['dom','lun','mar','mie','jue','vie','sab'][ new Date(d+'T12:00:00').getDay() ];
+    h += '<div class="dia'+(flojo?' flojo':'')+'">'
+      +  '<span class="f">'+d.slice(5)+' <i>'+dow+'</i></span>'
+      +  '<span class="b"><i style="width:'+Math.round((n/max)*100)+'%"></i></span>'
+      +  '<span class="n">'+miles(n)+'</span></div>';
+  });
+  h += '</div>';
+
+  var flojos = dias.filter(function(d){ return f.porDia[d] < prom*0.5; });
+  if(flojos.length){
+    h += '<div class="aviso a-alerta" style="margin-top:12px"><b>'+flojos.length
+      +' dia(s) con menos de la mitad del promedio:</b> '+flojos.join(', ')
+      +'. Puede ser un sabado o un feriado, o puede ser un cierre que no corrio. '
+      +'Vale la pena mirar esos dias en el calendario antes de dar por buena la plata de esa semana.</div>';
+  }
+  caja.innerHTML = h;
+  caja.classList.remove('oculto');
 }
 
 function bajar(){
