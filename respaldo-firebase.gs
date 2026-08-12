@@ -85,6 +85,13 @@ var RESPFB_CORTE_ARCHIVO = 4000000;
    así el respaldo nunca queda mudo a medio hacer. */
 var RESPFB_MINUTOS_MAXIMO = 5;
 
+/* A partir de cuántas claves conviene pedir de a lotes en vez de de a una.
+   No es lo mismo un nodo con cuatro días adentro, donde cada día pesa, que
+   log_ops con doscientas treinta mil anotaciones de un renglón cada una:
+   pedirlas de a una serían doscientas treinta mil llamadas y no termina más. */
+var RESPFB_MUCHAS_CLAVES = 500;
+var RESPFB_CLAVES_POR_LOTE = 5000;
+
 /* ====================== lo que corre todas las noches ====================== */
 
 function respFB_respaldarDiario() {
@@ -354,6 +361,11 @@ function respFB_guardarGrande(carpeta, nd, hastaCuando) {
   }
   var lista = Object.keys(claves).sort();
 
+  // Muchísimas claves chicas: se piden de a lotes. Es el caso de log_ops.
+  if (lista.length > RESPFB_MUCHAS_CLAVES) {
+    return respFB_guardarPorLotes(carpeta, nd, lista, hastaCuando);
+  }
+
   var lote = {}, enLote = 0, bytesLote = 0;
   var parte = 0, bytesTotal = 0, guardadas = 0, faltaron = [];
 
@@ -399,6 +411,77 @@ function respFB_guardarGrande(carpeta, nd, hastaCuando) {
   // Lo que queda: si nunca hubo que partir, va con el nombre simple.
   if (parte === 0) escribirLote(); else escribirParte();
 
+  return { registros: guardadas, bytes: bytesTotal,
+           partes: parte, faltaron: faltaron };
+}
+
+/**
+ * Baja un nodo de muchísimas claves chicas, pidiéndolas de a lotes.
+ *
+ * Se le pide a Firebase que ordene por clave y devuelva las primeras N a
+ * partir de una: es la forma de recorrer doscientas mil anotaciones en unas
+ * pocas decenas de llamadas en vez de doscientas mil.
+ *
+ * Cada lote pide una clave de más y la descarta, porque startAt incluye la
+ * clave desde la que arranca y si no se descartara quedaría repetida.
+ */
+function respFB_guardarPorLotes(carpeta, nd, lista, hastaCuando) {
+  var acumulado = {}, bytesAcum = 0;
+  var parte = 0, bytesTotal = 0, guardadas = 0, faltaron = [];
+  var desde = lista[0], primera = true;
+
+  function escribirParte() {
+    if (!guardadasEnAcum()) return;
+    parte++;
+    var txt = JSON.stringify(acumulado);
+    carpeta.createFile(nd.k + '.parte' + parte + '.json', txt, 'application/json');
+    bytesTotal += txt.length;
+    acumulado = {}; bytesAcum = 0;
+  }
+  function guardadasEnAcum() {
+    for (var x in acumulado) return true;
+    return false;
+  }
+
+  while (true) {
+    if (new Date().getTime() > hastaCuando) {
+      faltaron.push('se acabó el tiempo en la clave ' + desde);
+      break;
+    }
+    var params = 'orderBy=' + encodeURIComponent('"$key"') +
+                 '&startAt=' + encodeURIComponent('"' + desde + '"') +
+                 '&limitToFirst=' + (RESPFB_CLAVES_POR_LOTE + (primera ? 0 : 1));
+    var trozo;
+    try {
+      trozo = respFB_get(nd.k, params);
+    } catch (e) {
+      faltaron.push('lote desde ' + desde + ': ' + e.message);
+      break;
+    }
+    if (!trozo) break;
+
+    var ks = Object.keys(trozo).sort();
+    if (!primera) {
+      // La primera del lote es la última del anterior: ya está guardada.
+      ks = ks.filter(function (k) { return k !== desde; });
+    }
+    if (!ks.length) break;
+
+    for (var i = 0; i < ks.length; i++) {
+      acumulado[ks[i]] = trozo[ks[i]];
+      guardadas++;
+    }
+    bytesAcum += JSON.stringify(trozo).length;
+    if (bytesAcum > RESPFB_CORTE_ARCHIVO) escribirParte();
+
+    var ultima = ks[ks.length - 1];
+    if (ultima === desde) break;            // no avanzó: se corta para no ciclar
+    desde = ultima;
+    primera = false;
+    if (guardadas >= lista.length) break;   // ya se recorrió todo
+  }
+
+  escribirParte();
   return { registros: guardadas, bytes: bytesTotal,
            partes: parte, faltaron: faltaron };
 }
