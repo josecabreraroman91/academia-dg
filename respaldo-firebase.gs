@@ -1,0 +1,287 @@
+/**
+ * RESPALDO DE FIREBASE A DRIVE — Academia DG
+ * v2026-08-11
+ *
+ * Qué hace: todas las noches baja los nodos de Firebase que son FUENTE DE
+ * VERDAD y los deja en Drive, adentro de BACKUPS ADG / FIREBASE, en una
+ * carpeta por fecha. Escribe además un resumen con los conteos del día.
+ *
+ * Por qué existe: el activador que ya está (ejecutarBackupsProgramados) copia
+ * la PLANILLA. Pero el calendario, las evaluaciones, la libreta del agente,
+ * el inventario y las pausas no viven en la planilla: viven en Firebase, y de
+ * eso no había ninguna copia bajable.
+ *
+ * ------------------------------------------------------------------------
+ * CÓMO INSTALARLO (leer antes de pegar)
+ *
+ * 1. Entrar al proyecto ADG que TIENE LOS ACTIVADORES. Es uno de los doce con
+ *    ese nombre; el bueno se reconoce en https://script.google.com/home/triggers
+ * 2. Crear un ARCHIVO NUEVO (+ → Secuencia de comandos) y llamarlo
+ *    respaldo-firebase. NO pegar esto adentro de un archivo que ya existe.
+ * 3. Guardar (el disquete). No hace falta Implementar: eso solo se necesita
+ *    para aplicaciones web como el puente.
+ * 4. Correr UNA VEZ a mano respFB_probar() y mirar el registro. Eso no crea
+ *    ningún activador y sirve para ver que lee bien.
+ * 5. Recién ahí, correr UNA VEZ respFB_instalarActivador().
+ *
+ * Todas las funciones empiezan con respFB_ a propósito: en Apps Script todos
+ * los archivos comparten el mismo espacio de nombres, y dos funciones con el
+ * mismo nombre se pisan EN SILENCIO. Con el prefijo no puede chocar con nada
+ * de lo que ya está.
+ *
+ * NO hay onOpen acá. El menú de la planilla vive en su archivo y si se
+ * declarara otro onOpen, el menú desaparecería sin decir por qué.
+ * ------------------------------------------------------------------------
+ */
+
+var RESPFB_URL = 'https://academia-dg-default-rtdb.firebaseio.com';
+var RESPFB_CARPETA_RAIZ = 'BACKUPS ADG';
+var RESPFB_CARPETA = 'FIREBASE';
+var RESPFB_DIAS_QUE_SE_GUARDAN = 60;
+
+/**
+ * Los nodos que se respaldan.
+ *
+ * Están SOLO los que son fuente de verdad. Quedan afuera a propósito:
+ *   dia/           se vuelve a generar publicando el día desde el calendario
+ *   ops_v1         bitácora de quién hizo qué, no es un dato del negocio
+ *   ops_admin      ídem, y se borra sola a la semana
+ *   log_ops        ídem
+ *   snapshots      copias que el calendario ya hace y borra a las 48 h
+ *   backups_auto   ídem
+ *
+ * Ese recorte no es por prolijidad: es lo que hace que el respaldo pese
+ * alrededor de un mega en vez de 55, y que entre cómodo en los seis minutos
+ * que Apps Script da por ejecución. Lo que se deja afuera es derivado o es
+ * registro; lo que se guarda es lo que no se puede reconstruir.
+ *
+ * 'hijos' es para los nodos donde el permiso de lectura está puesto en los
+ * hijos y no en el padre: si el padre se niega, se arma pedazo por pedazo.
+ */
+var RESPFB_NODOS = [
+  { k: 'calendario_v2' },
+  { k: 'alumnos_v1' },
+  { k: 'alumnos_v2' },
+  { k: 'historial_v1' },
+  { k: 'niveles_v1', hijos: ['evaluaciones', 'aprobados', 'auditoria'] },
+  { k: 'usuarios' },
+  { k: 'tipos_v1' },
+  { k: 'columnas_v1' },
+  { k: 'agente_v1', hijos: ['anotaciones', 'enviados', 'salud'] },
+  { k: 'reservas_v1' },
+  { k: 'atrasadas_v1' },
+  { k: 'pausas_v1' },
+  { k: 'inventario_v1' },
+  { k: 'cobros_diego_v1' },
+  { k: 'bloc_notas' }
+];
+
+/* ====================== lo que corre todas las noches ====================== */
+
+function respFB_respaldarDiario() {
+  var hoy = respFB_hoyAsuncion();
+  var carpeta = respFB_carpetaDelDia(hoy);
+  var resumen = { fecha: hoy, nodos: {}, errores: [] };
+  var total = 0;
+
+  for (var i = 0; i < RESPFB_NODOS.length; i++) {
+    var nd = RESPFB_NODOS[i];
+    try {
+      var r = respFB_leerNodo(nd);
+      var txt = JSON.stringify(r.val);
+      carpeta.createFile(nd.k + '.json', txt, 'application/json');
+
+      total += txt.length;
+      resumen.nodos[nd.k] = {
+        registros: respFB_contar(r.val),
+        bytes: txt.length,
+        via: r.via
+      };
+      if (r.via === 'por partes') {
+        Logger.log(nd.k + ': leído por partes' +
+          (r.fallaron.length ? ' (sin ' + r.fallaron.join(', ') + ')' : ''));
+      }
+    } catch (e) {
+      // Un nodo que falla NO corta el respaldo: se anota y se sigue con los
+      // demás. Es preferible una copia incompleta y avisada, a ninguna copia.
+      resumen.errores.push(nd.k + ': ' + e.message);
+      Logger.log('ERROR en ' + nd.k + ': ' + e.message);
+    }
+  }
+
+  resumen.bytesTotal = total;
+  carpeta.createFile('_resumen.json', JSON.stringify(resumen, null, 1),
+                     'application/json');
+
+  respFB_borrarLosViejos();
+
+  var msg = 'Respaldo ' + hoy + ': ' + Object.keys(resumen.nodos).length +
+            ' nodos, ' + Math.round(total / 1024) + ' KB' +
+            (resumen.errores.length ? ', ' + resumen.errores.length + ' con error' : '');
+  Logger.log(msg);
+
+  // Si algo falló, se avisa por correo. Un respaldo que se rompe callado es
+  // peor que no tenerlo, porque da tranquilidad falsa.
+  if (resumen.errores.length) {
+    respFB_avisar('Respaldo de Firebase con errores — ' + hoy,
+      'El respaldo del ' + hoy + ' terminó con estos problemas:\n\n' +
+      resumen.errores.join('\n') +
+      '\n\nLos demás nodos se guardaron bien en Drive, en BACKUPS ADG / ' +
+      RESPFB_CARPETA + ' / ' + hoy + '.');
+  }
+  return msg;
+}
+
+/* ============================ para probar a mano =========================== */
+
+/**
+ * Lee todo pero NO escribe nada en Drive. Sirve para ver que los permisos
+ * están bien y qué cantidad trae cada nodo, antes de dejarlo automático.
+ */
+function respFB_probar() {
+  var lineas = ['PRUEBA de lectura — no se guardó nada en Drive', ''];
+  var total = 0;
+  for (var i = 0; i < RESPFB_NODOS.length; i++) {
+    var nd = RESPFB_NODOS[i];
+    try {
+      var r = respFB_leerNodo(nd);
+      var bytes = JSON.stringify(r.val).length;
+      total += bytes;
+      lineas.push(respFB_rellenar(nd.k, 18) + respFB_rellenar(respFB_contar(r.val), 8) +
+                  Math.round(bytes / 1024) + ' KB' +
+                  (r.via === 'por partes' ? '   (leído por partes)' : ''));
+    } catch (e) {
+      lineas.push(respFB_rellenar(nd.k, 18) + 'ERROR: ' + e.message);
+    }
+  }
+  lineas.push('');
+  lineas.push('Total: ' + Math.round(total / 1024) + ' KB');
+  var txt = lineas.join('\n');
+  Logger.log(txt);
+  return txt;
+}
+
+function respFB_instalarActivador() {
+  // Primero se sacan los que ya estén, para no terminar con el respaldo
+  // corriendo tres veces por noche si esto se ejecuta más de una vez.
+  var viejos = ScriptApp.getProjectTriggers();
+  var sacados = 0;
+  for (var i = 0; i < viejos.length; i++) {
+    if (viejos[i].getHandlerFunction() === 'respFB_respaldarDiario') {
+      ScriptApp.deleteTrigger(viejos[i]);
+      sacados++;
+    }
+  }
+  ScriptApp.newTrigger('respFB_respaldarDiario')
+    .timeBased().atHour(2).everyDays(1).create();
+
+  var msg = 'Activador instalado: todas las noches entre las 2 y las 3 de la ' +
+            'madrugada' + (sacados ? ' (se sacaron ' + sacados + ' repetidos)' : '') + '.';
+  Logger.log(msg);
+  return msg;
+}
+
+/* ================================ auxiliares ============================== */
+
+/**
+ * Lee un nodo por REST, firmando con el token del dueño del script. Es la
+ * misma forma en que los otros scripts del proyecto hablan con Firebase, y es
+ * lo que permite que la base esté cerrada al público.
+ */
+function respFB_leerNodo(nd) {
+  try {
+    return { val: respFB_get(nd.k), via: 'entero' };
+  } catch (e) {
+    if (!nd.hijos) throw e;
+    // El permiso de lectura baja de padre a hijo, pero nunca sube de hijo a
+    // padre: hay nodos donde pedir el padre entero da permiso denegado aunque
+    // cada hijo se lea perfecto.
+    var val = {}, leidos = 0, fallaron = [];
+    for (var i = 0; i < nd.hijos.length; i++) {
+      try {
+        var v = respFB_get(nd.k + '/' + nd.hijos[i]);
+        if (v !== null) val[nd.hijos[i]] = v;
+        leidos++;
+      } catch (e2) {
+        fallaron.push(nd.hijos[i]);
+      }
+    }
+    if (!leidos) throw e;
+    return { val: val, via: 'por partes', fallaron: fallaron };
+  }
+}
+
+function respFB_get(ruta) {
+  var resp = UrlFetchApp.fetch(RESPFB_URL + '/' + ruta + '.json', {
+    headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
+    muteHttpExceptions: true
+  });
+  var codigo = resp.getResponseCode();
+  if (codigo !== 200) {
+    throw new Error('Firebase respondió ' + codigo + ': ' +
+                    resp.getContentText().slice(0, 200));
+  }
+  return JSON.parse(resp.getContentText());
+}
+
+function respFB_contar(val) {
+  if (val === null || val === undefined) return 0;
+  if (typeof val === 'object') return Object.keys(val).length;
+  return 1;
+}
+
+/** La fecha de la academia, no la del servidor. */
+function respFB_hoyAsuncion() {
+  return Utilities.formatDate(new Date(), 'America/Asuncion', 'yyyy-MM-dd');
+}
+
+function respFB_carpetaDelDia(hoy) {
+  var raiz = respFB_carpeta(DriveApp.getRootFolder(), RESPFB_CARPETA_RAIZ);
+  var fb = respFB_carpeta(raiz, RESPFB_CARPETA);
+  // Si ya existe la del día (porque se corrió dos veces), se usa esa misma.
+  return respFB_carpeta(fb, hoy);
+}
+
+function respFB_carpeta(padre, nombre) {
+  var it = padre.getFoldersByName(nombre);
+  return it.hasNext() ? it.next() : padre.createFolder(nombre);
+}
+
+/**
+ * Manda a la papelera las carpetas de más de RESPFB_DIAS_QUE_SE_GUARDAN días.
+ * Van a la PAPELERA, no se borran de verdad: si un día hace falta una vieja,
+ * está ahí por treinta días más.
+ */
+function respFB_borrarLosViejos() {
+  var raiz = respFB_carpeta(DriveApp.getRootFolder(), RESPFB_CARPETA_RAIZ);
+  var fb = respFB_carpeta(raiz, RESPFB_CARPETA);
+  var corte = new Date();
+  corte.setDate(corte.getDate() - RESPFB_DIAS_QUE_SE_GUARDAN);
+  var corteTxt = Utilities.formatDate(corte, 'America/Asuncion', 'yyyy-MM-dd');
+
+  var it = fb.getFolders();
+  while (it.hasNext()) {
+    var c = it.next();
+    var n = c.getName();
+    // Solo se tocan las carpetas con nombre de fecha. Cualquier otra cosa que
+    // alguien haya dejado ahí a mano se respeta.
+    if (/^\d{4}-\d{2}-\d{2}$/.test(n) && n < corteTxt) {
+      c.setTrashed(true);
+      Logger.log('A la papelera: ' + n);
+    }
+  }
+}
+
+function respFB_avisar(asunto, cuerpo) {
+  try {
+    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), asunto, cuerpo);
+  } catch (e) {
+    Logger.log('No se pudo mandar el aviso: ' + e.message);
+  }
+}
+
+function respFB_rellenar(s, n) {
+  s = String(s);
+  while (s.length < n) s += ' ';
+  return s;
+}
