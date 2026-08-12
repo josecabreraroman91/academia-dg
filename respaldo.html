@@ -199,11 +199,18 @@ var NODOS = [
   { k:'alumnos_v1',    nom:'Padron, copia de la planilla',  medir:'csv' },
   { k:'alumnos_v2',    nom:'Alumnos cargados desde las apps' },
   { k:'historial_v1',  nom:'Historial de clases, 90 dias',  medir:'csv' },
-  { k:'niveles_v1',    nom:'Evaluaciones de nivel' },
+  /* niveles_v1 y agente_v1 tienen el permiso de lectura puesto en los HIJOS,
+     no en el nodo padre. En Firebase el permiso baja de padre a hijo pero nunca
+     sube de hijo a padre: pedir el padre entero da permission_denied aunque cada
+     hijo se lea perfecto. Por eso van con la lista de hijos: si el padre se
+     niega, el respaldo lo arma pedazo por pedazo. */
+  { k:'niveles_v1',    nom:'Evaluaciones de nivel',
+    hijos:['evaluaciones','aprobados','auditoria'] },
   { k:'usuarios',      nom:'Permisos de acceso' },
   { k:'tipos_v1',      nom:'Cuanto aporta cada tipo de clase' },
   { k:'columnas_v1',   nom:'Columnas que no son profe' },
-  { k:'agente_v1',     nom:'Libreta del agente de WhatsApp' },
+  { k:'agente_v1',     nom:'Libreta del agente de WhatsApp',
+    hijos:['anotaciones','enviados','salud'] },
   { k:'reservas_v1',   nom:'Propuestas de los profes' },
   { k:'atrasadas_v1',  nom:'Clases cargadas tarde' },
   { k:'pausas_v1',     nom:'Alumnos en pausa' },
@@ -268,6 +275,33 @@ function contar(nodo, val){
   return { n:1, det:'un valor' };
 }
 
+/* ---------- leer un nodo, con plan B ----------
+   Primero se pide el nodo entero, que es lo mas rapido. Si Firebase lo niega y
+   el nodo tiene hijos declarados, se arma pedazo por pedazo: es el caso de
+   niveles_v1, donde el .read vive en los hijos y no en el padre.
+   Si algun dia se corrige la regla del padre, esto sigue funcionando igual:
+   la primera via va a andar y el plan B no se usa. */
+async function leerNodo(nd){
+  try{
+    var snap = await db.ref(nd.k).once('value');
+    return { val: snap.val(), via:'entero' };
+  }catch(e){
+    if(!nd.hijos) throw e;
+    var val={}, leidos=0, fallaron=[];
+    for(var i=0;i<nd.hijos.length;i++){
+      var h = nd.hijos[i];
+      try{
+        var s = await db.ref(nd.k+'/'+h).once('value');
+        var v = s.val();
+        if(v!==null) val[h]=v;
+        leidos++;
+      }catch(e2){ fallaron.push(h); }
+    }
+    if(!leidos) throw e;                    // ni los hijos: se informa el error real
+    return { val:val, via:'por partes', fallaron:fallaron };
+  }
+}
+
 /* ---------- pintar la lista de nodos ---------- */
 function pintarLista(){
   var h='';
@@ -304,11 +338,16 @@ async function correr(){
 
     var fila = { k:nd.k, nom:nd.nom, pesado:!!nd.pesado };
     try{
-      var snap = await db.ref(nd.k).once('value');
-      var val = snap.val();
+      var r = await leerNodo(nd);
+      var val = r.val;
       datos[nd.k] = val;
 
       var c = contar(nd, val);
+      if(r.via==='por partes'){
+        c.det = 'leido por partes' + (r.fallaron.length ? (' · sin '+r.fallaron.join(', ')) : '')
+              + (c.det ? ' · '+c.det : '');
+        fila.porPartes = true;
+      }
       var bytes = val===null ? 0 : JSON.stringify(val).length;
       pesoTotal += bytes;
 
