@@ -93,7 +93,7 @@ function respFB_respaldarDiario() {
 
       total += txt.length;
       resumen.nodos[nd.k] = {
-        registros: respFB_contar(r.val),
+        registros: respFB_contar(nd.k, r.val),
         bytes: txt.length,
         via: r.via
       };
@@ -110,6 +110,11 @@ function respFB_respaldarDiario() {
   }
 
   resumen.bytesTotal = total;
+
+  // Se compara contra el respaldo de la noche anterior ANTES de guardar el de
+  // hoy, así el de hoy no se compara consigo mismo.
+  var caidas = respFB_compararConAyer(resumen);
+
   carpeta.createFile('_resumen.json', JSON.stringify(resumen, null, 1),
                      'application/json');
 
@@ -117,19 +122,77 @@ function respFB_respaldarDiario() {
 
   var msg = 'Respaldo ' + hoy + ': ' + Object.keys(resumen.nodos).length +
             ' nodos, ' + Math.round(total / 1024) + ' KB' +
-            (resumen.errores.length ? ', ' + resumen.errores.length + ' con error' : '');
+            (resumen.errores.length ? ', ' + resumen.errores.length + ' con error' : '') +
+            (caidas.length ? ', ' + caidas.length + ' nodo(s) con menos que ayer' : '');
   Logger.log(msg);
 
-  // Si algo falló, se avisa por correo. Un respaldo que se rompe callado es
-  // peor que no tenerlo, porque da tranquilidad falsa.
-  if (resumen.errores.length) {
-    respFB_avisar('Respaldo de Firebase con errores — ' + hoy,
-      'El respaldo del ' + hoy + ' terminó con estos problemas:\n\n' +
-      resumen.errores.join('\n') +
-      '\n\nLos demás nodos se guardaron bien en Drive, en BACKUPS ADG / ' +
-      RESPFB_CARPETA + ' / ' + hoy + '.');
+  // Se avisa por correo en dos casos: si algo no se pudo leer, o si algún nodo
+  // tiene bastante menos que ayer. Un respaldo que se rompe callado es peor que
+  // no tenerlo, porque da tranquilidad falsa.
+  if (resumen.errores.length || caidas.length) {
+    var cuerpo = 'Respaldo del ' + hoy + '.\n\n';
+    if (caidas.length) {
+      cuerpo += 'HAY NODOS CON MENOS REGISTROS QUE AYER:\n\n';
+      for (var c = 0; c < caidas.length; c++) {
+        cuerpo += '  ' + caidas[c].nodo + ': ayer ' + caidas[c].antes +
+                  ', hoy ' + caidas[c].ahora + '  (' + caidas[c].dif + ')\n';
+      }
+      cuerpo += '\nPuede ser normal (una limpieza, alumnos dados de baja) o puede ' +
+                'ser que se haya perdido algo. La copia de ayer sigue en Drive.\n\n';
+    }
+    if (resumen.errores.length) {
+      cuerpo += 'NODOS QUE NO SE PUDIERON LEER:\n\n  ' +
+                resumen.errores.join('\n  ') + '\n\n';
+    }
+    cuerpo += 'Está todo en Drive, en ' + RESPFB_CARPETA_RAIZ + ' / ' +
+              RESPFB_CARPETA + ' / ' + hoy + '.';
+    respFB_avisar('Respaldo de Firebase — revisar (' + hoy + ')', cuerpo);
   }
   return msg;
+}
+
+/**
+ * Busca el _resumen.json más reciente anterior a hoy y compara los conteos.
+ * Devuelve los nodos que bajaron más del 20%.
+ *
+ * El 20% es a propósito: que un alumno se dé de baja no tiene que despertar a
+ * nadie, pero que desaparezca un quinto del padrón sí.
+ */
+function respFB_compararConAyer(resumen) {
+  var caidas = [];
+  try {
+    var raiz = respFB_carpeta(DriveApp.getRootFolder(), RESPFB_CARPETA_RAIZ);
+    var fb = respFB_carpeta(raiz, RESPFB_CARPETA);
+
+    var mejor = null;
+    var it = fb.getFolders();
+    while (it.hasNext()) {
+      var c = it.next(), n = c.getName();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(n)) continue;
+      if (n >= resumen.fecha) continue;               // hoy o futuro, no sirve
+      if (!mejor || n > mejor.getName()) mejor = c;
+    }
+    if (!mejor) return caidas;                        // es el primer respaldo
+
+    var arch = mejor.getFilesByName('_resumen.json');
+    if (!arch.hasNext()) return caidas;
+    var ayer = JSON.parse(arch.next().getBlob().getDataAsString());
+
+    for (var k in resumen.nodos) {
+      var a = ayer.nodos && ayer.nodos[k];
+      if (!a || typeof a.registros !== 'number' || a.registros <= 0) continue;
+      var ahora = resumen.nodos[k].registros;
+      if (ahora < a.registros * 0.8) {
+        caidas.push({ nodo: k, antes: a.registros, ahora: ahora,
+                      dif: (ahora - a.registros) });
+      }
+    }
+  } catch (e) {
+    // Si la comparación falla, el respaldo igual se guarda: es un extra, no
+    // puede ser el motivo de quedarse sin copia.
+    Logger.log('No se pudo comparar con el respaldo anterior: ' + e.message);
+  }
+  return caidas;
 }
 
 /* ============================ para probar a mano =========================== */
@@ -147,7 +210,7 @@ function respFB_probar() {
       var r = respFB_leerNodo(nd);
       var bytes = JSON.stringify(r.val).length;
       total += bytes;
-      lineas.push(respFB_rellenar(nd.k, 18) + respFB_rellenar(respFB_contar(r.val), 8) +
+      lineas.push(respFB_rellenar(nd.k, 18) + respFB_rellenar(respFB_contar(nd.k, r.val), 8) +
                   Math.round(bytes / 1024) + ' KB' +
                   (r.via === 'por partes' ? '   (leído por partes)' : ''));
     } catch (e) {
@@ -224,8 +287,70 @@ function respFB_get(ruta) {
   return JSON.parse(resp.getContentText());
 }
 
-function respFB_contar(val) {
+/**
+ * Cuenta lo que le importa a una persona, no las cajas de arriba.
+ *
+ * Contar las claves de primer nivel sirve para casi todos los nodos, pero para
+ * dos no dice nada: calendario_v2 tiene siempre unas trece cajas (madre,
+ * semana, profesores, borrados...) y alumnos_v1 tiene siempre csv y
+ * actualizado. Con ese numero, la MADRE podria quedarse sin un solo alumno y
+ * el resumen seguiria diciendo 13.
+ *
+ * Como el resumen de cada noche es lo que despues avisa si se perdio algo,
+ * tiene que contar lo que se puede perder.
+ */
+function respFB_contar(clave, val) {
   if (val === null || val === undefined) return 0;
+
+  if (clave === 'calendario_v2') {
+    var m = (val.madre && val.madre.alumnos) ? Object.keys(val.madre.alumnos).length : 0;
+    var s = (val.semana && val.semana.alumnos) ? Object.keys(val.semana.alumnos).length : 0;
+    return m + s;
+  }
+
+  if (clave === 'alumnos_v1' || clave === 'historial_v1') {
+    if (!val.csv) return 0;
+    // parseCsv es el de Google: respeta las comillas, asi que un comentario
+    // con una coma adentro no corre las columnas.
+    var filas = Utilities.parseCsv(String(val.csv));
+    if (clave === 'alumnos_v1') {
+      // La hoja ALUMNOS trae el titulo en la fila 1 y los encabezados en la 2.
+      // Se busca la fila que dice "alumnos" y se cuentan las que tienen nombre.
+      var hr = -1, iNom = -1;
+      for (var r = 0; r < Math.min(6, filas.length); r++) {
+        for (var c = 0; c < filas[r].length; c++) {
+          if (String(filas[r][c]).trim().toLowerCase() === 'alumnos') { hr = r; iNom = c; break; }
+        }
+        if (hr >= 0) break;
+      }
+      if (hr < 0) return 0;
+      var n = 0;
+      for (var r2 = hr + 1; r2 < filas.length; r2++) {
+        if (filas[r2][iNom] && String(filas[r2][iNom]).trim()) n++;
+      }
+      return n;
+    }
+    // HISTORIAL: encabezado en la primera fila, y solo valen las filas con
+    // fecha de verdad y con alumno.
+    var nh = 0;
+    for (var i = 1; i < filas.length; i++) {
+      var f = String(filas[i][0] || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) continue;
+      if (!String(filas[i][1] || '').trim()) continue;
+      nh++;
+    }
+    return nh;
+  }
+
+  // niveles_v1 y agente_v1 guardan una caja por tema: se cuenta lo de adentro.
+  if (clave === 'niveles_v1' || clave === 'agente_v1') {
+    var t = 0;
+    for (var k in val) {
+      if (val[k] && typeof val[k] === 'object') t += Object.keys(val[k]).length;
+    }
+    return t;
+  }
+
   if (typeof val === 'object') return Object.keys(val).length;
   return 1;
 }
