@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Respaldo · Academia DG</title>
+<style>
+  :root{
+    --bg:#1080A5; --azul:#1080A5; --azul-d:#0c6a8a; --lima:#CFDB3B;
+    --panel:#ffffff; --panel2:#eef3f5; --line:#e1e8ec;
+    --txt:#1f2d35; --muted:#6a7c89;
+    --ok:#2f9e6a; --alerta:#e8b34a; --mal:#c0392b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;padding:16px}
+  .wrap{max-width:860px;margin:0 auto}
+
+  header{color:#fff;margin-bottom:16px;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  header .t{font-size:24px;font-weight:800;letter-spacing:-.4px;display:flex;align-items:center;gap:9px}
+  header .t .dot{width:12px;height:12px;border-radius:50%;background:var(--lima)}
+  header .v{font-size:12px;color:#cfe8f1;font-weight:700}
+  header .sub{width:100%;font-size:13px;color:#eaf6fb;margin-top:4px;line-height:1.5}
+
+  .card{background:var(--panel);border-radius:14px;padding:18px;margin-bottom:14px;box-shadow:0 6px 18px #00000026}
+  .card h2{font-size:15px;font-weight:800;margin-bottom:4px}
+  .card .hint{font-size:12.5px;color:var(--muted);line-height:1.5;margin-bottom:12px}
+
+  button{font-family:inherit;font-size:14px;font-weight:700;padding:12px 20px;border-radius:10px;border:0;cursor:pointer}
+  .btn-1{background:var(--azul-d);color:#fff}
+  .btn-1:hover{background:#0a5871}
+  .btn-1:disabled{background:#9fb6c0;cursor:default}
+  .btn-2{background:transparent;color:var(--azul-d);border:1px solid var(--line)}
+  .btn-2:hover{background:var(--panel2)}
+  .btn-ok{background:var(--ok);color:#fff}
+  .btn-ok:hover{background:#268a5b}
+  .fila-btn{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+
+  /* La tabla tiene cinco columnas y en el celular no entran. Se le da su propio
+     scroll horizontal para que la pagina nunca se mueva de costado. */
+  .tabla-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;margin:0 -4px;padding:0 4px}
+  table{width:100%;border-collapse:collapse;font-size:13px;min-width:600px}
+  th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);padding:6px 8px;border-bottom:2px solid var(--line)}
+  td{padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  tr.pesado td:first-child::after{content:' pesado';font-size:10px;background:var(--panel2);color:var(--muted);padding:1px 5px;border-radius:4px;margin-left:6px;font-weight:700;letter-spacing:.3px}
+  .nodo{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px;font-weight:700}
+  /* El detalle va debajo del numero, pero sin heredar el nowrap de la celda:
+     si no, un texto largo estira la tabla entera y tapa la columna de Estado. */
+  .det{font-size:11.5px;color:var(--muted);display:block;margin-top:2px;font-family:-apple-system,sans-serif;
+       white-space:normal;font-weight:400}
+  .est{font-size:11px;font-weight:800;padding:3px 8px;border-radius:20px;white-space:nowrap}
+  .e-ok{background:#e6f4ee;color:var(--ok)}
+  .e-vacio{background:#fdf3e0;color:#a97614}
+  .e-mal{background:#fbeae8;color:var(--mal)}
+  .e-espera{background:var(--panel2);color:var(--muted)}
+  .cambio{font-size:11.5px;font-weight:800;white-space:nowrap}
+  .c-sube{color:var(--ok)}
+  .c-baja{color:var(--mal)}
+  .c-igual{color:var(--muted)}
+
+  .aviso{border-radius:10px;padding:12px 14px;font-size:13px;line-height:1.55;margin-bottom:12px}
+  .a-mal{background:#fbeae8;color:#8c2b20;border:1px solid #f0c4be}
+  .a-ok{background:#e6f4ee;color:#1d6647;border:1px solid #b8e0cd}
+  .a-alerta{background:#fdf3e0;color:#7a5410;border:1px solid #f0dcb0}
+  .oculto{display:none !important}
+
+  .resumen{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:14px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+  .resumen div{min-width:88px}
+  .resumen .n{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+  .resumen .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;font-weight:700}
+
+  .barra{height:6px;background:var(--panel2);border-radius:4px;overflow:hidden;margin-top:12px}
+  .barra i{display:block;height:100%;background:var(--lima);width:0;transition:width .2s}
+
+  label.chk{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer;padding:4px 0}
+  label.chk input{width:16px;height:16px;accent-color:var(--azul-d);cursor:pointer}
+  .pie{color:#cfe8f1;font-size:11.5px;text-align:center;line-height:1.6;padding:6px 0 20px}
+
+  /* Login */
+  #login{position:fixed;inset:0;z-index:999;background:#0d1117;color:#e6edf3;display:none;
+    align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center}
+  #login .lt{font-size:22px;font-weight:700;margin-bottom:8px}
+  #login .lm{opacity:.75;margin-bottom:24px;max-width:360px;line-height:1.55}
+  #login .lerr{color:#ff7b72;margin-top:18px;max-width:360px;line-height:1.5}
+  #login button{font-size:16px;padding:14px 26px;background:#2f81f7;color:#fff}
+  #login .salir{background:transparent;color:#8b949e;border:1px solid #30363d;font-size:14px;padding:10px 20px;margin-top:14px}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <div class="lt">Respaldo · Academia DG</div>
+  <div class="lm" id="lmsg">Ingresá para hacer el respaldo.</div>
+  <button id="btnEntrar">Entrar con Google</button>
+  <button id="btnSalir" class="salir oculto">Salir</button>
+  <div class="lerr" id="lerr"></div>
+</div>
+
+<div class="wrap">
+  <header>
+    <div class="t"><span class="dot"></span>Respaldo</div>
+    <div class="v" id="vers">v2026-08-11</div>
+    <div class="sub">Baja una copia completa de Firebase a un archivo. No modifica ningún dato: solo lee.</div>
+  </header>
+
+  <div class="card">
+    <h2>Qué se va a copiar</h2>
+    <div class="hint">
+      Los dos últimos son copias que el calendario genera solo. Sirven para volver atrás en el
+      día, pero engordan mucho el archivo y se regeneran: por eso vienen destildados.
+    </div>
+    <div id="listaNodos"></div>
+    <div class="fila-btn" style="margin-top:14px">
+      <button class="btn-1" id="btnCorrer">Hacer el respaldo</button>
+      <button class="btn-2" id="btnTodos">Tildar todo</button>
+      <span id="quien" style="font-size:12px;color:var(--muted)"></span>
+    </div>
+    <div class="barra oculto" id="barra"><i></i></div>
+  </div>
+
+  <div class="card oculto" id="cardRes">
+    <h2>Resultado</h2>
+    <div id="avisos"></div>
+    <div class="resumen">
+      <div><div class="n" id="rNodos">—</div><div class="l">Nodos</div></div>
+      <div><div class="n" id="rPeso">—</div><div class="l">Tamaño</div></div>
+      <div><div class="n" id="rAvisos">—</div><div class="l">Avisos</div></div>
+      <div><div class="n" id="rHora">—</div><div class="l">Hora</div></div>
+    </div>
+    <div class="tabla-scroll">
+      <table>
+        <thead><tr>
+          <th>Nodo</th><th class="num">Registros</th><th class="num">Contra el anterior</th>
+          <th class="num">Tamaño</th><th>Estado</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+    <div class="fila-btn" style="margin-top:16px">
+      <button class="btn-ok" id="btnBajar">Bajar el archivo</button>
+      <span style="font-size:12px;color:var(--muted)">Guardalo en Drive o en un pendrive, no solo en esta compu.</span>
+    </div>
+  </div>
+
+  <div class="pie">
+    Academia DG · el respaldo se arma en tu navegador y no se manda a ningún lado.<br>
+    Para volver atrás un dato puntual, mirá primero las copias del calendario.
+  </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+/* ============================================================================
+   RESPALDO · Academia DG
+   ----------------------------------------------------------------------------
+   Baja TODO Firebase a un archivo .json. Solo lee: no escribe ni borra nada.
+
+   Por qué existe: hasta ahora el respaldo era la copia de la planilla que deja
+   Apps Script a las 23:00. Pero la verdad de casi todo el sistema ya vive en
+   Firebase (calendario, evaluaciones, libreta del agente, inventario, pausas,
+   permisos), y de eso no había copia bajable.
+
+   Dos decisiones que valen la pena entender:
+
+   1. Se lee NODO POR NODO, no todo el arbol de una. Asi, si un nodo falla por
+      reglas o esta vacio, se ve cual y los demas siguen. Traer '/' entero daria
+      un solo error sin decir donde.
+
+   2. Se guarda el resumen del respaldo anterior en esta compu y se COMPARA.
+      Un respaldo que dice "895 alumnos" no dice nada solo; comparado contra el
+      anterior que decia 895, si.  Si un nodo baja mucho de golpe, avisa fuerte.
+      Es la regla de la casa: cuando algo puede fallar callado, hacerlo ruidoso.
+   ========================================================================== */
+
+var VERSION = 'v2026-08-11';
+
+var cfg = {
+  apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain: "academia-dg.firebaseapp.com",
+  databaseURL: "https://academia-dg-default-rtdb.firebaseio.com",
+  projectId: "academia-dg",
+  storageBucket: "academia-dg.firebasestorage.app",
+  messagingSenderId: "623967243039",
+  appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
+};
+
+/* Los nodos del sistema, con el nombre en castellano de lo que guarda cada uno.
+   'medir' dice como contar los registros de forma que el numero signifique algo
+   para una persona: en los nodos que guardan un CSV entero, contar hijos daria
+   siempre 2 (csv + actualizado), asi que se cuentan las lineas.
+   'pesado' solo cambia si viene tildado por defecto. */
+var NODOS = [
+  { k:'calendario_v2', nom:'Calendario (MADRE y semanas)',  medir:'calendario' },
+  { k:'alumnos_v1',    nom:'Padron, copia de la planilla',  medir:'csv' },
+  { k:'alumnos_v2',    nom:'Alumnos cargados desde las apps' },
+  { k:'historial_v1',  nom:'Historial de clases, 90 dias',  medir:'csv' },
+  { k:'niveles_v1',    nom:'Evaluaciones de nivel' },
+  { k:'usuarios',      nom:'Permisos de acceso' },
+  { k:'tipos_v1',      nom:'Cuanto aporta cada tipo de clase' },
+  { k:'columnas_v1',   nom:'Columnas que no son profe' },
+  { k:'agente_v1',     nom:'Libreta del agente de WhatsApp' },
+  { k:'reservas_v1',   nom:'Propuestas de los profes' },
+  { k:'atrasadas_v1',  nom:'Clases cargadas tarde' },
+  { k:'pausas_v1',     nom:'Alumnos en pausa' },
+  { k:'inventario_v1', nom:'Inventario' },
+  { k:'cobros_diego_v1', nom:'Marcas de cobranza' },
+  { k:'bloc_notas',    nom:'Bloc de notas' },
+  { k:'ops_v1',        nom:'Quien hizo que (profes)',       pesado:true },
+  { k:'ops_admin',     nom:'Quien hizo que (administradores)' },
+  { k:'dia',           nom:'Dias publicados a las tablets',  pesado:true },
+  { k:'log_ops',       nom:'Bitacora' },
+  { k:'snapshots',     nom:'Puntos de restauracion del calendario', pesado:true, off:true },
+  { k:'backups_auto',  nom:'Copias automaticas del calendario',     pesado:true, off:true }
+];
+
+var LLAVE_ULT = 'adg_respaldo_ultimo';   // resumen del respaldo anterior, en esta compu
+var db=null, YO='', MI_NOMBRE='', datos=null, resumen=null;
+
+function $(id){ return document.getElementById(id); }
+function aClave(m){ return (m||'').toLowerCase().replace(/\./g,','); }
+
+/* Fecha y hora de Asuncion, no la del navegador: si alguien mira desde afuera
+   del pais, el archivo tiene que decir la hora de la academia. */
+function ahoraAsu(){
+  var f = new Intl.DateTimeFormat('sv-SE',{ timeZone:'America/Asuncion',
+    year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',
+    hour12:false }).format(new Date());
+  return f.replace(' ','T');       // 2026-08-11T03:24
+}
+function pesoLindo(b){
+  if(b<1024) return b+' B';
+  if(b<1048576) return (b/1024).toFixed(0)+' KB';
+  return (b/1048576).toFixed(1)+' MB';
+}
+function miles(n){ return (n||0).toLocaleString('es-PY'); }
+
+/* ---------- contar de forma que el numero signifique algo ---------- */
+function contar(nodo, val){
+  if(val===null || val===undefined) return { n:0, det:'vacio' };
+
+  if(nodo.medir==='csv'){
+    var csv = (val && val.csv) ? String(val.csv) : '';
+    if(!csv) return { n:0, det:'sin csv' };
+    // menos 1 por la fila de encabezados
+    var lineas = csv.split('\n').filter(function(l){ return l.trim()!==''; }).length;
+    var cuando = val.actualizado ? (' · copia de ' + String(val.actualizado).slice(0,16).replace('T',' ')) : '';
+    return { n: Math.max(0, lineas-1), det:'filas del csv'+cuando };
+  }
+
+  if(nodo.medir==='calendario'){
+    // Lo que de verdad importa del calendario es cuantos alumnos hay puestos
+    // en la MADRE y en la semana. El resto son profes, sedes y lapidas.
+    var m = (val.madre && val.madre.alumnos) ? Object.keys(val.madre.alumnos).length : 0;
+    var s = (val.semana && val.semana.alumnos) ? Object.keys(val.semana.alumnos).length : 0;
+    var p = val.profesores ? Object.keys(val.profesores).length : 0;
+    return { n: m+s, det: miles(m)+' en la MADRE · '+miles(s)+' en la semana · '+p+' profes' };
+  }
+
+  if(typeof val === 'object'){
+    var n = Object.keys(val).length;
+    return { n:n, det:'registros' };
+  }
+  return { n:1, det:'un valor' };
+}
+
+/* ---------- pintar la lista de nodos ---------- */
+function pintarLista(){
+  var h='';
+  NODOS.forEach(function(nd,i){
+    h += '<label class="chk"><input type="checkbox" data-i="'+i+'"'+(nd.off?'':' checked')+'>'
+       + '<span><b class="nodo">'+nd.k+'</b> — '+nd.nom+(nd.pesado?' <span style="color:var(--muted);font-size:11px">(pesado)</span>':'')+'</span></label>';
+  });
+  $('listaNodos').innerHTML = h;
+}
+
+/* ---------- el respaldo ---------- */
+async function correr(){
+  var elegidos = [];
+  document.querySelectorAll('#listaNodos input:checked').forEach(function(c){
+    elegidos.push(NODOS[+c.dataset.i]);
+  });
+  if(!elegidos.length){ alert('No hay ningun nodo tildado.'); return; }
+
+  $('btnCorrer').disabled = true;
+  $('btnCorrer').textContent = 'Leyendo…';
+  $('barra').classList.remove('oculto');
+  $('cardRes').classList.add('oculto');
+
+  var anterior = {};
+  try{ anterior = JSON.parse(localStorage.getItem(LLAVE_ULT)||'{}').nodos || {}; }catch(e){}
+
+  datos = {};
+  var filas = [], pesoTotal = 0, avisos = 0;
+
+  for(var i=0;i<elegidos.length;i++){
+    var nd = elegidos[i];
+    $('barra').firstElementChild.style.width = Math.round((i/elegidos.length)*100)+'%';
+    $('btnCorrer').textContent = 'Leyendo '+nd.k+'…';
+
+    var fila = { k:nd.k, nom:nd.nom, pesado:!!nd.pesado };
+    try{
+      var snap = await db.ref(nd.k).once('value');
+      var val = snap.val();
+      datos[nd.k] = val;
+
+      var c = contar(nd, val);
+      var bytes = val===null ? 0 : JSON.stringify(val).length;
+      pesoTotal += bytes;
+
+      fila.n = c.n; fila.det = c.det; fila.bytes = bytes;
+
+      if(val===null || c.n===0){ fila.estado='vacio'; avisos++; }
+      else fila.estado='ok';
+
+      // Comparacion contra el respaldo anterior de esta compu
+      var ant = anterior[nd.k];
+      if(ant!==undefined && ant!==null && typeof ant.n==='number'){
+        fila.antes = ant.n;
+        fila.dif = c.n - ant.n;
+        // Una caida de mas del 20% en un nodo que antes tenia datos es
+        // justo el sintoma de "algo se borro y nadie se entero".
+        if(ant.n>0 && c.n < ant.n*0.8){ fila.estado='cayo'; avisos++; }
+      }
+    }catch(e){
+      fila.estado='error'; fila.err = e.message||String(e); fila.n=0; fila.bytes=0;
+      datos[nd.k] = null;
+      avisos++;
+    }
+    filas.push(fila);
+  }
+
+  $('barra').firstElementChild.style.width='100%';
+  $('btnCorrer').disabled = false;
+  $('btnCorrer').textContent = 'Hacer el respaldo';
+
+  resumen = { version:VERSION, hecho:ahoraAsu(), por:YO, porNombre:MI_NOMBRE,
+              nodos:{}, pesoTotal:pesoTotal, avisos:avisos };
+  filas.forEach(function(f){ resumen.nodos[f.k] = { n:f.n, bytes:f.bytes, estado:f.estado }; });
+
+  pintarResultado(filas, pesoTotal, avisos);
+
+  // Se guarda SOLO el resumen (numeros), nunca los datos de los alumnos.
+  try{ localStorage.setItem(LLAVE_ULT, JSON.stringify(resumen)); }catch(e){}
+}
+
+function pintarResultado(filas, peso, avisos){
+  var hayError = filas.some(function(f){ return f.estado==='error'; });
+  var hayCaida = filas.some(function(f){ return f.estado==='cayo'; });
+  var hayVacio = filas.some(function(f){ return f.estado==='vacio'; });
+
+  var av='';
+  if(hayError) av += '<div class="aviso a-mal"><b>Hay nodos que no se pudieron leer.</b> '
+    + 'El archivo va a salir incompleto. Casi siempre es una regla de Firebase que no deja leer ese nodo, '
+    + 'o que se cayo la conexion a mitad. Mira el detalle en la tabla y volve a intentar antes de guardarlo como bueno.</div>';
+  if(hayCaida) av += '<div class="aviso a-mal"><b>Un nodo tiene bastante menos que la vez pasada.</b> '
+    + 'Puede ser normal (una limpieza, historial viejo que se borro) o puede ser que se perdio algo. '
+    + '<b>No pises el respaldo anterior hasta entender por que.</b></div>';
+  if(hayVacio && !hayError) av += '<div class="aviso a-alerta"><b>Hay nodos vacios.</b> '
+    + 'Si nunca se usaron, es normal. Si esperabas datos ahi, revisalo antes de confiar en esta copia.</div>';
+  if(!hayError && !hayCaida && !hayVacio) av += '<div class="aviso a-ok"><b>Salio limpio.</b> '
+    + 'Todos los nodos respondieron y ninguno perdio registros contra el respaldo anterior. Baja el archivo y guardalo afuera de esta compu.</div>';
+  $('avisos').innerHTML = av;
+
+  $('rNodos').textContent = filas.length;
+  $('rPeso').textContent  = pesoLindo(peso);
+  $('rAvisos').textContent= avisos;
+  $('rHora').textContent  = ahoraAsu().slice(11);
+
+  var h='';
+  filas.forEach(function(f){
+    var est = { ok:['e-ok','bien'], vacio:['e-vacio','vacio'],
+                cayo:['e-mal','bajo'], error:['e-mal','no se pudo leer'] }[f.estado];
+    var cambio='<span class="c-igual">—</span>';
+    if(f.antes!==undefined){
+      if(f.dif>0) cambio='<span class="cambio c-sube">+'+miles(f.dif)+'</span>';
+      else if(f.dif<0) cambio='<span class="cambio c-baja">'+miles(f.dif)+'</span>';
+      else cambio='<span class="cambio c-igual">igual</span>';
+    }
+    h += '<tr'+(f.pesado?' class="pesado"':'')+'>'
+      +  '<td><span class="nodo">'+f.k+'</span><span class="det">'+f.nom
+      +  (f.err?' · <b style="color:var(--mal)">'+f.err+'</b>':'')+'</span></td>'
+      +  '<td class="num"><b>'+miles(f.n)+'</b><span class="det">'+(f.det||'')+'</span></td>'
+      +  '<td class="num">'+cambio+(f.antes!==undefined?'<span class="det">antes '+miles(f.antes)+'</span>':'')+'</td>'
+      +  '<td class="num">'+pesoLindo(f.bytes)+'</td>'
+      +  '<td><span class="est '+est[0]+'">'+est[1]+'</span></td></tr>';
+  });
+  $('tbody').innerHTML = h;
+  $('cardRes').classList.remove('oculto');
+  $('cardRes').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function bajar(){
+  if(!datos){ return; }
+  // El archivo se explica solo: primero quien y cuando, despues los datos.
+  // Si dentro de un año alguien lo abre, tiene que entender que es sin preguntar.
+  var paquete = {
+    _que: 'Respaldo completo de Firebase · Academia DG',
+    _hecho: resumen.hecho + ' (hora de Asuncion)',
+    _por: MI_NOMBRE ? (MI_NOMBRE+' · '+YO) : YO,
+    _version: VERSION,
+    _baseDeDatos: cfg.databaseURL,
+    _aviso: 'Tiene datos personales de alumnos y de plata. No subirlo a ningun lado publico.',
+    _resumen: resumen.nodos,
+    datos: datos
+  };
+  var txt = JSON.stringify(paquete, null, 1);
+  var stamp = resumen.hecho.replace('T','-').replace(':','');
+  var a = document.createElement('a');
+  var url = URL.createObjectURL(new Blob([txt], {type:'application/json'}));
+  a.href = url;
+  a.download = 'respaldo-academia-dg-'+stamp+'.json';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+}
+
+/* ---------- acceso ---------- */
+/* Esto baja TODO: nombres y telefonos de casi 900 alumnos, la plata y los
+   permisos. Por eso pide admin, igual que el panel de accesos, y no alcanza
+   con estar logueado. */
+function mostrarLogin(msg, conSalir){
+  $('login').style.display='flex';
+  if(msg!==undefined) $('lmsg').innerHTML = msg;
+  $('btnEntrar').classList.toggle('oculto', !!conSalir);
+  $('btnSalir').classList.toggle('oculto', !conSalir);
+}
+
+try{ firebase.initializeApp(cfg); }catch(e){}
+
+document.addEventListener('DOMContentLoaded', function(){
+  $('vers').textContent = VERSION;
+  pintarLista();
+
+  $('btnEntrar').onclick = function(){
+    $('lerr').textContent='';
+    firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+      .catch(function(e){ $('lerr').textContent = 'No se pudo entrar: '+e.message; });
+  };
+  $('btnSalir').onclick = function(){
+    firebase.auth().signOut().then(function(){ location.reload(); });
+  };
+  $('btnCorrer').onclick = correr;
+  $('btnBajar').onclick  = bajar;
+  $('btnTodos').onclick  = function(){
+    var falta = document.querySelectorAll('#listaNodos input:not(:checked)').length>0;
+    document.querySelectorAll('#listaNodos input').forEach(function(c){ c.checked = falta; });
+    $('btnTodos').textContent = falta ? 'Destildar todo' : 'Tildar todo';
+  };
+
+  mostrarLogin();
+
+  firebase.auth().onAuthStateChanged(function(u){
+    if(!u){ mostrarLogin('Ingresá para hacer el respaldo.', false); return; }
+    YO = u.email;
+    db = firebase.database();
+    db.ref('usuarios/'+aClave(u.email)).once('value').then(function(s){
+      var f = s.val();
+      if(!f || f.activo!==true){
+        mostrarLogin('Tu acceso no está habilitado.<br><br><b>'+u.email+'</b>', true); return;
+      }
+      if(!(f.permisos && f.permisos.admin===true)){
+        mostrarLogin('El respaldo baja los datos de todos los alumnos y la plata,'
+          +' así que es solo para administradores.<br><br><b>'+u.email+'</b>', true); return;
+      }
+      MI_NOMBRE = f.nombre || '';
+      $('quien').textContent = 'Entraste como '+(MI_NOMBRE||YO);
+      $('login').style.display='none';
+    }).catch(function(e){
+      mostrarLogin('No se pudo verificar tu acceso.<br><br>'+e.message, true);
+    });
+  });
+});
+</script>
+</body>
+</html>
