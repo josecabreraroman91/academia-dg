@@ -40,20 +40,14 @@ var RESPFB_CARPETA = 'FIREBASE';
 var RESPFB_DIAS_QUE_SE_GUARDAN = 60;
 
 /**
- * Los nodos que se respaldan.
+ * TODOS los nodos. El respaldo se copia entero y tal cual está: no decide, no
+ * filtra, no arregla variaciones ni duplicados. Un respaldo que interpreta deja
+ * de ser un respaldo.
  *
- * Están SOLO los que son fuente de verdad. Quedan afuera a propósito:
- *   dia/           se vuelve a generar publicando el día desde el calendario
- *   ops_v1         bitácora de quién hizo qué, no es un dato del negocio
- *   ops_admin      ídem, y se borra sola a la semana
- *   log_ops        ídem
- *   snapshots      copias que el calendario ya hace y borra a las 48 h
- *   backups_auto   ídem
- *
- * Ese recorte no es por prolijidad: es lo que hace que el respaldo pese
- * alrededor de un mega en vez de 55, y que entre cómodo en los seis minutos
- * que Apps Script da por ejecución. Lo que se deja afuera es derivado o es
- * registro; lo que se guarda es lo que no se puede reconstruir.
+ * 'grande' marca los que no se pueden pedir de un saque: se preguntan primero
+ * las claves de arriba y después se baja una por una. Sin eso, pedir dia/ o
+ * ops_v1 entero puede pasarse de los seis minutos que da Apps Script, o del
+ * tamaño máximo de una respuesta, y el respaldo queda a medias.
  *
  * 'hijos' es para los nodos donde el permiso de lectura está puesto en los
  * hijos y no en el padre: si el padre se niega, se arma pedazo por pedazo.
@@ -73,33 +67,64 @@ var RESPFB_NODOS = [
   { k: 'pausas_v1' },
   { k: 'inventario_v1' },
   { k: 'cobros_diego_v1' },
-  { k: 'bloc_notas' }
+  { k: 'bloc_notas' },
+  { k: 'dia',          grande: true },
+  { k: 'ops_v1',       grande: true },
+  { k: 'ops_admin',    grande: true },
+  { k: 'log_ops',      grande: true },
+  { k: 'snapshots',    grande: true },
+  { k: 'backups_auto', grande: true }
 ];
+
+/* Cuánto puede pesar un archivo antes de partirlo en dos. Cuatro megas entran
+   cómodos en memoria y siguen siendo fáciles de abrir después. */
+var RESPFB_CORTE_ARCHIVO = 4000000;
+
+/* Apps Script mata la ejecución a los seis minutos, sin aviso y sin guardar.
+   A los cinco se corta por las buenas, se anota qué quedó afuera y se avisa,
+   así el respaldo nunca queda mudo a medio hacer. */
+var RESPFB_MINUTOS_MAXIMO = 5;
 
 /* ====================== lo que corre todas las noches ====================== */
 
 function respFB_respaldarDiario() {
+  var arranque = new Date().getTime();
+  var hastaCuando = arranque + RESPFB_MINUTOS_MAXIMO * 60 * 1000;
+
   var hoy = respFB_hoyAsuncion();
   var carpeta = respFB_carpetaDelDia(hoy);
-  var resumen = { fecha: hoy, nodos: {}, errores: [] };
+  var resumen = { fecha: hoy, nodos: {}, errores: [], incompletos: [] };
   var total = 0;
 
   for (var i = 0; i < RESPFB_NODOS.length; i++) {
     var nd = RESPFB_NODOS[i];
     try {
-      var r = respFB_leerNodo(nd);
-      var txt = JSON.stringify(r.val);
-      carpeta.createFile(nd.k + '.json', txt, 'application/json');
-
-      total += txt.length;
-      resumen.nodos[nd.k] = {
-        registros: respFB_contar(nd.k, r.val),
-        bytes: txt.length,
-        via: r.via
-      };
-      if (r.via === 'por partes') {
-        Logger.log(nd.k + ': leído por partes' +
-          (r.fallaron.length ? ' (sin ' + r.fallaron.join(', ') + ')' : ''));
+      if (nd.grande) {
+        // Los pesados se bajan clave por clave, para no pedir 40 MB de un saque.
+        var g = respFB_guardarGrande(carpeta, nd, hastaCuando);
+        total += g.bytes;
+        resumen.nodos[nd.k] = { registros: g.registros, bytes: g.bytes,
+                                via: 'clave por clave',
+                                partes: g.partes };
+        if (g.faltaron.length) {
+          resumen.nodos[nd.k].faltaron = g.faltaron.length;
+          resumen.incompletos.push(nd.k + ': quedaron ' + g.faltaron.length +
+                                   ' sin copiar (primera: ' + g.faltaron[0] + ')');
+        }
+      } else {
+        var r = respFB_leerNodo(nd);
+        var txt = JSON.stringify(r.val);
+        carpeta.createFile(nd.k + '.json', txt, 'application/json');
+        total += txt.length;
+        resumen.nodos[nd.k] = {
+          registros: respFB_contar(nd.k, r.val),
+          bytes: txt.length,
+          via: r.via
+        };
+        if (r.via === 'por partes') {
+          Logger.log(nd.k + ': leído por partes' +
+            (r.fallaron.length ? ' (sin ' + r.fallaron.join(', ') + ')' : ''));
+        }
       }
     } catch (e) {
       // Un nodo que falla NO corta el respaldo: se anota y se sigue con los
@@ -108,6 +133,7 @@ function respFB_respaldarDiario() {
       Logger.log('ERROR en ' + nd.k + ': ' + e.message);
     }
   }
+  resumen.minutos = Math.round((new Date().getTime() - arranque) / 600) / 100;
 
   resumen.bytesTotal = total;
 
@@ -121,16 +147,24 @@ function respFB_respaldarDiario() {
   respFB_borrarLosViejos();
 
   var msg = 'Respaldo ' + hoy + ': ' + Object.keys(resumen.nodos).length +
-            ' nodos, ' + Math.round(total / 1024) + ' KB' +
+            ' nodos, ' + Math.round(total / 1048576 * 10) / 10 + ' MB en ' +
+            resumen.minutos + ' min' +
             (resumen.errores.length ? ', ' + resumen.errores.length + ' con error' : '') +
+            (resumen.incompletos.length ? ', ' + resumen.incompletos.length + ' incompleto(s)' : '') +
             (caidas.length ? ', ' + caidas.length + ' nodo(s) con menos que ayer' : '');
   Logger.log(msg);
 
   // Se avisa por correo en dos casos: si algo no se pudo leer, o si algún nodo
   // tiene bastante menos que ayer. Un respaldo que se rompe callado es peor que
   // no tenerlo, porque da tranquilidad falsa.
-  if (resumen.errores.length || caidas.length) {
+  if (resumen.errores.length || caidas.length || resumen.incompletos.length) {
     var cuerpo = 'Respaldo del ' + hoy + '.\n\n';
+    if (resumen.incompletos.length) {
+      cuerpo += 'NO SE ALCANZÓ A COPIAR TODO (se acabó el tiempo):\n\n  ' +
+                resumen.incompletos.join('\n  ') +
+                '\n\nEl resto quedó guardado. Si esto se repite todos los días, ' +
+                'hay que partir el respaldo en dos activadores.\n\n';
+    }
     if (caidas.length) {
       cuerpo += 'HAY NODOS CON MENOS REGISTROS QUE AYER:\n\n';
       for (var c = 0; c < caidas.length; c++) {
@@ -202,23 +236,37 @@ function respFB_compararConAyer(resumen) {
  * están bien y qué cantidad trae cada nodo, antes de dejarlo automático.
  */
 function respFB_probar() {
+  var t0 = new Date().getTime();
   var lineas = ['PRUEBA de lectura — no se guardó nada en Drive', ''];
   var total = 0;
   for (var i = 0; i < RESPFB_NODOS.length; i++) {
     var nd = RESPFB_NODOS[i];
     try {
-      var r = respFB_leerNodo(nd);
-      var bytes = JSON.stringify(r.val).length;
-      total += bytes;
-      lineas.push(respFB_rellenar(nd.k, 18) + respFB_rellenar(respFB_contar(nd.k, r.val), 8) +
-                  Math.round(bytes / 1024) + ' KB' +
-                  (r.via === 'por partes' ? '   (leído por partes)' : ''));
+      if (nd.grande) {
+        // De los pesados no se baja el contenido: solo se cuentan las claves.
+        // Bajarlos acá tardaría lo mismo que el respaldo de verdad, y esta
+        // prueba tiene que poder correrse cuantas veces haga falta.
+        var claves = respFB_get(nd.k, 'shallow=true');
+        var n = claves ? Object.keys(claves).length : 0;
+        lineas.push(respFB_rellenar(nd.k, 18) + respFB_rellenar(n, 8) +
+                    '(se copia clave por clave)');
+      } else {
+        var r = respFB_leerNodo(nd);
+        var bytes = JSON.stringify(r.val).length;
+        total += bytes;
+        lineas.push(respFB_rellenar(nd.k, 18) + respFB_rellenar(respFB_contar(nd.k, r.val), 8) +
+                    Math.round(bytes / 1024) + ' KB' +
+                    (r.via === 'por partes' ? '   (leído por partes)' : ''));
+      }
     } catch (e) {
       lineas.push(respFB_rellenar(nd.k, 18) + 'ERROR: ' + e.message);
     }
   }
   lineas.push('');
-  lineas.push('Total: ' + Math.round(total / 1024) + ' KB');
+  lineas.push('Livianos: ' + Math.round(total / 1024) + ' KB');
+  lineas.push('Los marcados "clave por clave" se copian enteros igual, de a una');
+  lineas.push('clave por vez. Su tamaño se ve recién en el primer respaldo.');
+  lineas.push('Tardó ' + Math.round((new Date().getTime() - t0) / 100) / 10 + ' seg');
   var txt = lineas.join('\n');
   Logger.log(txt);
   return txt;
@@ -274,8 +322,9 @@ function respFB_leerNodo(nd) {
   }
 }
 
-function respFB_get(ruta) {
-  var resp = UrlFetchApp.fetch(RESPFB_URL + '/' + ruta + '.json', {
+function respFB_get(ruta, params) {
+  var url = RESPFB_URL + '/' + ruta + '.json' + (params ? '?' + params : '');
+  var resp = UrlFetchApp.fetch(url, {
     headers: { Authorization: 'Bearer ' + ScriptApp.getOAuthToken() },
     muteHttpExceptions: true
   });
@@ -285,6 +334,73 @@ function respFB_get(ruta) {
                     resp.getContentText().slice(0, 200));
   }
   return JSON.parse(resp.getContentText());
+}
+
+/**
+ * Baja un nodo grande sin cargarlo entero en memoria.
+ *
+ * Primero se le pide a Firebase la lista de claves de arriba (shallow=true,
+ * que devuelve las llaves y no el contenido). Después se baja una por una y se
+ * van escribiendo archivos de cuatro megas. Así dia/, con cientos de fechas
+ * adentro, se guarda completo sin pedirle a Firebase 40 MB de un saque.
+ *
+ * Se guarda TODO: no se saltea ninguna clave ni se recorta por antigüedad.
+ */
+function respFB_guardarGrande(carpeta, nd, hastaCuando) {
+  var claves = respFB_get(nd.k, 'shallow=true');
+  if (claves === null) {
+    carpeta.createFile(nd.k + '.json', 'null', 'application/json');
+    return { registros: 0, bytes: 4, partes: 1, faltaron: [] };
+  }
+  var lista = Object.keys(claves).sort();
+
+  var lote = {}, enLote = 0, bytesLote = 0;
+  var parte = 0, bytesTotal = 0, guardadas = 0, faltaron = [];
+
+  function escribirLote() {
+    if (!enLote) return;
+    parte++;
+    var txt = JSON.stringify(lote);
+    // Si hay una sola parte se llama como el nodo, sin numerito: es lo normal
+    // y así el archivo se busca igual que los demás.
+    var nombre = nd.k + '.json';
+    carpeta.createFile(nombre, txt, 'application/json');
+    bytesTotal += txt.length;
+    lote = {}; enLote = 0; bytesLote = 0;
+  }
+  function escribirParte() {
+    if (!enLote) return;
+    parte++;
+    var txt = JSON.stringify(lote);
+    carpeta.createFile(nd.k + '.parte' + parte + '.json', txt, 'application/json');
+    bytesTotal += txt.length;
+    lote = {}; enLote = 0; bytesLote = 0;
+  }
+
+  for (var i = 0; i < lista.length; i++) {
+    if (new Date().getTime() > hastaCuando) {
+      // Se acabó el tiempo: se anota lo que faltó en vez de morir callado.
+      faltaron = lista.slice(i);
+      break;
+    }
+    var k = lista[i];
+    try {
+      var v = respFB_get(nd.k + '/' + encodeURIComponent(k));
+      lote[k] = v;
+      enLote++;
+      bytesLote += JSON.stringify(v).length;
+      guardadas++;
+    } catch (e) {
+      faltaron.push(k);
+    }
+    if (bytesLote > RESPFB_CORTE_ARCHIVO) escribirParte();
+  }
+
+  // Lo que queda: si nunca hubo que partir, va con el nombre simple.
+  if (parte === 0) escribirLote(); else escribirParte();
+
+  return { registros: guardadas, bytes: bytesTotal,
+           partes: parte, faltaron: faltaron };
 }
 
 /**
