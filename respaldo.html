@@ -344,6 +344,22 @@ function contar(nodo, val){
     return { n: m+s, det: miles(m)+' en la MADRE · '+miles(s)+' en la semana · '+p+' profes' };
   }
 
+  /* Los nodos que se leen por partes (niveles_v1, agente_v1) tienen adentro una
+     caja por cada hijo. Contar las claves de arriba daria 3 y no dice nada:
+     lo que importa es cuantas evaluaciones hay, no cuantas cajas. Se cuenta un
+     nivel mas abajo y se muestra el desglose. */
+  if(nodo.hijos && typeof val==='object'){
+    var partes=[], total=0;
+    nodo.hijos.forEach(function(h){
+      var v = val[h];
+      if(v===undefined || v===null) return;
+      var nh = (typeof v==='object') ? Object.keys(v).length : 1;
+      total += nh;
+      partes.push(h+': '+miles(nh));
+    });
+    return { n:total, det: partes.length ? partes.join(' · ') : 'sin datos' };
+  }
+
   if(typeof val === 'object'){
     var n = Object.keys(val).length;
     return { n:n, det:'registros' };
