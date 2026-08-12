@@ -39,6 +39,11 @@ var RESPFB_CARPETA_RAIZ = 'BACKUPS ADG';
 var RESPFB_CARPETA = 'FIREBASE';
 var RESPFB_DIAS_QUE_SE_GUARDAN = 60;
 
+/* A qué correo avisar cuando algo sale mal. Vacío = al dueño del script.
+   Si los avisos no llegan, poner acá el correo a mano: corriendo por
+   activador, Google a veces no sabe decir quién es el dueño. */
+var RESPFB_AVISAR_A = '';
+
 /**
  * TODOS los nodos. El respaldo se copia entero y tal cual está: no decide, no
  * filtra, no arregla variaciones ni duplicados. Un respaldo que interpreta deja
@@ -147,9 +152,7 @@ function respFB_respaldarDiario() {
   // Se compara contra el respaldo de la noche anterior ANTES de guardar el de
   // hoy, así el de hoy no se compara consigo mismo.
   var caidas = respFB_compararConAyer(resumen);
-
-  carpeta.createFile('_resumen.json', JSON.stringify(resumen, null, 1),
-                     'application/json');
+  resumen.caidas = caidas;
 
   respFB_borrarLosViejos();
 
@@ -187,8 +190,17 @@ function respFB_respaldarDiario() {
     }
     cuerpo += 'Está todo en Drive, en ' + RESPFB_CARPETA_RAIZ + ' / ' +
               RESPFB_CARPETA + ' / ' + hoy + '.';
-    respFB_avisar('Respaldo de Firebase — revisar (' + hoy + ')', cuerpo);
+    resumen.aviso = respFB_avisar('Respaldo de Firebase — revisar (' + hoy + ')', cuerpo);
+  } else {
+    resumen.aviso = { enviado: false, motivo: 'no hizo falta: salió todo bien' };
   }
+
+  // El resumen se escribe AL FINAL, cuando ya se sabe si el aviso salió. Si el
+  // correo falla, queda escrito acá: es la única forma de enterarse, porque el
+  // registro de una corrida automática no lo mira nadie.
+  carpeta.createFile('_resumen.json', JSON.stringify(resumen, null, 1),
+                     'application/json');
+
   return msg;
 }
 
@@ -596,12 +608,51 @@ function respFB_borrarLosViejos() {
   }
 }
 
+/**
+ * Manda el aviso y DEVUELVE si pudo. Antes se tragaba el error y solo lo
+ * escribía en el registro, que nadie mira: la noche del 12 de agosto el
+ * respaldo quedó incompleto, el correo no salió y no quedó rastro en ningún
+ * lado. El aviso es lo único que avisa cuando esto corre a las 2 de la mañana,
+ * así que si falla el aviso, eso también tiene que quedar escrito.
+ *
+ * Corriendo por activador, Session.getEffectiveUser() a veces vuelve vacío.
+ * Por eso se prueban las dos formas, y si igual no hay correo se puede poner
+ * uno a mano en RESPFB_AVISAR_A.
+ */
 function respFB_avisar(asunto, cuerpo) {
-  try {
-    MailApp.sendEmail(Session.getEffectiveUser().getEmail(), asunto, cuerpo);
-  } catch (e) {
-    Logger.log('No se pudo mandar el aviso: ' + e.message);
+  var destino = RESPFB_AVISAR_A;
+  if (!destino) { try { destino = Session.getEffectiveUser().getEmail(); } catch (e) {} }
+  if (!destino) { try { destino = Session.getActiveUser().getEmail(); } catch (e) {} }
+  if (!destino) {
+    Logger.log('AVISO NO ENVIADO: no pude averiguar a qué correo mandarlo. ' +
+               'Poné uno a mano en RESPFB_AVISAR_A, arriba del archivo.');
+    return { enviado: false, motivo: 'no se pudo averiguar el correo del dueño' };
   }
+  try {
+    MailApp.sendEmail(destino, asunto, cuerpo);
+    Logger.log('Aviso enviado a ' + destino);
+    return { enviado: true, a: destino };
+  } catch (e) {
+    Logger.log('AVISO NO ENVIADO a ' + destino + ': ' + e.message);
+    return { enviado: false, a: destino, motivo: e.message };
+  }
+}
+
+/**
+ * Manda un correo de prueba. Sirve para saber si los avisos funcionan sin
+ * tener que esperar a que algo salga mal de madrugada.
+ */
+function respFB_probarCorreo() {
+  var r = respFB_avisar('Prueba de aviso — Respaldo Academia DG',
+    'Si estás leyendo esto, los avisos del respaldo funcionan.\n\n' +
+    'Es el mismo camino que se usa cuando el respaldo queda incompleto o ' +
+    'cuando un nodo pierde registros.');
+  var txt = r.enviado
+    ? 'Correo enviado a ' + r.a + '. Revisá la bandeja (y el spam).'
+    : 'NO se pudo enviar: ' + r.motivo +
+      '\nPoné tu correo a mano en RESPFB_AVISAR_A, arriba del archivo.';
+  Logger.log(txt);
+  return txt;
 }
 
 function respFB_rellenar(s, n) {
