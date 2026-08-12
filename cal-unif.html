@@ -1420,6 +1420,17 @@ function autoAplicarLibreta(){
 
            El pedido NO se cierra: sigue pendiente en la libreta hasta que
            alguien lo marque resuelto. Pintar no es resolver. */
+        /* SI YA ESTABA CONFIRMADO (verde), SACARLE EL VERDE. Un alumno confirma
+           ("Ok") y horas después el padre avisa "no va, tiene un cumple": ese
+           aviso entra como pedido/celeste. Si el verde queda, el alumno sigue
+           contado como PRESENTE y se cobra una clase que no fue. Sacar el verde
+           deja la celda solo en celeste para que una persona la resuelva; el
+           verde solo vuelve si alguien lo re-confirma a mano. */
+        if(al.confirmado){
+          al.confirmado = false;
+          hechos.push('⚠️ '+a.alumno+' estaba CONFIRMADO y ahora avisó cambio / que no viene — se le sacó el verde, revisar — '+lugarTxt(hit.k));
+          anotarOpAgente('revisar', a.alumno, lugarTxt(hit.k)+' · ⚠️ estaba confirmado y llegó un aviso de cambio/que no viene: se sacó el verde');
+        }
         if(!al.revisar){
           al.revisar = true;
           hechos.push('🔵 '+a.alumno+' pidió un cambio — '+lugarTxt(hit.k));
