@@ -131,7 +131,7 @@
 
 
 <header>
-  <div class="title"><span class="dot"></span> Alumnos <span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.5;margin-left:6px">v2026-08-05</span></div>
+  <div class="title"><span class="dot"></span> Alumnos <span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.5;margin-left:6px">v2026-08-14 · +padron_v1</span></div>
   <div class="searchbar">
     <input id="search" placeholder="Buscar alumno…" autocomplete="off">
     <button class="btn primary" id="btnNuevo">+ Nuevo</button>
@@ -886,6 +886,29 @@ function borrarAlumnoEnVivo(nombre){
   }catch(e){}
 }
 
+/* Migración a Firebase (paso 3 — escritura doble): al guardar, además de la
+   planilla y de alumnos_v2, se escribe el alumno directo en padron_v1/alumnos/<ID>,
+   así el cambio se ve al instante en las apps ya migradas (sin esperar los 15 min
+   del puente). Solo para alumnos que ya tienen ID de planilla; los nuevos (sin ID)
+   entran por el puente y el ID lo pone asignarIdsAlumnos. Es aditivo: el puente y
+   el bridge siguen igual y reconcilian. */
+function publicarEnPadronV1(lista){
+  try{
+    if(!window.firebase || !firebase.apps || !firebase.apps.length) return;
+    if(!firebase.auth().currentUser) return;
+    var gsTxt = function(n){ return (Number(n)||0).toLocaleString('en-US')+'Gs.'; };
+    (lista||[]).forEach(function(a){
+      var id = _idsPlanilla[claveAlumno_(a.nombre)];
+      if(!id) return;   // sin ID de planilla no escribimos acá (lo maneja el puente/bridge)
+      firebase.database().ref('padron_v1/alumnos/'+id).update({
+        id: id, nombre: a.nombre||'', cat: a.cat||'', lado: a.lado||'', profe: a.profe||'',
+        tipo: a.tipo||'', precio: gsTxt(a.precio), coment: a.comentarios||'',
+        nomHor: a.nomHor||'', nomWpp: a.nomWpp||'', tel: a.tel||normPhone(a.telRaw)||'', origen: 'hoja'
+      }).catch(function(e){ console.warn('padron_v1 dual-write:', e.message); });
+    });
+  }catch(e){ console.warn('publicarEnPadronV1:', e.message); }
+}
+
 async function guardarEnPlanilla(silent){
   const dirty=alumnos.filter(a=>a._dirty);
   if(!dirty.length){ if(!silent) alert('No hay cambios para guardar.\n\nEditá o creá un alumno y volvé a tocar este botón.'); return; }
@@ -894,6 +917,7 @@ async function guardarEnPlanilla(silent){
      esto vivía adentro del camino del puente: si el puente fallaba o no
      estaba configurado, el alumno quedaba encerrado en esta máquina. */
   publicarAlumnosEnVivo(dirty);
+  publicarEnPadronV1(dirty);   // paso 3: escritura doble a padron_v1 (instantáneo)
   const gsTxt=(n)=>(Number(n)||0).toLocaleString('en-US')+'Gs.';   // 120000 -> "120,000Gs." (igual que la planilla)
   // ── PUENTE: guardar SIN que nadie se loguee ──
   if(PUENTE_URL){
