@@ -88,7 +88,7 @@ input:focus,textarea:focus{outline:2px solid #cfe6f4;border-color:var(--azul)}
 
 <div class="wrap" id="app" style="display:none">
   <header>
-    <h1>⏸️ Alumnos en pausa <span class="v">v2026-08-07</span></h1>
+    <h1>⏸️ Alumnos en pausa <span class="v">v2026-08-14 · padron_v1</span></h1>
     <div class="yo"><span id="yoMail"></span><a href="#" id="btSalir">salir</a></div>
   </header>
 
@@ -215,6 +215,20 @@ function cargarNombres(csv){
     var k=normName(nom); if(vistos[k]) continue; vistos[k]=1;
     NOMBRES.push({ nombre:nom, tel:(iT>-1?(rows[r2][iT]||'').trim():'') });
   }
+  $('hNom').textContent = NOMBRES.length+' alumnos en la lista. Escribí y elegí el que va.';
+}
+
+/* Migración a Firebase (paso 2): ahora la lista sale del padrón canónico
+   padron_v1 (estructurado por ID), no del espejo alumnos_v1/csv. Mismo dato,
+   fuente unificada. Usa nombre + tel, igual que antes. */
+function cargarNombresDePadron(padron){
+  NOMBRES=[]; var al=(padron&&padron.alumnos)||{}; var vistos={};
+  Object.keys(al).forEach(function(id){
+    var a=al[id]; if(!a||!a.nombre) return;
+    var k=normName(a.nombre); if(vistos[k]) return; vistos[k]=1;
+    NOMBRES.push({ nombre:String(a.nombre).trim(), tel:String(a.tel||'').trim() });
+  });
+  NOMBRES.sort(function(a,b){ return a.nombre.localeCompare(b.nombre,'es'); });
   $('hNom').textContent = NOMBRES.length+' alumnos en la lista. Escribí y elegí el que va.';
 }
 
@@ -361,8 +375,14 @@ auth.onAuthStateChanged(async function(u){
   $('yoMail').textContent=YO;
   $('fec').min=hoyISO();
 
-  /* la lista de alumnos, para escribir el nombre igual que en el resto */
-  try{ var s=await db.ref('alumnos_v1/csv').once('value'); cargarNombres(s.val()||''); }
+  /* la lista de alumnos, para escribir el nombre igual que en el resto.
+     Lee del padrón canónico padron_v1 (migración a Firebase). Si por lo que
+     fuera padron_v1 no está, cae al espejo viejo alumnos_v1/csv (red de seguridad). */
+  try{
+    var s=await db.ref('padron_v1').once('value'); var pv=s.val();
+    if(pv && pv.alumnos && Object.keys(pv.alumnos).length){ cargarNombresDePadron(pv); }
+    else { var s2=await db.ref('alumnos_v1/csv').once('value'); cargarNombres(s2.val()||''); }
+  }
   catch(e){ $('hNom').textContent='No pude traer la lista de alumnos: escribí el nombre a mano.'; }
 
   /* en vivo: lo que anota uno lo ve el otro */
