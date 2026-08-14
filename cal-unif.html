@@ -327,7 +327,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v2026-08-14 · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-14b · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -1453,6 +1453,7 @@ function autoAplicarLibreta(){
            contado como PRESENTE y se cobra una clase que no fue. Sacar el verde
            deja la celda solo en celeste para que una persona la resuelva; el
            verde solo vuelve si alguien lo re-confirma a mano. */
+        const hechosAntes = hechos.length;
         if(al.confirmado){
           al.confirmado = false;
           hechos.push('⚠️ '+a.alumno+' estaba CONFIRMADO y ahora avisó cambio / que no viene — se le sacó el verde, revisar — '+lugarTxt(hit.k));
@@ -1463,7 +1464,16 @@ function autoAplicarLibreta(){
           hechos.push('🔵 '+a.alumno+' pidió un cambio — '+lugarTxt(hit.k));
           anotarOpAgente('revisar', a.alumno, lugarTxt(hit.k)+' · pidió un cambio por WhatsApp');
         }
-        try{ logOp('agente_pedido', a.alumno+' — '+lugarTxt(hit.k)); }catch(e){}
+        /* Se loguea SOLO si esta pasada cambió algo. Un pedido queda pendiente
+           a propósito, así que esta rama vuelve a correr en CADA sincronización
+           con la nube, y el pedido ya pintado no cambia nada: antes igual
+           escribía en log_ops cada vez. Medido el 14/08/2026: `agente_pedido`
+           era el 99,6% de todo el log (~330 registros por minuto) con 128
+           pedidos pendientes dando vueltas. El log queda para lo que pasó de
+           verdad, que además es lo único que sirve para diagnosticar. */
+        if(hechos.length > hechosAntes){
+          try{ logOp('agente_pedido', a.alumno+' — '+lugarTxt(hit.k)); }catch(e){}
+        }
         return;
       }
 
