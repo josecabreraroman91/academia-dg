@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Construir padrón canónico → Firebase · Academia DG v1</title>
+<style>
+  :root{--bg:#0f1216;--panel:#171c22;--panel2:#1e242c;--line:#2a323c;--tx:#e7edf3;--mut:#9aa7b4;--acc:#4aa3ff;--ok:#37d399;--warn:#ffb020;--bad:#ff5d5d;--new:#8b7bff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  header{background:linear-gradient(180deg,#12171d,#0d1116);border-bottom:1px solid var(--line);padding:14px 18px;position:sticky;top:0;z-index:10}
+  h1{font-size:16px;margin:0 0 2px;font-weight:650}
+  .sub{color:var(--mut);font-size:12px}
+  main{max-width:1080px;margin:0 auto;padding:18px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:4px 0 16px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .tile .n{font-size:26px;font-weight:700;line-height:1}
+  .tile .l{color:var(--mut);font-size:12px;margin-top:5px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+  .big{font-size:15px;font-weight:650;margin-bottom:8px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-weight:600}
+  .scroll{max-height:40vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .chip{display:inline-block;background:#232b34;border:1px solid var(--line);border-radius:20px;padding:1px 8px;font-size:11.5px;margin:1px 2px}
+  .chip.id{color:var(--acc)} .chip.new{color:var(--new)} .chip.ok{color:var(--ok)} .chip.warn{color:var(--warn)} .chip.bad{color:var(--bad)}
+  .muted{color:var(--mut)}
+  button{font:inherit}
+  .write{background:var(--ok);color:#04120c;border:0;border-radius:9px;padding:12px 20px;font-weight:800;cursor:pointer;font-size:14px}
+  .write:disabled{opacity:.5;cursor:default}
+  .danger{background:#3a0f12;color:#ff9aa0;border:1px solid #5c1a1e;border-radius:8px;padding:8px 12px;font-weight:700;font-size:12px;display:inline-block;margin-top:6px}
+  #login{max-width:420px;margin:60px auto;text-align:center}
+  .gbtn{background:#fff;color:#111;border:0;border-radius:8px;padding:11px 18px;font-weight:600;cursor:pointer}
+  code{background:#111820;padding:1px 5px;border-radius:4px}
+  #log{white-space:pre-wrap;font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--mut);max-height:180px;overflow:auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>Construir padrón canónico → <code>padron_v1</code> <span class="muted">v1</span></h1>
+  <div class="sub">Crea un nodo NUEVO en Firebase con el padrón unificado por ID. No toca la hoja, ni alumnos_v1/v2, ni ninguna app.</div>
+</header>
+
+<div id="login" style="display:none"><div class="card"><div class="big">Entrá con Google</div><button class="gbtn" id="loginBtn">Entrar</button><div id="loginErr" style="color:var(--bad);margin-top:10px"></div></div></div>
+
+<main id="app" style="display:none">
+  <div id="tiles" class="tiles"></div>
+  <div class="card">
+    <div class="big">Qué va a escribir</div>
+    <div id="resumen" class="muted"></div>
+    <div style="margin-top:12px">
+      <button class="write" id="btnWrite" disabled>⬆ Escribir padron_v1 en Firebase</button>
+      <span id="wstate" class="muted" style="margin-left:10px"></span>
+    </div>
+    <div class="danger">Escribe SOLO el nodo nuevo <code>padron_v1</code>. Reversible: se borra ese nodo y queda todo como estaba.</div>
+    <div id="log" style="margin-top:10px"></div>
+  </div>
+  <div id="det"></div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+"use strict";
+const CFG={apiKey:"AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",authDomain:"academia-dg.firebaseapp.com",databaseURL:"https://academia-dg-default-rtdb.firebaseio.com",projectId:"academia-dg",storageBucket:"academia-dg.firebasestorage.app",messagingSenderId:"623967243039",appId:"1:623967243039:web:e22397b466b63aefdf3e2a"};
+try{firebase.initializeApp(CFG);}catch(e){}
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm=v=>String(v==null?'':v).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+function parseCSV(s){const rows=[];let row=[],cur='',q=false;for(let i=0;i<s.length;i++){const c=s[i];if(q){if(c==='"'){if(s[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}else{if(c==='"')q=true;else if(c===','){row.push(cur);cur='';}else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur='';}else if(c==='\r'){}else cur+=c;}}if(cur!==''||row.length){row.push(cur);rows.push(row);}return rows;}
+
+// ---- DECISIONES DE JOSÉ (2026-08-14) ----
+const MERGE={ 'cami miranda':'A0098','fabricio bareiro':'A0196','franco chila gonzalez':'A0118','mati garcia':'A0436','samu rodriguez':'A0588','seba rodriguez':'A0601' };
+const RENOMBRA={ 'A0118':'Franco Chila Gonzalez' }; // el completo gana sobre "Chila"
+const NUEVOS=new Set(['adri miranda','ale lopez','fede duarte','lis martina','mauri wachin rodriguez','pierre petit']);
+const DESCARTA=new Set(['iva iva','prueba prueba','puente02']);
+const RETENIDOS=new Set(['david','susan']); // se dejan afuera, para revisar
+
+let PROP=null; // propuesta construida
+
+function construir(csv, v2){
+  const rows=parseCSV(csv); let hr=-1, col={};
+  const want={nombre:'alumnos',cat:'categoria',lado:'lado',profe:'profesor',tipo:'tipo de clase',precio:'precio de clase',coment:'comentarios',nomHor:'nombre p/ horario',nomWpp:'nombre_calendario',tel:'telefono',id:'id'};
+  const dias=['lunes','martes','miercoles','jueves','viernes','sabado']; let diaCol={};
+  for(let r=0;r<Math.min(6,rows.length);r++){const idx={};rows[r].forEach((c,i)=>{idx[norm(c)]=i;});if(idx['alumnos']!=null){hr=r;Object.keys(want).forEach(k=>col[k]=idx[want[k]]!=null?idx[want[k]]:-1);dias.forEach(d=>diaCol[d]=idx[d]!=null?idx[d]:-1);break;}}
+  const padron={}; const porNombre={}; let maxId=0;
+  for(let r=hr+1;r<rows.length;r++){
+    const g=i=>i>=0?(rows[r][i]||'').trim():'';
+    const nombre=g(col.nombre); if(!nombre)continue;
+    const id=g(col.id); if(!id)continue;
+    const m=/^A(\d+)$/.exec(id); if(m)maxId=Math.max(maxId,+m[1]);
+    const rec={id,nombre,cat:g(col.cat),lado:g(col.lado),profe:g(col.profe),tipo:g(col.tipo),precio:g(col.precio),coment:g(col.coment),nomHor:g(col.nomHor),nomWpp:g(col.nomWpp),tel:g(col.tel),origen:'hoja'};
+    const dd={}; dias.forEach(d=>{const v=g(diaCol[d]); if(v)dd[d]=v;}); if(Object.keys(dd).length)rec.dias=dd;
+    padron[id]=rec; porNombre[norm(nombre)]=id;
+  }
+  // aplicar renombres (nombre completo gana)
+  Object.keys(RENOMBRA).forEach(id=>{ if(padron[id])padron[id].nombre=RENOMBRA[id]; });
+
+  const rep={fusiones:[],nuevos:[],descartados:[],retenidos:[],completados:[]};
+  const v2arr=Object.entries(v2||{}).map(([key,val])=>({key,k:norm((val&&val.nombre)||key),nombre:(val&&val.nombre)||key,tel:(val&&val.tel||'').trim(),cat:(val&&val.cat||'').trim(),tipo:(val&&val.tipo||'').trim(),profe:(val&&val.profe||'').trim(),precio:(val&&val.precio||'').toString().trim()}));
+  const fillEmpty=(rec,a)=>{['tel','cat','tipo','profe','precio'].forEach(f=>{ if((!rec[f]||rec[f]==='')&&a[f]){rec[f]=a[f];} });};
+
+  v2arr.forEach(a=>{
+    if(DESCARTA.has(a.k)){rep.descartados.push(a.nombre);return;}
+    if(RETENIDOS.has(a.k)){rep.retenidos.push(a.nombre);return;}
+    let target=MERGE[a.k]||porNombre[a.k];
+    if(target && padron[target]){ fillEmpty(padron[target],a); (MERGE[a.k]?rep.fusiones:rep.completados).push(a.nombre+' → '+target); return; }
+    if(NUEVOS.has(a.k)){ const id='A'+String(++maxId).padStart(4,'0'); padron[id]={id,nombre:a.nombre,cat:a.cat,lado:'',profe:a.profe,tipo:a.tipo,precio:a.precio,coment:'',nomHor:'',nomWpp:'',tel:a.tel,origen:'nuevo'}; porNombre[a.k]=id; rep.nuevos.push(a.nombre+' → '+id); return; }
+    // v2 sin coincidencia y sin decisión: NO lo escribimos, lo dejamos para revisar
+    rep.retenidos.push(a.nombre+' (sin decisión)');
+  });
+  return {padron, rep, total:Object.keys(padron).length};
+}
+
+function pintar(){
+  const {padron,rep,total}=PROP;
+  $('#tiles').innerHTML=[
+    ['Total padrón_v1',total,'--tx'],
+    ['De la hoja',Object.values(padron).filter(a=>a.origen==='hoja').length,'--tx'],
+    ['Nuevos (ID nuevo)',rep.nuevos.length,'--new'],
+    ['Fusiones aplicadas',rep.fusiones.length,'--ok'],
+    ['Completados por v2',rep.completados.length,'--ok'],
+    ['Descartados',rep.descartados.length,'--bad'],
+    ['Retenidos (revisar)',rep.retenidos.length,'--warn'],
+  ].map(([l,n,c])=>`<div class="tile"><div class="n" style="color:var(${c})">${n}</div><div class="l">${l}</div></div>`).join('');
+  $('#resumen').innerHTML=`Se va a crear <code>padron_v1</code> con <b>${total}</b> alumnos (clave = ID). Fiel a la hoja + tus 17 decisiones. Los duplicados por sufijo y Kami/Kamila NO se tocan.`;
+  $('#det').innerHTML=`
+    <div class="card"><div class="big">🆕 Nuevos (${rep.nuevos.length})</div><div>${rep.nuevos.map(x=>`<span class="chip new">${esc(x)}</span>`).join('')||'—'}</div></div>
+    <div class="card"><div class="big">🔗 Fusiones aplicadas (${rep.fusiones.length})</div><div>${rep.fusiones.map(x=>`<span class="chip ok">${esc(x)}</span>`).join('')||'—'}</div></div>
+    <div class="card"><div class="big">🗑️ Descartados (${rep.descartados.length}) · ⚠️ Retenidos para revisar (${rep.retenidos.length})</div>
+      <div>${rep.descartados.map(x=>`<span class="chip bad">${esc(x)}</span>`).join('')} ${rep.retenidos.map(x=>`<span class="chip warn">${esc(x)}</span>`).join('')}</div></div>`;
+  $('#btnWrite').disabled=false;
+}
+
+function log(m){$('#log').textContent+=m+'\n';$('#log').scrollTop=1e9;}
+
+$('#btnWrite').onclick=async ()=>{
+  $('#btnWrite').disabled=true; $('#wstate').textContent='escribiendo…';
+  try{
+    const u=firebase.auth().currentUser;
+    const payload={ actualizado:new Date().toISOString(), generado_por:(u&&u.email)||'?', origen:'construir-padron v1 (prueba en seco aprobada 2026-08-14)', total:PROP.total, alumnos:PROP.padron };
+    await firebase.database().ref('padron_v1').set(payload);
+    log('OK · padron_v1 escrito: '+PROP.total+' alumnos.');
+    $('#wstate').innerHTML='<b style="color:var(--ok)">✔ Escrito. Verificando…</b>';
+    const chk=await firebase.database().ref('padron_v1/total').get();
+    log('Verificación: padron_v1/total = '+chk.val());
+    $('#wstate').innerHTML='<b style="color:var(--ok)">✔ Listo — padron_v1 tiene '+chk.val()+' alumnos.</b>';
+  }catch(e){ log('ERROR al escribir: '+e.message); $('#wstate').innerHTML='<b style="color:var(--bad)">✖ '+esc(e.message)+'</b>'; $('#btnWrite').disabled=false; }
+};
+
+function arrancar(){
+  $('#login').style.display='none'; $('#app').style.display='block';
+  $('#resumen').textContent='Leyendo padrón…';
+  const db=firebase.database();
+  Promise.all([db.ref('alumnos_v1/csv').get(), db.ref('alumnos_v2').get()]).then(([c,v])=>{
+    PROP=construir(c.val()||'', v.val()||{}); pintar();
+  }).catch(e=>{$('#resumen').innerHTML='<span style="color:var(--bad)">No pude leer: '+esc(e.message)+'</span>';});
+}
+$('#loginBtn').onclick=()=>firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>$('#loginErr').textContent=e.message);
+firebase.auth().onAuthStateChanged(u=>{ if(u)arrancar(); else{$('#app').style.display='none';$('#login').style.display='block';} });
+</script>
+</body>
+</html>
