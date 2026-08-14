@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba en seco · Padrón → Firebase · Academia DG v1</title>
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171c22; --panel2:#1e242c; --line:#2a323c;
+    --tx:#e7edf3; --mut:#9aa7b4; --acc:#4aa3ff; --ok:#37d399; --warn:#ffb020;
+    --bad:#ff5d5d; --new:#8b7bff; --chipbg:#232b34;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--tx);font:14px/1.5 system-ui,Segoe UI,Roboto,Arial,sans-serif}
+  header{background:linear-gradient(180deg,#12171d,#0d1116);border-bottom:1px solid var(--line);padding:14px 18px;position:sticky;top:0;z-index:10}
+  h1{font-size:16px;margin:0 0 2px;font-weight:650}
+  .sub{color:var(--mut);font-size:12px}
+  .ro{display:inline-block;background:#3a0f12;color:#ff9aa0;border:1px solid #5c1a1e;border-radius:6px;padding:3px 9px;font-weight:700;font-size:11.5px;letter-spacing:.3px;margin-top:6px}
+  main{max-width:1180px;margin:0 auto;padding:18px}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:4px 0 18px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .tile .n{font-size:26px;font-weight:700;line-height:1}
+  .tile .l{color:var(--mut);font-size:12px;margin-top:5px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .tab{background:var(--panel);border:1px solid var(--line);color:var(--tx);padding:8px 13px;border-radius:8px;cursor:pointer;font-size:13px}
+  .tab.on{background:var(--acc);border-color:var(--acc);color:#04121f;font-weight:650}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--mut);font-weight:600;position:sticky;top:0;background:var(--panel)}
+  .scroll{max-height:62vh;overflow:auto;border:1px solid var(--line);border-radius:8px}
+  .chip{display:inline-block;background:var(--chipbg);border:1px solid var(--line);border-radius:20px;padding:1px 8px;font-size:11.5px;margin:1px 2px}
+  .chip.id{color:var(--acc)} .chip.warn{color:var(--warn);border-color:#5a4410}
+  .chip.new{color:var(--new)} .chip.ok{color:var(--ok)}
+  .muted{color:var(--mut)}
+  .big{font-size:15px;font-weight:650}
+  input,select,button{font:inherit}
+  button.act{background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:8px 12px;cursor:pointer}
+  button.act:hover{border-color:var(--acc)}
+  .dec{padding:5px 8px;border-radius:7px;border:1px solid var(--line);background:var(--panel2);color:var(--tx)}
+  .row-new{background:rgba(139,123,255,.06)}
+  .row-warn{background:rgba(255,176,32,.06)}
+  .row-junk{background:rgba(255,93,93,.06)}
+  .cand{font-size:12px;color:var(--mut);margin-top:3px}
+  .cand b{color:var(--tx)}
+  .search{width:260px;background:var(--panel2);border:1px solid var(--line);color:var(--tx);border-radius:8px;padding:8px 10px}
+  #login{max-width:420px;margin:60px auto;text-align:center}
+  .gbtn{background:#fff;color:#111;border:0;border-radius:8px;padding:11px 18px;font-weight:600;cursor:pointer}
+  .legend{font-size:12px;color:var(--mut);margin:2px 0 12px}
+  .legend b{color:var(--tx)}
+  a{color:var(--acc)}
+  .flag{font-weight:700}
+  .flag.new{color:var(--new)} .flag.warn{color:var(--warn)} .flag.junk{color:var(--bad)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Prueba en seco · Padrón unificado → Firebase <span class="muted">v1</span></h1>
+  <div class="sub">Cruza la hoja ALUMNOS (espejo <code>alumnos_v1</code>) contra <code>alumnos_v2</code>. Herramienta de análisis para la migración.</div>
+  <div class="ro">🔒 SOLO LECTURA · ESTA PANTALLA NO ESCRIBE NADA (ni en Firebase ni en la hoja)</div>
+</header>
+
+<div id="login" style="display:none">
+  <div class="card">
+    <div class="big" style="margin-bottom:8px">Entrá con tu cuenta de Google de la academia</div>
+    <div class="muted" style="margin-bottom:14px">Necesario solo para leer Firebase. No se guarda nada.</div>
+    <button class="gbtn" id="loginBtn">Entrar con Google</button>
+    <div id="loginErr" style="color:var(--bad);margin-top:10px"></div>
+  </div>
+</div>
+
+<main id="app" style="display:none">
+  <div id="tiles" class="tiles"></div>
+
+  <div class="tabs" id="tabs">
+    <div class="tab on" data-t="resumen">Resumen</div>
+    <div class="tab" data-t="fusiones">Se fusionan (<span id="cFus">0</span>)</div>
+    <div class="tab" data-t="decidir">Decidir (<span id="cDec">0</span>)</div>
+    <div class="tab" data-t="dups">Posibles duplicados (<span id="cDup">0</span>)</div>
+    <div class="tab" data-t="padron">Padrón hoja (<span id="cPad">0</span>)</div>
+    <div style="flex:1"></div>
+    <button class="act" id="btnExport">⬇ Bajar informe (JSON)</button>
+  </div>
+
+  <div id="pane"></div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+"use strict";
+const CFG={apiKey:"AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",authDomain:"academia-dg.firebaseapp.com",databaseURL:"https://academia-dg-default-rtdb.firebaseio.com",projectId:"academia-dg",storageBucket:"academia-dg.firebasestorage.app",messagingSenderId:"623967243039",appId:"1:623967243039:web:e22397b466b63aefdf3e2a"};
+try{firebase.initializeApp(CFG);}catch(e){}
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const norm=v=>String(v==null?'':v).normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+const LSKEY='pruebaPadron_decisiones_v1';
+
+// ---------- basura evidente ----------
+const JUNK=/^(prueba|test|puente\d*|iva iva|asdf|xxx|aaa|nn|sin nombre|amigo|david)$/i;
+
+// ---------- Levenshtein + similitud ----------
+function lev(a,b){a=a||'';b=b||'';const m=a.length,n=b.length;if(!m)return n;if(!n)return m;let prev=Array.from({length:n+1},(_,i)=>i),cur=new Array(n+1);for(let i=1;i<=m;i++){cur[0]=i;for(let j=1;j<=n;j++){const cost=a[i-1]===b[j-1]?0:1;cur[j]=Math.min(prev[j]+1,cur[j-1]+1,prev[j-1]+cost);}[prev,cur]=[cur,prev];}return prev[n];}
+function sim(a,b){const L=Math.max(a.length,b.length);if(!L)return 1;return 1-lev(a,b)/L;}
+const tokens=s=>norm(s).split(' ').filter(Boolean);
+function tokenOverlap(a,b){const A=new Set(tokens(a)),B=new Set(tokens(b));let x=0;A.forEach(t=>{if(B.has(t))x++;});return x;}
+
+function parseCSV(s){const rows=[];let row=[],cur='',q=false;for(let i=0;i<s.length;i++){const c=s[i];if(q){if(c==='"'){if(s[i+1]==='"'){cur+='"';i++;}else q=false;}else cur+=c;}else{if(c==='"')q=true;else if(c===','){row.push(cur);cur='';}else if(c==='\n'){row.push(cur);rows.push(row);row=[];cur='';}else if(c==='\r'){}else cur+=c;}}if(cur!==''||row.length){row.push(cur);rows.push(row);}return rows;}
+
+let DATA=null, DEC={};
+try{DEC=JSON.parse(localStorage.getItem(LSKEY)||'{}');}catch(e){DEC={};}
+
+function construir(csv, v2){
+  const rows=parseCSV(csv);
+  // ubicar encabezados por nombre (fila con "alumnos")
+  let hr=-1, col={};
+  const want={nombre:'alumnos',cat:'categoria',lado:'lado',profe:'profesor',tipo:'tipo de clase',precio:'precio de clase',coment:'comentarios',nomHor:'nombre p/ horario',nomWpp:'nombre_calendario',tel:'telefono',id:'id'};
+  for(let r=0;r<Math.min(6,rows.length);r++){
+    const idx={}; rows[r].forEach((c,i)=>{idx[norm(c)]=i;});
+    if(idx['alumnos']!=null){hr=r;Object.keys(want).forEach(k=>{col[k]=idx[want[k]]!=null?idx[want[k]]:-1;});break;}
+  }
+  const hoja=[];
+  for(let r=hr+1;r<rows.length;r++){
+    const g=i=>i>=0?(rows[r][i]||'').trim():'';
+    const nombre=g(col.nombre); if(!nombre)continue;
+    hoja.push({nombre,k:norm(nombre),id:g(col.id),cat:g(col.cat),lado:g(col.lado),profe:g(col.profe),tipo:g(col.tipo),precio:g(col.precio),coment:g(col.coment),nomHor:g(col.nomHor),nomWpp:g(col.nomWpp),tel:g(col.tel)});
+  }
+  const porK={}; hoja.forEach(a=>{if(!porK[a.k])porK[a.k]=a;});
+
+  // v2
+  const v2arr=Object.entries(v2||{}).map(([key,val])=>({key,nombre:(val&&val.nombre)||key,k:norm((val&&val.nombre)||key),tel:(val&&val.tel||'').trim(),cat:(val&&val.cat||''),precio:(val&&val.precio||''),tipo:(val&&val.tipo||''),profe:(val&&val.profe||'')}));
+  const fusiones=[], decidir=[];
+  v2arr.forEach(a=>{
+    const m=porK[a.k];
+    if(m){ fusiones.push({v2:a, hoja:m}); }
+    else {
+      // candidatos parecidos en la hoja
+      const cands=hoja.map(h=>({h,s:Math.max(sim(a.k,h.k), tokenOverlap(a.nombre,h.nombre)?0.5+0.1*tokenOverlap(a.nombre,h.nombre):0)}))
+                      .filter(x=>x.s>=0.5).sort((x,y)=>y.s-x.s).slice(0,4);
+      let flag='new';
+      if(JUNK.test(a.k)||a.k.split(' ').length<2 && a.k.length<=5) flag='junk';
+      else if(cands.length && cands[0].s>=0.62) flag='warn';
+      decidir.push({v2:a, cands, flag});
+    }
+  });
+
+  // duplicados internos de la hoja (fuzzy) — bloqueo por primera letra del primer token
+  const dups=[]; const seen=new Set();
+  const bloques={};
+  hoja.forEach(a=>{const t=tokens(a.nombre);const key=(t[0]||'').slice(0,3);(bloques[key]=bloques[key]||[]).push(a);});
+  Object.values(bloques).forEach(arr=>{
+    for(let i=0;i<arr.length;i++)for(let j=i+1;j<arr.length;j++){
+      const A=arr[i],B=arr[j]; if(A.k===B.k)continue;
+      const s=sim(A.k,B.k), ov=tokenOverlap(A.nombre,B.nombre);
+      if(s>=0.82 || (ov>=1 && s>=0.6 && Math.abs(A.k.length-B.k.length)<=3)){
+        const id=[A.id,B.id].sort().join('|'); if(seen.has(id))continue; seen.add(id);
+        dups.push({a:A,b:B,s:+s.toFixed(2)});
+      }
+    }
+  });
+  dups.sort((x,y)=>y.s-x.s);
+
+  return {hoja, fusiones, decidir, dups};
+}
+
+function saveDec(){localStorage.setItem(LSKEY,JSON.stringify(DEC));}
+
+function render(){
+  const d=DATA;
+  const nNew=d.decidir.filter(x=>x.flag==='new').length;
+  const nWarn=d.decidir.filter(x=>x.flag==='warn').length;
+  const nJunk=d.decidir.filter(x=>x.flag==='junk').length;
+  $('#tiles').innerHTML=[
+    ['Padrón hoja (con ID)', d.hoja.length, '--tx'],
+    ['Fichas alumnos_v2', d.fusiones.length+d.decidir.length, '--tx'],
+    ['Se fusionan solas', d.fusiones.length, '--ok'],
+    ['Nuevos reales', nNew, '--new'],
+    ['Posibles duplicados', nWarn, '--warn'],
+    ['Basura de prueba', nJunk, '--bad'],
+  ].map(([l,n,c])=>`<div class="tile"><div class="n" style="color:var(${c})">${n}</div><div class="l">${l}</div></div>`).join('');
+  $('#cFus').textContent=d.fusiones.length;
+  $('#cDec').textContent=d.decidir.length;
+  $('#cDup').textContent=d.dups.length;
+  $('#cPad').textContent=d.hoja.length;
+  paint(cur);
+}
+
+let cur='resumen';
+function paint(t){
+  cur=t;
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x.dataset.t===t));
+  const d=DATA; const p=$('#pane');
+  if(t==='resumen'){
+    p.innerHTML=`<div class="card">
+      <div class="big">Qué dice esta prueba</div>
+      <p class="muted">El maestro del padrón hoy es la hoja de Google. Los <b>${d.hoja.length}</b> alumnos ya tienen ID estable (A0001…), así que la migración a Firebase puede usar ese ID como clave — sin depender del nombre.</p>
+      <ul class="muted">
+        <li><b class="chip ok">${d.fusiones.length}</b> fichas de <code>alumnos_v2</code> coinciden por nombre con un alumno de la hoja → al migrar se <b>fusionan</b> en ese ID (no crean duplicado).</li>
+        <li><b class="chip new">${d.decidir.filter(x=>x.flag==='new').length}</b> parecen alumnos <b>nuevos reales</b> (no están en la hoja).</li>
+        <li><b class="chip warn">${d.decidir.filter(x=>x.flag==='warn').length}</b> son <b>posibles duplicados</b> escritos corto (Cami→Camila, etc.) — revisar en "Decidir".</li>
+        <li><b class="chip" style="color:var(--bad)">${d.decidir.filter(x=>x.flag==='junk').length}</b> parecen <b>basura de prueba</b> → descartar.</li>
+        <li>Además detecté <b>${d.dups.length}</b> pares de nombres parecidos DENTRO de la hoja (posibles duplicados históricos).</li>
+      </ul>
+      <p class="muted" style="margin-top:10px">Marcá tus decisiones en la pestaña <b>Decidir</b>. Cuando estén, "Bajar informe (JSON)" te da el padrón unificado propuesto + tus decisiones, listo para el paso de escritura (que se hará aparte, con tu OK).</p>
+      <div class="ro">Recordá: nada de esto se guardó. Es solo un análisis.</div>
+    </div>`;
+  }
+  else if(t==='fusiones'){
+    p.innerHTML=`<div class="card"><div class="legend">Estas <b>${d.fusiones.length}</b> fichas de <code>alumnos_v2</code> ya existen en la hoja (mismo nombre normalizado). Al migrar, sus datos completan el registro con ID que ya tienen.</div>
+    <div class="scroll"><table><thead><tr><th>Ficha alumnos_v2</th><th>Alumno en la hoja</th><th>ID</th><th>Aporta datos</th></tr></thead><tbody>${
+      d.fusiones.map(f=>{
+        const aporta=[]; ['tel','cat','tipo','profe','precio'].forEach(c=>{ if(f.v2[c] && f.v2[c]!==f.hoja[c]) aporta.push(`${c}:${esc(f.v2[c])}`); });
+        return `<tr><td>${esc(f.v2.nombre)}</td><td>${esc(f.hoja.nombre)}</td><td><span class="chip id">${esc(f.hoja.id)}</span></td><td class="muted">${aporta.length?aporta.map(x=>`<span class="chip">${x}</span>`).join(''):'—'}</td></tr>`;
+      }).join('')
+    }</tbody></table></div></div>`;
+  }
+  else if(t==='decidir'){
+    p.innerHTML=`<div class="card"><div class="legend">Estas <b>${d.decidir.length}</b> fichas solo existen en <code>alumnos_v2</code>. Decidí qué hacer con cada una. <span class="flag new">nuevo</span> · <span class="flag warn">posible duplicado</span> · <span class="flag junk">basura</span></div>
+    <div class="scroll"><table><thead><tr><th>Ficha (alumnos_v2)</th><th>Candidatos parecidos en la hoja</th><th>Decisión</th></tr></thead><tbody>${
+      d.decidir.map((x,i)=>{
+        const rc=x.flag==='junk'?'row-junk':x.flag==='warn'?'row-warn':'row-new';
+        const cands=x.cands.length? x.cands.map(c=>`<div class="cand"><b>${esc(c.h.nombre)}</b> <span class="chip id">${esc(c.h.id)}</span> <span class="muted">${Math.round(c.s*100)}%</span></div>`).join(''):'<span class="muted">— sin parecidos —</span>';
+        const val=DEC[x.v2.key]||'';
+        const opts=[['','(sin decidir)'],['nuevo','🆕 Es nuevo real'],['descartar','🗑️ Descartar (basura)']]
+          .concat(x.cands.map(c=>['mismo:'+c.h.id,'🔗 Es el mismo que '+c.h.nombre+' ('+c.h.id+')']));
+        return `<tr class="${rc}">
+          <td><span class="flag ${x.flag}">${x.flag==='junk'?'🗑️':x.flag==='warn'?'⚠️':'🆕'}</span> ${esc(x.v2.nombre)}<div class="muted" style="font-size:11px">clave: ${esc(x.v2.key)}${x.v2.tel?' · tel '+esc(x.v2.tel):''}</div></td>
+          <td>${cands}</td>
+          <td><select class="dec" data-key="${esc(x.v2.key)}">${opts.map(([v,l])=>`<option value="${esc(v)}"${v===val?' selected':''}>${esc(l)}</option>`).join('')}</select></td>
+        </tr>`;
+      }).join('')
+    }</tbody></table></div></div>`;
+    p.querySelectorAll('select.dec').forEach(s=>s.onchange=()=>{const k=s.dataset.key; if(s.value)DEC[k]=s.value; else delete DEC[k]; saveDec();});
+  }
+  else if(t==='dups'){
+    p.innerHTML=`<div class="card"><div class="legend"><b>${d.dups.length}</b> pares de nombres parecidos DENTRO de la hoja. Pueden ser la misma persona cargada dos veces, o dos personas distintas. Solo para revisar (no decide nada todavía).</div>
+    <div class="scroll"><table><thead><tr><th>Alumno A</th><th>Alumno B</th><th>Parecido</th></tr></thead><tbody>${
+      d.dups.map(x=>`<tr><td>${esc(x.a.nombre)} <span class="chip id">${esc(x.a.id)}</span></td><td>${esc(x.b.nombre)} <span class="chip id">${esc(x.b.id)}</span></td><td class="muted">${Math.round(x.s*100)}%</td></tr>`).join('')
+    }</tbody></table></div></div>`;
+  }
+  else if(t==='padron'){
+    const q=(p.querySelector('#q')||{}).value||'';
+    const list=d.hoja.filter(a=>!q||a.k.includes(norm(q))).slice(0,600);
+    p.innerHTML=`<div class="card"><div style="margin-bottom:10px"><input class="search" id="q" placeholder="Buscar alumno…" value="${esc(q)}"> <span class="muted">${list.length} mostrados de ${d.hoja.length}</span></div>
+    <div class="scroll"><table><thead><tr><th>ID</th><th>Alumno</th><th>Cat</th><th>Tipo</th><th>Profe</th><th>Tel</th></tr></thead><tbody>${
+      list.map(a=>`<tr><td><span class="chip id">${esc(a.id)}</span></td><td>${esc(a.nombre)}</td><td>${esc(a.cat)}</td><td>${esc(a.tipo)}</td><td>${esc(a.profe)}</td><td class="muted">${a.tel?'📞':'—'}</td></tr>`).join('')
+    }</tbody></table></div></div>`;
+    const qi=p.querySelector('#q'); qi.oninput=()=>paint('padron'); qi.focus(); qi.selectionStart=qi.value.length;
+  }
+}
+
+document.querySelectorAll('.tab').forEach(x=>x.onclick=()=>paint(x.dataset.t));
+
+$('#btnExport').onclick=()=>{
+  const d=DATA;
+  const informe={
+    generado:new Date().toISOString(),
+    nota:'PRUEBA EN SECO — propuesta de padrón unificado. No se escribió nada.',
+    padron_hoja: d.hoja.length,
+    fusiones: d.fusiones.map(f=>({v2:f.v2.key, hacia_id:f.hoja.id, nombre:f.hoja.nombre})),
+    decidir: d.decidir.map(x=>({v2:x.v2.key, nombre:x.v2.nombre, sugerencia:x.flag, decision:DEC[x.v2.key]||'(sin decidir)', candidatos:x.cands.map(c=>({id:c.h.id,nombre:c.h.nombre,sim:+c.s.toFixed(2)}))})),
+    posibles_duplicados_hoja: d.dups.map(x=>({a:{id:x.a.id,nombre:x.a.nombre},b:{id:x.b.id,nombre:x.b.nombre},sim:x.s}))
+  };
+  const blob=new Blob([JSON.stringify(informe,null,1)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='padron-prueba-en-seco.json';document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),4000);
+};
+
+function arrancar(){
+  $('#login').style.display='none'; $('#app').style.display='block';
+  $('#pane').innerHTML='<div class="card muted">Leyendo padrón de Firebase…</div>';
+  const db=firebase.database();
+  Promise.all([db.ref('alumnos_v1/csv').get(), db.ref('alumnos_v2').get()]).then(([c,v])=>{
+    DATA=construir(c.val()||'', v.val()||{});
+    render();
+  }).catch(e=>{ $('#pane').innerHTML='<div class="card" style="color:var(--bad)">No pude leer Firebase: '+esc(e.message)+'</div>'; });
+}
+
+$('#loginBtn').onclick=()=>{ $('#loginErr').textContent=''; firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).catch(e=>{$('#loginErr').textContent='No se pudo entrar: '+e.message;}); };
+firebase.auth().onAuthStateChanged(u=>{ if(u) arrancar(); else { $('#app').style.display='none'; $('#login').style.display='block'; } });
+</script>
+</body>
+</html>
