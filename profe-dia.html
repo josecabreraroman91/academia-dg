@@ -222,7 +222,7 @@
 </div>
 <div id="landing">
   <img id="logoLand" class="logo-land" alt="Academia Diego González">
-  <h1>Asistencia · Academia DG</h1>
+  <h1>Asistencia · Academia DG <span style="font-size:11px;font-weight:400;opacity:.55">v2026-08-14 · padron_v1</span></h1>
   <p>Elegí la sede de este dispositivo. Queda guardada; podés cambiarla cuando quieras.</p>
   <div style="font-size:11px;color:var(--muted);margin:-6px 0 14px;font-weight:700">Versión 3 · lista por horario · todas las sedes</div>
   <div class="sedes">
@@ -417,42 +417,57 @@ function acBuscar(){
   else { av.textContent='Tocá el alumno de la lista.'; av.style.color=''; }
 }
 
+/* Migración a Firebase (paso 2): nombres + cat/tipo salen de padron_v1
+   (canónico por ID). Fallback al espejo viejo alumnos_v1/csv. El listener de
+   alumnos_v2 (altas en vivo) se mantiene igual, más abajo. */
+async function cargarAlumnosPlanillaCSV(){
+  const snap = await firebase.database().ref('alumnos_v1/csv').once('value');
+  const csv = snap.val();
+  if(!csv) throw new Error('la copia de alumnos está vacía');
+  const filas = parseCSV(csv);
+  _nombresBase = filas.map(r => (r[1]||'').trim()).filter(Boolean);
+  try{
+    let hr=-1, iNom=-1, iCat=-1, iTipo=-1;
+    for(let r=0; r<Math.min(filas.length,12); r++){
+      const h=(filas[r]||[]).map(x=>normNombre(x));
+      const n=h.findIndex(x=>x==='alumnos'||x==='alumno');
+      if(n<0) continue;
+      hr=r; iNom=n;
+      iCat =h.findIndex(x=>x.indexOf('categor')===0);
+      iTipo=h.findIndex(x=>x.indexOf('tipo')===0);
+      break;
+    }
+    if(hr>=0){
+      const m={};
+      for(let r=hr+1; r<filas.length; r++){
+        const nom=((filas[r]||[])[iNom]||'').trim(); if(!nom) continue;
+        m[normNombre(nom)]={
+          cat:  iCat >=0 ? (filas[r][iCat] ||'').trim() : '',
+          tipo: iTipo>=0 ? (filas[r][iTipo]||'').trim() : ''
+        };
+      }
+      _datosAl=m;
+    }
+  }catch(e){ console.warn('no pude leer categoría y tipo:', e.message); }
+  pintarAutocompletado();
+}
 async function cargarAlumnosPlanilla(){
   try{
-    const snap = await firebase.database().ref('alumnos_v1/csv').once('value');
-    const csv = snap.val();
-    if(!csv) throw new Error('la copia de alumnos está vacía');
-    const filas = parseCSV(csv);
-    _nombresBase = filas.map(r => (r[1]||'').trim()).filter(Boolean);
-    /* Además de los nombres, se guarda la categoría y el tipo de clase de cada
-       uno. Es lo que se muestra al lado del nombre en la ventana del bloque de
-       alto rendimiento. La fila de encabezados no está fija: la planilla tiene
-       un título arriba, así que se busca la que diga "alumnos". */
-    try{
-      let hr=-1, iNom=-1, iCat=-1, iTipo=-1;
-      for(let r=0; r<Math.min(filas.length,12); r++){
-        const h=(filas[r]||[]).map(x=>normNombre(x));
-        const n=h.findIndex(x=>x==='alumnos'||x==='alumno');
-        if(n<0) continue;
-        hr=r; iNom=n;
-        iCat =h.findIndex(x=>x.indexOf('categor')===0);
-        iTipo=h.findIndex(x=>x.indexOf('tipo')===0);
-        break;
-      }
-      if(hr>=0){
-        const m={};
-        for(let r=hr+1; r<filas.length; r++){
-          const nom=((filas[r]||[])[iNom]||'').trim(); if(!nom) continue;
-          m[normNombre(nom)]={
-            cat:  iCat >=0 ? (filas[r][iCat] ||'').trim() : '',
-            tipo: iTipo>=0 ? (filas[r][iTipo]||'').trim() : ''
-          };
-        }
-        _datosAl=m;
-      }
-    }catch(e){ console.warn('no pude leer categoría y tipo:', e.message); }
-    pintarAutocompletado();
-  }catch(e){ console.warn('No pude cargar alumnos para autocompletar:', e.message); /* se puede escribir a mano igual */ }
+    const snap = await firebase.database().ref('padron_v1').once('value');
+    const pv = snap.val();
+    if(pv && pv.alumnos && Object.keys(pv.alumnos).length){
+      const al = pv.alumnos, nombres = [], m = {};
+      Object.keys(al).forEach(id => {
+        const a = al[id]; const nom = ((a && a.nombre) || '').trim(); if(!nom) return;
+        nombres.push(nom);
+        m[normNombre(nom)] = { cat: ((a.cat||'')+'').trim(), tipo: ((a.tipo||'')+'').trim() };
+      });
+      _nombresBase = nombres; _datosAl = m;
+      pintarAutocompletado();
+    } else {
+      await cargarAlumnosPlanillaCSV();
+    }
+  }catch(e){ console.warn('padron_v1:', e.message); try{ await cargarAlumnosPlanillaCSV(); }catch(_){} }
 
   try{
     firebase.database().ref('alumnos_v2').on('value', function(sn){
