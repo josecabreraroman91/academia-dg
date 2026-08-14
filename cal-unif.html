@@ -327,7 +327,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v2026-08-14b · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-14c · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -4933,7 +4933,11 @@ document.getElementById('btnRevisarDatos').onclick=function(){
 };
 document.getElementById('btnVerLog').onclick=function(){
   if(!_fbdb){ alert('Sin conexión a la nube.'); return; }
-  _fbdb.ref('log_ops').once('value').then(snap=>{
+  /* limitToLast(50) y no el nodo entero: son las últimas 20 las que se muestran,
+     pero `once('value')` pelado se bajaba TODA la bitácora (más de 200.000
+     renglones) cada vez que alguien tocaba el botón. Las claves push ya vienen
+     en orden cronológico, así que las últimas son las más nuevas. */
+  _fbdb.ref('log_ops').limitToLast(50).once('value').then(snap=>{
     const all=snap.val()||{};
     const lista=Object.values(all).sort((a,b)=>b.t-a.t).slice(0,20);
     if(!lista.length){ alert('El registro está vacío por ahora.'); return; }
