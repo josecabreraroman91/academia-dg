@@ -197,7 +197,7 @@
 </div>
 
 <div class="wrap" id="app" style="display:none">
-  <header><h1>Agendar</h1></header>
+  <header><h1>Agendar <span style="font-size:11px;font-weight:400;opacity:.6">v2026-08-14 · padron_v1</span></h1></header>
   <div class="yo"><b id="yoNom"></b><span id="semTxt" style="margin-left:10px"></span><a href="#" id="btnSalir">Salir</a></div>
 
   <div class="libros">
@@ -693,7 +693,11 @@ function juntarAlumnos(){
   alumnos=Object.keys(m).map(function(k){ return m[k]; })
     .sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
 }
-function escucharAlumnos(){
+/* Migración a Firebase (paso 2): la base de alumnos sale de padron_v1
+   (canónico por ID: nombre, tel, tipo→mod, cat). El listener de alumnos_v2
+   se mantiene para que las altas en vivo aparezcan al toque. Fallback al
+   espejo alumnos_v1/csv si padron_v1 no estuviera. */
+function escucharAlumnosCSV(){
   firebase.database().ref('alumnos_v1/csv').once('value').then(function(s){
     var csv=s.val(); if(!csv) return;
     var rows=parseCSV(csv); if(rows.length<2) return;
@@ -712,6 +716,18 @@ function escucharAlumnos(){
     }
     juntarAlumnos();
   }).catch(function(e){ console.warn('alumnos_v1:', e.message); });
+}
+function escucharAlumnos(){
+  firebase.database().ref('padron_v1').once('value').then(function(s){
+    var pv=s.val();
+    if(!(pv && pv.alumnos && Object.keys(pv.alumnos).length)) return escucharAlumnosCSV();
+    var al=pv.alumnos;
+    Object.keys(al).forEach(function(id){
+      var a=al[id]; var n=(a&&a.nombre||'').trim(); if(!n) return;
+      _base[normNom(n)]={ nombre:n, tel:normTel(a.tel||''), mod:(a.tipo||'').trim(), cat:(a.cat||'').trim() };
+    });
+    juntarAlumnos();
+  }).catch(function(e){ console.warn('padron_v1:', e.message); escucharAlumnosCSV(); });
 
   firebase.database().ref('alumnos_v2').on('value', function(s){
     var v=s.val()||{}; _vivo={};
