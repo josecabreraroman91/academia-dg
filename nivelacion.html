@@ -294,7 +294,7 @@ window.ADG = { token:null, listo:false };
 
 
 <div class="topbar">
-  <div class="brand">Nivelación <span>DG</span></div>
+  <div class="brand">Nivelación <span>DG</span> <span style="font-size:10px;font-weight:400;opacity:.5">v2026-08-14 · padron_v1</span></div>
   <button class="tb backbtn mono-label" id="back">← Alumnos</button>
   <div class="grow"></div>
   <select id="profe" aria-label="Profesor que evalúa" style="display:none"></select>
@@ -1423,25 +1423,44 @@ document.getElementById("gvizLoad").onclick=()=>leerGviz(document.getElementById
    Alumnos escribe al instante: aparecen sin esperar la copia. */
 async function leerGviz(url){
   try{
-    const r = await fetch(FB_URL + '/alumnos_v1.json');
-    const paq = await r.json();
-    if(!paq || !paq.csv){ toast("No encontré la copia de alumnos en Firebase"); return }
-    const p = leerAlumnos(paq.csv);
-    if(!p || !p.length){ toast("La copia vino sin alumnos"); return }
+    /* Migración a Firebase (paso 2): el listado sale del padrón canónico
+       padron_v1 (cada alumno con su ID real A####). Así las evaluaciones
+       quedan bajo el ID de verdad, no bajo un slug del nombre. Si por lo que
+       fuera padron_v1 no está, cae a la copia vieja alumnos_v1/csv. */
+    let lista = null;
+    try{
+      const rp = await fetch(FB_URL + '/padron_v1/alumnos.json');
+      const pv = await rp.json();
+      if(pv && typeof pv === 'object'){
+        lista = Object.keys(pv).map(function(id){
+          const a = pv[id] || {};
+          return { id:id, sinId:false, nombre:String(a.nombre||'').trim(), fila:0,
+                   cat_actual:String(a.cat||'').trim(), titular:String(a.profe||'').trim(),
+                   profes: a.profe ? parseProfes(a.profe) : [] };
+        }).filter(function(a){ return a.nombre; });
+      }
+    }catch(e){}
 
-    /* La copia se saca cada 15 minutos, así que puede no traer a los
-       recién creados. Los sumamos antes de reconciliar, si no se
-       borrarían apenas entran. */
-    let lista = p;
+    if(!lista || !lista.length){
+      const r = await fetch(FB_URL + '/alumnos_v1.json');
+      const paq = await r.json();
+      if(!paq || !paq.csv){ toast("No encontré la copia de alumnos en Firebase"); return }
+      lista = leerAlumnos(paq.csv);
+      if(!lista || !lista.length){ toast("La copia vino sin alumnos"); return }
+    }
+
+    /* Alumnos recién creados (alumnos_v2) que todavía no están en el padrón.
+       Se dedupe por ID y por nombre, para no duplicar a los que ya están. */
     try{
       const rv = await fetch(FB_URL + '/alumnos_v2.json');
       const vivos = await rv.json();
       if(vivos){
-        const yaEstan = new Set(p.map(a=>a.id));
+        const yaId = new Set(lista.map(a=>a.id));
+        const yaNom = new Set(lista.map(a=>normName(a.nombre)));
         Object.values(vivos).forEach(function(a){
           if(!a || !a.nombre) return;
           const rec = alumnoDesdeVivo(a);
-          if(!yaEstan.has(rec.id)) lista = lista.concat([rec]);
+          if(!yaId.has(rec.id) && !yaNom.has(normName(a.nombre))) lista = lista.concat([rec]);
         });
       }
     }catch(e){}
