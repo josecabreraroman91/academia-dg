@@ -153,7 +153,7 @@ function construir(csv, v2){
     for(let i=0;i<arr.length;i++)for(let j=i+1;j<arr.length;j++){
       const A=arr[i],B=arr[j]; if(A.k===B.k)continue;
       const s=sim(A.k,B.k), ov=tokenOverlap(A.nombre,B.nombre);
-      if(s>=0.82 || (ov>=1 && s>=0.6 && Math.abs(A.k.length-B.k.length)<=3)){
+      if(s>=0.86 || (ov>=2 && s>=0.72) || (ov>=1 && s>=0.8 && Math.abs(A.k.length-B.k.length)<=2)){
         const id=[A.id,B.id].sort().join('|'); if(seen.has(id))continue; seen.add(id);
         dups.push({a:A,b:B,s:+s.toFixed(2)});
       }
