@@ -327,7 +327,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v2026-08-09b · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-14 · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -1290,6 +1290,33 @@ function marcarAnotacion(id, extra){
   const datos = Object.assign({ aplicadoTs: Date.now(), aplicadoPor: 'calendario' }, extra || {});
   _fbdb.ref('agente_v1/anotaciones/'+id).update(datos)
     .catch(e=>console.warn('no pude marcar la anotación '+id+':', e.message));
+}
+
+/* Cierra los pedidos del agente que están pintando de celeste ESTA celda.
+   Se llama cuando una persona marca el verde: el pedido deja de estar
+   pendiente y autoAplicarLibreta no lo vuelve a aplicar, así el verde aguanta.
+   Solo se cierran los que apuntan exactamente a esta clase (mismo alumno y
+   misma celda); un pedido de otro día no se toca. */
+function resolverPedidosDeCelda(al, k){
+  if(!al || !k) return 0;
+  const nom = normName(al.nombre || '');
+  if(!nom) return 0;
+  let n = 0;
+  Object.keys(anotAgente || {}).forEach(id=>{
+    const a = anotAgente[id];
+    if(!a || a.estado !== 'pendiente' || a.tipo !== 'pedido') return;
+    if(normName(a.alumno || '') !== nom) return;
+    let hit = null;
+    try{ hit = celdaDeAnotacion(a); }catch(e){ hit = null; }
+    if(!hit || hit.k !== k) return;
+    /* Local primero: el eco de la nube tarda, y mientras tanto
+       autoAplicarLibreta podría volver a aplicarlo y ganarle de mano. */
+    a.estado = 'aplicado';
+    marcarAnotacion(id, { estado:'aplicado', cierre:'Confirmado a mano en el calendario' });
+    try{ logOp('agente_pedido_resuelto', (a.alumno||'')+' — confirmado a mano en el calendario'); }catch(e){}
+    n++;
+  });
+  return n;
 }
 
 /* ============================================================
@@ -2872,6 +2899,13 @@ function _renderGridReal(){
       al.confirmado = !al.confirmado;
       // Al marcar PRESENTE, se quita sola la marca celeste "para revisar" (ya quedó resuelto)
       if(al.confirmado && al.revisar) delete al.revisar;
+      /* ...y se cierra el pedido del agente que tenía esa clase en celeste.
+         Sin esto el verde no aguantaba: el pedido queda pendiente a propósito,
+         así que autoAplicarLibreta lo volvía a aplicar en la siguiente
+         sincronización, le sacaba el verde y repintaba el celeste. Confirmar a
+         mano una clase con un pedido abierto era imposible.
+         Quien toca el verde ya miró el caso: eso ES resolverlo. */
+      if(al.confirmado) resolverPedidosDeCelda(al, cellKey(sk,+pi,+hi,+si));
       /* Queda registrado quién confirmó y cuándo. El resto de los cambios del
          calendario se detectan comparando fotos, pero la marca verde no cambia
          la grilla: hay que anotarla en el momento o no queda rastro. */
