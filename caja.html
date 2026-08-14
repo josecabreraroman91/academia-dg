@@ -218,7 +218,7 @@
 </div>
 
 <div class="wrap" id="app" style="display:none">
-  <h1>Caja</h1>
+  <h1>Caja <span style="font-size:11px;font-weight:400;opacity:.5">v2026-08-14 · +padron_v1</span></h1>
   <div class="sub" id="rango"></div>
   <div class="yo"><span id="yoMail"></span><a href="#" id="btnSalir">salir</a></div>
 
@@ -313,6 +313,21 @@ function corregirAlumno(ficha, precioTxt, tipo){
     var k=keyAlumno(ficha.nombre).replace(/\s+/g,'_');
     firebase.database().ref('alumnos_v2/'+k).update({
       nombre:ficha.nombre, precio: esBeca?0:num, tipo:datos.tipo, tel:ficha.tel||''
+    }).catch(function(){});
+  }catch(e){}
+  /* Migración a Firebase (paso 3 — escritura doble): la corrección también va a
+     padron_v1 (canónico). Se busca el ID por nombre y se actualizan precio/tipo/tel.
+     Aditivo: la planilla por el puente sigue igual, y el bridge reconcilia. */
+  try{
+    var kn=keyAlumno(ficha.nombre);
+    firebase.database().ref('padron_v1/alumnos').once('value').then(function(s){
+      var al=s.val()||{};
+      for(var id in al){
+        if(al[id] && keyAlumno(al[id].nombre)===kn){
+          firebase.database().ref('padron_v1/alumnos/'+id).update({ precio:precioPlanilla, tipo:datos.tipo, tel:ficha.tel||'' }).catch(function(){});
+          break;
+        }
+      }
     }).catch(function(){});
   }catch(e){}
   return enviarAlPuente('alumnos', {alumnos:[datos]}).then(function(){
