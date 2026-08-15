@@ -4,15 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Envíos por horario · Academia DG</title>
+<link rel="stylesheet" href="tema-adg.css?v=2026-08-14a">
 <style>
+/* Los colores los pone tema-adg.css. Estos son los de reserva. */
 :root{
-  --fondo:#0f1720; --panel:#ffffff; --borde:#e3e8ef; --texto:#1f2329;
-  --suave:#6b7480; --azul:#0b6fa4; --verde:#0f9d58; --rojo:#c5221f;
-  --ambar:#a15c00; --celeste:#e8f4fb;
+  --fondo:#EEF2F4; --panel:#FFFFFF; --borde:#DFE8EC; --texto:#16262E;
+  --suave:#5A6E7A; --azul:#1080A5; --verde:#2F9E62; --rojo:#E0483D;
+  --ambar:#D9982B; --celeste:#E7F1F7;
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--fondo);color:var(--texto);
-     font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+     font:14px/1.45 var(--sans)}
 .wrap{max-width:980px;margin:0 auto;padding:14px}
 header{display:flex;align-items:center;gap:10px;flex-wrap:wrap;
        color:#fff;padding:6px 2px 14px}
@@ -77,25 +79,39 @@ select{padding:8px 10px;border:1px solid var(--borde);border-radius:9px;font-siz
      white-space:pre-wrap;word-break:break-word;margin-top:10px}
 
 /* Portada de acceso */
-#puerta{max-width:430px;margin:70px auto;background:var(--panel);border-radius:14px;padding:26px;text-align:center}
-#puerta h2{margin:0 0 6px;font-size:19px}
-#puerta p{color:var(--suave);font-size:13px;margin:0 0 18px}
+#puerta{position:fixed;inset:0;z-index:99;overflow:auto;
+  background:radial-gradient(120% 70% at 50% -5%, #1791B8 0%, #1080A5 45%, #08536D 100%);
+  font-family:var(--sans);padding:24px;text-align:center}
+#puerta .adg-cancha{position:fixed;inset:0;width:100%;height:100%;opacity:.08;pointer-events:none}
+#puerta .adg-marca{display:block;width:220px;max-width:64vw;height:auto;margin:12vh auto 32px;position:relative;z-index:1}
+#puerta .adg-caja{position:relative;z-index:1;width:100%;max-width:340px;margin:0 auto;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.17);border-radius:20px;
+  padding:32px 24px;backdrop-filter:blur(10px);box-shadow:0 20px 50px rgba(4,35,48,.30)}
+#puerta h2{margin:0 0 6px;font-size:19px;color:#fff;font-weight:600}
+#puerta p{color:#BEDDE9;font-size:14px;line-height:1.55;margin:0 0 24px}
 </style>
 </head>
 <body>
 
 <div id="puerta" style="display:none">
-  <h2>📨 Envíos por horario</h2>
-  <p id="puertaTxt">Entrá con tu cuenta de Google para continuar.</p>
-  <button class="bt pri" id="btEntrar">Entrar con Google</button>
-  <div style="margin-top:14px"><button class="bt" id="btSalir2" style="display:none">Salir</button></div>
+  <svg class="adg-cancha" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width="1.4"><rect x="40" y="80" width="320" height="400"/><line x1="40" y1="280" x2="360" y2="280"/><line x1="200" y1="80" x2="200" y2="205"/><line x1="200" y1="355" x2="200" y2="480"/><line x1="40" y1="205" x2="360" y2="205"/><line x1="40" y1="355" x2="360" y2="355"/></g></svg>
+  <img class="adg-marca" src="logo-adg.png" alt="Academia Diego González" width="405" height="191">
+  <div class="adg-caja">
+    <h2>Envíos por horario</h2>
+    <p id="puertaTxt">Entrá con tu cuenta de Google para continuar.</p>
+    <button class="bt pri" id="btEntrar">Entrar con Google</button>
+    <div style="margin-top:14px"><button class="bt" id="btSalir2" style="display:none">Salir</button></div>
+  </div>
+</div>
+
+<div class="adg-barra" style="display:none">
+  <img class="ico" src="logo-adg-icono.png" alt="Academia DG" width="90" height="90">
+  <div class="tit">Envíos por horario <span>Avisar a los alumnos de una hora</span></div>
+  <div class="sp"></div>
+  <div class="quien"><b id="yoMail"></b><a href="#" id="btSalir">Salir</a></div>
 </div>
 
 <div class="wrap" id="app" style="display:none">
-  <header>
-    <h1>📨 Envíos por horario <span class="v">v2026-08-14 · padron_v1</span></h1>
-    <div class="yo"><span id="yoMail"></span><a href="#" id="btSalir">salir</a></div>
-  </header>
 
   <div class="caja">
     <p class="tit">1 · Elegí el día</p>
@@ -656,10 +672,12 @@ auth.onAuthStateChanged(function(u){
     return;
   }
   $('puerta').style.display='none'; $('app').style.display='block';
+  document.querySelector('.adg-barra').style.display='flex';
   $('yoMail').textContent = mail;
   pintar();
   traer();
 });
 </script>
+<script src="tema-adg.js?v=2026-08-14a"></script>
 </body>
 </html>

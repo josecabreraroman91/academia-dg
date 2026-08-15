@@ -4,14 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Agendar · Academia DG</title>
+<link rel="stylesheet" href="tema-adg.css?v=2026-08-14a">
 <style>
+  /* Los colores los pone tema-adg.css. Estos son los de reserva. */
   :root{
-    --bg:#0d1117; --panel:#161b22; --linea:#30363d; --txt:#e6edf3;
-    --sec:#8b949e; --azul:#2f81f7; --verde:#3fb950; --rojo:#f85149; --ambar:#d29922;
+    --bg:#EEF2F4; --panel:#FFFFFF; --linea:#DFE8EC; --txt:#16262E;
+    --sec:#5A6E7A; --azul:#1080A5; --verde:#2F9E62; --rojo:#E0483D; --ambar:#D9982B;
+    --lomas:#E8B84B; --elite:#7EC8E3; --segurola:#F09A3E;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--txt);-webkit-text-size-adjust:100%;
-    font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:16px;line-height:1.5}
+    font-family:var(--sans);font-size:16px;line-height:1.5}
   .wrap{max-width:620px;margin:0 auto;padding:14px 12px 90px}
 
   header{display:flex;align-items:center;gap:10px;margin-bottom:2px}
@@ -26,7 +29,7 @@
     color:var(--txt);cursor:pointer;white-space:nowrap;line-height:1.2}
   .dias button b{display:block;font-size:11px;color:var(--sec);font-weight:400}
   .dias button.on{background:var(--azul);border-color:var(--azul);color:#fff}
-  .dias button.on b{color:#cfe4ff}
+  .dias button.on b{color:var(--azul)}
   .dias button:disabled{opacity:.35}
 
 
@@ -41,7 +44,7 @@
   .slot .l2{font-size:12.5px;color:var(--sec)}
   .slot.tomado{opacity:.62}
   .slot.tomado .l1{font-weight:400}
-  .cupos{font-size:11.5px;color:var(--verde);border:1px solid #1d5a34;border-radius:20px;
+  .cupos{font-size:11.5px;color:var(--verde);border:1px solid var(--verde);border-radius:20px;
     padding:2px 8px;white-space:nowrap}
 
   button.b{font-family:inherit;font-size:13.5px;padding:9px 15px;border-radius:10px;
@@ -58,25 +61,25 @@
   .libros button{flex:1;font-family:inherit;font-size:13px;padding:9px 8px;border-radius:11px;
     border:1px solid var(--linea);background:transparent;color:var(--sec);cursor:pointer;line-height:1.25}
   .libros button small{display:block;font-size:10px;color:var(--sec);font-weight:400;margin-top:1px}
-  .libros button.on{border-color:var(--azul);background:#12283f;color:#cfe4ff;font-weight:600}
-  .libros button.on small{color:#8fbdf0}
-  .libros button.on[data-l="madre"]{border-color:var(--ambar);background:#3a2f12;color:#f5d98a}
+  .libros button.on{border-color:var(--azul);background:#E7F1F7;color:var(--azul);font-weight:600}
+  .libros button.on small{color:var(--azul)}
+  .libros button.on[data-l="madre"]{border-color:var(--ambar);background:#FFF6E0;color:#8A6A16}
   .libros button.on[data-l="madre"] small{color:#d29922}
-  #avisoMadre{display:none;background:#3a2f12;border:1px solid #6b4a12;border-radius:10px;
-    padding:10px 12px;font-size:12.5px;color:#f5d98a;margin-bottom:12px}
+  #avisoMadre{display:none;background:#FFF6E0;border:1px solid #E8CE8A;border-radius:10px;
+    padding:10px 12px;font-size:12.5px;color:#8A6A16;margin-bottom:12px}
   body.enMadre #avisoMadre{display:block}
   .vista{display:flex;gap:6px;margin-bottom:14px}
   .vista button{flex:1;font-family:inherit;font-size:13px;padding:8px;border-radius:10px;
     border:1px solid var(--linea);background:transparent;color:var(--sec);cursor:pointer}
   .vista button.on{border-color:var(--azul);color:var(--azul);font-weight:600}
 
-  .s-lomas{background:#FFD966;color:#4a3c00}
-  .s-elite{background:#9F82BE;color:#fff}
-  .s-segurola{background:#FF9900;color:#4a2c00}
+  .s-lomas{background:var(--lomas);color:#3D3000}
+  .s-elite{background:var(--elite);color:#0A3E4F}
+  .s-segurola{background:var(--segurola);color:#4A2C00}
   .s-adefinir{background:#555;color:#fff}
-  td.col-lomas{background:#2a2718}
-  td.col-elite{background:#241f2e}
-  td.col-segurola{background:#2b2114}
+  td.col-lomas{background:#FDF6E7}
+  td.col-elite{background:#EAF6FB}
+  td.col-segurola{background:#FEF1E4}
   .scr{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--linea);
     border-radius:10px}
   table.g{border-collapse:collapse;width:max-content;min-width:100%}
@@ -91,16 +94,16 @@
   th.hcol{position:sticky;left:0;z-index:3;background:var(--bg);min-width:46px;width:46px;
     font-size:10px;font-weight:600;color:var(--sec);padding:2px 1px;text-align:center}
   thead th.hcol{z-index:4}
-  td.bloq{background:#20242b}
+  td.bloq{background:#EDF1F3}
   td.bloq .x{color:var(--sec);font-size:9px;text-align:center;padding:4px 0}
   .sl{font-size:9.5px;line-height:1.2;padding:1px 3px;min-height:15px;
-    border-bottom:1px solid #23282f;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    border-bottom:1px solid var(--linea);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .sl:last-child{border-bottom:0}
   .sl.ocupado{color:var(--txt)}
   .sl .tg{color:var(--sec);font-size:8.5px;margin-left:3px}
-  .sl.reserva{background:#12283f;color:#8fbdf0}
-  .sl.libre{color:#2c5c3a;cursor:pointer;text-align:center;font-size:11px;font-weight:600}
-  .sl.libre:active{background:#12283f}
+  .sl.reserva{background:#E7F1F7;color:var(--azul)}
+  .sl.libre{color:#237A4B;cursor:pointer;text-align:center;font-size:11px;font-weight:600}
+  .sl.libre:active{background:#E7F1F7}
   .leyenda{font-size:11.5px;color:var(--sec);margin:-6px 0 16px;display:flex;gap:14px;flex-wrap:wrap}
   .leyenda span{display:flex;align-items:center;gap:5px}
   .leyenda i{width:11px;height:11px;border-radius:3px;display:inline-block;font-style:normal}
@@ -122,14 +125,14 @@
   .ops button{flex:1;min-width:78px;font-family:inherit;font-size:13.5px;padding:11px 8px;
     border-radius:10px;border:1px solid var(--linea);background:transparent;
     color:var(--txt);cursor:pointer}
-  .ops button.on{border-color:var(--azul);background:#12283f;color:#cfe4ff;font-weight:600}
+  .ops button.on{border-color:var(--azul);background:#E7F1F7;color:var(--azul);font-weight:600}
   .ops button small{display:block;font-size:10.5px;color:var(--sec);font-weight:400}
-  .ops button.on small{color:#8fbdf0}
+  .ops button.on small{color:var(--azul)}
   .err{color:var(--rojo);font-size:13px;margin-top:10px;min-height:18px}
   #fSug{margin-top:5px}
   #fSug .sug{padding:9px 11px;border:1px solid var(--linea);border-radius:9px;
     margin-bottom:5px;font-size:13.5px;cursor:pointer;background:var(--bg)}
-  #fSug .sug:active{background:#12283f}
+  #fSug .sug:active{background:#E7F1F7}
   #fSug .sug small{display:block;font-size:11.5px;color:var(--sec)}
 
   /* ---- Clase que no se cargó ---- */
@@ -142,23 +145,23 @@
   #gSug{margin-top:5px}
   #gSug .sug{padding:9px 11px;border:1px solid var(--linea);border-radius:9px;
     margin-bottom:5px;font-size:13.5px;cursor:pointer;background:var(--bg)}
-  #gSug .sug:active{background:#12283f}
+  #gSug .sug:active{background:#E7F1F7}
   #gSug .sug small{display:block;font-size:11.5px;color:var(--sec)}
   #btnAtras{width:100%;margin:-4px 0 12px}
   .mias{margin-top:6px}
   .mias .fila{border:1px solid var(--linea);border-radius:10px;padding:9px 11px;
     margin-bottom:6px;font-size:13px;background:var(--bg)}
   .mias .fila small{display:block;font-size:11.5px;color:var(--sec);margin-top:2px}
-  .mias .fila.rech{border-color:#5a2a2a}
+  .mias .fila.rech{border-color:#F3C9C4}
   .mias .fila.rech b{color:var(--rojo)}
-  .mias .fila.apro{border-color:#1d5a34}
+  .mias .fila.apro{border-color:var(--verde)}
   .mias .fila.apro b{color:var(--verde)}
   .titsec{font-size:12.5px;color:var(--sec);margin:18px 0 6px;
     border-top:1px solid var(--linea);padding-top:14px}
   .sl.ocupado{cursor:pointer}
   .sl.sacado{text-decoration:line-through;color:var(--rojo);opacity:.75}
-  .sl.destino{background:#12283f;color:#8fbdf0}
-  body.moviendo .sl.libre{background:#12283f;color:#cfe4ff;border:1px dashed var(--azul)}
+  .sl.destino{background:#E7F1F7;color:var(--azul)}
+  body.moviendo .sl.libre{background:#E7F1F7;color:var(--azul);border:1px dashed var(--azul)}
   #barraMover{display:none;position:sticky;top:0;z-index:20;background:var(--azul);
     color:#fff;font-size:13px;font-weight:600;padding:9px 12px;border-radius:10px;
     margin-bottom:10px;align-items:center;gap:10px}
@@ -171,7 +174,7 @@
   .acc button{padding:13px 15px}
 
   #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:80;
-    background:#1d5a34;color:#d6ffe4;padding:11px 18px;border-radius:12px;font-size:14px;
+    background:var(--verde);color:#FFFFFF;padding:11px 18px;border-radius:12px;font-size:14px;
     display:none;max-width:90%;text-align:center}
 
   #login,#nopuede{position:fixed;inset:0;z-index:99;background:var(--bg);display:none;
@@ -179,26 +182,41 @@
   #login h2,#nopuede h2{margin:0 0 8px;font-size:20px}
   #login p,#nopuede p{color:var(--sec);max-width:330px;margin:0 0 22px}
   #cargando{color:var(--sec);text-align:center;padding:40px 0}
+
 </style>
 </head>
 <body>
 
 <div id="login">
+  <svg class="adg-cancha" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width="1.4"><rect x="40" y="80" width="320" height="400"/><line x1="40" y1="280" x2="360" y2="280"/><line x1="200" y1="80" x2="200" y2="205"/><line x1="200" y1="355" x2="200" y2="480"/><line x1="40" y1="205" x2="360" y2="205"/><line x1="40" y1="355" x2="360" y2="355"/></g></svg>
+  <img class="adg-marca" src="logo-adg.png" alt="Academia Diego Gonz&aacute;lez" width="405" height="191">
+  <div class="adg-caja">
   <h2>Agendar · Academia DG</h2>
   <p>Entrá con tu cuenta de Google para ver los lugares libres.</p>
   <button class="b pri" id="btnEntrar">Entrar con Google</button>
+  </div>
   <div class="err" id="errLogin"></div>
 </div>
 
 <div id="nopuede">
+  <svg class="adg-cancha" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width="1.4"><rect x="40" y="80" width="320" height="400"/><line x1="40" y1="280" x2="360" y2="280"/><line x1="200" y1="80" x2="200" y2="205"/><line x1="200" y1="355" x2="200" y2="480"/><line x1="40" y1="205" x2="360" y2="205"/><line x1="40" y1="355" x2="360" y2="355"/></g></svg>
+  <img class="adg-marca" src="logo-adg.png" alt="Academia Diego Gonz&aacute;lez" width="405" height="191">
+  <div class="adg-caja">
   <h2>Todavía no tenés acceso</h2>
   <p id="nopuedeTxt"></p>
   <button class="b" id="btnSalir2">Salir</button>
+  </div>
+  
+</div>
+
+<div class="adg-barra" style="display:none">
+  <img class="ico" src="logo-adg-icono.png" alt="Academia DG" width="90" height="90">
+  <div class="tit">Agendar alumnos <span>Los lugares libres de la semana</span></div>
+  <div class="sp"></div>
+  <div class="quien"><b id="yoNom"></b><span id="semTxt" style="margin-left:10px"></span><a href="#" id="btnSalir">Salir</a></div>
 </div>
 
 <div class="wrap" id="app" style="display:none">
-  <header><h1>Agendar <span style="font-size:11px;font-weight:400;opacity:.6">v2026-08-14 · padron_v1</span></h1></header>
-  <div class="yo"><b id="yoNom"></b><span id="semTxt" style="margin-left:10px"></span><a href="#" id="btnSalir">Salir</a></div>
 
   <div class="libros">
     <button data-l="semana" class="on">🗓️ Esta semana<small>los cambios entran solos</small></button>
@@ -1206,6 +1224,7 @@ firebase.auth().onAuthStateChanged(function(u){
     miDim = f.dim || '';
     $('login').style.display='none'; $('nopuede').style.display='none';
     $('app').style.display='block';
+    document.querySelector('.adg-barra').style.display='flex';
     $('yoNom').textContent = miNombre || miCorreo;
     arrancar();
   }).catch(function(e){
@@ -1215,5 +1234,6 @@ firebase.auth().onAuthStateChanged(function(u){
   });
 });
 </script>
+<script src="tema-adg.js?v=2026-08-14a"></script>
 </body>
 </html>
