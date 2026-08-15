@@ -8,14 +8,19 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="referrer" content="no-referrer">
 <title>Alumnos · Academia DG</title>
+<link rel="stylesheet" href="tema-adg.css?v=2026-08-14a">
 <style>
+  /* Los colores los pone tema-adg.css. Estos son los de reserva.
+     Ojo con las sedes: acá ELITE era VERDE (#93C47D), en profe-agenda era
+     violeta y en profe-dia celeste. Tres colores para la misma sede en tres
+     pantallas. Ahora salen del tema, una sola vez. */
   :root{
-    --bg:#e9ebee; --panel:#ffffff; --panel2:#f1f3f5; --line:#c9ced4; --txt:#1f2329; --muted:#6b7280;
-    --clay:#1080A5; --court:#2f9e57; --gold:#c08a00; --red:#cc4b42; --accent:#1080A5;
-    --lomas:#FFD966; --elite:#93C47D; --segurola:#FF9900; --adefinir:#9F82BE;
+    --bg:#EEF2F4; --panel:#FFFFFF; --panel2:#EFF4F6; --line:#DFE8EC; --txt:#16262E; --muted:#5A6E7A;
+    --clay:#1080A5; --court:#2F9E62; --gold:#D9982B; --red:#E0483D; --accent:#1080A5;
+    --lomas:#E8B84B; --elite:#7EC8E3; --segurola:#F09A3E; --adefinir:#E0483D;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);font-size:14px;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
+  body{font-family:var(--sans);background:var(--bg);color:var(--txt);font-size:14px;height:100vh;height:100dvh;display:flex;flex-direction:column;overflow:hidden}
 
   header{background:var(--panel);border-bottom:1px solid var(--line);padding:10px 12px;flex-shrink:0}
   .title{display:flex;align-items:center;gap:8px;font-weight:800;font-size:16px;margin-bottom:8px}
@@ -116,22 +121,31 @@
 </style>
 </head>
 <body>
-<div id="adgLogin" style="display:none;position:fixed;inset:0;z-index:2147483647;background:#0d1117;color:#e6edf3;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center">
-  <div style="font-size:20px;font-weight:600;margin-bottom:8px">Alumnos &middot; Academia DG</div>
-  <div style="opacity:.75;margin-bottom:24px;max-width:360px;line-height:1.5">Ingres&aacute; para ver los d&iacute;as en vivo.</div>
-  <button id="adgLoginBtn" style="font-size:16px;padding:14px 26px;border:0;border-radius:10px;background:#2f81f7;color:#fff;cursor:pointer;font-weight:600">Entrar con Google</button>
-  <div id="adgLoginErr" style="color:#ff7b72;margin-top:18px;max-width:360px;line-height:1.5"></div>
+<div id="adgLogin" style="display:none;position:fixed;inset:0;z-index:2147483647;align-items:center;justify-content:center;flex-direction:column">
+  <svg class="adg-cancha" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width="1.4"><rect x="40" y="80" width="320" height="400"/><line x1="40" y1="280" x2="360" y2="280"/><line x1="200" y1="80" x2="200" y2="205"/><line x1="200" y1="355" x2="200" y2="480"/><line x1="40" y1="205" x2="360" y2="205"/><line x1="40" y1="355" x2="360" y2="355"/></g></svg>
+  <img class="adg-marca" src="logo-adg.png" alt="Academia Diego González" width="405" height="191">
+  <div class="adg-caja">
+    <h2>Alumnos</h2>
+    <p>Usá la cuenta de Google que te dieron de alta.</p>
+    <button id="adgLoginBtn">Entrar con Google</button>
+  </div>
+  <div class="err" id="adgLoginErr"></div>
 </div>
-<div id="adgVivo" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;font:12px system-ui;
+<div id="adgVivo" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;font:12px var(--sans);
   background:rgba(13,17,23,.88);color:#7ee787;padding:6px 10px;border-radius:8px">&#9679; d&iacute;as en vivo &middot; v2026-08-05</div>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
 
 
+<div class="adg-barra">
+  <img class="ico" src="logo-adg-icono.png" alt="Academia DG" width="90" height="90">
+  <div class="tit">Alumnos <span>Crear, editar y administrar la base</span></div>
+  <div class="sp"></div>
+  <div class="quien"><span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.6">v2026-08-14 · +padron_v1</span></div>
+</div>
+
 <header>
-  <div class="title"><span class="dot"></span> Alumnos <span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.5;margin-left:6px">v2026-08-14 · +padron_v1</span></div>
   <div class="searchbar">
     <input id="search" placeholder="Buscar alumno…" autocomplete="off">
     <button class="btn primary" id="btnNuevo">+ Nuevo</button>
@@ -1174,5 +1188,6 @@ load(); render();
 })();
 
 </script>
+<script src="tema-adg.js?v=2026-08-14a"></script>
 </body>
 </html>
