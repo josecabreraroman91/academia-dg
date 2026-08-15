@@ -2608,7 +2608,7 @@ function columnasQueExigenLosDatos(B, dia){
     if(!sk || isNaN(pi)) return;
     if(!need[sk] || need[sk]<pi+1) need[sk]=pi+1;
   });
-  if(B){ mirar(B.alumnos); mirar(B.libres); }
+  if(B){ mirar(B.alumnos); }  /* NO contar libres: un bloqueo no oculta a ningun alumno; contarlos regeneraba columnas borradas (bug columna que reaparece) */
   return need;
 }
 // Expande la configuración para que TODA celda con datos tenga su columna visible
