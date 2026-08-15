@@ -866,7 +866,6 @@ function publicarAlumnosEnVivo(lista){
       if(!k) return;
       updates[k] = {
         nombre: a.nombre || '',
-        cat:    a.cat || '',
         lado:   a.lado || '',
         profe:  a.profe || '',
         tipo:   a.tipo || '',
@@ -916,7 +915,7 @@ function publicarEnPadronV1(lista){
       var id = _idsPlanilla[claveAlumno_(a.nombre)];
       if(!id) return;   // sin ID de planilla no escribimos acá (lo maneja el puente/bridge)
       firebase.database().ref('padron_v1/alumnos/'+id).update({
-        id: id, nombre: a.nombre||'', cat: a.cat||'', lado: a.lado||'', profe: a.profe||'',
+        id: id, nombre: a.nombre||'', lado: a.lado||'' /*cat:solo-nivelacion(FixD)*/, profe: a.profe||'',
         tipo: a.tipo||'', precio: gsTxt(a.precio), coment: a.comentarios||'',
         nomHor: a.nomHor||'', nomWpp: a.nomWpp||'', tel: a.tel||normPhone(a.telRaw)||'', origen: 'hoja'
       }).catch(function(e){ console.warn('padron_v1 dual-write:', e.message); });
