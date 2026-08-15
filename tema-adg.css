@@ -1,0 +1,167 @@
+/* ===========================================================================
+   TEMA ACADEMIA DG — la fuente de verdad de los colores y la tipografía
+   ===========================================================================
+
+   Para qué existe: cada app del sistema se había hecho en su momento con su
+   propia paleta. Terminaron conviviendo tres grises claros casi iguales
+   (#e9ebee, #eef3f6, #eef2f4), tres oscuros casi iguales (#0d1117, #0f1720,
+   #0f1216) y dos azules de marca distintos (#1080A5 y #1181A4). Nada de eso se
+   ve "mal" por separado; lo que se siente al usarlo es que son aplicaciones
+   distintas pegadas, no un sistema.
+
+   Los NOMBRES de los tokens ya eran comunes (--panel está en 17 apps, --bg en
+   15, --txt en 13). Lo único que cambiaba eran los valores. Así que este
+   archivo define esos nombres una sola vez, y cada app lo enlaza.
+
+   Cómo usarlo en una app:
+     <link rel="stylesheet" href="tema-adg.css">   <- ANTES de su <style>
+   y se le sacan de su :root las líneas de color que estén acá. Lo que una app
+   necesite propio, lo define después y pisa a este archivo sin problema.
+
+   Si este archivo no cargara, cada app conserva sus valores de reserva: se
+   vería con su color viejo, nunca rota.
+   =========================================================================== */
+
+@font-face{
+  font-family:'Outfit';
+  src:url('outfit-latin.woff2') format('woff2');
+  font-weight:300 800;
+  font-style:normal;
+  font-display:swap;
+}
+
+:root{
+  /* --- Marca. Salen del logo, no se inventan --- */
+  --azul:#1080A5;          /* azul petróleo */
+  --azul-d:#0C6A8A;        /* profundo, para barras */
+  --azul-xd:#08536D;
+  --azul-cl:#1791B8;
+  --lima:#CFDB3B;
+  --lima-d:#B4C025;
+
+  /* Alias: los mismos colores con los nombres que ya usaba cada app */
+  --brand:#1080A5;  --brand-d:#0C6A8A;
+  --teal:#1080A5;   --teal-osc:#0C6A8A;  --teal-claro:#1791B8;
+  --accent:#1080A5;
+  --turf:#0C6A8A;   --turf-dark:#08536D;
+  --ball:#CFDB3B;
+
+  /* --- Superficies --- */
+  --bg:#EEF2F4;     --fondo:#EEF2F4;   --paper:#EEF2F4;
+  --panel:#FFFFFF;  --card:#FFFFFF;    --tarjeta:#FFFFFF;
+  --panel2:#EFF4F6; --suave:#EFF4F6;   --glass:#EFF4F6;
+
+  /* --- Texto --- */
+  --txt:#16262E;    --texto:#16262E;   --mesh:#16262E;
+  --muted:#5A6E7A;  --sec:#5A6E7A;     --mesh-60:#5A6E7A;
+  --mesh-30:#9BAAB4;
+
+  /* --- Líneas --- */
+  --line:#DFE8EC;   --linea:#DFE8EC;
+
+  /* --- Estados. Contraste verificado sobre blanco --- */
+  --verde:#2F9E62;  --pres:#2F9E62;
+  --rojo:#E0483D;   --aus:#E0483D;   --alert:#E0483D;
+  --ambar:#D9982B;  --amar:#D9982B;
+  --ambar-claro:#FFF6E0;
+  --violeta:#7C5CD6;
+  --sin:#9BAAB4;
+
+  /* --- Sedes. Cada complejo con su color, igual en todo el sistema --- */
+  --lomas:#E8B84B;
+  --elite:#7EC8E3;
+  --segurola:#F09A3E;
+  --adefinir:#E0483D;
+
+  /* --- Tipografía --- */
+  --sans:'Outfit',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+
+  /* --- Ritmo y profundidad. Espaciados de a 8 para que no sean al azar --- */
+  --e1:8px; --e2:16px; --e3:24px; --e4:32px;
+  --r-s:10px; --r-m:14px; --r-l:20px;
+  --sombra-1:0 1px 2px rgba(8,45,60,.06), 0 2px 8px rgba(8,45,60,.06);
+  --sombra-2:0 2px 4px rgba(8,45,60,.08), 0 12px 28px rgba(8,45,60,.16);
+}
+
+/* ===========================================================================
+   BARRA DE LA APP
+   Lo que hace que una sección se sienta parte del sistema y no una página
+   suelta. Sin esto, adentro de una app no queda NADA de marca: son cajas
+   blancas sobre gris, iguales a cualquier otra web. La barra lleva la pelota
+   del logo, el nombre de la sección y, a la derecha, quién está conectado.
+   Se usa así:
+     <div class="adg-barra">
+       <img class="ico" src="logo-adg-icono.png" alt="Academia DG">
+       <div class="tit">Accesos <span>Quién entra a qué</span></div>
+       <div class="sp"></div>
+       <div class="quien">correo@gmail.com <a href="#">Salir</a></div>
+     </div>
+   =========================================================================== */
+.adg-barra{
+  display:flex;align-items:center;gap:12px;
+  background:var(--azul-d);color:#fff;
+  padding:10px 16px;
+  box-shadow:0 2px 10px rgba(8,45,60,.18);
+  position:sticky;top:0;z-index:40;
+}
+.adg-barra .ico{width:30px;height:30px;display:block;flex-shrink:0}
+/* Cuando la sección se abre ADENTRO del hub, su barra sobra: el hub ya tiene la
+   suya arriba y quedaban dos apiladas. La marca la pone tema-adg.js. Va con
+   !important a propósito: cada app vuelve a mostrar su barra más tarde, cuando
+   Firebase confirma quién entró, y si no esto se perdería. */
+html[data-adg-dentro] .adg-barra{display:none !important}
+/* El "volver al menú" lo agrega tema-adg.js, y SÓLO cuando la sección se abrió
+   suelta (con link directo o marcador). Adentro del hub no aparece, porque el
+   menú ya está arriba y tocarlo cargaría el hub adentro del hub. */
+.adg-barra .adg-volver{display:inline-flex;align-items:center;gap:5px;flex-shrink:0;
+  font-family:var(--sans);font-size:13px;font-weight:600;color:#fff;text-decoration:none;
+  background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);
+  border-radius:9px;padding:6px 11px 6px 8px;margin-right:2px}
+.adg-barra .adg-volver:hover{background:rgba(255,255,255,.24)}
+@media(max-width:560px){ .adg-barra .adg-volver span{display:none} }
+.adg-barra .tit{font-family:var(--sans);font-weight:700;font-size:16px;letter-spacing:-.01em;line-height:1.15}
+.adg-barra .tit span{display:block;font-weight:400;font-size:12px;color:#A9D2E2;letter-spacing:0;margin-top:1px}
+.adg-barra .sp{flex:1}
+.adg-barra .quien{font-family:var(--sans);font-size:12px;color:#BEDDE9;text-align:right;line-height:1.3}
+.adg-barra .quien b{color:#fff;font-weight:600}
+.adg-barra .quien a{color:#CFE7F1;margin-left:10px;text-decoration:none;
+  border:1px solid rgba(255,255,255,.28);border-radius:8px;padding:4px 10px;display:inline-block;margin-top:2px}
+.adg-barra .quien a:hover{background:rgba(255,255,255,.12)}
+@media(max-width:560px){
+  .adg-barra .quien b{display:none}      /* en el celular el correo no entra */
+  .adg-barra .tit span{display:none}
+}
+
+/* ===========================================================================
+   PANTALLA DE ENTRADA
+   La misma en todas las secciones. Los ids cambian según la app (#login en
+   unas, #adgLogin en otras, más #nopuede donde hay control de permisos), así
+   que se cubren los tres. Las clases van con prefijo adg- porque hay apps que
+   ya usaban .caja y .marca para lo suyo.
+   =========================================================================== */
+#login,#nopuede,#adgLogin,#puerta{
+  background:radial-gradient(120% 70% at 50% -5%, var(--azul-cl) 0%, var(--azul) 45%, var(--azul-xd) 100%);
+  font-family:var(--sans);
+  padding:var(--e3);
+  text-align:center;
+}
+#login .adg-cancha,#nopuede .adg-cancha,#adgLogin .adg-cancha,#puerta .adg-cancha{
+  position:absolute;inset:0;width:100%;height:100%;opacity:.08;pointer-events:none}
+#login .adg-marca,#nopuede .adg-marca,#adgLogin .adg-marca,#puerta .adg-marca{
+  width:220px;max-width:64vw;height:auto;margin-bottom:var(--e4);
+  position:relative;z-index:1;padding:0;border:0;border-radius:0;background:none}
+#login .adg-caja,#nopuede .adg-caja,#adgLogin .adg-caja,#puerta .adg-caja{
+  position:relative;z-index:1;width:100%;max-width:340px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.17);
+  border-radius:var(--r-l);padding:var(--e4) var(--e3);
+  backdrop-filter:blur(10px);box-shadow:0 20px 50px rgba(4,35,48,.30)}
+#login .adg-caja h2,#nopuede .adg-caja h2,#adgLogin .adg-caja h2,#puerta .adg-caja h2{
+  margin:0 0 6px;font-size:19px;font-weight:600;color:#fff;letter-spacing:-.01em}
+#login .adg-caja p,#nopuede .adg-caja p,#adgLogin .adg-caja p,#puerta .adg-caja p{
+  color:#BEDDE9;font-size:14px;line-height:1.55;margin:0 0 var(--e3);max-width:none}
+#login .adg-caja button,#nopuede .adg-caja button,#adgLogin .adg-caja button,#puerta .adg-caja button{
+  width:100%;font-family:inherit;font-size:15px;font-weight:600;
+  color:#16262E;background:#fff;border:0;padding:14px 20px;
+  border-radius:var(--r-s);cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.14)}
+#login .err,#nopuede .err,#adgLogin .err,
+#login .ok,#nopuede .ok{color:#FFC9C4;position:relative;z-index:1;margin-top:var(--e2)}
