@@ -4,30 +4,60 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Nivelación · Academia DG</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
+/* Tipografía de la casa, servida desde el repo. Antes esta pantalla bajaba DOS
+   fuentes de fonts.googleapis.com (IBM Plex Sans + Barlow Condensed): en la
+   tablet de la cancha, con wifi flojo, eso se hace esperar. Ahora es un solo
+   archivo local de 32 KB que además ya está cacheado por venir del hub. */
+@font-face{
+  font-family:'Outfit';
+  src:url('outfit-latin.woff2') format('woff2');
+  font-weight:300 800;
+  font-style:normal;
+  font-display:swap;
+}
 :root{
-  --paper:#F4F6F4;
+  /* Esta pantalla tenía su propia paleta verde ("turf", "ball", "mesh"). Estaba
+     bien hecha, pero era un tercer idioma visual dentro del mismo sistema. Los
+     nombres de los tokens se conservan —los usan 70 reglas— y lo que cambia es
+     a qué color apuntan: ahora son los del logo. */
+  --paper:#EEF2F4;
   --card:#FFFFFF;
-  --mesh:#1E2426;
-  --mesh-60:#5C6668;
-  --mesh-30:#9AA3A4;
-  --turf:#14685A;
-  --turf-dark:#0E4C42;
-  --glass:#D9E4E1;
-  --ball:#CDE94A;
-  --alert:#B4451F;
-  --r:3px;
+  --mesh:#16262E;
+  --mesh-60:#5A6E7A;
+  --mesh-30:#9BAAB4;
+  --turf:#0C6A8A;        /* era #14685A, verde cancha */
+  --turf-dark:#08536D;
+  --glass:#DDE3E7;
+  --ball:#CFDB3B;        /* era #CDE94A */
+  --alert:#E0483D;
+  --azul:#1080A5;
+  --lima:#CFDB3B;
+  --sans:'Outfit',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  --r:10px;              /* era 3px: ahora acompaña el redondeo del resto */
   --pad:16px;
 }
+/* ===== Pantalla de entrada ===== */
+#adgLogin{position:fixed;inset:0;z-index:2147483647;font-family:var(--sans);
+  align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center;
+  background:radial-gradient(120% 70% at 50% -5%, #1791B8 0%, var(--azul) 45%, #08536D 100%)}
+#adgLogin .cancha{position:absolute;inset:0;width:100%;height:100%;opacity:.08;pointer-events:none}
+#adgLogin .marca{width:220px;max-width:64vw;height:auto;margin-bottom:32px;position:relative;z-index:1}
+#adgLogin .caja{position:relative;z-index:1;width:100%;max-width:340px;
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.17);border-radius:20px;
+  padding:32px 24px;backdrop-filter:blur(10px);box-shadow:0 20px 50px rgba(4,35,48,.30)}
+#adgLogin h2{margin:0;font-size:19px;font-weight:600;color:#fff;letter-spacing:-.01em}
+#adgLogin .p{color:#BEDDE9;font-size:14px;line-height:1.55;margin:6px 0 24px}
+#adgLoginBtn{width:100%;font-family:inherit;font-size:15px;font-weight:600;color:#16262E;background:#fff;
+  border:0;padding:14px 20px;border-radius:10px;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.14)}
+#adgLoginErr{color:#FFC9C4;margin-top:16px;max-width:360px;line-height:1.5;font-size:14px;position:relative;z-index:1}
+
 *{box-sizing:border-box}
 html,body{margin:0;padding:0}
 body{
   background:var(--paper);
   color:var(--mesh);
-  font-family:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  font-family:var(--sans);
   font-size:15px;
   line-height:1.45;
   -webkit-text-size-adjust:100%;
@@ -35,7 +65,7 @@ body{
 button,input,select,textarea{font-family:inherit;font-size:inherit;color:inherit}
 button{cursor:pointer}
 .mono-label{
-  font-family:"Barlow Condensed",system-ui,sans-serif;
+  font-family:var(--sans);
   text-transform:uppercase;
   letter-spacing:.08em;
   font-weight:600;
@@ -49,7 +79,7 @@ button{cursor:pointer}
   padding:10px var(--pad);
   flex-wrap:wrap;
 }
-.brand{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:22px;letter-spacing:.02em;text-transform:uppercase;line-height:1}
+.brand{font-family:var(--sans);font-weight:700;font-size:22px;letter-spacing:.02em;text-transform:uppercase;line-height:1}
 .brand span{color:var(--ball)}
 .topbar .grow{flex:1 1 40px}
 .topbar select,.topbar button.tb{
@@ -60,7 +90,7 @@ button{cursor:pointer}
 }
 .topbar select option{color:var(--mesh)}
 .topbar button.tb:hover{background:rgba(255,255,255,.22)}
-.sync{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:13px;opacity:.85}
+.sync{font-family:var(--sans);text-transform:uppercase;letter-spacing:.06em;font-size:13px;opacity:.85}
 
 /* ---------- layout ---------- */
 .wrap{display:flex;align-items:flex-start;gap:0;max-width:1400px;margin:0 auto}
@@ -79,11 +109,11 @@ button{cursor:pointer}
 }
 .filters{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
 .chip{
-  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.05em;font-size:13px;
+  font-family:var(--sans);text-transform:uppercase;letter-spacing:.05em;font-size:13px;
   padding:4px 9px;border:1px solid var(--glass);background:var(--card);border-radius:99px;color:var(--mesh-60)
 }
 .chip[aria-pressed=true]{background:var(--mesh);border-color:var(--mesh);color:#fff}
-.count{padding:8px var(--pad);font-size:12px;color:var(--mesh-30);font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.08em}
+.count{padding:8px var(--pad);font-size:12px;color:var(--mesh-30);font-family:var(--sans);text-transform:uppercase;letter-spacing:.08em}
 .list{list-style:none;margin:0;padding:0 0 24px;max-height:calc(100vh - 210px);overflow:auto}
 .list li{border-bottom:1px solid var(--glass)}
 .stud{
@@ -96,7 +126,7 @@ button{cursor:pointer}
 .stud .nm b{display:block;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .stud .nm small{color:var(--mesh-30);font-size:12px}
 .lvlbadge{
-  font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:17px;
+  font-family:var(--sans);font-weight:700;font-size:17px;
   background:var(--paper);border:1px solid var(--glass);border-radius:var(--r);
   padding:1px 7px;min-width:56px;text-align:center;line-height:1.3
 }
@@ -110,22 +140,22 @@ button{cursor:pointer}
   position:sticky;top:52px;z-index:30;
 }
 .score .who{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
-.score .who h2{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:24px;margin:0;text-transform:uppercase;letter-spacing:.02em}
-.score .who .meta{font-size:12px;color:var(--mesh-30);font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.08em}
+.score .who h2{font-family:var(--sans);font-weight:700;font-size:24px;margin:0;text-transform:uppercase;letter-spacing:.02em}
+.score .who .meta{font-size:12px;color:var(--mesh-30);font-family:var(--sans);text-transform:uppercase;letter-spacing:.08em}
 .readout{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap}
 .bignum{
-  font-family:"Barlow Condensed",sans-serif;font-weight:700;
+  font-family:var(--sans);font-weight:700;
   font-size:76px;line-height:.85;color:var(--ball);
   font-variant-numeric:tabular-nums;
 }
 .bignum.idle{color:var(--mesh-60)}
-.readout .cat{font-family:"Barlow Condensed",sans-serif;font-weight:600;font-size:21px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px}
+.readout .cat{font-family:var(--sans);font-weight:600;font-size:21px;text-transform:uppercase;letter-spacing:.04em;padding-bottom:6px}
 .readout .prev{font-size:12px;color:var(--mesh-30);padding-bottom:9px}
 .readout .prev.moved{color:var(--ball)}
 /* pista 0-7 */
 .track{position:relative;height:26px;margin-top:12px;border-top:1px solid rgba(255,255,255,.22)}
 .track .tick{position:absolute;top:0;width:1px;height:5px;background:rgba(255,255,255,.3)}
-.track .tlab{position:absolute;top:7px;transform:translateX(-50%);font-size:10px;color:var(--mesh-30);font-family:"Barlow Condensed",sans-serif}
+.track .tlab{position:absolute;top:7px;transform:translateX(-50%);font-size:10px;color:var(--mesh-30);font-family:var(--sans)}
 .marker{
   position:absolute;top:-6px;width:11px;height:11px;border-radius:50%;
   background:var(--ball);transform:translateX(-50%);
@@ -137,7 +167,7 @@ button{cursor:pointer}
 .dim .bar{height:5px;background:rgba(255,255,255,.14);border-radius:99px;overflow:hidden}
 .dim .bar i{display:block;height:100%;background:var(--ball);width:0;transition:width .25s ease}
 .dim .bar.partial i{background:rgba(205,233,74,.45)}
-.dim .lb{font-size:10px;color:var(--mesh-30);font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dim .lb{font-size:10px;color:var(--mesh-30);font-family:var(--sans);text-transform:uppercase;letter-spacing:.06em;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 .aviso{
   margin:10px 0 0;padding:9px 12px;font-size:13.5px;
@@ -159,12 +189,12 @@ button{cursor:pointer}
   display:flex;align-items:center;gap:10px;
   padding:9px 14px;background:var(--paper);border-bottom:1px solid var(--glass)
 }
-.dimblock > header h3{margin:0;font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:18px;text-transform:uppercase;letter-spacing:.03em}
-.dimblock > header .w{margin-left:auto;font-size:12px;color:var(--mesh-60);font-family:"Barlow Condensed",sans-serif;letter-spacing:.06em}
+.dimblock > header h3{margin:0;font-family:var(--sans);font-weight:700;font-size:18px;text-transform:uppercase;letter-spacing:.03em}
+.dimblock > header .w{margin-left:auto;font-size:12px;color:var(--mesh-60);font-family:var(--sans);letter-spacing:.06em}
 .item{padding:12px 14px;border-bottom:1px solid var(--glass)}
 .item:last-child{border-bottom:0}
 .item > .q{display:flex;align-items:baseline;gap:8px;margin-bottom:8px}
-.item > .q .n{font-family:"Barlow Condensed",sans-serif;color:var(--mesh-30);font-weight:600;font-size:14px;min-width:20px}
+.item > .q .n{font-family:var(--sans);color:var(--mesh-30);font-weight:600;font-size:14px;min-width:20px}
 .item > .q label{font-weight:600}
 .segs{display:flex;gap:4px;flex-wrap:wrap}
 .seg{
@@ -173,7 +203,7 @@ button{cursor:pointer}
   border:1px solid var(--glass);border-radius:var(--r);
   padding:7px 9px;line-height:1.3;
 }
-.seg .sn{font-family:"Barlow Condensed",sans-serif;font-weight:700;font-size:15px;color:var(--mesh-30);display:block}
+.seg .sn{font-family:var(--sans);font-weight:700;font-size:15px;color:var(--mesh-30);display:block}
 .seg .sd{font-size:12px;color:var(--mesh-60);display:block;margin-top:1px}
 .seg:hover{border-color:var(--turf)}
 .seg:focus-visible{outline:2px solid var(--turf);outline-offset:1px}
@@ -184,7 +214,7 @@ button{cursor:pointer}
 /* ---------- acciones ---------- */
 .actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px}
 .btn{
-  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;
+  font-family:var(--sans);text-transform:uppercase;letter-spacing:.06em;
   font-weight:600;font-size:16px;
   padding:9px 16px;border-radius:var(--r);border:1px solid var(--mesh);background:var(--mesh);color:#fff
 }
@@ -200,7 +230,7 @@ button{cursor:pointer}
   background:var(--card);border:1px solid var(--glass);border-radius:var(--r);
   padding:34px var(--pad);text-align:center
 }
-.empty h2{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;font-size:22px;margin:0 0 6px}
+.empty h2{font-family:var(--sans);text-transform:uppercase;font-size:22px;margin:0 0 6px}
 .empty p{color:var(--mesh-60);max-width:44ch;margin:0 auto 14px}
 
 /* ---------- paneles ---------- */
@@ -210,9 +240,9 @@ dialog{
 }
 dialog::backdrop{background:rgba(30,36,38,.5)}
 .pnl-head{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--glass)}
-.pnl-head h2{margin:0;font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;font-size:20px;letter-spacing:.03em}
+.pnl-head h2{margin:0;font-family:var(--sans);text-transform:uppercase;font-size:20px;letter-spacing:.03em}
 .pnl-body{padding:16px;max-height:70vh;overflow:auto}
-.pnl-body h4{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:14px;margin:18px 0 6px;color:var(--mesh-60)}
+.pnl-body h4{font-family:var(--sans);text-transform:uppercase;letter-spacing:.06em;font-size:14px;margin:18px 0 6px;color:var(--mesh-60)}
 .pnl-body h4:first-child{margin-top:0}
 .pnl-body textarea,.pnl-body input[type=text],.pnl-body input[type=url]{
   width:100%;padding:8px 10px;border:1px solid var(--glass);border-radius:var(--r);background:var(--paper)
@@ -220,12 +250,12 @@ dialog::backdrop{background:rgba(30,36,38,.5)}
 .pnl-body textarea{min-height:120px;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12.5px}
 table.q{width:100%;border-collapse:collapse;font-size:13.5px}
 table.q th,table.q td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--glass)}
-table.q th{font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;font-size:12px;color:var(--mesh-60)}
-table.q td.mv{font-family:"Barlow Condensed",sans-serif;font-weight:700}
+table.q th{font-family:var(--sans);text-transform:uppercase;letter-spacing:.06em;font-size:12px;color:var(--mesh-60)}
+table.q td.mv{font-family:var(--sans);font-weight:700}
 .toast{
   position:fixed;left:50%;bottom:18px;transform:translateX(-50%);
   background:var(--mesh);color:var(--ball);
-  font-family:"Barlow Condensed",sans-serif;text-transform:uppercase;letter-spacing:.06em;
+  font-family:var(--sans);text-transform:uppercase;letter-spacing:.06em;
   padding:10px 18px;border-radius:var(--r);z-index:90;
   opacity:0;pointer-events:none;transition:opacity .18s
 }
@@ -250,13 +280,26 @@ table.q td.mv{font-family:"Barlow Condensed",sans-serif;font-weight:700}
 </style>
 </head>
 <body>
-<div id="adgLogin" style="display:none;position:fixed;inset:0;z-index:2147483647;background:#0d1117;color:#e6edf3;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center">
-  <div style="font-size:20px;font-weight:600;margin-bottom:8px">Nivelaci&oacute;n &middot; Academia DG</div>
-  <div style="opacity:.75;margin-bottom:24px;max-width:360px;line-height:1.5">Ingres&aacute; para cargar evaluaciones.</div>
-  <button id="adgLoginBtn" style="font-size:16px;padding:14px 26px;border:0;border-radius:10px;background:#2f81f7;color:#fff;cursor:pointer;font-weight:600">Entrar con Google</button>
-  <div id="adgLoginErr" style="color:#ff7b72;margin-top:18px;max-width:360px;line-height:1.5"></div>
+<div id="adgLogin" style="display:none">
+  <svg class="cancha" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g fill="none" stroke="#fff" stroke-width="1.4">
+      <rect x="40" y="80" width="320" height="400"/>
+      <line x1="40" y1="280" x2="360" y2="280"/>
+      <line x1="200" y1="80" x2="200" y2="205"/>
+      <line x1="200" y1="355" x2="200" y2="480"/>
+      <line x1="40" y1="205" x2="360" y2="205"/>
+      <line x1="40" y1="355" x2="360" y2="355"/>
+    </g>
+  </svg>
+  <img class="marca" src="logo-adg.png" alt="Academia Diego Gonz&aacute;lez" width="405" height="191">
+  <div class="caja">
+    <h2>Nivelaci&oacute;n</h2>
+    <div class="p">Us&aacute; la cuenta de Google que te dieron de alta.</div>
+    <button id="adgLoginBtn"><span style="display:inline-flex;align-items:center;gap:10px;vertical-align:middle"><svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45 24c0-1.6-.1-2.7-.4-4H24v7.5h12c-.2 2-1.5 5-4.4 7l6.7 5.2C42.2 36 45 30.6 45 24z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-6.9-5.4c-1.9 1.3-4.4 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-7.1 5.5C8 41.1 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.5 28.4c-.5-1.4-.7-2.9-.7-4.4s.3-3 .7-4.4l-7.1-5.5C2.9 17 2 20.4 2 24s.9 7 2.4 9.9l7.1-5.5z"/><path fill="#EA4335" d="M24 10.6c3.2 0 6 1.1 8.2 3.2l6.1-6.1C34.9 4.3 29.9 2 24 2 15.4 2 8 6.9 4.4 14.1l7.1 5.5c1.8-5.3 6.7-9 12.5-9z"/></svg>Entrar con Google</span></button>
+  </div>
+  <div id="adgLoginErr"></div>
 </div>
+
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
