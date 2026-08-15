@@ -331,7 +331,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v2026-08-14c · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-15 · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -1661,6 +1661,19 @@ function datosDePadron(nombre){
 }
 
 function aplicarReservas(){
+  /* CANDADO DE SEMANA. Las reservas viven por semana (reservas_v1/<lunes>) y las
+     que están en memoria son las del nodo que se está escuchando (_resvSem).
+     Si eso no coincide con la semana cargada, son de OTRA semana y no se
+     aplican: se aplicaban las de la semana vieja sobre la semana recién
+     avanzada, así que la semana nueva quedaba como la MADRE *más* los cambios
+     de la anterior. Pasó en producción y nadie lo pidió: autoAplicarReservas
+     dispara solo. Una semana nueva arranca de cero. */
+  if(_resvSem && state.lunesActual && _resvSem !== state.lunesActual){
+    console.warn('Reservas ignoradas: son de la semana del '+_resvSem+
+                 ' y la cargada es la del '+state.lunesActual);
+    try{ logOp('reservas_de_otra_semana', _resvSem+' != '+state.lunesActual); }catch(e){}
+    return;
+  }
   const lista=resvPendientes();
   if(!lista.length){ cerrarResv(); return; }
   const B=state.semana; if(!B){ alert('No hay semana cargada.'); return; }
@@ -2040,6 +2053,21 @@ function avanzarSemana(){
      semana pasada figuraría como "ya resuelto" y no volvería a bajar nunca. */
   state.madreSync = null;
   try{ propagarMadreASemana(); }catch(e){}
+
+  /* Las reservas de los profes son de LA SEMANA QUE PASÓ y se quedan ahí: la
+     semana nueva arranca de cero. Sin esto quedaban en memoria apuntando al
+     lunes viejo, y autoAplicarReservas —que dispara SOLO, a los 2 segundos, sin
+     que nadie toque nada— las metía en la semana recién avanzada. La semana
+     terminaba siendo la MADRE *más* los cambios de la anterior. Pasó en
+     producción. Se apaga el temporizador, se vacía lo que hay en memoria y se
+     escucha el nodo de la semana nueva. */
+  try{
+    clearTimeout(_autoTimer);
+    reservasProfes = {};
+    if(_resvRef){ _resvRef.off(); _resvRef = null; }
+    _resvSem = '';
+    escucharReservasProfes();
+  }catch(e){ console.warn('reservas al avanzar:', e.message); }
 
   state.semActiva='actual';
   saveState(); renderAll();
