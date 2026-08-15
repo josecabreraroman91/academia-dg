@@ -303,19 +303,36 @@ try{
 
 function guardarEnNube(){
   if(!NUBE) return;
-  var txt = JSON.stringify(MARCAS);
-  _ultimoEscrito = txt;
-  NUBE.set(txt).catch(function(e){ console.warn('no pude compartir las marcas:', e.message); });
+  /* Fusion, no pisada: si dos personas cobran a la vez, no se borran las marcas
+     una a la otra. Las marcas solo se agregan, asi que se unen las de la nube con
+     las locales, dentro de una transaccion (atomica, reintenta si hay conflicto). */
+  NUBE.transaction(function(current){
+    var nube={}; try{ nube = current ? JSON.parse(current) : {}; }catch(e){ nube={}; }
+    return JSON.stringify({
+      enviado:    Object.assign({}, nube.enviado||{},    MARCAS.enviado||{}),
+      pagado:     Object.assign({}, nube.pagado||{},     MARCAS.pagado||{}),
+      adelantado: Object.assign({}, nube.adelantado||{}, MARCAS.adelantado||{}),
+      ts: Math.max(nube.ts||0, MARCAS.ts||0)
+    });
+  }).catch(function(e){ console.warn('no pude compartir las marcas:', e.message); });
 }
 
 function escucharNube(){
   if(!NUBE) return;
   NUBE.on('value', function(snap){
     var txt = snap.val();
-    if(!txt || txt === _ultimoEscrito) return;   // ignorar el eco de lo que uno mismo acaba de guardar
+    if(!txt) return;
     var g; try{ g = JSON.parse(txt); }catch(e){ return; }
     if(!g || typeof g!=='object') return;
-    MARCAS = { enviado:g.enviado||{}, pagado:g.pagado||{}, adelantado:g.adelantado||{}, ts:g.ts||0 };
+    /* Fusion (union): las marcas de la nube se SUMAN a las locales, no las pisan. */
+    var antes = JSON.stringify(MARCAS);
+    MARCAS = {
+      enviado:    Object.assign({}, MARCAS.enviado||{},    g.enviado||{}),
+      pagado:     Object.assign({}, MARCAS.pagado||{},     g.pagado||{}),
+      adelantado: Object.assign({}, MARCAS.adelantado||{}, g.adelantado||{}),
+      ts: Math.max(MARCAS.ts||0, g.ts||0)
+    };
+    if(JSON.stringify(MARCAS) === antes) return;   // nada nuevo: no repintar
     try{ localStorage.setItem(MARCAS_LLAVE, JSON.stringify(MARCAS)); }catch(e){}
     pintarMarcabar();
     if(typeof REP!=='undefined' && REP) pintarLista();
