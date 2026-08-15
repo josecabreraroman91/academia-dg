@@ -8,13 +8,32 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Academia DG</title>
 <style>
+  /* Tipografía de la casa. El archivo vive en el repo, al lado de este HTML:
+     así sale del mismo servidor que la app (no depende de Google), el navegador
+     la guarda una sola vez y la reusa en todas las secciones. Son 32 KB, y es
+     variable: un archivo cubre todos los grosores de 300 a 800.
+     Si por lo que sea no cargara, `font-display:swap` + la lista de reserva de
+     abajo hacen que se vea con la letra del sistema. Nunca queda en blanco. */
+  @font-face{
+    font-family:'Outfit';
+    src:url('outfit-latin.woff2') format('woff2');
+    font-weight:300 800;
+    font-style:normal;
+    font-display:swap;
+  }
   :root{
     --bg:#1080A5; --panel:#ffffff; --panel2:#eef3f5; --line:#e1e8ec; --txt:#1f2d35; --muted:#6a7c89;
     --clay:#CFDB3B; --court:#2f9e6a; --gold:#e8b34a; --lima:#CFDB3B; --azul:#1080A5; --azul-d:#0c6a8a;
+    --azul-xd:#08536D;
+    --sans:'Outfit',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    /* Ritmo vertical de a 8, para que los espacios no sean al azar */
+    --e1:8px; --e2:16px; --e3:24px; --e4:32px;
+    --sombra-1:0 1px 2px rgba(8,45,60,.06), 0 2px 8px rgba(8,45,60,.06);
+    --sombra-2:0 2px 4px rgba(8,45,60,.08), 0 12px 28px rgba(8,45,60,.16);
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--txt);display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  body{font-family:var(--sans);background:var(--bg);color:var(--txt);display:flex;flex-direction:column;height:100vh;overflow:hidden;-webkit-font-smoothing:antialiased}
 
   /* barra superior con pestañas */
   #topbar{display:none;background:var(--panel);border-bottom:1px solid var(--line);padding:8px 10px;align-items:center;gap:8px;flex-shrink:0}
@@ -22,12 +41,17 @@
   #topbar .brand{font-weight:800;font-size:14px;letter-spacing:-.3px;display:flex;align-items:center;gap:6px;margin-right:4px}
   #topbar .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--clay)}
   #topbar .tabsbar{gap:6px;flex-wrap:wrap}
-  .navtab{padding:7px 13px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
+  .navtab{padding:7px 13px;border-radius:9px;border:1px solid var(--line);background:transparent;color:var(--muted);font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap;
+    display:inline-flex;align-items:center;gap:7px;font-family:inherit}
+  /* Los íconos son SVG y heredan el color del botón: cambian solos cuando la
+     pestaña queda activa, sin tener que pintarlos aparte. */
+  .navtab svg{flex-shrink:0;opacity:.85}
+  .navtab.active svg{opacity:1}
   .navtab.active{background:var(--panel2);color:var(--txt);border-color:var(--clay)}
   .navtab.home{padding:7px 11px}
   /* Todas las secciones viven dentro del botón "Secciones": se despliegan encima
      de la pantalla, sin ocupar lugar fijo arriba. */
-  #btnTabs{display:inline-block;font-weight:800}
+  #btnTabs{display:inline-flex;font-weight:800}
   #topbar{position:relative}
   #topbar .tabsbar{position:absolute;top:100%;left:8px;z-index:60;display:flex;flex-direction:column;
     gap:2px;background:#ffffff;border:1px solid #cfd8e0;
@@ -67,13 +91,35 @@
   .mhead .logo .dot{width:16px;height:16px;border-radius:50%;background:var(--clay)}
   .mhead .logoimg{width:170px;max-width:60vw;height:auto;display:block;margin:0 auto 4px}
   .mhead .sub{color:var(--muted);font-size:14px;margin-top:6px}
-  .mcards{display:flex;flex-direction:column;gap:14px;width:100%;max-width:420px}
-  .mcard{display:flex;align-items:center;gap:16px;background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:18px 20px;cursor:pointer;transition:transform .12s,border-color .12s}
-  .mcard:hover{transform:translateY(-2px);border-color:var(--clay)}
-  .mcard .ico{font-size:32px;width:54px;height:54px;display:flex;align-items:center;justify-content:center;background:var(--panel2);border-radius:14px;flex-shrink:0}
-  .mcard .info .t{font-size:17px;font-weight:800}
-  .mcard .info .d{font-size:12px;color:var(--muted);margin-top:3px}
-  .mcard .arrow{margin-left:auto;color:var(--muted);font-size:22px}
+  /* Las secciones van agrupadas por tema y en rejilla. Antes eran 16 tarjetas
+     iguales, una abajo de la otra en una sola columna de 420px: había que
+     scrollear hasta el fondo para llegar a Caja. La rejilla se acomoda sola:
+     3 por fila en la compu, 2 en la tablet, 1 en el celular. */
+  /* 1000px + columnas de 215 = entran 4 justas, que es el tamaño de cada grupo:
+     así cada tema ocupa UNA fila y no queda una tarjeta suelta abajo. */
+  .mcards{width:100%;max-width:1000px}
+  .grupo{margin-bottom:var(--e3)}
+  .grupo-t{display:flex;align-items:center;gap:10px;margin-bottom:10px;padding-left:2px}
+  .grupo-t span{color:#CFE7F1;font-size:11.5px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;white-space:nowrap}
+  .grupo-t i{flex:1;height:1px;background:linear-gradient(90deg,rgba(255,255,255,.24),transparent)}
+  .rejilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:10px}
+  .mcard{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid transparent;border-radius:14px;
+    padding:13px 14px;cursor:pointer;position:relative;overflow:hidden;
+    transition:transform .16s cubic-bezier(.2,.7,.3,1),box-shadow .16s,border-color .16s}
+  /* La rayita lima que asoma al pasar por encima: sale del logo, no es un color suelto */
+  .mcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--lima);
+    transform:scaleY(0);transition:transform .18s ease}
+  .mcard:hover{transform:translateY(-2px);box-shadow:var(--sombra-2);border-color:#E6EEF1}
+  .mcard:hover::before{transform:scaleY(1)}
+  .mcard .ico{width:40px;height:40px;border-radius:11px;background:var(--panel2);color:var(--azul);
+    display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .16s,color .16s}
+  .mcard:hover .ico{background:var(--azul);color:#fff}
+  .mcard .ico svg{width:21px;height:21px;display:block}
+  .mcard .info{min-width:0}
+  .mcard .info .t{font-size:14.5px;font-weight:600;letter-spacing:-.005em;line-height:1.25}
+  .mcard .info .d{font-size:12px;color:var(--muted);margin-top:2px;line-height:1.35;
+    display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .mcard .arrow{display:none}
   .mfoot{color:var(--muted);font-size:11px;text-align:center;margin-top:8px}
   /* ===== Identidad Academia DG (logo: azul petróleo + lima) ===== */
   body{background:var(--bg);color:#fff}
@@ -84,26 +130,69 @@
   .navtab.active{background:#fff;color:var(--azul-d);border-color:#fff}
   #stage iframe{background:#eef1f4}
   #menu .sub{color:#eaf6fb}
-  .mhead .logoimg{width:160px;border-radius:0;box-shadow:none}
-  .mcard{background:#fff;border:1px solid #fff;color:var(--txt);box-shadow:0 6px 18px #00000026}
-  .mcard:hover{border-color:var(--lima);transform:translateY(-2px)}
-  .mcard .ico{background:#eef3f5}
+  .mhead .logoimg{width:184px;border-radius:0;box-shadow:none}
+  .mcard{background:#fff;color:var(--txt);box-shadow:var(--sombra-1)}
   .mcard .info .t{color:#1f2d35}
   .mcard .info .d{color:#6a7c89}
-  .mcard .arrow{color:var(--azul)}
   .mfoot{color:#cfe8f1}
+
+  /* El fondo: degradado suave + la cancha dibujada muy tenue. No es una textura
+     cualquiera bajada de internet: es una cancha de pádel, así que dice algo de
+     la academia. Al 8% no se "ve", se siente. */
+  #menu{background:radial-gradient(120% 70% at 50% -5%, #1791B8 0%, var(--azul) 45%, var(--azul-xd) 100%);
+    position:relative}
+  #menu .cancha{position:absolute;inset:0;width:100%;height:100%;opacity:.08;pointer-events:none;z-index:0}
+  #menu .mhead,#menu .mcards,#menu .mfoot{position:relative;z-index:1}
+
+  /* ===== Pantalla de entrada =====
+     Estaba en gris oscuro con un azul que no es el nuestro: era la primera
+     pantalla que ve todo el mundo y parecía de otro sistema. Ahora entra con
+     el logo y los colores de la academia. */
+  #adgLogin{position:fixed;inset:0;z-index:99999;font-family:var(--sans);
+    align-items:center;justify-content:center;flex-direction:column;padding:var(--e3);text-align:center;
+    background:radial-gradient(120% 70% at 50% -5%, #1791B8 0%, var(--azul) 45%, var(--azul-xd) 100%)}
+  #adgLogin .cancha{position:absolute;inset:0;width:100%;height:100%;opacity:.08;pointer-events:none}
+  #adgLogin .marca{width:220px;max-width:64vw;height:auto;margin-bottom:var(--e4);position:relative;z-index:1}
+  #adgLogin .caja{position:relative;z-index:1;width:100%;max-width:340px;
+    background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.17);border-radius:20px;
+    padding:var(--e4) var(--e3);backdrop-filter:blur(10px);box-shadow:0 20px 50px rgba(4,35,48,.30)}
+  #adgLogin h2{margin:0;font-size:19px;font-weight:600;color:#fff;letter-spacing:-.01em}
+  #adgMsg{color:#BEDDE9;font-size:14px;line-height:1.55;margin:6px 0 var(--e3);max-width:none}
+  #adgLoginBtn{width:100%;align-items:center;justify-content:center;gap:10px;
+    font-family:inherit;font-size:15px;font-weight:600;color:#16262E;background:#fff;border:0;
+    padding:13px 20px;border-radius:10px;cursor:pointer;box-shadow:0 2px 12px rgba(0,0,0,.14);
+    transition:transform .14s ease,box-shadow .14s ease}
+  #adgLoginBtn:hover{transform:translateY(-1px);box-shadow:0 6px 20px rgba(0,0,0,.2)}
+  #adgOutBtn{font-family:inherit;font-size:14px;padding:10px 20px;margin-top:14px;
+    border:1px solid rgba(255,255,255,.28);border-radius:10px;background:transparent;color:#BEDDE9;cursor:pointer}
+  #adgErr{color:#FFC9C4;margin-top:16px;max-width:340px;line-height:1.5;font-size:14px;position:relative;z-index:1}
+  #adgLogin .pie{position:relative;z-index:1;color:#8FC4D8;font-size:12px;margin-top:var(--e3);line-height:1.5}
 </style>
 </head>
 <body>
-<div id="adgLogin" style="display:none;position:fixed;inset:0;z-index:99999;background:#0d1117;color:#e6edf3;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center">
-  <div style="font-size:22px;font-weight:700;margin-bottom:8px">Academia DG</div>
-  <div id="adgMsg" style="opacity:.75;margin-bottom:24px;max-width:340px;line-height:1.5">Ingres&aacute; para acceder al sistema.</div>
-  <button id="adgLoginBtn" style="font-size:16px;padding:14px 26px;border:0;border-radius:10px;background:#2f81f7;color:#fff;cursor:pointer;font-weight:600">Entrar con Google</button>
-  <button id="adgOutBtn" style="display:none;font-size:14px;padding:10px 20px;margin-top:14px;border:1px solid #30363d;border-radius:10px;background:transparent;color:#8b949e;cursor:pointer">Salir</button>
-  <div id="adgErr" style="color:#ff7b72;margin-top:18px;max-width:340px;line-height:1.5"></div>
+<div id="adgLogin" style="display:none">
+  <svg class="cancha" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g fill="none" stroke="#fff" stroke-width="1.4">
+      <rect x="40" y="80" width="320" height="400"/>
+      <line x1="40" y1="280" x2="360" y2="280"/>
+      <line x1="200" y1="80" x2="200" y2="205"/>
+      <line x1="200" y1="355" x2="200" y2="480"/>
+      <line x1="40" y1="205" x2="360" y2="205"/>
+      <line x1="40" y1="355" x2="360" y2="355"/>
+    </g>
+  </svg>
+  <img class="marca" src="logo-adg.png" alt="Academia Diego Gonz&aacute;lez" width="405" height="191">
+  <div class="caja">
+    <h2>Entr&aacute; al sistema</h2>
+    <div id="adgMsg">Us&aacute; la cuenta de Google que te dieron de alta.</div>
+    <button id="adgLoginBtn"><span style="display:inline-flex;align-items:center;gap:10px;vertical-align:middle"><svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true"><path fill="#4285F4" d="M45 24c0-1.6-.1-2.7-.4-4H24v7.5h12c-.2 2-1.5 5-4.4 7l6.7 5.2C42.2 36 45 30.6 45 24z"/><path fill="#34A853" d="M24 46c5.9 0 10.9-2 14.5-5.3l-6.9-5.4c-1.9 1.3-4.4 2.2-7.6 2.2-5.8 0-10.7-3.8-12.5-9.1l-7.1 5.5C8 41.1 15.4 46 24 46z"/><path fill="#FBBC05" d="M11.5 28.4c-.5-1.4-.7-2.9-.7-4.4s.3-3 .7-4.4l-7.1-5.5C2.9 17 2 20.4 2 24s.9 7 2.4 9.9l7.1-5.5z"/><path fill="#EA4335" d="M24 10.6c3.2 0 6 1.1 8.2 3.2l6.1-6.1C34.9 4.3 29.9 2 24 2 15.4 2 8 6.9 4.4 14.1l7.1 5.5c1.8-5.3 6.7-9 12.5-9z"/></svg>Entrar con Google</span></button>
+    <button id="adgOutBtn" style="display:none">Salir</button>
+  </div>
+  <div id="adgErr"></div>
+  <div class="pie">&iquest;No pod&eacute;s entrar? Escribile a Jos&eacute;.</div>
 </div>
-<div id="adgQuien" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;font:12px system-ui;
+
+<div id="adgQuien" style="display:none;position:fixed;right:10px;bottom:10px;z-index:9998;font:12px var(--sans);
   background:rgba(13,17,23,.88);color:#c9d1d9;padding:6px 10px;border-radius:8px">
   <span id="adgQuienTxt"></span>
   <a href="#" id="adgSalir" style="color:#58a6ff;margin-left:10px;text-decoration:none">Salir</a>
@@ -113,128 +202,134 @@
 <!-- Barra superior con pestañas (oculta en el menú) -->
 <div id="topbar">
   <div class="brand"><span class="dot"></span> Academia DG</div>
-  <button class="navtab" id="btnTabs" title="Mostrar las secciones">▾ Secciones</button>
-  <button class="navtab atajo" data-go="cal" title="Ir al Calendario">🎾 Calendario</button>
-  <button class="navtab atajo" data-go="alu" title="Ir a Alumnos">👥 Alumnos</button>
-  <button class="navtab atajo" data-go="blo" title="Ir al Bloc de notas">📝 Bloc de notas</button>
+  <button class="navtab" id="btnTabs" title="Mostrar las secciones"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><span>Secciones</span></button>
+  <button class="navtab atajo" data-go="cal" title="Ir al Calendario"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v3M17 3v3M3.5 9.5h17"/><rect x="3.5" y="5" width="17" height="16" rx="2.5"/></svg><span>Calendario</span></button>
+  <button class="navtab atajo" data-go="alu" title="Ir a Alumnos"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.8 20c.6-3.4 3.2-5.2 6.2-5.2s5.6 1.8 6.2 5.2"/><path d="M16.5 5.5a3 3 0 0 1 0 5.6M18 14.4c2 .7 3.3 2.3 3.7 4.6"/></svg><span>Alumnos</span></button>
+  <button class="navtab atajo" data-go="blo" title="Ir al Bloc de notas"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H16l4 4v12.5A1.5 1.5 0 0 1 18.5 21h-12A1.5 1.5 0 0 1 5 19.5Z"/><path d="M15.5 3v4.5H20"/><path d="M8.5 13h7M8.5 16.5h4.5"/></svg><span>Bloc de notas</span></button>
   <div id="tapaTabs"></div>
   <div class="tabsbar plegada" id="tabsbar">
-    <button class="navtab home" data-go="menu">☰ Menú de inicio</button>
-    <button class="navtab" data-go="cal">🎾 Calendario</button>
-    <button class="navtab" data-go="prof">📋 Vista Profes</button>
-    <button class="navtab" data-go="alu">👥 Alumnos</button>
-    <button class="navtab" data-go="pag">💵 Pagos</button>
-    <button class="navtab" data-go="cob">💰 Cobros</button>
-    <button class="navtab" data-go="niv">📝 Evaluación</button>
-    <button class="navtab" data-go="age">➕ Agendar</button>
-    <button class="navtab" data-go="lib">📓 Libreta</button>
-    <button class="navtab" data-go="ar">🏋️ Alto rendimiento</button>
-    <button class="navtab" data-go="inv">📦 Inventario</button>
-    <button class="navtab" data-go="env">📨 Envíos</button>
-    <button class="navtab" data-go="pau">⏸️ En pausa</button>
-    <button class="navtab" data-go="blo">📝 Bloc de notas</button>
-    <button class="navtab" data-go="ahi">🧾 Hist. alumno</button>
-    <button class="navtab" data-go="caj">🏦 Caja</button>
-    <button class="navtab" data-go="gan">📈 Ganancias</button>
-    <button class="navtab" data-go="his">🕘 Historial</button>
-    <button class="navtab" data-go="pan">🔑 Accesos</button>
+    <button class="navtab home" data-go="menu"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17"/></svg><span>Menú de inicio</span></button>
+    <button class="navtab" data-go="cal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v3M17 3v3M3.5 9.5h17"/><rect x="3.5" y="5" width="17" height="16" rx="2.5"/></svg><span>Calendario</span></button>
+    <button class="navtab" data-go="prof"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3.5h6a1 1 0 0 1 1 1V6a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M8.5 12h7M8.5 16h4"/></svg><span>Vista Profes</span></button>
+    <button class="navtab" data-go="alu"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2"/><path d="M2.8 20c.6-3.4 3.2-5.2 6.2-5.2s5.6 1.8 6.2 5.2"/><path d="M16.5 5.5a3 3 0 0 1 0 5.6M18 14.4c2 .7 3.3 2.3 3.7 4.6"/></svg><span>Alumnos</span></button>
+    <button class="navtab" data-go="pag"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 10v4M18 10v4"/></svg><span>Pagos</span></button>
+    <button class="navtab" data-go="cob"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h13A2.5 2.5 0 0 1 21 8.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 15.5Z"/><path d="M3 10h18"/><circle cx="17" cy="14.5" r="1.3"/></svg><span>Cobros</span></button>
+    <button class="navtab" data-go="niv"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3.6l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.8l5.9-.9Z"/></svg><span>Evaluación</span></button>
+    <button class="navtab" data-go="age"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3v3M17 3v3M3.5 9.5h17"/><path d="M20.5 12.5V7.5a2.5 2.5 0 0 0-2.5-2.5H6a2.5 2.5 0 0 0-2.5 2.5v11A2.5 2.5 0 0 0 6 21h6"/><path d="M17.5 15v6M14.5 18h6"/></svg><span>Agendar</span></button>
+    <button class="navtab" data-go="lib"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.5 11.8a7.7 7.7 0 0 1-10.9 7L4 20.5l1.8-5.4A7.7 7.7 0 1 1 20.5 11.8Z"/><path d="M9 11.5h.01M12.5 11.5h.01M16 11.5h.01"/></svg><span>Libreta</span></button>
+    <button class="navtab" data-go="ar"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17.5l5-5.5 3.5 3.2L21 6"/><path d="M15.5 6H21v5.5"/></svg><span>Alto rendimiento</span></button>
+    <button class="navtab" data-go="inv"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.5 8.2 12 4l8.5 4.2v7.6L12 20l-8.5-4.2Z"/><path d="M3.5 8.2 12 12.4l8.5-4.2M12 12.4V20"/></svg><span>Inventario</span></button>
+    <button class="navtab" data-go="env"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="m3.5 7 8.5 6 8.5-6"/></svg><span>Envíos</span></button>
+    <button class="navtab" data-go="pau"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M10 9v6M14 9v6"/></svg><span>En pausa</span></button>
+    <button class="navtab" data-go="blo"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H16l4 4v12.5A1.5 1.5 0 0 1 18.5 21h-12A1.5 1.5 0 0 1 5 19.5Z"/><path d="M15.5 3v4.5H20"/><path d="M8.5 13h7M8.5 16.5h4.5"/></svg><span>Bloc de notas</span></button>
+    <button class="navtab" data-go="ahi"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5Z"/><path d="M13.5 3v5.5H19"/><circle cx="12" cy="14.5" r="3.2"/><path d="M12 13v1.6l1.1.8"/></svg><span>Hist. alumno</span></button>
+    <button class="navtab" data-go="caj"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.2 9.2 12 4l8.8 5.2"/><path d="M4.5 9.5v8M9.5 9.5v8M14.5 9.5v8M19.5 9.5v8"/><path d="M2.8 20.5h18.4"/></svg><span>Caja</span></button>
+    <button class="navtab" data-go="gan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M6 20v-5.5M11 20V9M16 20v-8M21 20V5"/></svg><span>Ganancias</span></button>
+    <button class="navtab" data-go="his"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.2V12l3.2 2"/><path d="M3.6 9.2 6 8.4"/></svg><span>Historial</span></button>
+    <button class="navtab" data-go="pan"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="12" r="3.5"/><path d="M11.8 10.8H21l1.4 1.2-1.4 1.2h-1.6l-.9-1-.9 1h-1.5l-.9-1-.9 1h-3"/></svg><span>Accesos</span></button>
   </div>
 </div>
 
 <!-- Menú de inicio -->
 <div id="menu">
+  <svg class="cancha" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <g fill="none" stroke="#fff" stroke-width="1.4">
+      <rect x="40" y="80" width="320" height="400"/>
+      <line x1="40" y1="280" x2="360" y2="280"/>
+      <line x1="200" y1="80" x2="200" y2="205"/>
+      <line x1="200" y1="355" x2="200" y2="480"/>
+      <line x1="40" y1="205" x2="360" y2="205"/>
+      <line x1="40" y1="355" x2="360" y2="355"/>
+    </g>
+  </svg>
   <div class="mhead">
-    <img class="logoimg" src="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAQDAwQDAwQEBAQFBQQFBwsHBwYGBw4KCggLEA4RERAOEA8SFBoWEhMYEw8QFh8XGBsbHR0dERYgIh8cIhocHRz/2wBDAQUFBQcGBw0HBw0cEhASHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBz/wAARCAJKAmwDASIAAhEBAxEB/8QAHwAAAQUBAQEBAQEAAAAAAAAAAAECAwQFBgcICQoL/8QAtRAAAgEDAwIEAwUFBAQAAAF9AQIDAAQRBRIhMUEGE1FhByJxFDKBkaEII0KxwRVS0fAkM2JyggkKFhcYGRolJicoKSo0NTY3ODk6Q0RFRkdISUpTVFVWV1hZWmNkZWZnaGlqc3R1dnd4eXqDhIWGh4iJipKTlJWWl5iZmqKjpKWmp6ipqrKztLW2t7i5usLDxMXGx8jJytLT1NXW19jZ2uHi4+Tl5ufo6erx8vP09fb3+Pn6/8QAHwEAAwEBAQEBAQEBAQAAAAAAAAECAwQFBgcICQoL/8QAtREAAgECBAQDBAcFBAQAAQJ3AAECAxEEBSExBhJBUQdhcRMiMoEIFEKRobHBCSMzUvAVYnLRChYkNOEl8RcYGRomJygpKjU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6goOEhYaHiImKkpOUlZaXmJmaoqOkpaanqKmqsrO0tba3uLm6wsPExcbHyMnK0tPU1dbX2Nna4uPk5ebn6Onq8vP09fb3+Pn6/9oADAMBAAIRAxEAPwDhaKKK+7PyEKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/3f6mr1Ub3/AFq/7v8AU0pbF09y9RRRTICiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAqje/61f93+pq9VG9/wBav+7/AFNKWxdPcvUUUUyAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKo3v+tX/d/qavVRvf8AWr/u/wBTSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/3f6mr1Ub3/AFq/7v8AU0pbF09y9RRRTICiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAqje/61f93+pq9VG9/wBav+7/AFNKWxdPcvUUUUyAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKo3v+tX/d/qavVRvf8AWr/u/wBTSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/3f6mr1Ub3/AFq/7v8AU0pbF09y9RRRTICiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAqje/61f93+pq9VG9/wBav+7/AFNKWxdPcvUUUUyAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKo3v+tX/d/qavVRvf8AWr/u/wBTSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/3f6mr1Ub3/AFq/7v8AU0pbF09y9RRRTICiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAqje/61f93+pq9VG9/wBav+7/AFNKWxdPcvUUUUyAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKo3v+tX/d/qavVRvf8AWr/u/wBTSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/3f6mr1Ub3/AFq/7v8AU0pbF09y9RRRTICiiigAooooAKKKKACiiigAooooAKKKKACiiigAoo/nXV6L8OPEeuKskNiYIG5EtyfLBHsDyfyrkxeOw2Dhz4mooLzdjajh6teXLSi2/I5SivWbX4GXjKDc6xbxt6RRFv1JFTy/Ap9p8rXFLdt9vx+jV8/LjfJIy5fb/g/8j0lkGYNX9n+KPH6K9A1T4O+IrBWe3FvfIO0L4b8mxXDXllc6fO0F3bywTr1SVSpH4GvawOb4HHq+FqqXo9fu3ODEYLEYb+NBogooor0TmCiijNABRRmjNABRRRQAUUUUAFFFFABRSbgO4oBB6EGgBaKM0ZoAKKM0ZoAKKM0ZoAKKM0UAFFFFABRRSoDIwVAWY9AoyaASvsJRVr+zb7bu+xXW318lsfyqs4MbbXBVvRhg0lJPZlOEluhKKKKZIUUUUAFFFFABRSEgdaM56GgBaKQkDqaXINABRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABRRRQAUUUUAFUb3/Wr/u/1NXqo3v+tX/d/qaUti6e5eooopkBRRRQAUUUUAFFFFABRRRQAUUUUAFFFFABWjoeiXfiHUodPslUzynq7YVR3JrOPANekaj8H9WtrGC+0u5S83RrL5QHlyLkZ45wfzFeVmmaYfBRjTq1VTlO6i3tc7MJhKlduUIOSjulvY9L8JfDjSvC6JK0a3eoj71xKudp/wBkdv512NeEeEfilqOg3K6dr4mntUOwvID50B988kex5r3K2uYby3iuLeVZYJVDI6nIYHvX4LxTl+Z4bE+1zCXOpbS3T9O3ofo2T4nCVaXJhly23XUlooor5Y9cKzda0DTfENqbfUrWOdOxI+ZPcN1FaVedeP8A4nReHGfTtMCT6n0d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Nfp+O1/uOz+0J+z9nbrv5Xvb0ud58Z7+11T4ma9d2NzDc2sroUmhcOjfIo4I4NcE33T9KWit6cOSCh2OStVdWpKo+ruevfH3WNO1i+8Jtp99bXawaRHFIYJVcI4P3Tg8H2ryrTrM6jf2toJoofPkWPzZnComTjcxPAA61WoqKNH2VNU0zTEYj29Z1pLfoe6+OfiZofh8WHg/R9C0PXtD0WJUS4vFMqyTEfO67SB36+uaXwH8UtE1mS98JavoGh6HoGtxNHNPZqY1STHyM25iPx9cV4TRWH1GnycvXv59zq/tav7Tn0t2t07FvVLEaZqd5ZLcRXK28rRCeFgySAHAZSOoPWqlFFdi0Wp5smm7oKKKKYgooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3L1FFFMgKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACiiigAooooAKKKKACqN7/rV/wB3+pq9VG9/1q/7v9TSlsXT3P/Z" alt="Diego González Academia">
+    <img class="logoimg" src="logo-adg.png" alt="Academia Diego González" width="405" height="191">
     <div class="sub">¿Qué querés abrir?</div>
   </div>
   <div class="mcards">
-    <div class="mcard" data-go="cal">
-      <div class="ico">🎾</div>
-      <div class="info"><div class="t">Calendario</div><div class="d">Horarios del día, envío de mensajes y reporte</div></div>
-      <div class="arrow">›</div>
+    <div class="grupo" data-grupo="El día a día">
+      <div class="grupo-t"><span>El día a día</span><i></i></div>
+      <div class="rejilla">
+        <div class="mcard" data-go="cal">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v3M17 3v3M3.5 9.5h17"/><rect x="3.5" y="5" width="17" height="16" rx="2.5"/></svg></div>
+          <div class="info"><div class="t">Calendario</div><div class="d">Horarios del día, envío de mensajes y reporte</div></div>
+        </div>
+        <div class="mcard" data-go="prof">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3.5h6a1 1 0 0 1 1 1V6a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1Z"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/><path d="M8.5 12h7M8.5 16h4"/></svg></div>
+          <div class="info"><div class="t">Vista Profes</div><div class="d">La lista del día como la ven los profes en la tablet</div></div>
+        </div>
+        <div class="mcard" data-go="age">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3v3M17 3v3M3.5 9.5h17"/><path d="M20.5 12.5V7.5a2.5 2.5 0 0 0-2.5-2.5H6a2.5 2.5 0 0 0-2.5 2.5v11A2.5 2.5 0 0 0 6 21h6"/><path d="M17.5 15v6M14.5 18h6"/></svg></div>
+          <div class="info"><div class="t">Agendar alumnos</div><div class="d">Ver los lugares libres de la semana y anotar un alumno nuevo</div></div>
+        </div>
+        <div class="mcard" data-go="lib">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 11.8a7.7 7.7 0 0 1-10.9 7L4 20.5l1.8-5.4A7.7 7.7 0 1 1 20.5 11.8Z"/><path d="M9 11.5h.01M12.5 11.5h.01M16 11.5h.01"/></svg></div>
+          <div class="info"><div class="t">Libreta</div><div class="d">Lo que anota el agente de WhatsApp: confirmaciones, cancelaciones y pedidos</div></div>
+        </div>
+      </div>
     </div>
-    <div class="mcard" data-go="prof">
-      <div class="ico">📋</div>
-      <div class="info"><div class="t">Vista Profes</div><div class="d">La lista del día como la ven los profes en la tablet</div></div>
-      <div class="arrow">›</div>
+    <div class="grupo" data-grupo="Alumnos">
+      <div class="grupo-t"><span>Alumnos</span><i></i></div>
+      <div class="rejilla">
+        <div class="mcard" data-go="alu">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M2.8 20c.6-3.4 3.2-5.2 6.2-5.2s5.6 1.8 6.2 5.2"/><path d="M16.5 5.5a3 3 0 0 1 0 5.6M18 14.4c2 .7 3.3 2.3 3.7 4.6"/></svg></div>
+          <div class="info"><div class="t">Alumnos</div><div class="d">Crear, editar y administrar la base de alumnos</div></div>
+        </div>
+        <div class="mcard" data-go="niv">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.6l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8L3.5 9.8l5.9-.9Z"/></svg></div>
+          <div class="info"><div class="t">Evaluación de alumnos</div><div class="d">Cargar la evaluación de un alumno y ver su categoría</div></div>
+        </div>
+        <div class="mcard" data-go="ar">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17.5l5-5.5 3.5 3.2L21 6"/><path d="M15.5 6H21v5.5"/></svg></div>
+          <div class="info"><div class="t">Alto rendimiento</div><div class="d">Los bloques de alto rendimiento y quién entrena en cada uno</div></div>
+        </div>
+        <div class="mcard" data-go="ahi">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8.5Z"/><path d="M13.5 3v5.5H19"/><circle cx="12" cy="14.5" r="3.2"/><path d="M12 13v1.6l1.1.8"/></svg></div>
+          <div class="info"><div class="t">Historial del alumno</div><div class="d">Todas sus clases, y corregir si se cobra o no</div></div>
+        </div>
+      </div>
     </div>
-    <div class="mcard" data-go="alu">
-      <div class="ico">👥</div>
-      <div class="info"><div class="t">Alumnos</div><div class="d">Crear, editar y administrar la base de alumnos</div></div>
-      <div class="arrow">›</div>
+    <div class="grupo" data-grupo="Plata">
+      <div class="grupo-t"><span>Plata</span><i></i></div>
+      <div class="rejilla">
+        <div class="mcard" data-go="cob">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6h13A2.5 2.5 0 0 1 21 8.5v7a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 15.5Z"/><path d="M3 10h18"/><circle cx="17" cy="14.5" r="1.3"/></svg></div>
+          <div class="info"><div class="t">Cobros</div><div class="d">Consulta por alumno: cuánto paga, clases del mes y registrar cobro</div></div>
+        </div>
+        <div class="mcard" data-go="caj">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.2 9.2 12 4l8.8 5.2"/><path d="M4.5 9.5v8M9.5 9.5v8M14.5 9.5v8M19.5 9.5v8"/><path d="M2.8 20.5h18.4"/></svg></div>
+          <div class="info"><div class="t">Caja</div><div class="d">Cobros por alumno, pago a profesores e informes de la academia</div></div>
+        </div>
+        <div class="mcard" data-go="pag">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/><path d="M6 10v4M18 10v4"/></svg></div>
+          <div class="info"><div class="t">Pagos a Profesores</div><div class="d">Liquidación semanal: clases, casos a revisar y descuentos</div></div>
+        </div>
+        <div class="mcard" data-go="gan">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6 20v-5.5M11 20V9M16 20v-8M21 20V5"/></svg></div>
+          <div class="info"><div class="t">Ganancias</div><div class="d">Cuánto lleva cobrado cada profesor, por período</div></div>
+        </div>
+      </div>
     </div>
-    <div class="mcard" data-go="pag">
-      <div class="ico">💵</div>
-      <div class="info"><div class="t">Pagos a Profesores</div><div class="d">Liquidación semanal: clases, casos a revisar y descuentos</div></div>
-      <div class="arrow">›</div>
-    </div>
-    <div class="mcard" data-go="cob">
-      <div class="ico">💰</div>
-      <div class="info"><div class="t">Cobros</div><div class="d">Consulta por alumno: cuánto paga, clases del mes y registrar cobro</div></div>
-      <div class="arrow">›</div>
-    </div>
-
-    <div class="mcard" data-go="niv">
-      <div class="ico">📝</div>
-      <div class="info"><div class="t">Evaluación de alumnos</div><div class="d">Cargar la evaluación de un alumno y ver su categoría</div></div>
-      <div class="arrow">›</div>
-    </div>
-
-    <div class="mcard" data-go="age">
-      <div class="ico">➕</div>
-      <div class="info"><div class="t">Agendar alumnos</div><div class="d">Ver los lugares libres de la semana y anotar un alumno nuevo</div></div>
-      <div class="arrow">›</div>
-    </div>
-
-    <div class="mcard" data-go="ar">
-      <div class="ico">🏋️</div>
-      <div class="info"><div class="t">Alto rendimiento</div><div class="d">Los bloques de alto rendimiento y quién entrena en cada uno</div></div>
-      <div class="arrow">›</div>
-    </div>
-    <div class="mcard" data-go="inv">
-      <div class="ico">📦</div>
-      <div class="info"><div class="t">Inventario</div><div class="d">Qué hay para vender y cuánto queda de cada cosa</div></div>
-      <div class="arrow">›</div>
-    </div>
-    <div class="mcard" data-go="blo">
-      <div class="ico">📝</div>
-      <div class="info"><div class="t">Bloc de notas</div><div class="d">Lo que hay para hacer, para todo el equipo</div></div>
-      <div class="arrow">›</div>
-    </div>
-    <div class="mcard" data-go="lib">
-      <div class="ico">📓</div>
-      <div class="info"><div class="t">Libreta</div><div class="d">Lo que anota el agente de WhatsApp: confirmaciones, cancelaciones y pedidos</div></div>
-      <div class="arrow">›</div>
-    </div>
-
-    <div class="mcard" data-go="ahi">
-      <div class="ico">🧾</div>
-      <div class="info"><div class="t">Historial del alumno</div><div class="d">Todas sus clases, y corregir si se cobra o no</div></div>
-      <div class="arrow">›</div>
-    </div>
-
-    <div class="mcard" data-go="gan">
-      <div class="ico">📈</div>
-      <div class="info"><div class="t">Ganancias</div><div class="d">Cuánto lleva cobrado cada profesor, por período</div></div>
-      <div class="arrow">›</div>
-    </div>
-
-    <div class="mcard" data-go="caj">
-      <div class="ico">🏦</div>
-      <div class="info"><div class="t">Caja</div><div class="d">Cobros por alumno, pago a profesores e informes de la academia</div></div>
-      <div class="arrow">›</div>
-    </div>
-
-    <div class="mcard" data-go="his">
-      <div class="ico">🕘</div>
-      <div class="info"><div class="t">Historial</div><div class="d">Quién hizo cada cambio: asistencias, movimientos, alumnos agendados</div></div>
-      <div class="arrow">›</div>
-    </div>
-
-    <div class="mcard" data-go="pan">
-      <div class="ico">🔑</div>
-      <div class="info"><div class="t">Accesos</div><div class="d">Quién entra a qué: agregar correos, dar permisos y dar de baja</div></div>
-      <div class="arrow">›</div>
+    <div class="grupo" data-grupo="La academia">
+      <div class="grupo-t"><span>La academia</span><i></i></div>
+      <div class="rejilla">
+        <div class="mcard" data-go="inv">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.2 12 4l8.5 4.2v7.6L12 20l-8.5-4.2Z"/><path d="M3.5 8.2 12 12.4l8.5-4.2M12 12.4V20"/></svg></div>
+          <div class="info"><div class="t">Inventario</div><div class="d">Qué hay para vender y cuánto queda de cada cosa</div></div>
+        </div>
+        <div class="mcard" data-go="blo">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H16l4 4v12.5A1.5 1.5 0 0 1 18.5 21h-12A1.5 1.5 0 0 1 5 19.5Z"/><path d="M15.5 3v4.5H20"/><path d="M8.5 13h7M8.5 16.5h4.5"/></svg></div>
+          <div class="info"><div class="t">Bloc de notas</div><div class="d">Lo que hay para hacer, para todo el equipo</div></div>
+        </div>
+        <div class="mcard" data-go="his">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.2V12l3.2 2"/><path d="M3.6 9.2 6 8.4"/></svg></div>
+          <div class="info"><div class="t">Historial</div><div class="d">Quién hizo cada cambio: asistencias, movimientos, alumnos agendados</div></div>
+        </div>
+        <div class="mcard" data-go="pan">
+          <div class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="12" r="3.5"/><path d="M11.8 10.8H21l1.4 1.2-1.4 1.2h-1.6l-.9-1-.9 1h-1.5l-.9-1-.9 1h-3"/></svg></div>
+          <div class="info"><div class="t">Accesos</div><div class="d">Quién entra a qué: agregar correos, dar permisos y dar de baja</div></div>
+        </div>
+      </div>
     </div>
   </div>
   <div class="mfoot">Sistema de gestión · Academia DG 🎾</div>
@@ -395,6 +490,17 @@
       });
       if(!tiene) ocultar(go);
     });
+    /* Las secciones del menú están agrupadas por tema. Si a alguien le
+       ocultamos todas las de un grupo (por permisos, o porque están guardadas
+       como Pagos y Cobros), el título del grupo quedaría solo, encabezando un
+       vacío. Se esconde el grupo entero. */
+    document.querySelectorAll('#menu .grupo').forEach(function(g){
+      var visibles = 0;
+      g.querySelectorAll('[data-go]').forEach(function(c){
+        if(c.style.display !== 'none') visibles++;
+      });
+      if(!visibles) g.style.display = 'none';
+    });
     $('adgQuienTxt').textContent = (nombre||correo);
     $('adgQuien').style.display='block';
     hide();
@@ -427,9 +533,18 @@
 })();
 
 /* Plegar y desplegar las secciones en pantallas chicas */
+/* Antes esto hacía b.textContent = '☰ Secciones', que reemplazaba TODO el
+   contenido del botón y se llevaba puesto el ícono. Ahora se cambia solo el
+   dibujo: menú (tres rayas) cuando está plegado, equis cuando está abierto. */
+var _ICO_MENU = '<path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17"/>';
+var _ICO_EQUIS = '<path d="M6 6l12 12M18 6L6 18"/>';
 function _pintarBtnTabs(){
   var b=document.getElementById('btnTabs'), tb=document.getElementById('tabsbar');
-  if(b && tb) b.textContent = tb.classList.contains('plegada') ? '☰ Secciones' : '✕ Secciones';
+  if(!b || !tb) return;
+  var plegada = tb.classList.contains('plegada');
+  b.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"'
+    + ' stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'
+    + (plegada ? _ICO_MENU : _ICO_EQUIS) + '</svg><span>Secciones</span>';
 }
 (function(){
   var b=document.getElementById('btnTabs'), tb=document.getElementById('tabsbar');
