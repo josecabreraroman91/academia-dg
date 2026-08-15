@@ -8,6 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <title>Calendario Academia DG</title>
+<link rel="stylesheet" href="tema-adg.css?v=2026-08-14a">
 <style>
   :root{
     --bg:#e9ebee; --panel:#ffffff; --line:#c9ced4; --txt:#1f2329; --muted:#6b7280;
@@ -317,12 +318,15 @@
 </style>
 </head>
 <body class="modo-semana">
-<div id="adgLogin" style="display:none;position:fixed;inset:0;z-index:2147483647;background:#0d1117;color:#e6edf3;
-  font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;align-items:center;justify-content:center;flex-direction:column;padding:24px;text-align:center">
-  <div style="font-size:20px;font-weight:600;margin-bottom:8px">Calendario &middot; Academia DG</div>
-  <div style="opacity:.75;margin-bottom:24px;max-width:360px;line-height:1.5">Ingres&aacute; para sincronizar el calendario.</div>
-  <button id="adgLoginBtn" style="font-size:16px;padding:14px 26px;border:0;border-radius:10px;background:#2f81f7;color:#fff;cursor:pointer;font-weight:600">Entrar con Google</button>
-  <div id="adgLoginErr" style="color:#ff7b72;margin-top:18px;max-width:360px;line-height:1.5"></div>
+<div id="adgLogin" style="display:none;position:fixed;inset:0;z-index:2147483647;align-items:center;justify-content:center;flex-direction:column">
+  <svg class="adg-cancha" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true"><g fill="none" stroke="#fff" stroke-width="1.4"><rect x="40" y="80" width="320" height="400"/><line x1="40" y1="280" x2="360" y2="280"/><line x1="200" y1="80" x2="200" y2="205"/><line x1="200" y1="355" x2="200" y2="480"/><line x1="40" y1="205" x2="360" y2="205"/><line x1="40" y1="355" x2="360" y2="355"/></g></svg>
+  <img class="adg-marca" src="logo-adg.png" alt="Academia Diego González" width="405" height="191">
+  <div class="adg-caja">
+    <h2>Calendario</h2>
+    <p>Usá la cuenta de Google que te dieron de alta.</p>
+    <button id="adgLoginBtn">Entrar con Google</button>
+  </div>
+  <div class="err" id="adgLoginErr"></div>
 </div>
 
 
