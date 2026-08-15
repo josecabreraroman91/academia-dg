@@ -2416,6 +2416,22 @@ function iniciarCalendarioCompartido(){
       _remotoCounts=remC;
     }catch(e){}
     _ultimoTsRemoto = r._ts || _ultimoTsRemoto || 0;
+    /* AUTOCURA del huerfano de columnas: desde el 9/8/2026 las columnas viven en
+       UNA sola casa (state.sedesPorDia). La copia vieja que quedaba adentro de cada
+       libro (madre/semana/otros) ya no se usa, pero si la nube todavia la tiene, en
+       modo MADRE volvia a imponer su cantidad de columnas y una columna borrada
+       REAPARECIA vacia. quitarSedesDeLibros() solo la borra en local; aca se borra en
+       la NUBE, una sola vez (si no hay huerfano no se escribe nada). */
+    try{
+      const _huerf={};
+      ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{
+        if(r[k] && r[k].sedesPorDia) _huerf[k+'/sedesPorDia']=null;
+      });
+      if(Object.keys(_huerf).length){
+        _calRef.update(_huerf);
+        try{ logOp('limpiar_sedes_huerfanas', Object.keys(_huerf).join(',')); }catch(e){}
+      }
+    }catch(e){ console.warn('huerfano sedes:', e.message); }
     _aplicandoRemoto = true;
     state.profesores    = r.profesores    || state.profesores;
     state.sedesPorDia   = r.sedesPorDia   || state.sedesPorDia;
