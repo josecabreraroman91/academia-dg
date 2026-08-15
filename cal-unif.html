@@ -2395,7 +2395,7 @@ function iniciarCalendarioCompartido(){
   if(!_calRef) return;
   _calRef.on('value', snap=>{
     const r = snap.val();
-    if(!r || !r.madre){   // nube vacía: subo mi calendario (producción) como base. Si NO está vacía, solo sincronizo (no piso)
+    if(!r || (!r.madre && !r.semana && !r.semanaProxima)){   // nube vacía: subo mi calendario (producción) como base. Si NO está vacía, solo sincronizo (no piso)
       /* La nube está vacía: la base contra la que comparar es "no hay nada",
          así que el primer guardado sube todo el calendario. */
       _baseRemota = { seedVersion:null, profesores:[], sedesPorDia:{}, lunesActual:'',
