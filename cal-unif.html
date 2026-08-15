@@ -2442,8 +2442,9 @@ function iniciarCalendarioCompartido(){
     state.madre         = r.madre         || state.madre;
     state.semana        = r.semana        || state.semana;
     state.semanaProxima = r.semanaProxima || state.semanaProxima;
+    state.semanaAnterior = r.semanaAnterior || state.semanaAnterior;
     // Firebase borra objetos vacíos: rehidratar para que nunca falte la estructura
-    ['madre','semana','semanaProxima'].forEach(k=>{ if(state[k]){ if(!state[k].alumnos) state[k].alumnos={}; if(!state[k].libres) state[k].libres={}; } });
+    ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{ if(state[k]){ if(!state[k].alumnos) state[k].alumnos={}; if(!state[k].libres) state[k].libres={}; } });
     if(r.lunesActual) state.lunesActual = r.lunesActual;
     try{ escucharReservasProfes(); }catch(e){}
     try{ escucharLibreta(); }catch(e){}
