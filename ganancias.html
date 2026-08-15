@@ -207,7 +207,8 @@ function parsearHistorial(paq){
     historial.push({
       fecha:fecha, alumno:nom, hora:(r[2]||'').trim(), sede:(r[3]||'').trim(),
       profe:(r[4]||'').trim(), tipo:(r[5]||'').trim(), estado:estado,
-      presente: estado.indexOf('Presente')===0
+      presente: estado.indexOf('Presente')===0,
+      seCobra: (r[7]||'').trim().toLowerCase().indexOf('s')===0
     });
   }
 }
@@ -232,6 +233,10 @@ function esAyudante(h){
          String(h&&h.alumno||'').toUpperCase()==='AYUDANTE';
 }
 
+var DECORATIVOS=/almuerzo|\blibre\b|pretemporada|no\s*hay\s*cancha|nohaycancha|\bferiado\b|\bvacaciones\b|cancelad|suspendid|\bentrenamiento\b/i;
+function esBloqueAR(nombre){ return /alto\s*rendimiento|alto\s*r\b/i.test(String(nombre==null?'':nombre).trim()); }
+function esBloque(nombre){ var crudo=String(nombre==null?'':nombre).trim(); if(esBloqueAR(crudo)||DECORATIVOS.test(crudo)) return true; var letras=crudo.replace(/[^a-z0-9]/gi,''); if(!letras) return true; return letras.length<=2; }
+function esCoach(h){ return String(h&&h.tipo||'').trim().toUpperCase()==='COACH'; }
 /* La misma cuenta que la Caja. Si cambia una, hay que cambiar la otra. */
 function calcularPozo(filas){
   var horas={};
@@ -241,9 +246,12 @@ function calcularPozo(filas){
     var b=horas[k];
     if(esColumnaSinProfe(h.profe)) return;
     if(esAyudante(h)){ if(h.profe) b.profes[h.profe]=true; return; }
+    if(esBloqueAR(h.alumno)){ if(h.profe) b.profes[h.profe]=true; return; }
+    if(esBloque(h.alumno)) return;
+    if(esCoach(h)) return;
     if(h.profe) b.profes[h.profe]=true;
-    if(h.presente){
-      b.presentes++;
+    if(h.presente) b.presentes++;
+    if(h.seCobra){
       var ap=aporteDe(h.tipo);
       if(!ap) b.sinTipo++;
       b.total+=ap;
@@ -264,6 +272,7 @@ function calcularPozo(filas){
   });
   filas.forEach(function(h){
     if(esColumnaSinProfe(h.profe)||esAyudante(h)) return;
+    if(esBloqueAR(h.alumno)||esBloque(h.alumno)||esCoach(h)) return;
     if(h.profe && porProfe[h.profe] && h.presente) porProfe[h.profe].alumnos++;
   });
   return { horas:horas, porProfe:porProfe, total:total, sinTipo:sinTipo };
