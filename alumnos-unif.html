@@ -544,6 +544,7 @@ function saveEditor(){
     email: document.getElementById('fEmail').value.trim().toLowerCase(),
     dir: document.getElementById('fDir').value.trim(),
     comentarios: document.getElementById('fComent').value.trim(),
+    profe: prev?(prev.profe||''):'',
     horarios: prev?(prev.horarios||[]):[],
     _dirty: true
   };
