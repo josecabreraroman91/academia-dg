@@ -2579,14 +2579,22 @@ function publicarFecha(offset, silencioso){
   claves.forEach(sk=>{
     const ref=_fbdb.ref('dia/'+fecha+'/'+sk);
     ref.once('value').then(snap=>{
-      const prev=snap.val()||{}, nuevo={};
-      Object.entries(prev).forEach(([k,v])=>{ if(v && v.acople) nuevo[k]=v; });         // preservar acoples de profes
+      const prev=snap.val()||{}, upd={};
+      /* Se ESCRIBEN solo los campos que salen de la grilla; asis y arAsis son de
+         la tablet y NUNCA se pisan (antes el set() del nodo entero revertia una
+         asistencia marcada entre la lectura y la escritura, y borraba el arAsis
+         del bloque de Alto Rendimiento). Los que salieron de la grilla se borran;
+         los acoples de profes quedan intactos. */
+      Object.keys(prev).forEach(k=>{ if(prev[k] && prev[k].acople) return; if(!porSede[sk][k]) upd[k]=null; });
       Object.entries(porSede[sk]).forEach(([k,rec])=>{
         const p = prev[k] || {};
-        nuevo[k]={ ...rec, asis: p.asis || 'presente' };
-        if(p.borrado) nuevo[k].borrado=true;
+        upd[k+'/nombre']=rec.nombre; upd[k+'/horaIdx']=rec.horaIdx; upd[k+'/profe']=rec.profe;
+        upd[k+'/mod']=rec.mod||''; upd[k+'/confirmado']=!!rec.confirmado;
+        upd[k+'/lista']=rec.lista||null; upd[k+'/dur']=rec.dur||null;
+        if(!('asis' in p)) upd[k+'/asis']='presente';
+        if(p.borrado) upd[k+'/borrado']=true;
       });
-      return ref.set(nuevo);
+      return Object.keys(upd).length ? ref.update(upd) : Promise.resolve();
     }).then(()=>{ if(--pend===0 && !silencioso) alert('📲 Día de hoy publicado a las tablets ('+claves.length+' sede(s)). Mañana también quedó disponible.'); })
       .catch(e=>{ if(!silencioso) alert('No pude publicar a las tablets: '+e.message); });
   });
