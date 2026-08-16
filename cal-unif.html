@@ -1128,7 +1128,7 @@ function revisarMadre(){
      quien avisó y quien no, que es la que decide el cobro.
    · Sacar de la grilla es recuperable: el alumno sigue en la MADRE.
    ============================================================ */
-let anotAgente = {}, _anotRef = null, _aplicandoLibreta = false;
+let anotAgente = {}, _anotRef = null, _aplicandoLibreta = false, _aplicandoReserva = false;
 
 function escucharLibreta(){
   if(!_fbdb || _anotRef) return;
@@ -1499,13 +1499,16 @@ function autoAplicarLibreta(){
       }
     });
   } finally {
+    /* saveState() dispara registrarCambiosAdmin(): tiene que correr con el candado
+       AÚN levantado, para que estos cambios NO se firmen con mi nombre (ya los
+       registró anotarOpAgente con el autor real). Por eso se guarda acá adentro,
+       antes de bajar el candado. */
+    if(hechos.length){
+      console.log('Libreta del agente aplicada:\n· '+hechos.join('\n· '));
+      guardarRevisar();
+      saveState(); renderGrid();
+    }
     _aplicandoLibreta = false;
-  }
-
-  if(hechos.length){
-    console.log('Libreta del agente aplicada:\n· '+hechos.join('\n· '));
-    guardarRevisar();
-    saveState(); renderGrid();
   }
 }
 
@@ -1764,7 +1767,9 @@ function aplicarReservas(){
     marcarResvAplicada(r.k);
   });
 
-  if(hechos.length){ saveState(); renderGrid(); }
+  /* El candado evita que registrarCambiosAdmin() firme con MI nombre lo que agendó
+     un profe (ya quedó registrado con el autor real vía anotarOpProfe). */
+  if(hechos.length){ _aplicandoReserva = true; try{ saveState(); } finally { _aplicandoReserva = false; } renderGrid(); }
   cerrarResv();
 
   /* Sin carteles. Los cambios de los profes en la semana editable entran solos y
@@ -3668,7 +3673,7 @@ function registrarCambiosAdmin(){
      algo la comparación va a encontrar el cambio del otro mezclado con el mío
      y me lo va a atribuir. Eso hacía que cada acción apareciera dos veces, una
      con cada nombre. */
-  if(_aplicandoRemoto || !_soyAdmin){ try{ _fotoPrev=_sacarFoto(); }catch(e){} return; }
+  if(_aplicandoRemoto || _aplicandoReserva || _aplicandoLibreta || !_soyAdmin){ try{ _fotoPrev=_sacarFoto(); }catch(e){} return; }
   const foto=_sacarFoto();
   if(!_fotoPrev){ _fotoPrev=foto; return; }        // la primera vez solo se guarda
 
