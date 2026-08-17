@@ -331,7 +331,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v2026-08-17 · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-17b · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -1277,10 +1277,12 @@ function celdaDeAnotacion(a){
   return null;      // el alumno ya no está donde decía la libreta
 }
 
-/* Marca celeste todas las clases del alumno en la semana editable. Solo pinta:
-   no mueve ni borra nada, así que es seguro aunque la fecha sea aproximada. */
-function celesteTodasLasClases(nombre){
-  const B = state.semana; if(!B || !B.alumnos) return 0;
+/* Marca celeste todas las clases del alumno. Solo pinta: no mueve ni borra nada,
+   así que es seguro aunque la fecha sea aproximada. Por defecto trabaja sobre la
+   semana editable; se le puede pasar otro libro (ej. la semana próxima, cuando el
+   pedido del agente es para dentro de 7+ días). */
+function celesteTodasLasClases(nombre, B){
+  B = B || state.semana; if(!B || !B.alumnos) return 0;
   const n = normName(nombre); let c = 0;
   Object.keys(B.alumnos).forEach(k=>{
     const al = B.alumnos[k];
@@ -1487,6 +1489,15 @@ function autoAplicarLibreta(){
           hechos.push('🔵 '+a.alumno+' pidió un cambio — '+lugarTxt(hit.k));
           anotarOpAgente('revisar', a.alumno, lugarTxt(hit.k)+' · pidió un cambio por WhatsApp');
         }
+        /* El celeste del agente TAMBIÉN se replica en las demás clases del alumno
+           de esa semana, para que salte a la vista en cualquier día en el que
+           aparezca. celesteTodasLasClases marca solo lo que falte → 0 en las
+           re-pasadas, así no infla el log. Se anota una sola línea cuando de
+           verdad pintó clases nuevas. */
+        try{
+          const rep = celesteTodasLasClases(a.alumno, hit.B);
+          if(rep > 0) hechos.push('🔵 '+a.alumno+' — celeste replicado en '+rep+' clase(s) más (mismo alumno, otros días)');
+        }catch(e){}
         /* Se loguea SOLO si esta pasada cambió algo. Un pedido queda pendiente
            a propósito, así que esta rama vuelve a correr en CADA sincronización
            con la nube, y el pedido ya pintado no cambia nada: antes igual
