@@ -160,7 +160,7 @@ select{padding:8px 10px;border:1px solid var(--borde);border-radius:9px;font-siz
    en ningún lado. Solo lee y manda. Si algo sale mal acá, no rompe nada.
    ============================================================ */
 
-var VERSION = 'v2026-08-06';
+var VERSION = 'v2026-08-17';
 var SERVIDOR = 'https://academiadg-agente-production.up.railway.app';
 
 /* Quién puede entrar. Por ahora solo José, como pediste.
@@ -194,6 +194,7 @@ var CAL = null;            // el blob de calendario_v2
 var VIVO = {};             // alumnos_v2 (los creados/editados en vivo)
 var DIA = null;            // día elegido
 var LISTA = [];            // alumnos del día, ya con teléfono
+var EXCLUIDOS = 0;         // los que quedaron afuera por estar en verde/celeste
 var FUERA = {};            // los que saqué a mano: clave -> true
 var ESTADO_HORA = {};      // hora -> {enviados, fallados, hecho}
 var LOG = [];
@@ -354,7 +355,7 @@ function esBloque(n){
 }
 
 function armarLista(){
-  LISTA = []; FUERA = {}; ESTADO_HORA = {};
+  LISTA = []; FUERA = {}; ESTADO_HORA = {}; EXCLUIDOS = 0;
   if(!CAL || !DIA) return;
   var B = CAL.semana || {alumnos:{},libres:{}};
   var alumnos = B.alumnos || {}, libres = B.libres || {};
@@ -374,6 +375,8 @@ function armarLista(){
           if(!al || !al.nombre) continue;
           if(al.mod==='BLOQUE' || esBloque(al.nombre)) continue;
           if(s.key==='adefinir') continue;        // esos van a mano, como siempre
+          // Verde (confirmado) o celeste (para revisar): NO reciben mensaje de envío.
+          if(al.confirmado || al.revisar){ EXCLUIDOS++; continue; }
           var c = telDeAlumno(al.nombre);
           LISTA.push({
             clave: DIA+'|'+s.key+'|'+pi+'|'+hi+'|'+si,
@@ -452,7 +455,8 @@ function pintar(){
 
   var html = '<div class="resumen">Del día <b>'+DIA+'</b>: <b>'+LISTA.length+'</b> clase(s) en la grilla · '+
              '<b>'+conTel.length+'</b> con teléfono · <b>'+aMandar+'</b> se van a mandar'+
-             (sacados? ' · <b>'+sacados+'</b> sacados a mano':'')+'.'+
+             (sacados? ' · <b>'+sacados+'</b> sacados a mano':'')+
+             (EXCLUIDOS? ' · <b>'+EXCLUIDOS+'</b> en verde/celeste (no se les manda)':'')+'.'+
              '<div style="margin-top:5px;font-size:12px;color:#4a545f">'+
                esc(PADRON_INFO||'padrón no leído')+
                (_enganchado?' · 🟢 en vivo: si cambian el calendario, esta lista se actualiza sola':'')+

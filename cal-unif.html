@@ -331,7 +331,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v2026-08-15 · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-17 · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -1289,6 +1289,24 @@ function celesteTodasLasClases(nombre){
   return c;
 }
 
+/* El revés de celesteTodasLasClases: le saca el celeste al alumno en TODAS sus
+   clases de la semana editable y, en cada una, resuelve el pedido del agente que
+   la estaba pintando. Sin eso, autoAplicarLibreta vuelve a marcarla sola en la
+   siguiente sincronización (por eso hoy no se puede desmarcar a mano un celeste
+   que dejó el agente). Un pedido de OTRO alumno o de otra celda no se toca. */
+function quitarRevisarTodasLasClases(nombre){
+  const B = state.semana; if(!B || !B.alumnos) return 0;
+  const n = normName(nombre); let c = 0;
+  Object.keys(B.alumnos).forEach(k=>{
+    const al = B.alumnos[k];
+    if(al && al.nombre && normName(al.nombre) === n){
+      if(al.revisar){ delete al.revisar; c++; }
+      try{ resolverPedidosDeCelda(al, k, 'Revisado a mano en el calendario'); }catch(e){}
+    }
+  });
+  return c;
+}
+
 function marcarAnotacion(id, extra){
   if(!_fbdb) return;
   const datos = Object.assign({ aplicadoTs: Date.now(), aplicadoPor: 'calendario' }, extra || {});
@@ -1301,10 +1319,11 @@ function marcarAnotacion(id, extra){
    pendiente y autoAplicarLibreta no lo vuelve a aplicar, así el verde aguanta.
    Solo se cierran los que apuntan exactamente a esta clase (mismo alumno y
    misma celda); un pedido de otro día no se toca. */
-function resolverPedidosDeCelda(al, k){
+function resolverPedidosDeCelda(al, k, cierre){
   if(!al || !k) return 0;
   const nom = normName(al.nombre || '');
   if(!nom) return 0;
+  const txtCierre = cierre || 'Confirmado a mano en el calendario';
   let n = 0;
   Object.keys(anotAgente || {}).forEach(id=>{
     const a = anotAgente[id];
@@ -1316,8 +1335,8 @@ function resolverPedidosDeCelda(al, k){
     /* Local primero: el eco de la nube tarda, y mientras tanto
        autoAplicarLibreta podría volver a aplicarlo y ganarle de mano. */
     a.estado = 'aplicado';
-    marcarAnotacion(id, { estado:'aplicado', cierre:'Confirmado a mano en el calendario' });
-    try{ logOp('agente_pedido_resuelto', (a.alumno||'')+' — confirmado a mano en el calendario'); }catch(e){}
+    marcarAnotacion(id, { estado:'aplicado', cierre:txtCierre });
+    try{ logOp('agente_pedido_resuelto', (a.alumno||'')+' — '+txtCierre); }catch(e){}
     n++;
   });
   return n;
@@ -3149,9 +3168,24 @@ function importarMarcasViejas(mapa){
 function toggleRevisar(){
   if(!editingCell) return;
   const [sk,pi,hi,si]=editingCell.split('|');
-  const al=book().alumnos[cellKey(sk,+pi,+hi,+si)];
+  const k=cellKey(sk,+pi,+hi,+si);
+  const B=book();
+  const al=B.alumnos[k];
   if(!al) return;                      // sin alumno no hay estado que marcar
-  if(al.revisar) delete al.revisar; else al.revisar=true;
+  /* Replicar/desmarcar en todas las clases y resolver pedidos solo aplica a la
+     SEMANA actual, que es donde viven los envíos y los pedidos del agente. En
+     MADRE o en otra semana se mantiene el marcado de una sola celda de siempre. */
+  const enSemanaActual = (B === state.semana);
+  if(al.revisar){
+    // DESMARCAR — sale a mano aunque lo haya dejado el agente en celeste.
+    if(enSemanaActual) quitarRevisarTodasLasClases(al.nombre);
+    else delete al.revisar;
+  } else {
+    // MARCAR — se replica en TODAS las clases del alumno de la semana, para que
+    // salte a la vista en cualquier día en el que aparezca.
+    al.revisar=true;
+    if(enSemanaActual) celesteTodasLasClases(al.nombre);
+  }
   guardarRevisar();
   actualizarBtnRevisar(sk,+pi,+hi,+si);
   saveState(); renderGrid();           // saveState ya publica a los demás dispositivos
@@ -4408,7 +4442,8 @@ function buildEnvioList(){
             nombreWpp: (c&&c.nombreWpp)?c.nombreWpp:'',
             hora, sede:s.nombre, sedeKey:s.key, profesor:dim,
             tel: c ? normPhone(c.tel) : '',
-            confirmado: !!al.confirmado
+            confirmado: !!al.confirmado,
+            revisar: !!al.revisar
           });
         }
       });
@@ -4436,10 +4471,14 @@ function agruparConsecutivas(lista){
   salida.sort((a,b)=>idx(a.hora)-idx(b.hora));
   return salida;
 }
-// Cola de envío masivo: con teléfono, que NO sean de "A definir", y con las horas seguidas juntadas
-function sendQueue(){ return agruparConsecutivas(buildEnvioList().filter(c=>phoneOk(c.tel) && c.sedeKey!=='adefinir')); }
-// Alumnos de "A definir": van en sección aparte (mensaje personalizado, no envío masivo)
-function adefList(){ return buildEnvioList().filter(c=>c.sedeKey==='adefinir'); }
+// Cola de envío masivo: con teléfono, que NO sean de "A definir", y con las horas seguidas juntadas.
+// Los que están en VERDE (confirmado) o CELESTE (para revisar) NO reciben mensaje:
+// el verde ya confirmó, el celeste está para que una persona lo resuelva primero.
+function sendQueue(){ return agruparConsecutivas(buildEnvioList().filter(c=>phoneOk(c.tel) && c.sedeKey!=='adefinir' && !c.confirmado && !c.revisar)); }
+// Alumnos de "A definir": van en sección aparte (mensaje personalizado, no envío masivo). Misma regla: sin verde ni celeste.
+function adefList(){ return buildEnvioList().filter(c=>c.sedeKey==='adefinir' && !c.confirmado && !c.revisar); }
+// Los que quedaron afuera del envío por estar en verde/celeste (para mostrar el motivo, no se ocultan en silencio).
+function excluidosEnvio(){ return buildEnvioList().filter(c=>c.sedeKey!=='adefinir' && phoneOk(c.tel) && (c.confirmado||c.revisar)); }
 
 function enviadosHoy(){
   const f=fechaCorta(_envioDia||state.dia);
@@ -4561,6 +4600,12 @@ function renderEnvios(){
       '<button class="btn" id="evClear">Reiniciar enviados de hoy</button>'+
     '</div>'+
     '<div class="hint" style="text-align:left;margin:0 0 8px"><b>Espacio</b> = mandar al siguiente pendiente · <b>Enter</b> = abrir el chat de la fila marcada · <b>↑ ↓</b> moverse · tocá una fila para elegirla</div>';
+
+  const exc=excluidosEnvio().length;
+  if(exc){
+    html+='<div style="background:#12303a;border:1px solid #1f5266;border-radius:10px;padding:8px 12px;margin:0 0 10px;color:#bfe9ff;font-size:12.5px">'+
+          '🟢🔵 '+exc+' alumno(s) en verde/celeste — no entran en el envío (confirmados o para revisar).</div>';
+  }
 
   if(!s.length){
     html+='<div class="ev-empty" style="padding:20px"><p>No hay alumnos con teléfono para el envío masivo.<br>Sincronizá la hoja ALUMNOS o revisá los teléfonos.</p></div>';
