@@ -142,7 +142,7 @@
   <img class="ico" src="logo-adg-icono.png" alt="Academia DG" width="90" height="90">
   <div class="tit">Alumnos <span>Crear, editar y administrar la base</span></div>
   <div class="sp"></div>
-  <div class="quien"><span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.6">v2026-08-14 · +padron_v1</span></div>
+  <div class="quien"><span id="adgVersion" style="font-size:10px;font-weight:600;opacity:.6">v2026-08-17 · fix-renombre</span></div>
 </div>
 
 <header>
@@ -546,7 +546,12 @@ function saveEditor(){
     comentarios: document.getElementById('fComent').value.trim(),
     profe: prev?(prev.profe||''):'',
     horarios: prev?(prev.horarios||[]):[],
-    _dirty: true
+    _dirty: true,
+    /* Si se editó y el nombre CAMBIÓ, se recuerda el anterior. Sirve para
+       RENOMBRAR la ficha en su lugar (misma ID) en vez de crear una nueva:
+       sin esto, cambiar el nombre creaba un alumno duplicado (el viejo vacío
+       + el nuevo con apellido). */
+    _nombreAnterior: (editId && prev && prev.nombre && normName(prev.nombre)!==normName(nombre)) ? prev.nombre : ''
   };
   if(editId){ const i=alumnos.findIndex(x=>x.id===editId); if(i>=0) alumnos[i]=obj; }
   else alumnos.push(obj);
@@ -864,6 +869,9 @@ function publicarAlumnosEnVivo(lista){
     (lista||[]).forEach(function(a){
       var k = claveAlumno_(a.nombre);
       if(!k) return;
+      /* RENOMBRE: si cambió el nombre, se borra el nodo viejo (clave = nombre
+         anterior) en la MISMA escritura, así no queda la ficha vacía duplicada. */
+      if(a._nombreAnterior){ var kViejo = claveAlumno_(a._nombreAnterior); if(kViejo && kViejo!==k) updates[kViejo] = null; }
       updates[k] = {
         nombre: a.nombre || '',
         lado:   a.lado || '',
@@ -912,7 +920,11 @@ function publicarEnPadronV1(lista){
     if(!firebase.auth().currentUser) return;
     var gsTxt = function(n){ return (Number(n)||0).toLocaleString('en-US')+'Gs.'; };
     (lista||[]).forEach(function(a){
-      var id = _idsPlanilla[claveAlumno_(a.nombre)];
+      /* RENOMBRE: la ficha existe bajo el nombre ANTERIOR. Se la busca por ese
+         nombre para renombrarla en su lugar (misma ID); si no, cambiar el nombre
+         no la encontraba y quedaba el duplicado. */
+      var claveBusca = a._nombreAnterior ? claveAlumno_(a._nombreAnterior) : claveAlumno_(a.nombre);
+      var id = _idsPlanilla[claveBusca];
       if(!id) return;   // sin ID de planilla no escribimos acá (lo maneja el puente/bridge)
       firebase.database().ref('padron_v1/alumnos/'+id).update({
         id: id, nombre: a.nombre||'', lado: a.lado||'' /*cat:solo-nivelacion(FixD)*/, profe: a.profe||'',
@@ -936,10 +948,15 @@ async function guardarEnPlanilla(silent){
   // ── PUENTE: guardar SIN que nadie se loguee ──
   if(PUENTE_URL){
     if(!silent && !confirm('Guardar '+dirty.length+' alumno(s) en la planilla?')) return;
-    const payload=dirty.map(a=>({ nombre:a.nombre, cat:a.cat||'', lado:a.lado||'', tipo:a.tipo||'', precio:gsTxt(a.precio), coment:a.comentarios||'', nomHor:a.nomHor||'', nomWpp:a.nomWpp||'', tel:a.tel||normPhone(a.telRaw)||'' }));
+    /* Los RENOMBRADOS NO van al puente: si mandáramos el nombre nuevo, se
+       agregaría una fila nueva en la planilla → ID nuevo → alumno DUPLICADO en
+       el padrón (así se generaban Camilo/Camilo Contreras). La ficha ya se
+       renombró en su lugar en padron_v1 (por ID); el resto de sus datos llega a
+       la planilla por el puente inverso (que empareja por ID). */
+    const payload=dirty.filter(a=>!a._nombreAnterior).map(a=>({ nombre:a.nombre, cat:a.cat||'', lado:a.lado||'', tipo:a.tipo||'', precio:gsTxt(a.precio), coment:a.comentarios||'', nomHor:a.nomHor||'', nomWpp:a.nomWpp||'', tel:a.tel||normPhone(a.telRaw)||'' }));
     try{
-      await enviarAlPuente('alumnos', {alumnos:payload});
-      dirty.forEach(a=>a._dirty=false); save(); render();
+      if(payload.length) await enviarAlPuente('alumnos', {alumnos:payload});
+      dirty.forEach(a=>{ a._dirty=false; a._nombreAnterior=''; }); save(); render();
       if(silent) toast('☁️ Guardado en la planilla'); else alert('✅ Guardado en la planilla ('+dirty.length+' alumno/s).');
     }catch(e){ if(silent) toast('⚠️ Quedó sin guardar — reintentá'); else alert('No pude guardar:\n\n'+e.message); }
     return;
@@ -959,9 +976,12 @@ async function guardarEnPlanilla(silent){
     dirty.forEach(a=>{
       const cat=a.cat||'', lado=a.lado||'', tipo=a.tipo||'', precio=gsTxt(a.precio),
             coment=a.comentarios||'', nomHor=a.nomHor||'', nomWpp=a.nomWpp||'', tel=a.tel||normPhone(a.telRaw)||'';
-      let row=rowDe[normName(a.nombre)];
+      /* RENOMBRE: buscar la fila por el nombre ANTERIOR y renombrar AHÍ (col B),
+         en vez de agregar una fila nueva (que duplicaría al alumno). */
+      let row = a._nombreAnterior ? rowDe[normName(a._nombreAnterior)] : rowDe[normName(a.nombre)];
       if(row){
-        updates.push({range:SHEET_TAB+'!C'+row+':D'+row, values:[[cat,lado]]});      // no toca el nombre (B)
+        if(a._nombreAnterior) updates.push({range:SHEET_TAB+'!B'+row+':D'+row, values:[[a.nombre,cat,lado]]}); // renombra la fila existente
+        else updates.push({range:SHEET_TAB+'!C'+row+':D'+row, values:[[cat,lado]]});                            // no toca el nombre (B)
         upd++;
       } else {
         row=nextRow++;                                                                // fila nueva al final
@@ -971,7 +991,7 @@ async function guardarEnPlanilla(silent){
       updates.push({range:SHEET_TAB+'!F'+row+':K'+row, values:[[tipo,precio,coment,nomHor,nomWpp,tel]]}); // deja E (profesor) intacto
     });
     if(updates.length){ if(!silent) toast('Guardando…'); await sheetsBatchUpdate(updates); }
-    dirty.forEach(a=>a._dirty=false); save(); render();
+    dirty.forEach(a=>{ a._dirty=false; a._nombreAnterior=''; }); save(); render();
     if(silent) toast('☁️ Guardado en la planilla'); else alert('✅ Guardado en la planilla.\n\nActualizados: '+upd+'\nNuevos agregados (al final): '+nuevos);
   }catch(e){
     if(silent) toast('⚠️ Quedó sin guardar en la nube — tocá ☁️ Guardar'); else alert('No pude guardar.\n\n'+e.message+'\n\nRevisá: abrí la app desde GitHub Pages (https), autorizá con tu cuenta de Google, y que esa cuenta tenga permiso de edición en la planilla.');
