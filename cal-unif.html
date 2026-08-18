@@ -984,13 +984,24 @@ function propagarMadreASemana(){
 
     const enSemana = state.semana.alumnos[k];
 
-    /* ¿Es un MOVIMIENTO disfrazado de alta? Si en la semana ese alumno ya aparece
-       tantas veces ese día como en la MADRE, no falta agregarlo: cambió de lugar.
-       Agregarlo acá lo dejaría DOS VECES (una en el lugar viejo y otra en el
-       nuevo). Los movimientos se aplican de a uno desde el panel, con revisión.
-       No se marca en madreSync a propósito: así sigue detectándose. */
+    /* ¿Es un MOVIMIENTO dentro de la MADRE, o un ALTA nueva?
+       El candado viejo comparaba contra la SEMANA: si el alumno ya aparecía ese
+       día en la semana editable (por lo que sea —otra clase, sobra de la semana
+       anterior, carga a mano—), creía que era un movimiento y NO lo bajaba. Así se
+       tragaba altas legítimas en silencio: escribías un nombre en la MADRE y nunca
+       aparecía en la editable.
+       Ahora se compara la MADRE consigo misma: si la cantidad de veces que el
+       alumno figura ese día en la MADRE AUMENTÓ respecto del cuaderno (syncPrevio),
+       es un ALTA real y baja. Si quedó igual pero cambió de casillero, es un
+       MOVIMIENTO y no se agrega (así no queda en dos lugares). No se marca en
+       madreSync a propósito: así el movimiento se sigue detectando. */
     const _dia = k.split('|')[0];
-    if(_vecesEnDia(state.semana, _dia, al.nombre) >= _vecesEnDia(state.madre, _dia, al.nombre)) return;
+    const _nn = normName(al.nombre);
+    let _antesEnMadre = 0;
+    Object.keys(syncPrevio).forEach(kk=>{
+      if(kk.indexOf(_dia+'|')===0 && normName(syncPrevio[kk])===_nn) _antesEnMadre++;
+    });
+    if(_vecesEnDia(state.madre, _dia, al.nombre) <= _antesEnMadre) return;
 
     if(!enSemana || !enSemana.nombre){                // celda libre: baja
       state.semana.alumnos[k] = JSON.parse(JSON.stringify(al));
@@ -1042,35 +1053,63 @@ function propagarMadreASemana(){
   window._madreSobreTumba = sobreTumba;
 
   /* ---------- LO QUE SE SACÓ DE LA MADRE ----------
-     Si un alumno se da de baja, sacarlo de la MADRE tiene que sacarlo también
-     de la semana en curso. Antes no pasaba: quedaba en la semana hasta el lunes
-     siguiente, el profe lo seguía viendo en la tablet y le llegaba el WhatsApp.
+     Si sacás a alguien de la MADRE, tiene que salir también de la semana en curso.
+     Antes no pasaba: quedaba en la semana hasta el lunes siguiente, el profe lo
+     seguía viendo en la tablet y le llegaba el WhatsApp.
 
-     La condición es que la persona haya desaparecido de TODA la MADRE, no de un
-     casillero. Si solo cambió de lugar dentro de la MADRE, no es una baja: es un
-     movimiento, y de eso se encarga la parte de arriba. Con este criterio no hay
-     forma de que un cambio de horario borre a nadie por error.
+     El criterio viejo era TODO-o-NADA: solo sacaba a la persona si desaparecía de
+     TODA la MADRE. Así, si tenía dos clases el mismo día y le borrabas una, como
+     todavía le quedaba la otra, no sacaba ninguna: la clase borrada seguía viva.
 
-     Cuando sí es una baja, se saca de todos sus casilleros de la semana: si dejó
-     la academia, no tiene que quedar en ninguno. */
-  const vivosEnMadre = {};
-  Object.keys(M).forEach(k=>{ if(M[k] && M[k].nombre) vivosEnMadre[normName(M[k].nombre)]=true; });
+     Ahora es por CANTIDAD, simétrico al alta de más arriba: si la cantidad de veces
+     que la persona figura ese día en la MADRE BAJÓ respecto del cuaderno, se saca de
+     la semana exactamente esa diferencia. Si bajó de 2 a 1, sale una; de 1 a 0, sale
+     la última. Un MOVIMIENTO no cambia la cantidad, así que nunca borra por error.
+     Al elegir cuál sacar, primero va el casillero que la MADRE acaba de vaciar; las
+     cargas hechas a mano en la semana (que el cuaderno no conoce) se respetan. */
+  const _cuenta = (obj)=>{ const m={}; Object.keys(obj).forEach(k=>{
+    const nom = obj===syncPrevio ? obj[k] : (obj[k] && obj[k].nombre);
+    if(!nom) return; const key = k.split('|')[0] + '|' + normName(nom);
+    m[key] = (m[key]||0)+1; }); return m; };
+  const antesPorDiaNom = _cuenta(syncPrevio);   // cuántas clases tenía cada (día|alumno) según el cuaderno
+  const ahoraPorDiaNom = _cuenta(M);            // cuántas tiene ahora en la MADRE
 
   const sacados = {};
+  Object.keys(antesPorDiaNom).forEach(dn=>{
+    const antes = antesPorDiaNom[dn];
+    const ahora = ahoraPorDiaNom[dn] || 0;
+    if(ahora >= antes) return;                  // no bajó (o fue movimiento): no se saca nada
+    let aSacar = antes - ahora;
+    const corte = dn.indexOf('|');
+    const dia = dn.slice(0, corte), nomNorm = dn.slice(corte+1);
+    // candidatos: casilleros de la semana ESE día con esa persona
+    const cand = Object.keys(state.semana.alumnos).filter(k2=>{
+      if(k2.indexOf(dia+'|')!==0) return false;
+      const a = state.semana.alumnos[k2];
+      return a && a.nombre && normName(a.nombre)===nomNorm;
+    });
+    // prioridad de baja: 0 = celda que la MADRE acaba de vaciar; 1 = otra sin respaldo
+    // (carga a mano); 2 = todavía respaldada por la MADRE (no tocar salvo obligación)
+    const prio = (k2)=>{
+      const enSync    = syncPrevio[k2] && normName(syncPrevio[k2])===nomNorm;
+      const enMadreHoy = M[k2] && M[k2].nombre && normName(M[k2].nombre)===nomNorm;
+      if(enSync && !enMadreHoy) return 0;
+      if(!enMadreHoy) return 1;
+      return 2;
+    };
+    cand.sort((a,b)=>prio(a)-prio(b));
+    for(let i=0; i<cand.length && aSacar>0; i++){
+      const nombreReal = state.semana.alumnos[cand[i]].nombre;
+      delete state.semana.alumnos[cand[i]];      // el borrado deja lápida al guardarse
+      sacados[nombreReal] = (sacados[nombreReal]||0)+1;
+      aSacar--;
+    }
+  });
+
+  // El cuaderno se pone al día: se saca la celda que ya no tiene a esa persona
   Object.keys(syncPrevio).forEach(k=>{
     const nombreViejo = syncPrevio[k];
-    const siguePorAhi = vivosEnMadre[normName(nombreViejo)];
     const sigueAcá = M[k] && M[k].nombre && normName(M[k].nombre)===normName(nombreViejo);
-
-    if(!siguePorAhi){
-      Object.keys(state.semana.alumnos).forEach(k2=>{
-        const a = state.semana.alumnos[k2];
-        if(a && a.nombre && normName(a.nombre)===normName(nombreViejo)){
-          delete state.semana.alumnos[k2];      // el borrado deja lápida al guardarse
-          sacados[nombreViejo] = (sacados[nombreViejo]||0)+1;
-        }
-      });
-    }
     if(!sigueAcá && state.madreSync[k]===nombreViejo) delete state.madreSync[k];
   });
   window._madreSacados = Object.keys(sacados).map(n=>{
