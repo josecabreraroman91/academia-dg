@@ -940,6 +940,15 @@ function pintarConflictos(){
   });
 }
 
+/* Cargar a alguien de la MADRE en una franja BLOQUEADA de la semana (profe
+   marcado como "no disponible") la REABRE: se quita el candado para que el
+   alumno se vea, en vez de quedar tapado y de fantasma. Decisión de José (18/08). */
+function _reabrirFranjaSiBloqueada(libro, k){
+  const franja = k.split('|').slice(0,4).join('|');   // dia|sede|pi|hi (sin el slot)
+  const B = state[libro];
+  if(B && B.libres && B.libres[franja]) delete B.libres[franja];
+}
+
 function propagarMadreASemana(){
   const M = state.madre && state.madre.alumnos;
   if(!M || !state.semana || !state.semana.alumnos) return 0;
@@ -1005,6 +1014,7 @@ function propagarMadreASemana(){
     if(_vecesEnDia(state.madre, _dia, al.nombre) <= _antesEnMadre) return;
 
     if(!enSemana || !enSemana.nombre){                // celda libre: baja
+      _reabrirFranjaSiBloqueada('semana', k);         // si estaba bloqueada, se abre para mostrar al alumno
       state.semana.alumnos[k] = JSON.parse(JSON.stringify(al));
       /* La lápida se levanta acá también, no solo al guardar: si no, la celda
          sigue marcada como vaciada mientras dure esta pantalla. */
@@ -1037,6 +1047,7 @@ function propagarMadreASemana(){
         const oc = state.semana.alumnos[k2];
         if(_hayTumba('semana', k2)) continue;   // ese casillero se vació a propósito
         if(!oc || !oc.nombre){
+          _reabrirFranjaSiBloqueada('semana', k2);    // idem: reabre la franja si estaba bloqueada
           state.semana.alumnos[k2] = JSON.parse(JSON.stringify(al));
           bajaron++;
           state.madreSync[k] = al.nombre;
