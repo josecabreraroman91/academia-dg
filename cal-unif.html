@@ -618,6 +618,7 @@
       <div id="metaAviso" style="font-size:12px;color:#12283f;margin-bottom:8px"></div>
       <div id="metaLista" style="max-height:40vh;overflow-y:auto;border:1px solid #cfe0f5;border-radius:8px;background:#fff"></div>
       <button class="btn" id="metaEnviar" style="margin-top:10px;width:100%;background:#12283f;border-color:#2f81f7;color:#fff;font-weight:800;font-size:14px;padding:10px">📨 Enviar todos por Meta</button>
+      <button class="btn" id="metaVerEntregas" style="margin-top:6px;width:100%;font-size:13px;padding:8px">🔎 Ver quién NO recibió (revisá 1–2 min después de enviar)</button>
     </div>
 
     <div style="font-size:12px;color:var(--muted);margin:4px 0 8px;font-weight:700">📲 Envío por WhatsApp Web (con la barra espaciadora):</div>
@@ -4996,7 +4997,42 @@ async function enviarPorMeta(){
     if(btn){ btn.disabled=false; btn.textContent=txtViejo; }
   }
 }
+/* Trae del servidor el reporte real de entregas del día: a quién NO le llegó
+   (falló, con motivo) y a quién Meta aceptó pero no confirmó entrega. Los avisos
+   de Meta tardan unos segundos, por eso conviene mirarlo 1–2 min después. */
+async function verEntregasMeta(){
+  const clave = prompt('Contraseña del agente para ver quién recibió:');
+  if(!clave) return;
+  const btn = document.getElementById('metaVerEntregas');
+  const txt = btn ? btn.textContent : '';
+  if(btn){ btn.disabled=true; btn.textContent='🔎 Consultando...'; }
+  try{
+    const r = await fetch(SERVIDOR_AGENTE+'/entregas?clave='+encodeURIComponent(clave));
+    const d = await r.json().catch(()=>({}));
+    if(r.status===401){ alert('Contraseña incorrecta.'); return; }
+    if(!r.ok || !d.ok){ alert('No se pudo traer el reporte: '+((d&&d.error)||('error '+r.status))); return; }
+
+    const noLlego = d.noLlego||[], sinConf = d.sinConfirmar||[];
+    let msg = '📊 Entregas de hoy\n\n✅ Llegaron: '+(d.llegaron||0)+'\nTotal enviados: '+(d.total||0);
+    if(noLlego.length){
+      msg += '\n\n❌ NO les llegó ('+noLlego.length+'):\n'+
+        noLlego.map(x=>'· '+x.nombre+(x.tel?(' ['+x.tel+']'):'')+' — '+x.motivo).join('\n');
+    }
+    if(sinConf.length){
+      msg += '\n\n⏳ Sin confirmación de entrega ('+sinConf.length+'):\n'+
+        sinConf.map(x=>'· '+x.nombre+(x.tel?(' ['+x.tel+']'):'')).join('\n')+
+        '\n\n(Si recién enviaste, esperá 1–2 min y volvé a mirar: Meta confirma de a poco.)';
+    }
+    if(!noLlego.length && !sinConf.length) msg += '\n\n🎉 A todos les llegó.';
+    alert(msg);
+  }catch(e){
+    alert('No pude hablar con el servidor: '+e.message+'\n\nRevisá que Railway esté prendido.');
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent=txt; }
+  }
+}
 { const _b=document.getElementById('metaEnviar'); if(_b) _b.onclick=enviarPorMeta; }
+{ const _v=document.getElementById('metaVerEntregas'); if(_v) _v.onclick=verEntregasMeta; }
 { const _t=document.getElementById('metaTpl'); if(_t) _t.onchange=renderMetaLista; }
 document.getElementById('btnResumen').onclick=toggleResumen;
 document.getElementById('btnCloseTel').onclick=closeTel;
