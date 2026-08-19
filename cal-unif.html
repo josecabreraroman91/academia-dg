@@ -331,7 +331,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v2026-08-17b · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-19a · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -4957,6 +4957,11 @@ async function enviarPorMeta(){
   const lista = metaCola();
   if(!lista.length){ alert('No hay alumnos con teléfono para enviar este día.'); return; }
 
+  /* Alumnos del día que NO tienen número: NO entran al envío (nadie les manda),
+     y es fácil que pasen desapercibidos. Los guardamos para recordárselos en el
+     resultado, así ninguno se escapa en silencio (caso Juliana). */
+  const sinTelDia = buildEnvioList().filter(c=>c.sedeKey!=='adefinir' && !phoneOk(c.tel));
+
   // La plantilla se manda al servidor; para sábado solo importa el nombre.
   const alumnos = lista.map(a=>({
     nombre: a.nombre,
@@ -4995,7 +5000,17 @@ async function enviarPorMeta(){
     let msg = '📨 Envío por Meta terminado.\n\n'+
               '✅ Salieron bien: '+d.bien+'\n'+
               '❌ Fallaron: '+(d.mal||0)+'\n'+
+              (d.saltados ? '⏭️ Ya estaban enviados hoy (no los repetí): '+d.saltados+'\n' : '')+
               'Total: '+d.total;
+    if(d.saltados && d.saltadosLista && d.saltadosLista.length){
+      msg += '\n\nNo repetidos (ya tenían su confirmación de hoy):\n'+
+             d.saltadosLista.slice(0,15).map(n=>'· '+n).join('\n');
+    }
+    if(sinTelDia.length){
+      msg += '\n\n⚠️ OJO: '+sinTelDia.length+' quedaron SIN número (no se les mandó nada). Buscales el teléfono:\n'+
+             sinTelDia.slice(0,15).map(c=>'· '+c.nombre).join('\n')+
+             (sinTelDia.length>15?'\n…':'');
+    }
     if(d.mal && d.resultados){
       const fallidos = d.resultados.filter(x=>!x.ok).slice(0,15)
         .map(x=>'· '+x.nombre+' ('+(x.error||'sin motivo')+')').join('\n');
