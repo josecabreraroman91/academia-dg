@@ -438,7 +438,9 @@ function pintarDias(){
   var hoy=hoyDiaIdx();
   $('dias').innerHTML = DAYS.map(function(d,i){
     var f=masDias(lunes,i);
-    var pasado = hoy>=0 && i<hoy;
+    /* En la MADRE (plantilla de todas las semanas) NO hay "días pasados": se
+       pueden ver y agendar todos. El bloqueo por fecha es solo para la SEMANA. */
+    var pasado = (libroSel!=='madre') && hoy>=0 && i<hoy;
     return '<button data-d="'+d+'"'+(pasado?' disabled':'')+
            (d===diaSel?' class="on"':'')+'>'+d.slice(0,3)+
            '<b>'+ddmm(f)+'</b></button>';
@@ -542,7 +544,7 @@ Array.prototype.forEach.call(document.querySelectorAll('.libros button[data-l]')
     });
     document.body.classList.toggle('enMadre', libroSel==='madre');
     escucharReservas();
-    if(cal) pintar();
+    if(cal){ pintarDias(); pintar(); }   // re-dibuja los días: en MADRE se habilitan todos
   };
 });
 
