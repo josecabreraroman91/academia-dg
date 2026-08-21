@@ -302,6 +302,14 @@
 /* Si además está confirmado, manda el verde y el celeste queda en el borde */
 .slot.confirmado.coach{background:#b9e3c6 !important;border-left:3px solid #2ba6e0}
 .slot.confirmado.coach .nm{color:#1d5a34}
+/* ATENCIÓN (morado): marca NUESTRA, solo la pone una persona — el agente nunca.
+   Es un MARCO que va ENCIMA de cualquier otro estado (verde, celeste o normal),
+   así se ve sin tapar la información que ya tenía la celda. Es solo visual: no
+   saca al alumno de los envíos. Se replica en todas sus clases del libro. */
+.slot.atencion{outline:3px solid #9333ea;outline-offset:-3px;border-radius:6px}
+/* Si no tiene otro estado encima, además se tiñe de morado claro */
+.slot.atencion:not(.confirmado):not(.revisar):not(.coach){background:#f0dcff !important}
+.slot.atencion:not(.confirmado):not(.revisar):not(.coach) .nm{color:#5b21b6}
 .dropdown-menu .btn{width:100%;text-align:left}
   #panelAR{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
   .arTit{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;
@@ -460,6 +468,10 @@
     <div class="field" id="fieldRevisar">
       <label>Recordatorio personal (solo vos, en este dispositivo)</label>
       <button class="btn" id="btnRevisar" style="width:100%;background:#e3f4ff;border-color:#7fc3e8;color:#08557d;font-weight:700">⭐ Marcar para revisar</button>
+    </div>
+    <div class="field" id="fieldAtencion">
+      <label>Atención (lo ven todos los dispositivos)</label>
+      <button class="btn" id="btnAtencion" style="width:100%;background:#f3e4ff;border-color:#c89bf0;color:#5b21b6;font-weight:700">🟣 Marcar atención</button>
     </div>
     <div class="sheet-actions">
       <button class="btn danger" id="btnDelete">Borrar</button>
@@ -1356,6 +1368,25 @@ function quitarRevisarTodasLasClases(nombre){
       if(al.revisar){ delete al.revisar; c++; }
       try{ resolverPedidosDeCelda(al, k, 'Revisado a mano en el calendario'); }catch(e){}
     }
+  });
+  return c;
+}
+
+/* ---------- ATENCIÓN (morado) ----------
+   Marca NUESTRA: la pone una persona, el agente NUNCA la toca. Va encima de
+   cualquier otro estado y se replica en TODAS las clases del alumno del libro
+   donde se marca, para que salte a la vista en cualquier día. Vive dentro del
+   alumno (`al.atencion`), así que viaja sola a la nube y a los demás
+   dispositivos con el resto del calendario. Es solo visual: NO saca al alumno
+   de los envíos. */
+function atencionTodasLasClases(nombre, B, poner){
+  B = B || book(); if(!B || !B.alumnos) return 0;
+  const n = normName(nombre); let c = 0;
+  Object.keys(B.alumnos).forEach(k=>{
+    const al = B.alumnos[k];
+    if(!al || !al.nombre || normName(al.nombre) !== n) return;
+    if(poner){ if(!al.atencion){ al.atencion = true; c++; } }
+    else     { if(al.atencion){ delete al.atencion; c++; } }
   });
   return c;
 }
@@ -2963,10 +2994,11 @@ function _renderGridReal(){
             if(al.mod==='BLOQUE' && Number(al.dur)===30) tags.push(`<span class="tag">30min</span>`);
             const conf = state.mode==='semana' && al.confirmado;
             const marcado = !!al.revisar;   // el estado se lee del ALUMNO, nunca de la celda
+            const atencion = !!al.atencion; // marca morada nuestra (va encima de todo)
             const esCoach = String(al.mod||'').toUpperCase()==='COACH';
             const checkBtn = state.mode==='semana'
               ? `<button class="check-btn" data-check="${c.sk}|${c.pi}|${hi}|${si}" title="${conf?'Confirmado':'Marcar asistencia'}">✓</button>` : '';
-            html+=`<div class="slot${conf?' confirmado':''}${marcado?' revisar':''}${esCoach?' coach':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
+            html+=`<div class="slot${conf?' confirmado':''}${marcado?' revisar':''}${esCoach?' coach':''}${atencion?' atencion':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
               <div class="nm">${esc(al.nombre)}</div>
               ${tags.length?`<div class="tags">${tags.join('')}</div>`:''}
               ${al.nota?`<div class="nota">${esc(al.nota)}</div>`:''}
@@ -3256,6 +3288,26 @@ function actualizarBtnRevisar(sk,pi,hi,si){
   const b=document.getElementById('btnRevisar'); if(!b) return;
   if(estaMarcado(sk,pi,hi,si)){ b.textContent='✖️ Quitar marca de revisar'; b.style.background='#bfe9ff'; }
   else { b.textContent='⭐ Marcar para revisar'; b.style.background='#e3f4ff'; }
+  actualizarBtnAtencion(sk,pi,hi,si);
+}
+function tieneAtencion(sk,pi,hi,si){
+  const al=book().alumnos[cellKey(sk,pi,hi,si)];
+  return !!(al && al.atencion);
+}
+function actualizarBtnAtencion(sk,pi,hi,si){
+  const b=document.getElementById('btnAtencion'); if(!b) return;
+  if(tieneAtencion(sk,pi,hi,si)){ b.textContent='✖️ Quitar atención'; b.style.background='#e2c4fb'; }
+  else { b.textContent='🟣 Marcar atención'; b.style.background='#f3e4ff'; }
+}
+function toggleAtencion(){
+  if(!editingCell) return;
+  const [sk,pi,hi,si]=editingCell.split('|');
+  const B=book();
+  const al=B.alumnos[cellKey(sk,+pi,+hi,+si)];
+  if(!al) return;                       // sin alumno no hay nada que marcar
+  atencionTodasLasClases(al.nombre, B, !al.atencion);
+  actualizarBtnAtencion(sk,+pi,+hi,+si);
+  saveState(); renderGrid();            // saveState publica a los demás dispositivos
 }
 function saveEditor(){
   if(!editingCell) return;
@@ -3279,6 +3331,7 @@ function saveEditor(){
     if(mismaPersona){
       if(previo.confirmado) nuevo.confirmado=true;
       if(previo.revisar)    nuevo.revisar=true;
+      if(previo.atencion)   nuevo.atencion=true;   // la marca morada no se pierde al editar
     }
     /* Si la celda era un BLOQUE y el nombre no cambió, sigue siendo un bloque:
        se conservan su marca, su duración y la lista de alumnos que tiene adentro.
@@ -4841,6 +4894,7 @@ document.getElementById('btnAltoRend30').onclick=()=>guardarBloque('ALTO RENDIMI
 document.getElementById('arAdd').onclick=agregarAlumnoAR;
 document.getElementById('arNombre').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); agregarAlumnoAR(); } });
 document.getElementById('btnRevisar').onclick=toggleRevisar;
+document.getElementById('btnAtencion').onclick=toggleAtencion;
 document.getElementById('btnAlmuerzo').onclick=()=>guardarBloque('ALMUERZO');
 document.getElementById('btnBloquear').onclick=guardarBloqueado;
 document.getElementById('btnCancel').onclick=closeEditor;
