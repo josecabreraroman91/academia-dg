@@ -339,7 +339,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v2026-08-19a · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-23a · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -2170,6 +2170,23 @@ function avanzarSemana(){
      semana pasada figuraría como "ya resuelto" y no volvería a bajar nunca. */
   state.madreSync = null;
   try{ propagarMadreASemana(); }catch(e){}
+
+  /* Conservar el CELESTE (para revisar) al avanzar de semana. La semana nueva
+     arranca limpia de la MADRE, pero un alumno marcado "para revisar" sigue
+     estando pendiente la semana que viene: se re-pinta en celeste en TODAS sus
+     clases de la semana nueva, por nombre. SOLO el celeste (pedido de José 23/08);
+     el verde/confirmado arranca limpio como siempre. */
+  try{
+    var _pendCeleste = {};
+    var _semAnt = state.semanaAnterior;
+    if(_semAnt && _semAnt.alumnos){
+      Object.keys(_semAnt.alumnos).forEach(function(k){
+        var al = _semAnt.alumnos[k];
+        if(al && al.nombre && al.revisar) _pendCeleste[normName(al.nombre)] = al.nombre;
+      });
+    }
+    Object.keys(_pendCeleste).forEach(function(n){ celesteTodasLasClases(_pendCeleste[n], state.semana); });
+  }catch(e){}
 
   /* Las reservas de los profes son de LA SEMANA QUE PASÓ y se quedan ahí: la
      semana nueva arranca de cero. Sin esto quedaban en memoria apuntando al
