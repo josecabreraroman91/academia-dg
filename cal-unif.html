@@ -1352,9 +1352,13 @@ function celdaDeAnotacion(a){
    mano o al marcarlo PRESENTE. `al.revisar` (lo que ya leen el render, los envíos y el
    sync) se DERIVA de la vigilancia con sincronizarRevisarConWatch(). */
 function estaVigilado(nombre){ const k=normName(nombre); return !!(k && state.watch && state.watch[k]); }
-function _librosTodos(){ return [state.madre, state.semana, state.semanaProxima, state.semanaAnterior]; }
+/* LA MADRE NO SE TOCA. La vigilancia trabaja SOLO sobre las semanas: la MADRE es
+   la planilla de los días fijos y no lleva colores de seguimiento. Ni se le escribe
+   la marca, ni se la pinta, ni se saca de ella la lista de vigilados. */
+function _librosVigilancia(){ return [state.semana, state.semanaProxima, state.semanaAnterior]; }
+function enMadre(){ return state.mode==='madre'; }
 function sincronizarRevisarConWatch(){
-  _librosTodos().forEach(B=>{
+  _librosVigilancia().forEach(B=>{
     if(!B || !B.alumnos) return;
     Object.keys(B.alumnos).forEach(k=>{
       const al = B.alumnos[k]; if(!al || !al.nombre) return;
@@ -1369,7 +1373,7 @@ function sincronizarRevisarConWatch(){
    para que ninguna marca cargada se pierda al pasar al modelo por persona. */
 function sembrarWatchDesdeAlumnos(){
   if(!state.watch) state.watch={};
-  _librosTodos().forEach(B=>{
+  _librosVigilancia().forEach(B=>{
     if(!B || !B.alumnos) return;
     Object.values(B.alumnos).forEach(al=>{
       if(al && al.nombre && al.revisar){ const k=normName(al.nombre); if(k && !state.watch[k]) state.watch[k]=_ahora(); }
@@ -3058,7 +3062,8 @@ function _renderGridReal(){
                grilla, dos bloques a la misma hora se ven idénticos. */
             if(al.mod==='BLOQUE' && Number(al.dur)===30) tags.push(`<span class="tag">30min</span>`);
             const conf = state.mode==='semana' && al.confirmado;
-            const marcado = !!al.revisar || estaVigilado(al.nombre);   // azul = vigilancia de la persona (no de la celda)
+            // azul = vigilancia de la persona (no de la celda). En la MADRE no se pinta: no lleva seguimiento.
+            const marcado = enMadre() ? !!al.revisar : (!!al.revisar || estaVigilado(al.nombre));
             const atencion = !!al.atencion; // marca morada nuestra (va encima de todo)
             const esCoach = String(al.mod||'').toUpperCase()==='COACH';
             const checkBtn = state.mode==='semana'
@@ -3290,7 +3295,8 @@ try{ _revisar=JSON.parse(localStorage.getItem('cal_dg_revisar')||'{}')||{}; }cat
 function markKeyDe(sk,pi,hi,si){ return `${state.mode}|${state.semActiva}|${state.dia}|${sk}|${pi}|${hi}|${si}`; }
 function estaMarcado(sk,pi,hi,si){
   const al=book().alumnos[cellKey(sk,pi,hi,si)];
-  return !!(al && (al.revisar || estaVigilado(al.nombre)));
+  if(!al) return false;
+  return enMadre() ? !!al.revisar : !!(al.revisar || estaVigilado(al.nombre));
 }
 // Reconstruye el mapa viejo a partir de los alumnos (para localStorage y dispositivos con la versión anterior)
 function _librosMarcas(){
@@ -3332,10 +3338,18 @@ function toggleRevisar(){
   const B=book();
   const al=B.alumnos[k];
   if(!al || !al.nombre) return;        // sin alumno no hay estado que marcar
+  /* En la MADRE la vigilancia NO participa: se marca/desmarca esa sola celda, como
+     siempre, y no entra nadie a state.watch. La MADRE no lleva seguimiento. */
+  if(enMadre()){
+    if(al.revisar) delete al.revisar; else al.revisar = true;
+    guardarRevisar();
+    actualizarBtnRevisar(sk,+pi,+hi,+si);
+    saveState(); renderGrid();
+    return;
+  }
   /* El azul es una VIGILANCIA sobre la PERSONA: al marcar/desmarcar entra o sale de
      state.watch y queda igual en todos sus días (semana + próximas), y sobrevive a
-     borrar/reescribir el nombre o a resetear desde la MADRE. Solo se saca a mano
-     (acá) o al marcar PRESENTE. */
+     borrar/reescribir el nombre. Solo se saca a mano (acá) o al marcar PRESENTE. */
   if(estaVigilado(al.nombre) || al.revisar){
     quitarRevisarTodasLasClases(al.nombre);   // DESMARCAR: sale de la vigilancia + resuelve pedidos del agente
   } else {
@@ -3395,8 +3409,10 @@ function saveEditor(){
     }
     /* El azul "para revisar" es una VIGILANCIA de la persona: si el nombre está en
        state.watch, la celda vuelve azul aunque se haya borrado y reescrito, o sea un
-       alumno recién tipeado. Así no se pierde el aviso y no se lo vuelve a molestar. */
-    if(estaVigilado(nombre)) nuevo.revisar=true;
+       alumno recién tipeado. Así no se pierde el aviso y no se lo vuelve a molestar.
+       En la MADRE no aplica: solo se conserva su propia marca si la tenía. */
+    if(enMadre()){ if(mismaPersona && previo.revisar) nuevo.revisar=true; }
+    else if(estaVigilado(nombre)) nuevo.revisar=true;
     /* Si la celda era un BLOQUE y el nombre no cambió, sigue siendo un bloque:
        se conservan su marca, su duración y la lista de alumnos que tiene adentro.
        Sin esto, apretar "Guardar" lo convertía en un alumno normal y borraba todo. */
