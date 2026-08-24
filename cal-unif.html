@@ -721,7 +721,8 @@ let state = {
   cc: '595',              // código de país
   enviados: {},           // { 'dd/mm/yyyy': { sesion_id: true } }
   colNombre: '',          // header elegido para nombre (resiliencia ante cambios)
-  colTel: ''              // header elegido para teléfono
+  colTel: '',             // header elegido para teléfono
+  watch: {}               // VIGILANCIA por persona: normName(nombre) -> ts. Fuente de verdad del azul "para revisar" (al.revisar se deriva de acá).
 };
 
 function book(){
@@ -1344,13 +1345,48 @@ function celdaDeAnotacion(a){
    así que es seguro aunque la fecha sea aproximada. Por defecto trabaja sobre la
    semana editable; se le puede pasar otro libro (ej. la semana próxima, cuando el
    pedido del agente es para dentro de 7+ días). */
+/* ===== VIGILANCIA POR PERSONA (azul "para revisar") =====
+   El azul es un CONTROL sobre la persona, no sobre la celda: "ojo con este alumno,
+   revisar antes de enviarle". Vive en state.watch (normName -> ts) y NO se pierde al
+   borrar/reescribir el nombre ni al resetear la semana desde la MADRE. Solo se saca a
+   mano o al marcarlo PRESENTE. `al.revisar` (lo que ya leen el render, los envíos y el
+   sync) se DERIVA de la vigilancia con sincronizarRevisarConWatch(). */
+function estaVigilado(nombre){ const k=normName(nombre); return !!(k && state.watch && state.watch[k]); }
+function _librosTodos(){ return [state.madre, state.semana, state.semanaProxima, state.semanaAnterior]; }
+function sincronizarRevisarConWatch(){
+  _librosTodos().forEach(B=>{
+    if(!B || !B.alumnos) return;
+    Object.keys(B.alumnos).forEach(k=>{
+      const al = B.alumnos[k]; if(!al || !al.nombre) return;
+      const debe = estaVigilado(al.nombre);
+      if(debe){ if(!al.revisar) al.revisar = true; }
+      else if(al.revisar){ delete al.revisar; }
+    });
+  });
+}
+/* Siembra la vigilancia a partir de las marcas al.revisar ya existentes. Se usa una
+   vez, al migrar (arranque local o publicación de un dispositivo con la versión vieja),
+   para que ninguna marca cargada se pierda al pasar al modelo por persona. */
+function sembrarWatchDesdeAlumnos(){
+  if(!state.watch) state.watch={};
+  _librosTodos().forEach(B=>{
+    if(!B || !B.alumnos) return;
+    Object.values(B.alumnos).forEach(al=>{
+      if(al && al.nombre && al.revisar){ const k=normName(al.nombre); if(k && !state.watch[k]) state.watch[k]=_ahora(); }
+    });
+  });
+}
+
 function celesteTodasLasClases(nombre, B){
-  B = B || state.semana; if(!B || !B.alumnos) return 0;
-  const n = normName(nombre); let c = 0;
-  Object.keys(B.alumnos).forEach(k=>{
+  const n = normName(nombre); if(!n) return 0;
+  if(!state.watch) state.watch={};
+  state.watch[n] = state.watch[n] || _ahora();       // entra a la vigilancia (persona)
+  B = B || state.semana; let c = 0;
+  if(B && B.alumnos) Object.keys(B.alumnos).forEach(k=>{
     const al = B.alumnos[k];
     if(al && al.nombre && normName(al.nombre) === n && !al.revisar){ al.revisar = true; c++; }
   });
+  try{ sincronizarRevisarConWatch(); }catch(e){}      // y queda azul en toda la semana y próximas
   return c;
 }
 
@@ -1360,15 +1396,17 @@ function celesteTodasLasClases(nombre, B){
    siguiente sincronización (por eso hoy no se puede desmarcar a mano un celeste
    que dejó el agente). Un pedido de OTRO alumno o de otra celda no se toca. */
 function quitarRevisarTodasLasClases(nombre){
-  const B = state.semana; if(!B || !B.alumnos) return 0;
-  const n = normName(nombre); let c = 0;
-  Object.keys(B.alumnos).forEach(k=>{
+  const n = normName(nombre); if(!n) return 0;
+  if(state.watch) delete state.watch[n];             // sale de la vigilancia (persona)
+  const B = state.semana; let c = 0;
+  if(B && B.alumnos) Object.keys(B.alumnos).forEach(k=>{
     const al = B.alumnos[k];
     if(al && al.nombre && normName(al.nombre) === n){
       if(al.revisar){ delete al.revisar; c++; }
       try{ resolverPedidosDeCelda(al, k, 'Revisado a mano en el calendario'); }catch(e){}
     }
   });
+  try{ sincronizarRevisarConWatch(); }catch(e){}      // limpia el azul en madre / próximas también
   return c;
 }
 
@@ -2204,6 +2242,7 @@ function avanzarSemana(){
   }catch(e){ console.warn('reservas al avanzar:', e.message); }
 
   state.semActiva='actual';
+  try{ sincronizarRevisarConWatch(); }catch(e){}   // la vigilancia por persona sigue en la semana nueva
   saveState(); renderAll();
   alert('✅ Semana avanzada. Ahora "esta semana" arranca el lunes '+ddmm(isoMas(state.lunesActual,0))+
         ' y es una copia de la MADRE.');
@@ -2225,6 +2264,7 @@ function loadState(){
       if(!state.enviados) state.enviados = {};
       if(state.colNombre===undefined) state.colNombre = '';
       if(state.colTel===undefined) state.colTel = '';
+      if(!state.watch || typeof state.watch!=='object') state.watch = {};   // vigilancia por persona (azul persistente)
       // Migración: actualizar nombres de sede a los definitivos (por key)
       const NOMBRES_SEDE={lomas:'LOMAS PADEL', elite:'ELITE PADEL', segurola:'SEGUROLA Y HABANA PADEL', adefinir:'A DEFINIR'};
       let cambio=false;
@@ -2369,6 +2409,7 @@ function _fotoCalendario(){
     lunesActual: state.lunesActual || '',
     madreSync: copia(state.madreSync || {}),
     revisar: { marks: _derivarMarcas(), upd: _ahora(), enAlumno: true },
+    watch: copia(state.watch || {}),   // vigilancia por persona (azul persistente), viaja entera a la nube
     libros: {}, borrados: {}
   };
   LIBROS_SYNC.forEach(L=>{
@@ -2387,7 +2428,7 @@ function _diffCalendario(base, ahora){
   const upd = {};
   let celdas = 0, bajas = 0, altas = 0;
 
-  ['profesores','sedesPorDia','sedesUnif','lunesActual','madreSync','seedVersion'].forEach(campo=>{
+  ['profesores','sedesPorDia','sedesUnif','lunesActual','madreSync','seedVersion','watch'].forEach(campo=>{
     if(JSON.stringify(base[campo]) !== JSON.stringify(ahora[campo])) upd[campo] = ahora[campo];
   });
 
@@ -2533,7 +2574,7 @@ function iniciarCalendarioCompartido(){
       /* La nube está vacía: la base contra la que comparar es "no hay nada",
          así que el primer guardado sube todo el calendario. */
       _baseRemota = { seedVersion:null, profesores:[], sedesPorDia:{}, lunesActual:'',
-                      madreSync:{}, revisar:{}, libros:{}, borrados:{} };
+                      madreSync:{}, revisar:{}, watch:{}, libros:{}, borrados:{} };
       LIBROS_SYNC.forEach(L=>{ _baseRemota.libros[L]={alumnos:{},libres:{}}; _baseRemota.borrados[L]={}; });
       empujarCalendario(); _calListo=true;
       try{ asegurarContactos(); }catch(e){}   // la lista de alumnos, en cuanto hay nube
@@ -2580,6 +2621,8 @@ function iniciarCalendarioCompartido(){
     // Firebase borra objetos vacíos: rehidratar para que nunca falte la estructura
     ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{ if(state[k]){ if(!state[k].alumnos) state[k].alumnos={}; if(!state[k].libres) state[k].libres={}; } });
     if(r.lunesActual) state.lunesActual = r.lunesActual;
+    if(r.watch) state.watch = r.watch;   // vigilancia por persona: manda la nube (igual que profesores/columnas)
+    if(!state.watch || typeof state.watch!=='object') state.watch = {};
     try{ escucharReservasProfes(); }catch(e){}
     try{ escucharLibreta(); }catch(e){}
     try{ escucharColumnas(); }catch(e){}
@@ -2606,6 +2649,10 @@ function iniciarCalendarioCompartido(){
     // dentro de cada alumno y el mapa se ignora. Si publicó un dispositivo con la versión
     // anterior, se importa su mapa hacia adentro de los alumnos (una sola vez).
     if(r.revisar && !r.revisar.enAlumno){ try{ importarMarcasViejas(r.revisar.marks||{}); }catch(e){} }
+    /* Vigilancia por persona: si llegó de un dispositivo con la versión vieja (sin
+       r.watch) se siembra desde las marcas al.revisar para no perder ninguna; después
+       al.revisar se re-deriva de la vigilancia para que todo quede consistente. */
+    try{ if(!r.watch) sembrarWatchDesdeAlumnos(); sincronizarRevisarConWatch(); }catch(e){ console.warn('watch:', e.message); }
     guardarRevisar();
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
     _aplicandoRemoto = false; _calListo = true;
@@ -2778,6 +2825,7 @@ function sanearEstado(){
   ['madre','semana','semanaProxima'].forEach(L=>{
     if(!state.borrados[L] || typeof state.borrados[L]!=='object') state.borrados[L]={};
   });
+  if(!state.watch || typeof state.watch!=='object') state.watch={};   // vigilancia por persona (azul persistente)
   const DIAS=['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
   const plantilla=(d)=>JSON.parse(JSON.stringify((SEED_CAL.sedesPorDia&&SEED_CAL.sedesPorDia[d])||[]));
   const sanearMapaSedes=(mapa, quien)=>{
@@ -3010,7 +3058,7 @@ function _renderGridReal(){
                grilla, dos bloques a la misma hora se ven idénticos. */
             if(al.mod==='BLOQUE' && Number(al.dur)===30) tags.push(`<span class="tag">30min</span>`);
             const conf = state.mode==='semana' && al.confirmado;
-            const marcado = !!al.revisar;   // el estado se lee del ALUMNO, nunca de la celda
+            const marcado = !!al.revisar || estaVigilado(al.nombre);   // azul = vigilancia de la persona (no de la celda)
             const atencion = !!al.atencion; // marca morada nuestra (va encima de todo)
             const esCoach = String(al.mod||'').toUpperCase()==='COACH';
             const checkBtn = state.mode==='semana'
@@ -3099,8 +3147,9 @@ function _renderGridReal(){
       const al=book().alumnos[cellKey(sk,+pi,+hi,+si)];
       if(!al) return;
       al.confirmado = !al.confirmado;
-      // Al marcar PRESENTE, se quita sola la marca celeste "para revisar" (ya quedó resuelto)
-      if(al.confirmado && al.revisar) delete al.revisar;
+      // Al marcar PRESENTE queda resuelto: la persona sale de la vigilancia y el azul
+      // desaparece en TODOS sus días (semana + próximas), no solo en esta celda.
+      if(al.confirmado && al.nombre) quitarRevisarTodasLasClases(al.nombre);
       /* ...y se cierra el pedido del agente que tenía esa clase en celeste.
          Sin esto el verde no aguantaba: el pedido queda pendiente a propósito,
          así que autoAplicarLibreta lo volvía a aplicar en la siguiente
@@ -3241,7 +3290,7 @@ try{ _revisar=JSON.parse(localStorage.getItem('cal_dg_revisar')||'{}')||{}; }cat
 function markKeyDe(sk,pi,hi,si){ return `${state.mode}|${state.semActiva}|${state.dia}|${sk}|${pi}|${hi}|${si}`; }
 function estaMarcado(sk,pi,hi,si){
   const al=book().alumnos[cellKey(sk,pi,hi,si)];
-  return !!(al && al.revisar);
+  return !!(al && (al.revisar || estaVigilado(al.nombre)));
 }
 // Reconstruye el mapa viejo a partir de los alumnos (para localStorage y dispositivos con la versión anterior)
 function _librosMarcas(){
@@ -3282,20 +3331,15 @@ function toggleRevisar(){
   const k=cellKey(sk,+pi,+hi,+si);
   const B=book();
   const al=B.alumnos[k];
-  if(!al) return;                      // sin alumno no hay estado que marcar
-  /* Replicar/desmarcar en todas las clases y resolver pedidos solo aplica a la
-     SEMANA actual, que es donde viven los envíos y los pedidos del agente. En
-     MADRE o en otra semana se mantiene el marcado de una sola celda de siempre. */
-  const enSemanaActual = (B === state.semana);
-  if(al.revisar){
-    // DESMARCAR — sale a mano aunque lo haya dejado el agente en celeste.
-    if(enSemanaActual) quitarRevisarTodasLasClases(al.nombre);
-    else delete al.revisar;
+  if(!al || !al.nombre) return;        // sin alumno no hay estado que marcar
+  /* El azul es una VIGILANCIA sobre la PERSONA: al marcar/desmarcar entra o sale de
+     state.watch y queda igual en todos sus días (semana + próximas), y sobrevive a
+     borrar/reescribir el nombre o a resetear desde la MADRE. Solo se saca a mano
+     (acá) o al marcar PRESENTE. */
+  if(estaVigilado(al.nombre) || al.revisar){
+    quitarRevisarTodasLasClases(al.nombre);   // DESMARCAR: sale de la vigilancia + resuelve pedidos del agente
   } else {
-    // MARCAR — se replica en TODAS las clases del alumno de la semana, para que
-    // salte a la vista en cualquier día en el que aparezca.
-    al.revisar=true;
-    if(enSemanaActual) celesteTodasLasClases(al.nombre);
+    celesteTodasLasClases(al.nombre);         // MARCAR: entra a la vigilancia
   }
   guardarRevisar();
   actualizarBtnRevisar(sk,+pi,+hi,+si);
@@ -3347,9 +3391,12 @@ function saveEditor(){
     };
     if(mismaPersona){
       if(previo.confirmado) nuevo.confirmado=true;
-      if(previo.revisar)    nuevo.revisar=true;
       if(previo.atencion)   nuevo.atencion=true;   // la marca morada no se pierde al editar
     }
+    /* El azul "para revisar" es una VIGILANCIA de la persona: si el nombre está en
+       state.watch, la celda vuelve azul aunque se haya borrado y reescrito, o sea un
+       alumno recién tipeado. Así no se pierde el aviso y no se lo vuelve a molestar. */
+    if(estaVigilado(nombre)) nuevo.revisar=true;
     /* Si la celda era un BLOQUE y el nombre no cambió, sigue siendo un bloque:
        se conservan su marca, su duración y la lista de alumnos que tiene adentro.
        Sin esto, apretar "Guardar" lo convertía en un alumno normal y borraba todo. */
@@ -4023,6 +4070,7 @@ function resetSemana(){
     backupAuto('antes de resetear semana');
     const copia = JSON.parse(JSON.stringify(state.madre));
     if(prox) state.semanaProxima=copia; else state.semana=copia;
+    try{ sincronizarRevisarConWatch(); }catch(e){}   // la vigilancia por persona sobrevive al reset
     saveState();
     if(state.mode!=='semana') setMode('semana'); else renderAll();
     alert('✅ '+cual+' reseteada desde la madre.');
@@ -5491,6 +5539,10 @@ try{
   }
   guardarRevisar();
 }catch(e){ console.warn('migración de marcas:', e.message); }
+/* Vigilancia por persona: al arrancar, cualquier azul ya cargado (al.revisar) se
+   siembra en state.watch para que el aviso persista aunque se borre y reescriba el
+   nombre; después se re-deriva para dejar todo consistente. */
+try{ sembrarWatchDesdeAlumnos(); sincronizarRevisarConWatch(); guardarRevisar(); }catch(e){ console.warn('vigilancia inicial:', e.message); }
 reindexarAlumnos();
 setMode(state.mode);
 fillAlumnosDatalist();
