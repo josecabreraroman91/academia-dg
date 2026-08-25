@@ -519,11 +519,18 @@ function parecido(a,b){
 }
 const CORTE = 0.93;
 
-/* Cruza un alumno del reporte con el padrón. Devuelve de dónde salió el precio. */
-function cruzar(k, idx, clavesPadron){
+/* Cruza un alumno del reporte con el padrón. Devuelve de dónde salió el precio.
+
+   Cada NOMBRE es una cuenta aparte: dos alumnos distintos nunca pueden terminar
+   cobrando la misma ficha del padrón. Por eso una ficha que YA tiene dueño exacto
+   en el reporte queda tomada y no se la puede llevar nadie por parecido.
+   Caso real: "Emanuel Rodriguez" se parece 94% a "Manuel Rodriguez", pero Manuel
+   está en el reporte por su cuenta — son dos personas, no una mal escrita. */
+function cruzar(k, idx, clavesPadron, tomadas){
   if(idx[k]) return { como:'directo', fichas:idx[k] };
   let mejor=null, mejorV=0;
   for(const c of clavesPadron){
+    if(tomadas && tomadas[c] && tomadas[c]!==k) continue;
     const v=parecido(k,c);
     if(v>mejorV){ mejorV=v; mejor=c; }
   }
@@ -582,9 +589,13 @@ function procesarArchivo(texto){
 function cruzarTodo(){
   CRUCE={};
   if(!REP) return;
+  /* Primero se anotan las fichas del padrón que ya tienen dueño por nombre exacto.
+     Recién después se buscan los parecidos, sobre lo que quedó libre. */
+  const tomadas={};
+  if(IDX) REP.alumnos.forEach(a=>{ if(IDX[a.k]) tomadas[a.k]=a.k; });
   REP.alumnos.forEach(a=>{
     if(!IDX){ CRUCE[a.k]={como:'sinPadron',fichas:[],precio:{estado:'sin',precios:[]}}; return; }
-    const cr=cruzar(a.k,IDX,CLAVES);
+    const cr=cruzar(a.k,IDX,CLAVES,tomadas);
     cr.precio=precioDePadron(cr.fichas);
     CRUCE[a.k]=cr;
   });
