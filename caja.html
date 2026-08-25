@@ -534,8 +534,22 @@ function parsearPadron(paq){
     };
     padron.push(a);
     if(a.id && !idxId[a.id]) idxId[a.id]=a;
+    /* ============================================================
+       LOS PARES A PROPÓSITO: "Rodrigo Lee INDIVIDUAL" y "Rodrigo Lee GRUPAL"
+
+       keyAlumno() borra el sufijo del tipo de clase, y eso es correcto para el
+       caso común: en la grilla se escribe "Pedro Gomez G" y en el padrón está
+       "Pedro Gomez". Pero hay ~20 alumnos cargados DOS veces a propósito, uno
+       por tipo de clase, con su ID y su precio distintos. A esos la clave corta
+       los junta y el segundo no entraba nunca al índice.
+
+       Se guardan las dos claves: el nombre COMPLETO y la corta. Buscar prueba
+       primero por el nombre completo, así "Rodrigo Lee GRUPAL" encuentra su
+       propia ficha (Gs 90.000) en vez de la individual (Gs 150.000).
+       ============================================================ */
     [nom, col.alt1>=0?f[col.alt1]:'', col.alt2>=0?f[col.alt2]:''].forEach(function(n){
-      var k=keyAlumno(n); if(k && !idxNom[k]) idxNom[k]=a;
+      var exacta=normNom(n); if(exacta && !idxNom[exacta]) idxNom[exacta]=a;
+      var k=keyAlumno(n);    if(k && !idxNom[k]) idxNom[k]=a;
     });
   }
   aplicarVivo();
@@ -695,9 +709,11 @@ function cargarTipos(){
   }).catch(function(e){ tipos={}; console.warn('tipos_v1:', e.message); });
 }
 
+/* El ID manda. Si no viene, se busca por el nombre COMPLETO primero y recién
+   después por la clave corta — ver el comentario de los pares en cargarPadron. */
 function fichaDe(h){
   if(h.id && idxId[h.id]) return idxId[h.id];
-  return idxNom[keyAlumno(h.alumno)]||null;
+  return idxNom[normNom(h.alumno)] || idxNom[keyAlumno(h.alumno)] || null;
 }
 /* Las claves de Firebase no aceptan puntos ni barras. */
 function claveTipo(t){ return String(t||'(sin tipo)').trim().replace(/[.#$/\[\]]/g,'_')||'(sin tipo)'; }

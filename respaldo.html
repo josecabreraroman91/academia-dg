@@ -225,11 +225,17 @@ var cfg = {
    para una persona: en los nodos que guardan un CSV entero, contar hijos daria
    siempre 2 (csv + actualizado), asi que se cuentan las lineas.
    'pesado' solo cambia si viene tildado por defecto. */
+/* Esta lista tiene que estar igual que la de respaldo-firebase.gs, que es el
+   robot que hace la copia diaria a Drive. Si nace un nodo nuevo, va en las dos.
+   padron_v1 e historial_v2 no estaban en ninguna: el padron maestro y el
+   registro contable del que salen los cobros no tenian respaldo. */
 var NODOS = [
   { k:'calendario_v2', nom:'Calendario (MADRE y semanas)',  medir:'calendario' },
+  { k:'padron_v1',     nom:'Padron canonico (el maestro, por ID)' },
   { k:'alumnos_v1',    nom:'Padron, copia de la planilla',  medir:'alumnos' },
   { k:'alumnos_v2',    nom:'Alumnos cargados desde las apps' },
   { k:'historial_v1',  nom:'Historial de clases, 90 dias',  medir:'historial' },
+  { k:'historial_v2',  nom:'Historial del cierre de las 23:30 (el que cobra)' },
   /* niveles_v1 y agente_v1 tienen el permiso de lectura puesto en los HIJOS,
      no en el nodo padre. En Firebase el permiso baja de padre a hijo pero nunca
      sube de hijo a padre: pedir el padre entero da permission_denied aunque cada
