@@ -307,6 +307,11 @@
    así se ve sin tapar la información que ya tenía la celda. Es solo visual: no
    saca al alumno de los envíos. Se replica en todas sus clases del libro. */
 .slot.atencion{outline:3px solid #9333ea;outline-offset:-3px;border-radius:6px}
+/* Marcado AUSENTE hoy desde la tablet. Es solo informativo — no cambia la grilla
+   ni el cobro, avisa lo que está pasando en la cancha en este momento. */
+.slot.falto{opacity:.62}
+.slot.falto .nm{text-decoration:line-through}
+.slot .faltox{position:absolute;top:2px;right:3px;font-size:10px;line-height:1}
 /* Si no tiene otro estado encima, además se tiñe de morado claro */
 .slot.atencion:not(.confirmado):not(.revisar):not(.coach){background:#f0dcff !important}
 .slot.atencion:not(.confirmado):not(.revisar):not(.coach) .nm{color:#5b21b6}
@@ -831,6 +836,14 @@ function unificarSedesPorDia(){
 }
 // ===== Dos semanas editables (esta + la que viene), con fechas =====
 function isoDe(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+/* El lunes al que pertenece una fecha. Mismo criterio ISO que lunesDeHoy(): el
+   domingo cierra la semana que arrancó el lunes anterior. Ojo, es a propósito que
+   NO usa el criterio nuevo de fechaDelDia(): los LIBROS se agrupan por semana ISO,
+   y ahí el domingo todavía pertenece a la semana que termina. */
+function lunesDeFecha(iso){
+  const d=new Date(iso+'T00:00:00'); const wd=(d.getDay()+6)%7;
+  d.setDate(d.getDate()-wd); return isoDe(d);
+}
 function lunesDeHoy(){ const d=new Date(); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return isoDe(d); }
 function isoMas(iso,n){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d; }
 function ddmm(d){ return d.getDate()+'/'+(d.getMonth()+1); }
@@ -1697,6 +1710,62 @@ function autoAplicarReservas(){
 let _resvRef=null, _resvSem='', reservasProfes={};
 let _madreRef=null, propuestasMadre={};
 
+/* ============================================================
+   LA ASISTENCIA DE HOY, EN VIVO
+
+   El profe marca presente/ausente en la tablet y eso vivía solo ahí: desde acá no
+   había forma de ver qué estaba pasando en la cancha sin abrir otra pantalla.
+   Ahora se escucha dia/<hoy> y el que falta se ve tachado en la grilla.
+
+   Es SOLO para mirar: no toca el libro, no cambia el cobro y no se guarda en la
+   semana. La asistencia sigue siendo de la tablet.
+   ============================================================ */
+let asisHoy={}, _asisRef=null, _asisFecha='', _asisFirma='';
+function escucharAsistenciaHoy(){
+  if(!_fbdb) return;
+  const hoy=isoDe(new Date());
+  /* SE REENGANCHA AL CAMBIAR EL DÍA. El calendario queda abierto días enteros; con
+     la fecha atada al arranque, pasada la medianoche seguía escuchando la de AYER
+     y pintaba como ausente de hoy al que faltó ayer a la misma hora y sede. */
+  if(_asisRef && _asisFecha===hoy) return;
+  if(_asisRef) _asisRef.off();
+  _asisFecha=hoy; asisHoy={}; _asisFirma='';
+  _asisRef=_fbdb.ref('dia/'+hoy);
+  _asisRef.on('value', snap=>{
+    const all=snap.val()||{}; const m={};
+    Object.keys(all).forEach(sk=>{
+      if(sk.charAt(0)==='_') return;                 // _dispo, _cols, _meta
+      const recs=all[sk]||{};
+      Object.keys(recs).forEach(id=>{
+        const r=recs[id]; if(!r || typeof r!=='object' || !r.nombre) return;
+        if(r.borrado) return;
+        /* Gana el AUSENTE si el mismo nombre cae dos veces en la misma sede y hora
+           (un profe con dos columnas): mejor mostrarlo tachado y que lo revisen, a
+           que una copia presente tape la falta de la otra. */
+        const k=sk+'|'+(r.horaIdx||0)+'|'+normName(r.nombre);
+        const v=(r.asis==='ausente'?'ausente':'presente');
+        if(m[k]!=='ausente') m[k]=v;
+      });
+    });
+    /* Solo se redibuja si algo cambió DE VERDAD. Este nodo se reescribe con cada
+       edición del admin (la republicación es automática), y redibujar la grilla
+       entera en medio de un arrastre la mueve abajo del cursor. */
+    const firma=Object.keys(m).sort().map(k=>k+'='+m[k]).join(';');
+    if(firma===_asisFirma) return;
+    _asisFirma=firma; asisHoy=m;
+    if(document.querySelector('.overlay.show')) return;   // hay un panel abierto: se ve en el próximo dibujo
+    try{ renderGrid(); }catch(e){}
+  }, e=>console.warn('asistencia de hoy:', e.message));
+}
+/* Solo tiene sentido mostrarla cuando lo que estás mirando ES hoy: en la MADRE, en
+   otro día o en otra semana, el ausente de hoy no significa nada. */
+function faltoHoy(sk, hi, nombre){
+  if(state.mode==='madre') return false;
+  if((state.semActiva||'actual')!=='actual') return false;
+  if(state.dia !== diaHoyNombre()) return false;
+  return asisHoy[sk+'|'+hi+'|'+normName(nombre)]==='ausente';
+}
+
 function escucharReservasProfes(){
   if(!_fbdb) return;
   const sem = state.lunesActual || lunesDeHoy();
@@ -1847,6 +1916,7 @@ function aplicarReservas(){
       if(o && o.nombre && normName(o.nombre)===normName(r.alumno)){
         delete B.alumnos[r.desde];
         hechos.push('➖ '+r.alumno+' salió de '+lugarTxt(r.desde)+' — '+(r.porNombre||''));
+        limpiarAcopleDeTablet(r);
       } else {
         fallaron.push(r.alumno+' — ya no estaba en '+lugarTxt(r.desde));
       }
@@ -1898,6 +1968,7 @@ function aplicarReservas(){
       B.alumnos[destino]=previo;
       if(r.mod) B.alumnos[destino].mod=r.mod;
       hechos.push('↔️ '+r.alumno+': '+lugarTxt(r.desde)+' → '+lugarTxt(destino)+' — '+(r.porNombre||''));
+      limpiarAcopleDeTablet(r);
     } else {
       const dp=datosDePadron(r.alumno);
       /* ENTRA YA CONFIRMADO (decisión de Diego, 9 de agosto de 2026).
@@ -1917,6 +1988,7 @@ function aplicarReservas(){
       try{ anotarOpProfe('confirmar', r.alumno, lugarTxt(destino)+' · entró confirmado al agendarlo', r); }catch(e){}
       if(r.fijo) fijos.push(r.alumno+' · '+lugarTxt(destino));
       crearAlumnoSiNoEsta(r);
+      limpiarAcopleDeTablet(r);
     }
     marcarResvAplicada(r.k);
   });
@@ -2125,6 +2197,20 @@ function marcarResvAplicada(k){
    · alumnos_v2 — al instante, para que el autocompletado lo vea ya
    · la planilla, por el puente — que es la casa real del padrón. Sin esto el
      alumno no aparece en la app de Alumnos ni entra en la copia de 15 minutos. */
+/* EL DUPLICADO DE LA TABLET.
+   Cuando el profe mueve o agrega desde la tablet, la tablet crea al instante un
+   registro suelto en dia/<fecha> (un "acople") para no hacerlo esperar. Si acá se
+   aplica el mismo cambio a la SEMANA, al republicar el alumno baja OTRA VEZ desde
+   la grilla y quedaría dos veces en la lista del profe. Por eso, apenas se aplica,
+   se borra el acople que había creado la tablet: el bueno pasa a ser el de la
+   grilla. La republicación respeta los acoples a propósito, así que si esto no se
+   hace el duplicado no se limpia nunca. */
+function limpiarAcopleDeTablet(r){
+  if(!_fbdb || !r || !r.acopleId || !r.fecha) return;
+  _fbdb.ref('dia/'+r.fecha+'/'+r.acopleId).remove()
+    .catch(e=>console.warn('no pude limpiar el acople de la tablet:', e.message));
+}
+
 function crearAlumnoSiNoEsta(r){
   if(!_fbdb || !r.alumno) return;
   const k=String(r.alumno).normalize('NFD').replace(/[\u0300-\u036f]/g,'')
@@ -2132,14 +2218,22 @@ function crearAlumnoSiNoEsta(r){
   if(!k) return;
   _fbdb.ref('alumnos_v2/'+k).once('value').then(s=>{
     if(s.exists()) return null;                       // ya existe: no se duplica
+    /* EL PRECIO. Antes entraba siempre en 0 y el alumno aparecía en los cobros con
+       el cartel "sin precio", que hay que ir a corregir a mano uno por uno. Desde
+       la tablet ahora viene el precio real que cargó el profe al darlo de alta;
+       si no viene ninguno se mantiene el 0 de antes. */
+    const _precio = Number(r.precio)>0 ? Number(r.precio) : 0;
+    const _quien  = r.porNombre||r.porCorreo||'un profe';
+    const _donde  = r.origen==='tablet' ? 'Dado de alta en la cancha por ' : 'Agendado por ';
     return _fbdb.ref('alumnos_v2/'+k).set({
       nombre:r.alumno, cat:'', lado:'', profe:r.profe||'', tipo:r.mod||'',
-      precio:0, tel:r.tel||'', nomHor:'', nomWpp:'', ts:Date.now()
+      precio:_precio, tel:r.tel||'', nomHor:'', nomWpp:'', ts:Date.now()
     }).then(()=>{
       if(!PUENTE_URL) return;
       return enviarAlPuente('alumnos', { alumnos: [{
         nombre: r.alumno, cat:'', lado:'', tipo: r.mod||'',
-        precio: '0Gs.', coment: 'Agendado por '+(r.porNombre||r.porCorreo||'un profe'),
+        precio: _precio ? (_precio.toLocaleString('es-PY')+'Gs.') : '0Gs.',
+        coment: _donde+_quien,
         nomHor:'', nomWpp:'', tel: r.tel||''
       }]});
     });
@@ -2628,6 +2722,7 @@ function iniciarCalendarioCompartido(){
     if(r.watch) state.watch = r.watch;   // vigilancia por persona: manda la nube (igual que profesores/columnas)
     if(!state.watch || typeof state.watch!=='object') state.watch = {};
     try{ escucharReservasProfes(); }catch(e){}
+    try{ escucharAsistenciaHoy(); }catch(e){}
     try{ escucharLibreta(); }catch(e){}
     try{ escucharColumnas(); }catch(e){}
     // Registro de la MADRE: se UNEN el de acá y el de la nube. Marcar de más solo
@@ -2689,7 +2784,11 @@ function armarDiaDe(dia, book){
         for(let si=0;si<SLOTS_POR_HORA;si++){
           const al=B.alumnos[`${dia}|${s.key}|${pi}|${hi}|${si}`];
           if(al && al.nombre){
-            var _r={ nombre:al.nombre, horaIdx:hi, profe:d, mod:al.mod||'', confirmado:!!al.confirmado };
+            /* `pi` = la columna exacta de la grilla. La tablet la necesita para
+               devolver el cambio al casillero correcto. Antes se deducía del
+               diminutivo del profe, y un profe con DOS columnas en la misma sede
+               hacía que el alumno de la segunda apuntara a la primera. */
+            var _r={ nombre:al.nombre, horaIdx:hi, profe:d, pi:pi, mod:al.mod||'', confirmado:!!al.confirmado };
             /* Los bloques de ALTO RENDIMIENTO llevan su lista de alumnos y su
                duración: sin esto, el profe no los ve en la tablet. */
             if(al.lista && al.lista.length) _r.lista=al.lista.slice();
@@ -2705,6 +2804,34 @@ function armarDiaDe(dia, book){
 }
 // Disponibilidad del día: por sede -> por profe -> horas NO bloqueadas (profe disponible para dar clase)
 function armarDispoHoy(){ const d=diaHoyNombre(); return d?armarDispoDe(d):null; }
+/* EN QUÉ COLUMNA ESTÁ CADA PROFE, para la tablet.
+   La tablet conoce el diminutivo ("RS", "VA") pero no el número de columna, y sin
+   eso no puede armar la clave de un casillero (DIA|sede|columna|hora|slot). En vez
+   de hacerla adivinar, se le publica la correspondencia junto con el día.
+   Sale de sedesTodas(), la MISMA fuente que armarDiaDe(): si se publicara desde
+   otra lista, un profe podría quedar apuntando a la columna del de al lado. */
+function armarColsDe(dia){
+  if(!dia) return null;
+  const sedesDia=sedesTodas()[dia]; if(!sedesDia) return null;
+  /* PLANO Y EN TEXTO, a propósito: "sede|profe" → "0,2".
+
+     La tablet que hoy está en la cancha recorre todo lo que cuelga de dia/<fecha>
+     y toma por alumno cualquier cosa que sea un objeto (saltea solo _dispo). Si
+     esto se publicara anidado, esas tablets —hasta que alguien las recargue— se
+     armarían un registro fantasma con la tabla de columnas adentro. Con las
+     ramas en TEXTO las descarta solas, sin tocar nada de su lado.
+
+     Es una lista y no un número porque un profe puede tener más de una columna
+     en la misma sede (dos canchas a la misma hora). */
+  const cols={};
+  sedesDia.forEach(s=>{
+    const porProfe={};
+    s.profes.forEach((d,pi)=>{ if(!d || d==='—') return; (porProfe[d]=porProfe[d]||[]).push(pi); });
+    Object.keys(porProfe).forEach(d=>{ cols[s.key+'|'+d]=porProfe[d].join(','); });
+  });
+  return cols;
+}
+
 function armarDispoDe(dia){
   if(!dia) return null;
   const B=state.semana||{alumnos:{},libres:{}};
@@ -2760,6 +2887,11 @@ function publicarFecha(offset, silencioso){
   const porSede=armarDiaDe(dia, _book); if(!porSede) return false;
   const dispo=armarDispoDe(dia);
   if(dispo){ try{ _fbdb.ref('dia/'+fecha+'/_dispo').set(dispo); }catch(e){} }
+  const cols=armarColsDe(dia);
+  if(cols){ try{ _fbdb.ref('dia/'+fecha+'/_cols').set(cols); }catch(e){} }
+  /* Qué día de la semana es esta fecha y de qué lunes cuelga: la tablet lo necesita
+     para dejar la operación en reservas_v1/<lunes> con la clave del día correcto. */
+  try{ _fbdb.ref('dia/'+fecha+'/_meta').set({ dia:dia, lunes:lunesDeFecha(fecha) }); }catch(e){}
   const claves=Object.keys(porSede); let pend=claves.length;
   claves.forEach(sk=>{
     const ref=_fbdb.ref('dia/'+fecha+'/'+sk);
@@ -2774,6 +2906,7 @@ function publicarFecha(offset, silencioso){
       Object.entries(porSede[sk]).forEach(([k,rec])=>{
         const p = prev[k] || {};
         upd[k+'/nombre']=rec.nombre; upd[k+'/horaIdx']=rec.horaIdx; upd[k+'/profe']=rec.profe;
+        upd[k+'/pi']=(rec.pi==null?null:rec.pi);
         upd[k+'/mod']=rec.mod||''; upd[k+'/confirmado']=!!rec.confirmado;
         upd[k+'/lista']=rec.lista||null; upd[k+'/dur']=rec.dur||null;
         if(!('asis' in p)) upd[k+'/asis']='presente';
@@ -2785,6 +2918,10 @@ function publicarFecha(offset, silencioso){
   });
   return true;
 }
+/* Cada 5 minutos se revisa si cambió el día, para reenganchar el escucha de la
+   asistencia sin que nadie tenga que recargar. */
+setInterval(()=>{ try{ escucharAsistenciaHoy(); }catch(e){} }, 300000);
+
 // auto-publicar continuo: cada cambio republica el día de hoy (con debounce)
 let _pubTimer=null;
 function autoPublicar(){ if(!_fbdb) return; clearTimeout(_pubTimer); _pubTimer=setTimeout(()=>publicarDiaHoy(true),1500); }
@@ -3068,7 +3205,9 @@ function _renderGridReal(){
             const esCoach = String(al.mod||'').toUpperCase()==='COACH';
             const checkBtn = state.mode==='semana'
               ? `<button class="check-btn" data-check="${c.sk}|${c.pi}|${hi}|${si}" title="${conf?'Confirmado':'Marcar asistencia'}">✓</button>` : '';
-            html+=`<div class="slot${conf?' confirmado':''}${marcado?' revisar':''}${esCoach?' coach':''}${atencion?' atencion':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
+            const falto = faltoHoy(c.sk, hi, al.nombre);
+            html+=`<div class="slot${conf?' confirmado':''}${marcado?' revisar':''}${esCoach?' coach':''}${atencion?' atencion':''}${falto?' falto':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
+              ${falto?`<span class="faltox" title="El profe lo marcó ausente hoy">🔴</span>`:''}
               <div class="nm">${esc(al.nombre)}</div>
               ${tags.length?`<div class="tags">${tags.join('')}</div>`:''}
               ${al.nota?`<div class="nota">${esc(al.nota)}</div>`:''}
@@ -3625,20 +3764,58 @@ function abrevNombre(n){
   return parts[0]+' '+parts[1][0]+'.';
 }
 function sedeEmoji(key){ return key==='elite'?' 💎':key==='segurola'?' 🏝️':key==='adefinir'?' 🚨':''; }
+/* EL DOMINGO NO SE ENTRENA. Si estás con el calendario abierto un domingo es
+   porque estás preparando la semana que arranca mañana, así que el resumen —fecha
+   Y alumnos— sale de la semana PRÓXIMA. Solo aplica si esa semana existe: si
+   todavía no se cargó, se queda con la de siempre y no se inventa nada. */
+function domingoPreparaProxima(){
+  return new Date().getDay()===0
+      && state.mode!=='madre'
+      && (state.semActiva||'actual')==='actual'
+      && !!(state.semanaProxima && state.semanaProxima.alumnos);
+}
+function libroDelResumen(){
+  return domingoPreparaProxima() ? state.semanaProxima : book();
+}
+
 function fechaDelDia(){
   const meses=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
   const idx=DAYS.indexOf(state.dia); // 0=LUNES..5=SABADO
   const hoy=new Date();
   const dow=hoy.getDay(); // 0=dom..6=sab
+
+  /* EL DOMINGO MIRA PARA ADELANTE.
+     Antes el domingo restaba 6 días y caía en el lunes de la semana que YA pasó:
+     armando el resumen un domingo a la noche para el día siguiente salía con la
+     fecha de 7 días atrás. El domingo no se entrena, así que si estás acá es
+     preparando la semana que arranca: va al lunes SIGUIENTE.
+
+     Va de la mano con libroDelResumen(): si la fecha salta a la semana que viene,
+     los alumnos también tienen que salir de ESA semana. Adelantar solo la fecha
+     dejaba un resumen con el encabezado del lunes que viene y la lista de la
+     semana que terminó. */
   const lunes=new Date(hoy);
-  lunes.setDate(hoy.getDate()+(dow===0?-6:1-dow));
+  /* Ojo con el domingo: `1-dow` da +1 igual que la rama de arriba, así que si no
+     hay semana próxima cargada hay que volver EXPRESAMENTE al -6 de siempre. Sin
+     eso la fecha saltaba al lunes que viene mientras los alumnos seguían saliendo
+     de la semana que terminó: encabezado de una semana, lista de la otra. */
+  lunes.setDate(hoy.getDate()+(dow===0 ? (domingoPreparaProxima() ? 1 : -6) : 1-dow));
+
+  /* Y SIGUE A LA SEMANA QUE ESTÁS MIRANDO.
+     Esta función no leía state.semActiva: tocabas PRÓXIMA, la grilla cambiaba
+     pero la fecha del encabezado se quedaba en la semana de hoy. Cada resumen de
+     la semana que viene salía fechado en la semana anterior. */
+  const sem = state.semActiva || 'actual';
+  if(sem==='proxima')       lunes.setDate(lunes.getDate()+7);
+  else if(sem==='anterior') lunes.setDate(lunes.getDate()-7);
+
   const t=new Date(lunes); t.setDate(lunes.getDate()+idx);
   return `${state.dia} ${t.getDate()} DE ${meses[t.getMonth()]}`;
 }
 
 function buildResumen(){
   const sedes=sedesDelDia();
-  const B=book();
+  const B=libroDelResumen();
   // CARGA SISTEMA: diminutivos únicos del día
   const dims=[];
   sedes.forEach(s=> s.profes.forEach(d=>{ if(d && d!=='—' && !dims.includes(d)) dims.push(d); }));
@@ -5584,6 +5761,7 @@ fillAlumnosDatalist();
           iniciarCalendarioCompartido();   // sincroniza el calendario entre encargados (tiempo real)
           try{ saberSiSoyAdmin(); }catch(e){}
           try{ escucharReservasProfes(); }catch(e){ console.warn('reservas:', e.message); }
+          try{ escucharAsistenciaHoy(); }catch(e){ console.warn('asistencia:', e.message); }
           try{ cargarIdsAlumnos(); }catch(e){}
           escucharAlumnosVivo();           // alumnos nuevos disponibles al instante
           setTimeout(function(){ publicarDiaHoy(true); }, 1200);

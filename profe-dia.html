@@ -295,7 +295,25 @@
     <h3>➕ Agregar alumno (acople)</h3>
     <div class="fld"><label>Nombre</label><input id="acNom" autocomplete="off" placeholder="Escribí las primeras letras…">
     <div id="acSug"></div>
-    <div id="acAviso" style="font-size:11px;color:var(--muted);margin-top:4px">Solo alumnos que ya están cargados en el sistema.</div></div>
+    <div id="acAviso" style="font-size:11px;color:var(--muted);margin-top:4px">Escribí el nombre. Si no aparece en la lista, lo podés dar de alta acá abajo.</div></div>
+
+    <!-- ALTA DE ALUMNO NUEVO
+         Aparece sola cuando el nombre escrito no está en la lista. Antes, si venía
+         alguien nuevo a la cancha, el profe no lo podía sumar y el alumno quedaba
+         sin registrar hasta que alguien lo cargara desde la computadora. -->
+    <div id="acNuevo" style="display:none;border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:10px">
+      <div style="font-size:12px;font-weight:600;margin-bottom:8px">🆕 Alumno nuevo — completá sus datos</div>
+      <div class="fld"><label>Teléfono</label><input id="acTel" type="tel" inputmode="numeric" autocomplete="off" placeholder="0981 123456"></div>
+      <div class="fld"><label>Tipo de clase</label><select id="acTipo">
+        <option value="">— elegir —</option>
+        <option value="G">Grupal</option>
+        <option value="D">Dual</option>
+        <option value="IND">Individual</option>
+      </select></div>
+      <div class="fld"><label>Precio por clase</label><input id="acPrecio" type="tel" inputmode="numeric" autocomplete="off" placeholder="100.000"></div>
+      <div style="font-size:11px;color:var(--muted)">Queda cargado en la base de alumnos con tu nombre como quien lo dio de alta.</div>
+    </div>
+
     <div class="fld"><label>Hora</label><select id="acHora"></select></div>
     <div class="fld"><label>Sede</label><select id="acSede"></select></div>
     <div class="fld"><label>Profe</label><select id="acProfe"></select></div>
@@ -412,7 +430,7 @@ function acBuscar(){
   if(!inp||!box) return;
   const q=normNombre(inp.value||'');
   _acElegido=null;
-  if(q.length<2){ box.innerHTML=''; av.textContent='Solo alumnos que ya están cargados en el sistema.'; av.style.color=''; return; }
+  if(q.length<2){ box.innerHTML=''; av.textContent=AC_AVISO; av.style.color=''; verBloqueNuevo(false); return; }
   const pre=[], med=[];
   for(let i=0;i<_listaAl.length;i++){
     const n=normNombre(_listaAl[i]);
@@ -429,10 +447,26 @@ function acBuscar(){
       box.innerHTML='';
       av.textContent='✓ '+_acElegido;
       av.style.color='var(--court, #3fb950)';
+      verBloqueNuevo(false);          // es uno que ya existe: no hace falta darlo de alta
     };
   });
-  if(!res.length){ av.textContent='No hay ningún alumno con ese nombre.'; av.style.color='#f2777a'; }
-  else { av.textContent='Tocá el alumno de la lista.'; av.style.color=''; }
+  /* Si no aparece en la lista, en vez del cartel rojo que dejaba al profe sin
+     salida, se abren los campos para darlo de alta ahí mismo. */
+  if(!res.length && !nombreDeLaLista(inp.value.trim())){
+    av.textContent='No está en el sistema. Completá sus datos abajo para darlo de alta.';
+    av.style.color='#e8b84b';
+    verBloqueNuevo(true);
+  } else {
+    av.textContent='Tocá el alumno de la lista.'; av.style.color='';
+    verBloqueNuevo(false);
+  }
+}
+const AC_AVISO = 'Escribí el nombre. Si no aparece en la lista, lo podés dar de alta acá abajo.';
+function verBloqueNuevo(si){
+  const b=document.getElementById('acNuevo'); if(!b) return;
+  b.style.display = si ? 'block' : 'none';
+  const g=document.getElementById('acGuardar');
+  if(g) g.textContent = si ? 'Dar de alta y agregar' : 'Agregar presente';
 }
 
 /* Migración a Firebase (paso 2): nombres + cat/tipo salen de padron_v1
@@ -554,6 +588,98 @@ function actualizarCabeceraFecha(){
   document.getElementById('dPrev').disabled=diaOffset<=0;
   document.getElementById('dNext').disabled=diaOffset>=1;
 }
+/* ============================================================
+   PUENTE A LA SEMANA (reservas_v1)
+
+   Hasta ahora lo que el profe tocaba en la tablet vivía solo en dia/<fecha>:
+   se veía en el celular de cada uno y nunca volvía al calendario editable.
+   Diego pidió lo contrario — que lo que pasa en la cancha se vea en la grilla
+   en el momento — así que cada movimiento deja además su renglón en
+   reservas_v1, el MISMO cajón que ya usan los profes desde Agendar y que
+   cal-unif aplica solo a la SEMANA (nunca a la MADRE).
+
+   Se escriben las dos cosas a propósito:
+   · dia/<fecha> → la tablet lo muestra al instante, sin esperar a nadie.
+   · reservas_v1 → cal-unif lo aplica a la semana y lo republica.
+   Si el puente falla (sin señal, sin permiso), la tablet sigue andando igual:
+   ninguna escritura de acá bloquea la de dia/.
+
+   Cada renglón lleva el correo y el nombre del que lo hizo, que salen del login
+   de Google del celular. Nadie toca la grilla de forma anónima.
+   ============================================================ */
+let cacheCols={}, cacheMeta={};
+
+/* Los registros que bajaron de la grilla tienen id "hora_PROFE_slot_nombre".
+   De ahí salen la hora y el slot; la columna la da _cols. Los acoples que creó
+   un profe son claves push de Firebase y no tienen origen en la grilla. */
+function slotDeOrigen(cid){
+  const a=cacheDia[cid]; if(!a || a.acople) return null;
+  const dia=cacheMeta.dia; if(!dia) return null;
+  const m=String(a._id||'').match(/^(\d+)_(.+?)_(\d+)_/);
+  if(!m) return null;
+  /* La columna viene DENTRO del registro (`pi`), puesta por cal-unif al publicar.
+     No se deduce del diminutivo: un profe con dos columnas en la misma sede
+     hacía que el alumno de la segunda apuntara al casillero de la primera.
+     El colDe() de abajo queda solo para los días publicados por una versión
+     vieja, que todavía no traen `pi`. */
+  let pi = (a.pi==null ? null : Number(a.pi));
+  if(pi==null || isNaN(pi)){ const c=colsDe(a._sede, m[2]); pi = c.length ? c[0] : null; }
+  if(pi==null) return null;
+  return dia+'|'+a._sede+'|'+pi+'|'+m[1]+'|'+m[3];
+}
+/* Todas las columnas de ese profe en esa sede (puede tener más de una).
+   Viene plano y en texto — "elite|RS": "0,2" — para que las tablets con la
+   versión vieja lo descarten solas en vez de tomarlo por un alumno. */
+function colsDe(sede, dim){
+  const v = cacheCols[sede+'|'+dim];
+  if(v==null || v==='') return [];
+  return String(v).split(',').map(x=>parseInt(x,10)).filter(x=>!isNaN(x));
+}
+/* Clave del destino. cal-unif ignora el slot y busca el primero libre, pero la
+   clave tiene que ser distinta para cada operación: si dos moves del mismo día
+   apuntan a la misma hora con el mismo número, el segundo pisa al primero y se
+   pierde uno. Por eso se cuenta lo que ya hay en esa hora. */
+function slotDeDestino(sede, dim, hi){
+  const dia=cacheMeta.dia; if(!dia) return null;
+  const cols=colsDe(sede, dim); if(!cols.length) return null;
+  /* Si el profe tiene varias columnas, va a la MÁS VACÍA de esa hora: mandarlo
+     siempre a la primera la llena y el resto de las operaciones no encuentran
+     lugar y quedan dando vueltas sin aplicarse. */
+  const ocupa={}; cols.forEach(c=>ocupa[c]=0);
+  let sueltos=0;
+  for(const cid in cacheDia){
+    const a=cacheDia[cid];
+    if(!a || a.borrado || a._sede!==sede || Number(a.horaIdx)!==Number(hi)) continue;
+    if(a.pi!=null && ocupa[a.pi]!==undefined) ocupa[a.pi]++;
+    else if(a.profe===dim) sueltos++;             // acoples: no tienen columna
+  }
+  const pi = cols.slice().sort((x,y)=>ocupa[x]-ocupa[y])[0];
+  const n = (ocupa[pi]||0) + sueltos;
+  return dia+'|'+sede+'|'+pi+'|'+hi+'|'+Math.min(n, 20);
+}
+/* Deja la operación en el cajón. Nunca rompe: si no se puede, se avisa por
+   consola y la tablet sigue. */
+function alPuente(clave, datos){
+  const lunes=cacheMeta.lunes;
+  /* SIN CLAVE NO HAY VIAJE, PERO NO SE CALLA.
+     Pasa si el profe del destino no tiene columna ese día, o si el día lo publicó
+     una versión vieja de cal-unif (sin _cols/_meta). Antes esto era un return
+     mudo: el cambio se veía en la tablet y el calendario no se enteraba nunca,
+     sin que nadie lo supiera. Ahora queda avisado en pantalla y en el historial. */
+  if(!lunes || !clave){
+    console.warn('puente: sin lunes o sin clave, no se anota');
+    try{ toast('⚠️ Se ve acá, pero no llegó al calendario. Avisale a la administración.'); }catch(e){}
+    try{ anotarOp('puente_sin_destino', (datos&&datos.alumno)||'',
+                  'no se pudo pasar al calendario'+(lunes?'':' · el día es de una versión vieja'),
+                  {sede:(datos&&datos.sede)||'', horaIdx:(datos&&datos.horaIdx)||0}); }catch(e){}
+    return;
+  }
+  db.ref('reservas_v1/'+lunes+'/'+clave).set(Object.assign({
+    porCorreo: window._yoCorreo || '', porNombre: window._yoNombre || window._yoCorreo || '',
+    ts: Date.now(), estado: 'pendiente', origen: 'tablet', fecha: fecha
+  }, datos)).catch(e=>console.warn('puente:', e.message));
+}
+
 function escucharDia(){
   if(_diaRef && _diaHandler){ _diaRef.off('value',_diaHandler); }
   cacheDia={}; cacheDispo={}; render();            // limpiar mientras carga el nuevo día
@@ -561,9 +687,11 @@ function escucharDia(){
   _diaHandler=(snap)=>{
     const all=snap.val()||{};
     cacheDispo=all._dispo||{};
+    cacheCols=all._cols||{};      // sede -> {diminutivo: nro de columna}
+    cacheMeta=all._meta||{};      // {dia:'MARTES', lunes:'2026-08-24'}
     cacheDia={};
     Object.keys(all).forEach(sk=>{
-      if(sk==='_dispo') return;
+      if(sk==='_dispo'||sk==='_cols'||sk==='_meta') return;
       const recs=all[sk]||{};
       Object.keys(recs).forEach(id=>{ const r=recs[id]; if(!r||typeof r!=='object') return; cacheDia[sk+SEP+id]={...r,_sede:sk,_id:id}; });
     });
@@ -733,6 +861,15 @@ function abrirMenuEstado(id){
       childRef(id).child('borrado').set(true);
       anotarOp('sacar', rec.nombre||'', 'lo sacó de la lista · '+lugarDe(id, rec),
                {sede:sedeDeId(id), horaIdx:Number(rec.horaIdx)||0});
+      /* Al calendario solo va lo que TIENE lugar en la grilla. Un acople que el
+         propio profe agregó hoy no está en la semana: sacarlo es solo de la
+         tablet, y mandar un 'sacar' de algo que no existe daría un fallo. */
+      /* Acá SÍ se saltea en silencio cuando no hay origen: es un acople que el
+         propio profe agregó hoy y que nunca estuvo en el calendario, así que no
+         hay nada que sacar del otro lado. No es una falla. */
+      const _desde=slotDeOrigen(id);
+      if(_desde) alPuente(_desde, { tipo:'sacar', alumno:rec.nombre||'', tel:'', desde:_desde,
+        profe:rec.profe||'', sede:sedeDeId(id), dia:cacheMeta.dia||'', horaIdx:Number(rec.horaIdx)||0 });
       cerrarMenuEstado();
     }
   };
@@ -765,10 +902,22 @@ function confirmarMover(){
   const nuevaHora=+document.getElementById('mvHora').value;
   const destSede=sedeDeProfe(nuevoProfe) || rec._sede;   // sede real del profe; si no se sabe, queda donde estaba
   const _recM = cacheDia[_moverId] || {};
-  childRef(_moverId).child('borrado').set(true);   // sale de donde estaba (sin tocar el calendario)
-  db.ref('dia/'+fecha+'/'+destSede).push({ nombre:rec.nombre, horaIdx:nuevaHora, profe:nuevoProfe, mod:rec.mod||'', confirmado:true, asis:'presente', acople:true, movido:true });
+  childRef(_moverId).child('borrado').set(true);   // sale de donde estaba
+  const _acRef = db.ref('dia/'+fecha+'/'+destSede).push({ nombre:rec.nombre, horaIdx:nuevaHora, profe:nuevoProfe, mod:rec.mod||'', confirmado:true, asis:'presente', acople:true, movido:true });
   anotarOp('mover', rec.nombre||'', lugarDe(_moverId, _recM)+' → '+(HORAS[nuevaHora]||'')+' · '+(SEDE_NOM[destSede]||destSede)+' · '+nuevoProfe,
            {sede:destSede, horaIdx:Number(nuevaHora)||0});
+  /* Al calendario. Si el que se mueve salió de la grilla es un 'mover' (sale de un
+     lado y entra en el otro). Si es un acople de hoy no tiene de dónde salir, así
+     que para la semana es un 'agregar' en el destino. */
+  const _desde=slotDeOrigen(_moverId);
+  const _hasta=slotDeDestino(destSede, nuevoProfe, nuevaHora);
+  /* Se llama SIEMPRE, aunque no haya destino: alPuente() es quien avisa cuando el
+     cambio no puede llegar al calendario. Saltearlo dejaba el problema invisible. */
+  alPuente(_hasta, Object.assign({
+      alumno:rec.nombre||'', tel:'', mod:rec.mod||'',
+      profe:nuevoProfe, sede:destSede, dia:cacheMeta.dia||'', horaIdx:Number(nuevaHora)||0,
+      acopleId: destSede+'/'+_acRef.key          // para que cal-unif borre el duplicado
+    }, _desde ? {tipo:'mover', desde:_desde} : {tipo:'agregar'}));
   cerrarMover();
 }
 document.getElementById('mvCancel').onclick=cerrarMover;
@@ -837,8 +986,11 @@ function abrirAcople(sede, profe, horaIdx){
   document.getElementById('acNom').value='';
   const _s=document.getElementById('acSug'); if(_s) _s.innerHTML='';
   const _a=document.getElementById('acAviso');
-  if(_a){ _a.textContent='Solo alumnos que ya están cargados en el sistema.'; _a.style.color=''; }
+  if(_a){ _a.textContent=AC_AVISO; _a.style.color=''; }
   _acElegido=null;
+  verBloqueNuevo(false);
+  ['acTel','acPrecio'].forEach(id=>{ const e=document.getElementById(id); if(e) e.value=''; });
+  const _t=document.getElementById('acTipo'); if(_t) _t.value='';
   const selP=document.getElementById('acProfe');
   selP.innerHTML=listaProfesSync().map(p=>optProfe(p.dim, p.dim===profe)).join('');
   const selH=document.getElementById('acHora'); if(selH && horaIdx!=null) selH.value=String(horaIdx);
@@ -1015,18 +1167,39 @@ function nombreDeLaLista(nom){
 document.getElementById('acGuardar').onclick=()=>{
   const escrito=document.getElementById('acNom').value.trim();
   if(!escrito){ toast('Poné un nombre'); return; }
-  const nom = _acElegido || nombreDeLaLista(escrito);
-  if(!nom){ toast('⚠️ Ese alumno no está en la lista. Tocalo en la lista de abajo.'); return; }
+  const yaEsta = _acElegido || nombreDeLaLista(escrito);
+  const esNuevo = !yaEsta;
+  let tel='', tipo='', precio=0;
+  if(esNuevo){
+    /* Alta de alumno nuevo desde la cancha. Se piden los tres datos que hacen
+       falta para poder cobrarle después: sin precio el alumno aparece en los
+       cobros como "sin precio" y hay que ir a buscarlo a mano. */
+    tel   = document.getElementById('acTel').value.replace(/\D/g,'');
+    tipo  = document.getElementById('acTipo').value;
+    precio= +String(document.getElementById('acPrecio').value).replace(/\D/g,'') || 0;
+    if(!tipo){   toast('⚠️ Elegí el tipo de clase'); return; }
+    if(!precio){ toast('⚠️ Poné el precio por clase'); return; }
+    if(tel && tel.length<7){ toast('⚠️ Ese teléfono es muy corto'); return; }
+  }
+  const nom = yaEsta || escrito;
   const horaIdx=+document.getElementById('acHora').value;
   const profe=document.getElementById('acProfe').value;
   const selS=document.getElementById('acSede'); const sk=selS?selS.value:miSede;
   /* La sede queda como default para el proximo acople. Antes esto lo fijaba una
      pantalla de arranque que en la practica no se mostraba nunca. */
   if(sk){ miSede=sk; try{ localStorage.setItem('profe_sede',sk); }catch(e){} }
-  db.ref('dia/'+fecha+'/'+sk).push({ nombre:nom, horaIdx, profe, mod:'', confirmado:true, asis:'presente', acople:true });
+  const _ac = db.ref('dia/'+fecha+'/'+sk).push({ nombre:nom, horaIdx, profe, mod:'', confirmado:true, asis:'presente', acople:true });
   anotarOp('acople', nom, 'lo agregó en '+(HORAS[horaIdx]||'')+' · '+(SEDE_NOM[sk]||sk)+' · '+profe,
            {sede:sk, horaIdx:Number(horaIdx)||0});
-  mAc.classList.remove('show'); toast('✅ Agregado presente');
+  const _dest=slotDeDestino(sk, profe, horaIdx);
+  alPuente(_dest, { tipo:'agregar', alumno:nom, tel:tel, mod:tipo,
+    profe:profe, sede:sk, dia:cacheMeta.dia||'', horaIdx:Number(horaIdx)||0,
+    acopleId: sk+'/'+_ac.key,
+    /* Con `nuevo` y el precio, cal-unif lo da de alta en la base de alumnos en
+       vez de crearlo vacío. Sin esto entraba con precio 0. */
+    nuevo: esNuevo, precio: precio });
+  mAc.classList.remove('show');
+  toast(esNuevo ? ('✅ '+nom+' dado de alta y agregado') : '✅ Agregado presente');
 };
 
 // ---- Arranque: siempre muestra TODAS las sedes juntas ----
