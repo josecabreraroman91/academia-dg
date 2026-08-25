@@ -439,6 +439,9 @@ function telRaro(t){
   return 'no se reconoce el país';
 }
 
+/* Solo la primera letra. El text-transform:capitalize del CSS ponía en mayúscula
+   cada palabra y el rango quedaba "Del 17/8 Al 19/8". */
+function conMayuscula(t){ t=String(t||''); return t.charAt(0).toUpperCase()+t.slice(1); }
 function fechaCorta(iso){
   var d=new Date(iso+'T00:00:00');
   return DIAS[d.getDay()]+' '+d.getDate()+'/'+(d.getMonth()+1);
@@ -1447,17 +1450,142 @@ function pantallaInformes(){
 /* ============================================================
    SOLAPA PAGO A PROFESORES
    ============================================================ */
+/* ============================================================
+   EL PERÍODO DEL PAGO A PROFESORES
+
+   Antes solo se podía elegir un MES entero. A los profes no siempre se les paga
+   por mes: a veces es por semana, o por una quincena, o por un tramo suelto
+   cuando alguien se va. Con el mes como única opción había que sacar la cuenta
+   a mano y ahí es donde aparecen los errores.
+
+   Ahora hay dos modos:
+   · POR MES     — como siempre, para el cierre mensual.
+   · POR FECHAS  — desde el día X hasta el día Y, los dos incluidos.
+
+   El período elegido se escribe arriba de la tabla, y también en el detalle de
+   cada profe: un total de pago sin decir de cuándo a cuándo es un número que
+   nadie puede revisar después.
+   ============================================================ */
+
+var periodo = { modo:'mes', desde:'', hasta:'' };
+
+/* Los días que hay, para poner topes que tengan sentido en el calendario. */
+function _rangoDisponible(){
+  var f = historial.map(function(h){ return h.fecha; }).sort();
+  return { min: f[0] || '', max: f[f.length-1] || '' };
+}
+
+/* Las filas del período elegido. Es la ÚNICA puerta: si algún día se agrega
+   otro modo, se agrega acá y todas las pantallas lo toman solas. */
+function filasDelPeriodo(){
+  if(periodo.modo === 'mes') return filasDelMes(mesElegido);
+  var d = periodo.desde, h = periodo.hasta;
+  return historial.filter(function(x){
+    return (!d || x.fecha >= d) && (!h || x.fecha <= h);
+  });
+}
+
+/* Cómo se llama el período, para que quede escrito en la pantalla y en lo que
+   se copie o se imprima. */
+function periodoTxt(){
+  if(periodo.modo === 'mes') return mesElegido ? mesNombre(mesElegido) : 'todo';
+  if(!periodo.desde && !periodo.hasta) return 'todo';
+  if(periodo.desde && periodo.hasta){
+    return periodo.desde === periodo.hasta
+      ? ('el ' + fechaCorta(periodo.desde))
+      : ('del ' + fechaCorta(periodo.desde) + ' al ' + fechaCorta(periodo.hasta));
+  }
+  return periodo.desde ? ('desde el ' + fechaCorta(periodo.desde)) : ('hasta el ' + fechaCorta(periodo.hasta));
+}
+function fechaCorta(iso){
+  var p = String(iso || '').split('-');
+  return p.length === 3 ? (Number(p[2]) + '/' + Number(p[1])) : iso;
+}
+
+/* Atajos: lo que más se usa es "la semana que pasó". La semana arranca el lunes,
+   igual que en el calendario. */
+function _lunesDe(iso){
+  var p = String(iso).split('-').map(Number);
+  var d = new Date(Date.UTC(p[0], p[1]-1, p[2]));
+  var wd = (d.getUTCDay() + 6) % 7;              // 0 = lunes
+  d.setUTCDate(d.getUTCDate() - wd);
+  return d.toISOString().slice(0,10);
+}
+function _masDias(iso, n){
+  var p = String(iso).split('-').map(Number);
+  var d = new Date(Date.UTC(p[0], p[1]-1, p[2]));
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0,10);
+}
+
+function selectorPeriodo(){
+  var r = _rangoDisponible();
+  if(!r.min) return '';
+  if(!periodo.desde) periodo.desde = r.min;
+  if(!periodo.hasta) periodo.hasta = r.max;
+
+  var h = '<div class="barra">';
+  h += '<div class="mesfila" style="margin-bottom:8px">' +
+       '<label><input type="radio" name="pModo" value="mes"' + (periodo.modo === 'mes' ? ' checked' : '') + '> Por mes</label>' +
+       '<label style="margin-left:14px"><input type="radio" name="pModo" value="fechas"' + (periodo.modo === 'fechas' ? ' checked' : '') + '> Por fechas</label>' +
+       '</div>';
+
+  if(periodo.modo === 'mes'){
+    h += selectorMes();
+  } else {
+    h += '<div class="mesfila">' +
+         '<input class="sel" id="pDesde" type="date" value="' + esc(periodo.desde) + '" min="' + esc(r.min) + '" max="' + esc(r.max) + '">' +
+         '<span style="align-self:center;margin:0 4px">hasta</span>' +
+         '<input class="sel" id="pHasta" type="date" value="' + esc(periodo.hasta) + '" min="' + esc(r.min) + '" max="' + esc(r.max) + '">' +
+         '</div>' +
+         '<div class="mesfila">' +
+         '<button class="chico" data-atajo="semana">La semana que pasó</button>' +
+         '<button class="chico" data-atajo="estasemana">Esta semana</button>' +
+         '<button class="chico" data-atajo="todo">Todo</button>' +
+         '</div>';
+  }
+  h += '</div>';
+  return h;
+}
+
+function engancharPeriodo(){
+  Array.prototype.forEach.call(document.querySelectorAll('input[name=pModo]'), function(r){
+    r.onchange = function(){ periodo.modo = r.value; pintar(); };
+  });
+  if($('pDesde')) $('pDesde').onchange = function(){ periodo.desde = $('pDesde').value; pintar(); };
+  if($('pHasta')) $('pHasta').onchange = function(){ periodo.hasta = $('pHasta').value; pintar(); };
+
+  Array.prototype.forEach.call(document.querySelectorAll('button[data-atajo]'), function(b){
+    b.onclick = function(){
+      var r = _rangoDisponible();
+      var hoy = new Date().toISOString().slice(0,10);
+      if(b.dataset.atajo === 'todo'){ periodo.desde = r.min; periodo.hasta = r.max; }
+      else if(b.dataset.atajo === 'estasemana'){
+        periodo.desde = _lunesDe(hoy); periodo.hasta = _masDias(periodo.desde, 6);
+      } else {
+        var lunPasado = _masDias(_lunesDe(hoy), -7);
+        periodo.desde = lunPasado; periodo.hasta = _masDias(lunPasado, 6);
+      }
+      pintar();
+    };
+  });
+  engancharMes();
+}
+
 function pantallaProfes(){
   if(!MESES_HAY.length){ $('pantalla').innerHTML='<div class="vacio">Todavía no hay clases cerradas en el historial.</div>'; return; }
-  var filas=filasDelMes(mesElegido);
+  var filas=filasDelPeriodo();
   var pozo=calcularPozo(filas);
   var lista=Object.keys(pozo.porProfe).map(function(k){ return pozo.porProfe[k]; })
     .sort(function(a,b){ return b.monto-a.monto; });
 
-  var html='<div class="barra">'+selectorMes()+'</div>';
+  var html=selectorPeriodo();
+  /* El período va ESCRITO arriba del total. Un monto de pago sin decir de cuándo
+     a cuándo es un número que después nadie puede revisar. */
   html+='<div class="cifras">'+
-    '<div class="cifra sale"><b>'+gs(pozo.total)+'</b><span>total a pagar</span></div>'+
+    '<div class="cifra sale"><b>'+gs(pozo.total)+'</b><span>total a pagar · '+esc(periodoTxt())+'</span></div>'+
     '<div class="cifra"><b>'+gs(lista.length)+'</b><span>profesores</span></div>'+
+    '<div class="cifra"><b>'+gs(filas.length)+'</b><span>clases en el período</span></div>'+
   '</div>';
 
   if(pozo.clasesSinTipo) html+='<div class="aviso"><b>'+gs(pozo.clasesSinTipo)+' clases</b> tienen un tipo '+
@@ -1489,7 +1617,7 @@ function pantallaProfes(){
     'sedes y se reparte en partes iguales entre los profes que tenían clase esa hora.</div></div>';
 
   $('pantalla').innerHTML=html;
-  engancharMes();
+  engancharPeriodo();
   document.querySelectorAll('tr.click').forEach(function(tr){
     tr.onclick=function(){ abrirProfe(tr.dataset.p, pozo); };
   });
@@ -1504,9 +1632,11 @@ function abrirProfe(profe, pozo){
 
   var h='<div class="f-cab"><h2>'+esc(profe)+'</h2><button id="fCerrar">✕</button></div>'+
         '<div class="f-cuerpo">'+
-        '<div class="rotulo" style="text-transform:capitalize"><b>'+esc(mesNombre(mesElegido))+'</b> · '+
+        /* El mismo período que la tabla de arriba, no el mes a secas: si dijeran
+           cosas distintas, el detalle no serviría para revisar el total. */
+        '<div class="rotulo"><b>'+esc(conMayuscula(periodoTxt()))+'</b> · '+
         gs(hs.length)+' horas trabajadas</div>'+
-        '<div class="op bien"><div class="fila1"><span class="et">A cobrar en el mes</span>'+
+        '<div class="op bien"><div class="fila1"><span class="et">A cobrar en el período</span>'+
         '<span class="nm">₲ '+gs(tot)+'</span></div></div>'+
         '<table class="t" style="margin-top:12px"><thead><tr><th>Día</th><th>Hora</th>'+
         '<th class="num">Bolsa</th><th class="num">Profes</th><th class="num">Le toca</th></tr></thead><tbody>';
@@ -1524,7 +1654,7 @@ function abrirProfe(profe, pozo){
   document.body.style.overflow='hidden';
   $('fCerrar').onclick=function(){ $('ficha').classList.remove('ancha'); cerrarFicha(); };
   $('pCopiar').onclick=function(){
-    var t=profe+' · '+mesNombre(mesElegido)+'\n';
+    var t=profe+' · '+periodoTxt()+'\n';
     hs.forEach(function(b){
       t+=fechaCorta(b.fecha)+' '+b.hora+' · bolsa '+gs(b.total)+' entre '+
          Object.keys(b.profes).length+' → '+gs(b.parte)+'\n';
