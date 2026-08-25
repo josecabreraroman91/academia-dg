@@ -122,6 +122,11 @@
   .f-cab button{padding:5px 9px;font-size:15px;line-height:1;color:var(--suave)}
   .f-cuerpo{padding:0 16px 18px}
   .mesfila{display:flex;gap:7px;align-items:stretch;margin-bottom:10px}
+  /* La zona de borrado va con marco rojo: que se vea distinta del resto y que
+     nadie la confunda con una pantalla más. */
+  .caja.peligro{border:2px solid var(--rojo);margin-top:18px}
+  button.chico.malo{background:var(--rojo);color:#fff;border-color:var(--rojo)}
+  .rojo{color:var(--rojo)} .verde{color:var(--verde,#1a7f37)}
   .mesfila .sel{flex:1}
   .masmes{width:42px;padding:0;font-size:19px;font-weight:700;color:var(--teal);line-height:1}
   .masmes:hover{border-color:var(--teal);background:var(--teal-claro)}
@@ -350,6 +355,7 @@ var profesores={}, noProfe={};
 var histActualizado='', padActualizado='', leidoTs=0, refrescando=false;
 var idxId={}, idxNom={};
 var solapa='cobros', mesElegido='', filtroTxt='', tope=TOPE_FILAS;
+var esAdminCaja=false;   // el borrado del historial es solo para administradores
 var ALUMNOS=[], MESES_HAY=[], VIENDO=null, MESES_SEL=[], _sumando=false;
 
 function esc(t){ return String(t==null?'':t)
@@ -488,10 +494,48 @@ function parsearHistorial(paq){
     });
   }
 }
+/* ============================================================
+   DE DÓNDE SALE EL HISTORIAL
+
+   Antes salía de la hoja HISTORIAL de la planilla, que un script copiaba a
+   historial_v1 cada tanto. Ese camino se abandonó: hoy el sistema vive en
+   Firebase y el día lo cierra solo el servidor a las 23:30, que escribe
+   directo en historial_v2/<fecha>.
+
+   Una fecha, un paquete con sus filas. Es lo mismo que había, con dos
+   ventajas: no depende de la planilla y se puede borrar por día.
+   ============================================================ */
+function parsearHistorialV2(nodo){
+  historial=[]; histActualizado='';
+  if(!nodo || typeof nodo!=='object') return;
+  var ultimo='';
+  Object.keys(nodo).sort().forEach(function(fecha){
+    var paq=nodo[fecha];
+    var filas=(paq && paq.filas) || [];
+    if(!Array.isArray(filas)) return;
+    if(paq.cerrado && paq.cerrado>ultimo) ultimo=paq.cerrado;
+    filas.forEach(function(r){
+      if(!r || !r.length) return;
+      var f=String(r[0]||'').trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(f)) return;
+      var nom=String(r[1]||'').trim(); if(!nom) return;
+      var estado=String(r[6]||'').trim();
+      historial.push({
+        fecha:f, alumno:nom, hora:normHora(String(r[2]||'').trim()), sede:String(r[3]||'').trim(),
+        profe:String(r[4]||'').trim(), tipo:String(r[5]||'').trim(),
+        estado:estado, cobro:String(r[7]||'').trim(), motivo:String(r[8]||'').trim(),
+        id:String(r[9]||'').trim(),
+        presente: estado.indexOf('Presente')===0,
+        seCobra: String(r[7]||'').trim().toLowerCase().indexOf('s')===0
+      });
+    });
+  });
+  histActualizado = ultimo;
+}
 function cargarHistorial(){
-  return firebase.database().ref('historial_v1').once('value').then(function(s){
-    parsearHistorial(s.val());
-  }).catch(function(e){ console.warn('historial_v1:', e.message); });
+  return firebase.database().ref('historial_v2').once('value').then(function(s){
+    parsearHistorialV2(s.val());
+  }).catch(function(e){ console.warn('historial_v2:', e.message); });
 }
 
 function parsearPadron(paq){
@@ -924,9 +968,9 @@ function escucharTodo(){
     parsearPadron(s.val()); datosLlegaron();
   }, function(e){ console.warn('alumnos_v1:', e.message); });
 
-  db.ref('historial_v1').on('value', function(s){
-    parsearHistorial(s.val()); datosLlegaron();
-  }, function(e){ console.warn('historial_v1:', e.message); });
+  db.ref('historial_v2').on('value', function(s){
+    parsearHistorialV2(s.val()); datosLlegaron();
+  }, function(e){ console.warn('historial_v2:', e.message); });
 }
 
 /* El botón. Vuelve a pedir todo de cero, sin esperar. */
@@ -936,7 +980,7 @@ function refrescar(){
   var b=$('btnRefrescar');
   var antesH=histActualizado, antesP=padActualizado;
   b.disabled=true; b.textContent='Actualizando…';
-  Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas(), cargarNombres()]).then(function(){
+  Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas(), cargarNombres(), cargarClaveBorrado()]).then(function(){
     armarAlumnos(); pintar(); pintarFrescura();
     b.disabled=false; b.textContent='🔄 Actualizar ahora';
     refrescando=false;
@@ -1648,6 +1692,220 @@ function contarCorregir(){
   $('nCorregir').textContent=n?'· '+n:'';
 }
 
+/* ============================================================
+   BORRAR EL HISTORIAL — la zona peligrosa
+
+   Para qué: poder empezar de cero, o sacar un tramo de días que quedó mal.
+
+   Esto borra el registro contable de la academia: lo que se le cobra a cada
+   alumno y lo que se le paga a cada profe. Por eso tiene tres candados y una
+   red abajo:
+
+   1. Solo lo ve un ADMINISTRADOR. No alcanza con tener el permiso de Caja.
+   2. Pide una CLAVE, que vive en Firebase (usuarios/<tu correo>/claveBorrado),
+      NO en este archivo. El repo es público: una clave escrita acá la leería
+      cualquiera desde GitHub. Cada admin tiene la suya y la define la primera
+      vez que entra.
+   3. Hay que escribir la palabra BORRAR a mano. Un toque sin querer no alcanza.
+
+   Y LA RED: antes de borrar se guarda una copia entera en
+   historial_borrados/<momento>. Si te arrepentís, está ahí. No se borra sola.
+   ============================================================ */
+
+var _claveBorrado = null;      // la de este admin, leída de Firebase
+/* El resultado del último borrado se guarda acá y lo vuelve a dibujar la
+   pantalla. Si viviera solo en el cartel de abajo se perdería enseguida: al
+   borrar cambian los datos, el escucha de Firebase repinta y se lleva puesto el
+   mensaje — justo el que dice DÓNDE quedó la copia, que es lo que necesitás si
+   te arrepentís. */
+var _ultimoBorrado = null;
+
+function _clavePath(){ return 'usuarios/' + aClave(miCorreo) + '/claveBorrado'; }
+
+function cargarClaveBorrado(){
+  return firebase.database().ref(_clavePath()).once('value')
+    .then(function(s){ _claveBorrado = s.val() || null; })
+    .catch(function(){ _claveBorrado = null; });
+}
+
+/* Los días que hay guardados, para mostrar qué se va a borrar antes de hacerlo. */
+function diasDelHistorial(){
+  var dias = {};
+  historial.forEach(function(h){ dias[h.fecha] = (dias[h.fecha] || 0) + 1; });
+  return Object.keys(dias).sort().map(function(f){ return { fecha:f, filas:dias[f] }; });
+}
+
+function pantallaBorrar(){
+  if(!esAdminCaja){
+    return '<div class="caja"><div class="vacio">Esta parte es solo para administradores.</div></div>';
+  }
+  var dias = diasDelHistorial();
+  var totalFilas = historial.length;
+  var h = '<div class="caja peligro">';
+  h += '<h3 style="margin:0 0 6px">🗑️ Borrar el historial</h3>';
+  h += '<p class="pie" style="margin:0 0 12px">Esto borra el registro de clases del que salen los cobros y el pago a los profesores. ' +
+       'Antes de borrar se guarda una copia completa, por las dudas.</p>';
+
+  if(_ultimoBorrado){
+    h += '<div class="aviso"><b class="verde">Último borrado:</b> ' + gs(_ultimoBorrado.dias) + ' día(s), ' +
+         esc(_ultimoBorrado.cuando) + '.<br>La copia quedó en <code>historial_borrados/' +
+         esc(_ultimoBorrado.sello) + '</code> — de ahí se puede volver atrás.</div>';
+  }
+
+  if(!dias.length){
+    h += '<div class="vacio">No hay nada guardado para borrar.</div></div>';
+    return h;
+  }
+
+  h += '<div class="cifras"><div class="cifra"><b>' + gs(dias.length) + '</b><span>días guardados</span></div>' +
+       '<div class="cifra"><b>' + gs(totalFilas) + '</b><span>clases en total</span></div>' +
+       '<div class="cifra"><b>' + esc(dias[0].fecha) + '</b><span>el más viejo</span></div>' +
+       '<div class="cifra"><b>' + esc(dias[dias.length-1].fecha) + '</b><span>el más nuevo</span></div></div>';
+
+  if(!_claveBorrado){
+    h += '<div class="aviso"><b>Todavía no definiste tu clave de borrado.</b> ' +
+         'Es una clave aparte de la de tu cuenta, solo para esto. Se guarda en tu ficha de usuario.' +
+         '<div class="mesfila" style="margin-top:8px">' +
+         '<input class="sel" id="bClaveNueva" type="password" placeholder="Elegí una clave (mínimo 6)" autocomplete="new-password">' +
+         '<button class="chico" id="bDefinir">Guardar mi clave</button></div></div>';
+    h += '</div>';
+    return h;
+  }
+
+  h += '<div class="mesfila" style="margin-bottom:10px">' +
+       '<label><input type="radio" name="bModo" value="todo" checked> Borrar <b>TODO</b></label>' +
+       '<label style="margin-left:14px"><input type="radio" name="bModo" value="rango"> Borrar <b>desde / hasta</b></label>' +
+       '</div>';
+
+  h += '<div class="mesfila" id="bRango" style="display:none;margin-bottom:10px">' +
+       '<input class="sel" id="bDesde" type="date" value="' + esc(dias[0].fecha) + '">' +
+       '<span style="margin:0 6px">hasta</span>' +
+       '<input class="sel" id="bHasta" type="date" value="' + esc(dias[dias.length-1].fecha) + '">' +
+       '</div>';
+
+  h += '<div id="bResumen" class="aviso"></div>';
+
+  h += '<div class="mesfila">' +
+       '<input class="sel" id="bClave" type="password" placeholder="Tu clave de borrado" autocomplete="off">' +
+       '<input class="sel" id="bPalabra" placeholder="Escribí BORRAR" autocomplete="off" style="margin-left:6px">' +
+       '<button class="chico malo" id="bHacer" style="margin-left:6px">Borrar</button>' +
+       '</div>';
+
+  h += '<div id="bSalida" class="pie" style="margin-top:10px"></div>';
+  h += '</div>';
+  return h;
+}
+
+/* Qué días caen en lo elegido. Se calcula siempre antes de borrar, y es lo
+   mismo que se le muestra al usuario: nunca se borra algo que no se mostró. */
+function diasElegidosParaBorrar(){
+  var modo = (document.querySelector('input[name=bModo]:checked') || {}).value || 'todo';
+  var dias = diasDelHistorial();
+  if(modo === 'todo') return { modo:modo, dias:dias };
+  var d = ($('bDesde') || {}).value || '';
+  var hs = ($('bHasta') || {}).value || '';
+  return { modo:modo, desde:d, hasta:hs,
+           dias: dias.filter(function(x){ return (!d || x.fecha >= d) && (!hs || x.fecha <= hs); }) };
+}
+
+function pintarResumenBorrado(){
+  var r = diasElegidosParaBorrar();
+  var el = $('bResumen'); if(!el) return;
+  var filas = r.dias.reduce(function(s,x){ return s + x.filas; }, 0);
+  if(!r.dias.length){ el.innerHTML = 'No hay ningún día en ese rango. No se va a borrar nada.'; return; }
+  el.innerHTML = 'Se van a borrar <b>' + gs(r.dias.length) + ' día(s)</b> y <b>' + gs(filas) + ' clases</b>' +
+    (r.modo === 'rango' ? (' — del ' + esc(r.dias[0].fecha) + ' al ' + esc(r.dias[r.dias.length-1].fecha)) : ' — TODO el historial') + '.';
+}
+
+function engancharBorrar(){
+  if(!esAdminCaja) return;
+
+  var def = $('bDefinir');
+  if(def){
+    def.onclick = function(){
+      var v = ($('bClaveNueva').value || '').trim();
+      if(v.length < 6){ alert('Poné una clave de al menos 6 caracteres.'); return; }
+      def.disabled = true; def.textContent = 'Guardando…';
+      firebase.database().ref(_clavePath()).set(v).then(function(){
+        _claveBorrado = v;
+        alert('Clave guardada. Ya podés usar el borrado.');
+        pintar();
+      }).catch(function(e){
+        def.disabled = false; def.textContent = 'Guardar mi clave';
+        alert('No pude guardar la clave:\n\n' + e.message);
+      });
+    };
+    return;
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll('input[name=bModo]'), function(r){
+    r.onchange = function(){
+      var esRango = (document.querySelector('input[name=bModo]:checked') || {}).value === 'rango';
+      if($('bRango')) $('bRango').style.display = esRango ? '' : 'none';
+      pintarResumenBorrado();
+    };
+  });
+  if($('bDesde')) $('bDesde').onchange = pintarResumenBorrado;
+  if($('bHasta')) $('bHasta').onchange = pintarResumenBorrado;
+  pintarResumenBorrado();
+
+  var btn = $('bHacer'); if(!btn) return;
+  btn.onclick = function(){
+    var salida = $('bSalida');
+    var clave = ($('bClave').value || '');
+    var palabra = ($('bPalabra').value || '').trim().toUpperCase();
+
+    if(clave !== _claveBorrado){ salida.innerHTML = '<b class="rojo">La clave no es correcta.</b>'; return; }
+    if(palabra !== 'BORRAR'){ salida.innerHTML = '<b class="rojo">Escribí la palabra BORRAR para confirmar.</b>'; return; }
+
+    var r = diasElegidosParaBorrar();
+    if(!r.dias.length){ salida.innerHTML = '<b class="rojo">No hay días para borrar.</b>'; return; }
+    var filas = r.dias.reduce(function(s,x){ return s + x.filas; }, 0);
+
+    if(!confirm('Vas a borrar ' + r.dias.length + ' día(s) y ' + filas + ' clases.\n\n' +
+                (r.modo === 'rango' ? ('Del ' + r.dias[0].fecha + ' al ' + r.dias[r.dias.length-1].fecha) : 'TODO el historial') +
+                '\n\nSe guarda una copia antes de borrar. ¿Sigo?')) return;
+
+    btn.disabled = true; btn.textContent = 'Borrando…';
+    salida.innerHTML = 'Guardando la copia de respaldo…';
+
+    var ref = firebase.database().ref('historial_v2');
+    ref.once('value').then(function(s){
+      var todo = s.val() || {};
+      var copia = {};
+      r.dias.forEach(function(d){ if(todo[d.fecha]) copia[d.fecha] = todo[d.fecha]; });
+      var sello = new Date().toISOString().replace(/[:.]/g, '-');
+      return firebase.database().ref('historial_borrados/' + sello).set({
+        cuando: new Date().toISOString(),
+        porCorreo: miCorreo,
+        modo: r.modo,
+        dias: r.dias.map(function(d){ return d.fecha; }),
+        datos: copia
+      }).then(function(){ return sello; });
+    }).then(function(sello){
+      salida.innerHTML = 'Copia guardada. Borrando…';
+      /* Una sola escritura con todos los días en null: o se borran todos o no se
+         borra ninguno. Borrarlos de a uno podía dejar la mitad hecha. */
+      var upd = {};
+      r.dias.forEach(function(d){ upd[d.fecha] = null; });
+      return ref.update(upd).then(function(){ return sello; });
+    }).then(function(sello){
+      btn.disabled = false; btn.textContent = 'Borrar';
+      if($('bClave')) $('bClave').value = '';
+      if($('bPalabra')) $('bPalabra').value = '';
+      _ultimoBorrado = { sello: sello, dias: r.dias.length,
+                         cuando: new Date().toLocaleString('es-PY') };
+      salida.innerHTML = '<b class="verde">Listo: se borraron ' + gs(r.dias.length) + ' día(s).</b><br>' +
+        'La copia quedó en <code>historial_borrados/' + esc(sello) + '</code> por si hace falta volver atrás.';
+      try{ pintar(); }catch(e){}
+    }).catch(function(e){
+      btn.disabled = false; btn.textContent = 'Borrar';
+      salida.innerHTML = '<b class="rojo">No se pudo borrar: ' + esc(e.message) + '</b><br>' +
+        'No se tocó nada: el borrado va después de la copia, y la copia falló.';
+    });
+  };
+}
+
 function pantallaCorregir(){
   var c=calcularCorregir();
   var graves=c.items.filter(function(x){ return x.grave; });
@@ -1716,6 +1974,14 @@ function pantallaCorregir(){
       });
     };
   });
+
+  /* La zona de borrado vive al final de "Para corregir", que es la pantalla de
+     mantenimiento. No es una solapa aparte a propósito: no tiene que estar a un
+     toque de distancia. */
+  if(esAdminCaja){
+    $('pantalla').insertAdjacentHTML('beforeend', pantallaBorrar());
+    try{ engancharBorrar(); }catch(e){ console.warn('borrado:', e.message); }
+  }
 }
 
 /* ---------- Entrada ---------- */
@@ -1737,6 +2003,7 @@ firebase.auth().onAuthStateChanged(function(u){
        · leer     → ve todo, no toca nada
        Esto es plata: quien no lo tenga declarado no entra, aunque tenga otros permisos. */
     var esAdmin = (p.admin===true);
+    esAdminCaja = esAdmin;
     var nivel = esAdmin ? 'escribir' : ((p.caja==='escribir'||p.caja==='leer') ? p.caja : '');
     if(f.activo!==true || !nivel){
       $('login').style.display='none';
@@ -1749,7 +2016,7 @@ firebase.auth().onAuthStateChanged(function(u){
     $('login').style.display='none'; $('nopuede').style.display='none';
     $('app').style.display='block';
     $('yoMail').textContent=miCorreo;
-    Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas(), cargarNombres()]).then(function(){
+    Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas(), cargarNombres(), cargarClaveBorrado()]).then(function(){
       armarAlumnos();
       leidoTs=Date.now();
       $('cargando').style.display='none';
