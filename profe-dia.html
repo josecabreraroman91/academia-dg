@@ -657,6 +657,32 @@ function slotDeDestino(sede, dim, hi){
   const n = (ocupa[pi]||0) + sueltos;
   return dia+'|'+sede+'|'+pi+'|'+hi+'|'+Math.min(n, 20);
 }
+/* ============================================================
+   EL TOPE DE LA CANCHA: 4 ALUMNOS POR HORA
+
+   La grilla tiene 4 casilleros por profe y por hora, ni uno más. Antes desde acá
+   se podía seguir agregando gente sin límite: el alumno aparecía en la lista del
+   profe, pero al llegar al calendario no había dónde ponerlo y el cambio quedaba
+   colgado. La lista y el calendario decían cosas distintas, y ese alumno igual
+   entraba en la asistencia y en el reparto de la bolsa.
+
+   Ahora se corta antes: si la cancha está llena, no se agrega y se avisa.
+   El profe ayudante NO ocupa lugar — no es un alumno. */
+const TOPE_POR_HORA = 4;
+function cuantosEnLaHora(sede, dim, h){
+  let n=0;
+  for(const cid in cacheDia){
+    const a=cacheDia[cid];
+    if(!a || a.borrado) continue;
+    if(a._sede!==sede || a.profe!==dim) continue;
+    if(Number(a.horaIdx)!==Number(h)) continue;
+    if(esAyuda(a)) continue;                 // el que ayuda no ocupa casillero
+    n++;
+  }
+  return n;
+}
+function hayLugarEn(sede, dim, h){ return cuantosEnLaHora(sede, dim, h) < TOPE_POR_HORA; }
+
 /* Deja la operación en el cajón. Nunca rompe: si no se puede, se avisa por
    consola y la tablet sigue. */
 function alPuente(clave, datos){
@@ -721,8 +747,10 @@ function esBloque(a){ return a.mod==='BLOQUE' || /ALTO RENDIMIENTO|ALMUERZO/i.te
    Entra al reparto de la bolsa como uno más, y deja de figurar como
    disponible en su propio horario, porque ya no lo está.
 
-   Se guarda como un renglón del día con nombre AYUDANTE: el campo profe es
-   el titular (para verlo en su fila) y ayudante es la inicial del que ayuda.
+   Se guarda como un renglón del día con nombre AYUDANTE y tipo AYUDA. El campo
+   `profe` lleva al QUE AYUDA —es el campo con el que Caja y Ganancias arman el
+   reparto de la bolsa, así que ahí se define quién cobra— y `titular` al dueño
+   de la clase, que es donde se muestra el chip.
    ============================================================ */
 function esAyuda(a){ return !!(a && a.ayudante); }
 
@@ -769,7 +797,14 @@ function render(){
   if(maxH<0 && !ausentes.length){ wrap.innerHTML='<div class="empty">Todavía no hay clases publicadas para hoy.<br><br>Cuando se publique el día desde el calendario, aparecen acá automáticamente.<br><br>Si vino alguien igual, podés cargarlo con <b>➕ Agregar</b>.</div>'; return; }
   // índice alumnos PRESENTES: sede|profe|hora -> [alumnos]
   const byCell={};
-  presentes.forEach(a=>{ const k=a._sede+'|'+a.profe+'|'+(a.horaIdx||0); (byCell[k]=byCell[k]||[]).push(a); });
+  /* El renglón de ayuda se cuelga de la fila del TITULAR, que es donde tiene
+     sentido verlo, aunque en el dato `profe` sea el que ayuda (ver más arriba:
+     ese campo es el que decide quién cobra). Los renglones viejos, guardados al
+     revés, siguen cayendo bien porque para ellos `profe` ya era el titular. */
+  presentes.forEach(a=>{
+    const fila = esAyuda(a) ? (a.titular || a.profe) : a.profe;
+    const k=a._sede+'|'+fila+'|'+(a.horaIdx||0); (byCell[k]=byCell[k]||[]).push(a);
+  });
   let html='';
   for(let h=minH; h<=maxH; h++){
     const filas=[]; // {sede,profe,alumnos}
@@ -901,6 +936,12 @@ function confirmarMover(){
   const nuevoProfe=document.getElementById('mvProfe').value;
   const nuevaHora=+document.getElementById('mvHora').value;
   const destSede=sedeDeProfe(nuevoProfe) || rec._sede;   // sede real del profe; si no se sabe, queda donde estaba
+  /* El que se mueve no cuenta como ocupante de su destino si ya estaba ahí. */
+  const yaEstaAhi = (rec._sede===destSede && rec.profe===nuevoProfe && Number(rec.horaIdx)===Number(nuevaHora));
+  if(!yaEstaAhi && !hayLugarEn(destSede, nuevoProfe, nuevaHora)){
+    toast('🚫 '+nuevoProfe+' ya tiene '+TOPE_POR_HORA+' alumnos a las '+(HORAS[nuevaHora]||'')+'. La cancha está llena.');
+    return;
+  }
   const _recM = cacheDia[_moverId] || {};
   childRef(_moverId).child('borrado').set(true);   // sale de donde estaba
   const _acRef = db.ref('dia/'+fecha+'/'+destSede).push({ nombre:rec.nombre, horaIdx:nuevaHora, profe:nuevoProfe, mod:rec.mod||'', confirmado:true, asis:'presente', acople:true, movido:true });
@@ -1033,8 +1074,16 @@ document.getElementById('acAyudante').onclick=function(){
   var idx=parseInt(r,10)-1;
   if(isNaN(idx) || idx<0 || idx>=libres.length){ alert('No entendí cuál elegiste.'); return; }
   var quien=libres[idx];
+  /* EL CAMPO `profe` ES EL QUE COBRA.
+     Acá antes iba el TITULAR y el que ayudaba quedaba solo en `ayudante`, un
+     campo que no lee ninguna otra pantalla. Caja y Ganancias arman el reparto de
+     la bolsa con `profe`, así que el renglón sumaba de nuevo al titular —que ya
+     estaba por sus propios alumnos— y el que ayudó no entraba: trabajaba la hora
+     y no cobraba nada.
+     Ahora `profe` es el que ayuda y el titular queda en `titular`, que es lo que
+     usa esta pantalla para mostrar el chip en la fila correcta. */
   db.ref('dia/'+fecha+'/'+sede).push({
-    nombre:'AYUDANTE', horaIdx:h, profe:titular, ayudante:quien,
+    nombre:'AYUDANTE', tipo:'AYUDA', horaIdx:h, profe:quien, titular:titular, ayudante:quien,
     mod:'', confirmado:true, asis:'presente', acople:true
   }).then(function(){
     anotarOp('acople','AYUDANTE '+quien, 'ayuda a '+titular+' · '+(HORAS[h]||'')+' · '+(SEDE_NOM[sede]||sede),
@@ -1185,6 +1234,10 @@ document.getElementById('acGuardar').onclick=()=>{
   const horaIdx=+document.getElementById('acHora').value;
   const profe=document.getElementById('acProfe').value;
   const selS=document.getElementById('acSede'); const sk=selS?selS.value:miSede;
+  if(!hayLugarEn(sk, profe, horaIdx)){
+    toast('🚫 '+profe+' ya tiene '+TOPE_POR_HORA+' alumnos a las '+(HORAS[horaIdx]||'')+'. La cancha está llena.');
+    return;
+  }
   /* La sede queda como default para el proximo acople. Antes esto lo fijaba una
      pantalla de arranque que en la practica no se mostraba nunca. */
   if(sk){ miSede=sk; try{ localStorage.setItem('profe_sede',sk); }catch(e){} }
