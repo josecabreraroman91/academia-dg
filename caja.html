@@ -148,6 +148,18 @@
     letter-spacing:.4px;margin:9px 0 6px;width:100%}
   .rotulo{font-size:13px;color:var(--suave);margin-bottom:10px}
   .rotulo b{color:var(--texto);font-weight:600}
+  /* El ₲ de la cabecera de la ficha: poner el precio a mano cuando el padron
+     no lo tiene. Se abre en su lugar, sin empujar nada. */
+  .pbox{display:flex;align-items:center;gap:6px}
+  .pbtn{padding:5px 9px;font-size:14px;color:var(--suave);border:1px solid transparent;
+    background:none;border-radius:8px;cursor:pointer}
+  .pbtn:hover{border-color:var(--linea);color:var(--texto)}
+  .pbtn.falta{color:var(--verde);border-color:var(--verde);font-weight:700}
+  #fPrecio{display:none;width:118px;border:1px solid var(--teal);border-radius:8px;
+    padding:5px 9px;font-size:13px;font-family:inherit}
+  #fPrecio:focus{outline:none;box-shadow:0 0 0 3px var(--teal-claro)}
+  .pbox.abierto #fPrecio{display:block}
+  .pbox.abierto .pbtn{display:none}
   .dias{display:flex;gap:7px;flex-wrap:wrap}
   .d{background:var(--teal);color:#fff;border-radius:9px;min-width:44px;padding:7px 8px;
     text-align:center;line-height:1.15}
@@ -1810,7 +1822,19 @@ function pintarFicha(){
   var sel=MESES_SEL.slice().sort();
   var faltan=suyos.filter(function(m){ return sel.indexOf(m)<0; });
 
+  /* Con permiso de escribir y ficha en el padron, se puede poner el precio
+     desde aca mismo. A diferencia de la herramienta provisoria -- donde el
+     precio a mano vivia en memoria y se perdia al recargar -- este se guarda
+     de verdad: va a alumnos_v2, a padron_v1 y a la planilla por el puente.
+     O sea que corrige al alumno para todo el sistema, no para esta pantalla. */
+  var faltaPrecio = a.ficha && !a.ficha.beca && !a.ficha.precio;
   var h='<div class="f-cab"><h2>'+esc(a.nombre)+'</h2>'+
+        (puedeEditar && a.ficha ? '<div class="pbox" id="pbox">'+
+           '<button class="pbtn'+(faltaPrecio?' falta':'')+'" id="fPrecioBtn" title="'+
+           (faltaPrecio?'Falta el precio: ponelo a mano':'Cambiar el precio')+'">₲</button>'+
+           '<input id="fPrecio" type="text" inputmode="numeric" autocomplete="off" '+
+           'placeholder="precio o BECA" aria-label="Precio por clase">'+
+         '</div>' : '')+
         '<button id="fCerrar" aria-label="Cerrar">✕</button></div><div class="f-cuerpo">';
 
   /* Mes principal + botón para sumar otro (para el que debe dos meses). */
@@ -1910,6 +1934,33 @@ function pintarFicha(){
   $('ficha').innerHTML=h;
 
   $('fCerrar').onclick=cerrarFicha;
+  if($('fPrecioBtn')){
+    var _pb=$('pbox'), _pi=$('fPrecio');
+    _pi.value = a.ficha.beca ? 'BECA' : (a.ficha.precio ? gs(a.ficha.precio) : '');
+    $('fPrecioBtn').onclick=function(){ _pb.classList.add('abierto'); _pi.focus(); _pi.select(); };
+    _pi.oninput=function(){
+      if(/beca/i.test(_pi.value)) return;              // BECA se escribe como palabra
+      var d=soloDigitos(_pi.value); _pi.value = d ? gs(+d) : '';
+    };
+    var _guardar=function(){
+      _pb.classList.remove('abierto');
+      var txt=(_pi.value||'').trim();
+      var antesN=a.ficha.precio||0, antesB=!!a.ficha.beca;
+      var nuevoB=/beca/i.test(txt), nuevoN=+soloDigitos(txt)||0;
+      if(nuevoB===antesB && nuevoN===antesN) return;   // no cambio nada
+      if(!nuevoB && !nuevoN) return;                   // vacio: no se borra un precio sin querer
+      corregirAlumno(a.ficha, txt, a.ficha.tipo||'').then(function(){
+        pintarFicha(); pintar(); toast('Precio guardado');
+      }).catch(function(e){
+        alert('No pude guardar el precio.'+String.fromCharCode(10,10)+e.message);
+      });
+    };
+    _pi.onblur=_guardar;
+    _pi.onkeydown=function(ev){
+      if(ev.key==='Enter'){ _pi.blur(); }
+      else if(ev.key==='Escape'){ _pi.value = a.ficha.beca?'BECA':(a.ficha.precio?gs(a.ficha.precio):''); _pb.classList.remove('abierto'); }
+    };
+  }
   $('fMes').onchange=function(){ MESES_SEL=[$('fMes').value]; _sumando=false; pintarFicha(); };
   if($('fMasMes')) $('fMasMes').onclick=function(){ _sumando=true; pintarFicha(); };
   $('ficha').querySelectorAll('[data-quitar]').forEach(function(b){
