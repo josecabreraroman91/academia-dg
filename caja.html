@@ -40,6 +40,11 @@
   button:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 
   /* ---- Solapas ---- */
+  .planBarra{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;
+    padding:10px 13px;border:1px solid var(--linea);border-radius:11px;background:#fbfcfd}
+  .planBarra .planTxt{font-size:12.5px;color:var(--suave);flex:1;min-width:220px}
+  .planBarra .planTxt b{color:var(--texto)}
+  .planBarra .planAviso{color:var(--malo,#b45309);font-weight:600}
   .solapas{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:18px}
   .solapas button{font-size:13.5px;padding:8px 15px;border-radius:20px}
   .solapas button.on{border-color:var(--teal);background:var(--teal-claro);
@@ -247,6 +252,9 @@
     <div class="txt" id="frescuraTxt">Leyendo…</div>
     <button class="chico" id="btnRefrescar">🔄 Actualizar ahora</button>
   </div>
+
+  <div class="planBarra" id="planBarra"></div>
+  <input type="file" id="planArchivo" accept=".csv,text/csv" style="display:none">
 
   <div class="solapas">
     <button data-s="cobros" class="on">Cobros</button>
@@ -1032,6 +1040,9 @@ function armarAlumnos(){
     a.meses[m].dias[h.fecha]=(a.meses[m].dias[h.fecha]||0)+1;
     a.total++;
   });
+  /* La planilla del sistema viejo se suma ACA, despues del historial propio:
+     asi se rearma sola cada vez que llegan datos nuevos de Firebase. */
+  try{ planSumar(mapa, meses); }catch(e){ console.warn('planilla:', e.message); }
   ALUMNOS=Object.keys(mapa).map(function(k){ return mapa[k]; })
     .sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
   MESES_HAY=Object.keys(meses).sort();
@@ -1042,14 +1053,40 @@ function armarAlumnos(){
    precio por clase: no se multiplica por clase, se cobra una vez por mes. */
 function cobroDe(a, mesesSel){
   var f=a.ficha;
-  var clases=0;
-  mesesSel.forEach(function(m){ if(a.meses[m]) clases+=a.meses[m].clases; });
-  if(!f) return { estado:'nopadron', clases:clases, total:0 };
-  if(f.beca) return { estado:'beca', clases:clases, total:0 };
-  if(!f.precio) return { estado:'sinprecio', clases:clases, total:0 };
-  if(f.precio>TOPE_ABONO) return { estado:'abono', clases:clases, precio:f.precio,
-                                   total:f.precio*mesesSel.length, meses:mesesSel.length };
-  return { estado:'ok', clases:clases, precio:f.precio, total:f.precio*clases };
+  var clases=0, planClases=0, planMonto=0;
+  mesesSel.forEach(function(m){
+    var mm=a.meses[m]; if(!mm) return;
+    clases += mm.clases;
+    planClases += (mm.planClases||0);
+    planMonto  += (mm.planMonto||0);
+  });
+  /* Las clases que salen de la PLANILLA ya vienen con el precio real que
+     cobro el sistema viejo, clase por clase. Para esas no se usa el padron:
+     usar el padron seria recalcular algo que ya esta calculado, y le erraria
+     a todo el que tenga un precio negociado. El padron se usa solo para las
+     clases del historial propio. */
+  var propias = clases - planClases;
+  var extra = { planClases:planClases, planMonto:planMonto, propias:propias };
+  /* La BECA se mira ANTES que la planilla, a proposito. Con la planilla
+     adelante, un alumno marcado como becado en el padron podia terminar con
+     un monto arriba de cero si el sistema viejo le habia cobrado algo, y de
+     ahi sale un mensaje de WhatsApp pidiendole plata a alguien que no paga.
+     Entre cobrarle de mas a un becado y no cobrarle a alguien que debe, el
+     error caro es el primero: uno lo ve el alumno, el otro lo ve Diego. */
+  if(f && f.beca) return Object.assign({ estado:'beca', clases:clases, total:0 }, extra);
+  if(planClases && !propias)
+    return Object.assign({ estado:'planilla', clases:clases, total:planMonto }, extra);
+  if(!f) return Object.assign({ estado:'nopadron', clases:clases, total:planMonto }, extra);
+  if(!f.precio) return Object.assign({ estado:'sinprecio', clases:clases, total:planMonto }, extra);
+  if(f.precio>TOPE_ABONO) return Object.assign({ estado:'abono', clases:clases, precio:f.precio,
+                                   total:f.precio*mesesSel.length, meses:mesesSel.length }, extra);
+  /* Mezcla: los dias viejos con el precio de la planilla y los nuevos con el
+     del padron. Se muestran las dos partes para que se vea de donde sale cada
+     guarani. */
+  if(planClases)
+    return Object.assign({ estado:'mixto', clases:clases, precio:f.precio,
+                           total:f.precio*propias + planMonto }, extra);
+  return Object.assign({ estado:'ok', clases:clases, precio:f.precio, total:f.precio*clases }, extra);
 }
 
 function filasDelMes(mes){
@@ -1193,6 +1230,289 @@ function togglePago(k, fecha){
     });
 }
 
+/* ============================================================
+   LA PLANILLA DEL SISTEMA VIEJO — SE CARGA A MANO, NO SE GUARDA
+
+   El historial propio (historial_v2) arranca el 25/08/2026. Todo lo de antes
+   vive en el sistema viejo, y de ahi sale el reporte "Monto por Alumnos"
+   (Informes -> Monto por Alumnos -> Descargar xlsx, guardado como CSV).
+
+   POR QUE ESE REPORTE Y NO EL OTRO
+   Hay dos gemelos. El de PROFESORES trae, entre parentesis, lo que cobra el
+   PROFE; el de ALUMNOS trae lo que paga el ALUMNO. Con el de profes no se puede
+   deducir el precio: hay 25 tipos de clase y varios comparten monto (solo en
+   50.000 hay siete). Con el de alumnos no hay nada que deducir, el precio viene
+   clase por clase.
+
+   POR QUE NO SE GUARDA EN FIREBASE
+   Decision de Jose (26/08/2026): la planilla cambia todos los dias y se carga a
+   mano, como en la herramienta provisoria. Mas adelante se decide si se
+   incorpora o no.
+
+   Y NO HACE FALTA QUE SE GUARDE: las marcas de pago se guardan con la llave
+   `alumno + fecha`, no con la fila del archivo. Cargas la planilla de hoy,
+   marcas lo cobrado, manana cargas la planilla nueva -- con mas dias y con
+   correcciones -- y las marcas de ayer siguen en su lugar.
+
+   Queda en localStorage nada mas para que refrescar la pagina no te obligue a
+   volver a cargar el archivo. Es de esta computadora y de nadie mas.
+   ============================================================ */
+var PLANILLA = null;   // { clases:[{fecha,hora,nombre,monto,k}], desde, hasta, cargadaTs, sinCruzar:[] }
+var PLAN_LLAVE = 'caja_planilla_v1';
+
+/* ---------- Lector de CSV que respeta las comillas ----------
+   El campo Estudiantes trae comas adentro ("Juan (90.000), Ana (90.000)"), asi
+   que partir por coma a secas rompe todo. */
+function planCsvFilas(txt){
+  var filas=[], fila=[], campo='', enComillas=false, i=0;
+  txt = String(txt||'').replace(/^﻿/, '');
+  while(i < txt.length){
+    var c = txt[i];
+    if(enComillas){
+      if(c === '"'){
+        if(txt[i+1] === '"'){ campo+='"'; i+=2; continue; }
+        enComillas=false; i++; continue;
+      }
+      campo+=c; i++; continue;
+    }
+    if(c === '"'){ enComillas=true; i++; continue; }
+    if(c === ','){ fila.push(campo); campo=''; i++; continue; }
+    if(c === '\r'){ i++; continue; }
+    if(c === '\n'){ fila.push(campo); filas.push(fila); fila=[]; campo=''; i++; continue; }
+    campo+=c; i++;
+  }
+  if(campo.length || fila.length){ fila.push(campo); filas.push(fila); }
+  return filas.filter(function(f){ return f.length>1 || (f[0]||'').trim(); });
+}
+
+/* La fecha viene DD/MM/AAAA y adentro se trabaja con AAAA-MM-DD. */
+function planFecha(s){
+  var m = String(s||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if(!m) return '';
+  return m[3] + '-' + ('0'+m[2]).slice(-2) + '-' + ('0'+m[1]).slice(-2);
+}
+function planMonto(s){
+  var d = String(s==null?'':s).replace(/[^\d]/g,'');
+  return d ? +d : 0;
+}
+
+/* ---------- El cruce de nombres contra el padron ----------
+   Tres pasadas, de la mas segura a la menos:
+     1. EXACTO por el indice que ya usa Caja
+     2. POR LETRAS, para los errores de tipeo ("Rosti Vaselinov" -> "Veselinov")
+     3. POR PALABRAS, para los nombres largos o dados vuelta
+        ("Jose Fabrizio Bareiro Leon" -> "Fabrizio Bareiro")
+
+   La tercera hace falta de verdad: sin ella quedan afuera 917 clases medidas
+   sobre el reporte de junio a agosto, porque la distancia por letras corta
+   cuando los largos se diferencian en mas de 4 y esos nombres se diferencian
+   en mucho mas. */
+function planDistancia(a,b){
+  if(a===b) return 1;
+  var m=a.length, n=b.length;
+  if(!m || !n || Math.abs(m-n)>4) return 0;
+  var prev=[], cur=[], i, j;
+  for(j=0;j<=n;j++) prev[j]=j;
+  for(i=1;i<=m;i++){
+    cur[0]=i;
+    for(j=1;j<=n;j++){
+      cur[j]=Math.min(prev[j]+1, cur[j-1]+1, prev[j-1]+(a.charAt(i-1)===b.charAt(j-1)?0:1));
+    }
+    var t=prev; prev=cur; cur=t;
+  }
+  return 1 - prev[n]/Math.max(m,n);
+}
+function planPalabras(s){
+  return String(s||'').split(' ').filter(function(w){ return w.length>2; });
+}
+var _planCache = {};
+function planCruzar(nombre){
+  var exacta = normNom(nombre);
+  if(_planCache[exacta] !== undefined) return _planCache[exacta];
+  var f = idxNom[exacta] || idxNom[keyAlumno(nombre)] || null;
+  if(f){ _planCache[exacta]=f; return f; }
+
+  var base = keyAlumno(nombre), mejor=null, mejorV=0, i;
+  /* 2) por letras */
+  for(i=0;i<padron.length;i++){
+    var p=padron[i]; if(!p.nombre) continue;
+    var v = planDistancia(base, keyAlumno(p.nombre));
+    if(v>mejorV){ mejorV=v; mejor=p; }
+  }
+  if(mejor && mejorV>=0.93){ _planCache[exacta]=mejor; return mejor; }
+
+  /* 3) por palabras: TODAS las palabras del mas corto tienen que estar en el
+     otro, y tienen que ser al menos dos. Con una sola palabra en comun
+     ("Maria Lopez" y "Maria Gonzalez") se pegarian dos personas distintas. */
+  var tn = planPalabras(base), best=null, bestLen=0;
+  if(tn.length>=2){
+    for(i=0;i<padron.length;i++){
+      var q=padron[i]; if(!q.nombre) continue;
+      var tp = planPalabras(keyAlumno(q.nombre));
+      if(tp.length<2) continue;
+      var corto = tn.length<=tp.length ? tn : tp;
+      var largo = tn.length<=tp.length ? tp : tn;
+      var todas=true;
+      for(var z=0;z<corto.length;z++){ if(largo.indexOf(corto[z])<0){ todas=false; break; } }
+      if(todas && corto.length>bestLen){ bestLen=corto.length; best=q; }
+    }
+  }
+  _planCache[exacta] = best;
+  return best;
+}
+
+/* ---------- Leer el archivo ---------- */
+function planLeer(txt){
+  var filas = planCsvFilas(txt);
+  if(!filas.length) throw new Error('el archivo esta vacio');
+  var cab = filas[0].map(function(c){ return String(c||'').trim().toLowerCase(); });
+  var iHora=cab.indexOf('hora'), iFecha=cab.indexOf('fecha'), iAl=cab.indexOf('estudiantes');
+  if(iFecha<0 || iAl<0){
+    throw new Error('no encuentro las columnas Fecha y Estudiantes.\n\n' +
+                    'Tiene que ser el reporte de Informes -> Monto por Alumnos.');
+  }
+  /* El reporte de PROFESORES no trae la columna PROFES; el de ALUMNOS si. Si
+     falta, lo que hay entre parentesis es lo que cobra el profe, no lo que
+     paga el alumno, y cobrar con eso seria cobrar de menos a todo el mundo. */
+  var esDeAlumnos = cab.indexOf('profes') >= 0;
+
+  var rx = /([^,(]+?)\s*\(([\d.]+)\)/g;
+  var clases=[], f, m, fecha, hora, desde='', hasta='';
+  for(var r=1;r<filas.length;r++){
+    f = filas[r];
+    fecha = planFecha(f[iFecha]); if(!fecha) continue;
+    hora = String(f[iHora]||'').trim();
+    if(!desde || fecha<desde) desde=fecha;
+    if(!hasta || fecha>hasta) hasta=fecha;
+    rx.lastIndex=0;
+    while((m = rx.exec(String(f[iAl]||'')))){
+      var nom = m[1].replace(/^[\s,]+|[\s,]+$/g,'');
+      if(!nom) continue;
+      clases.push({ fecha:fecha, hora:hora, nombre:nom, monto:planMonto(m[2]) });
+    }
+  }
+  if(!clases.length) throw new Error('no encontre ninguna clase adentro del archivo');
+  return { clases:clases, desde:desde, hasta:hasta, esDeAlumnos:esDeAlumnos, cargadaTs:Date.now() };
+}
+
+/* ---------- Meter la planilla adentro de los alumnos ----------
+   Se llama al final de armarAlumnos, asi que se rearma sola cada vez que
+   cambian los datos de Firebase.
+
+   LA REGLA CONTRA EL DOBLE CONTEO: si una FECHA ya viene del historial propio,
+   la planilla no la toca. El historial es el que manda para los dias que
+   cubre; la planilla solo aporta los dias de antes. Sin esto, los dias en que
+   los dos se pisan se cobrarian dos veces. */
+function planSumar(mapa, meses){
+  if(!PLANILLA || !PLANILLA.clases.length) return;
+  var fechasPropias = {};
+  historial.forEach(function(h){ if(h.fecha) fechasPropias[h.fecha]=true; });
+
+  var sinCruzar = {};
+  PLANILLA.clases.forEach(function(c){
+    if(fechasPropias[c.fecha]) return;              // ese dia ya lo tiene el historial
+    var ficha = planCruzar(c.nombre);
+    if(!ficha) sinCruzar[c.nombre] = (sinCruzar[c.nombre]||0)+1;
+    var k = ficha ? (ficha.id || keyAlumno(ficha.nombre)) : ('?'+keyAlumno(c.nombre));
+    if(!mapa[k]) mapa[k] = { k:k, nombre: ficha?ficha.nombre:c.nombre, ficha:ficha,
+                             meses:{}, total:0 };
+    var a = mapa[k], mm = c.fecha.slice(0,7);
+    meses[mm] = true;
+    if(!a.meses[mm]) a.meses[mm] = { clases:0, dias:{} };
+    a.meses[mm].clases++;
+    a.meses[mm].dias[c.fecha] = (a.meses[mm].dias[c.fecha]||0)+1;
+    /* La plata de la planilla se guarda aparte: viene con el precio real de esa
+       clase y no hay que recalcularlo con el padron. */
+    a.meses[mm].planClases = (a.meses[mm].planClases||0)+1;
+    a.meses[mm].planMonto  = (a.meses[mm].planMonto||0) + (c.monto||0);
+    a.total++;
+  });
+  PLANILLA.sinCruzar = Object.keys(sinCruzar).sort(function(x,y){
+    return sinCruzar[y]-sinCruzar[x];
+  }).map(function(n){ return { nombre:n, veces:sinCruzar[n] }; });
+}
+
+/* ---------- Cargar / descargar ---------- */
+function planGuardarLocal(txt){
+  try{ localStorage.setItem(PLAN_LLAVE, txt); }
+  catch(e){
+    /* Si no entra, se avisa: quedarse callado haria creer que manana la planilla
+       sigue cargada cuando en realidad se perdio al refrescar. */
+    alert('La planilla se cargo, pero no la pude dejar guardada en esta computadora'+
+          ' (' + e.message + ').\n\nVa a andar igual hasta que refresques la pagina.');
+  }
+}
+function planCargarTexto(txt, guardar){
+  var p = planLeer(txt);
+  if(!p.esDeAlumnos){
+    if(!confirm('OJO: este archivo parece el reporte de PROFESORES, no el de alumnos.\n\n' +
+                'Los montos entre parentesis serian lo que cobra el PROFE, no lo que paga el\n' +
+                'alumno, y los cobros saldrian mal.\n\n' +
+                'El bueno es Informes -> Monto por Alumnos.\n\n' +
+                'Cargarlo igual?')) return false;
+  }
+  PLANILLA = p;
+  _planCache = {};
+  if(guardar) planGuardarLocal(txt);
+  armarAlumnos();
+  pintar();
+  planPintarBarra();
+  return true;
+}
+function planSacar(){
+  if(!confirm('Sacar la planilla cargada?\n\nLas marcas de pago NO se tocan: estan guardadas' +
+              ' por alumno y fecha, no dependen del archivo.')) return;
+  PLANILLA = null; _planCache = {};
+  try{ localStorage.removeItem(PLAN_LLAVE); }catch(e){}
+  armarAlumnos(); pintar(); planPintarBarra();
+}
+function planRecuperar(){
+  try{
+    var t = localStorage.getItem(PLAN_LLAVE);
+    if(t) PLANILLA = planLeer(t);
+  }catch(e){ console.warn('planilla guardada:', e.message); PLANILLA=null; }
+}
+
+/* ---------- La barra de arriba ---------- */
+function planPintarBarra(){
+  var el = document.getElementById('planBarra');
+  if(!el) return;
+  if(!PLANILLA){
+    el.innerHTML = '<span class="planTxt">Cobrando solo con el historial propio, del 25/08 en adelante. ' +
+      'Para ver lo de antes, carga la planilla del sistema viejo.</span>' +
+      '<button class="chico" id="planCargar">Cargar planilla</button>';
+  } else {
+    var n = PLANILLA.clases.length;
+    var afuera = (PLANILLA.sinCruzar||[]).reduce(function(s,x){ return s+x.veces; }, 0);
+    el.innerHTML = '<span class="planTxt"><b>Planilla cargada</b> · ' + gs(n) +
+      ' clases · del ' + PLANILLA.desde + ' al ' + PLANILLA.hasta +
+      (afuera ? ' · <span class="planAviso">' + gs(afuera) + ' sin cruzar con el padron</span>' : '') +
+      '</span>' +
+      '<button class="chico" id="planCargar">Cambiar</button>' +
+      '<button class="chico" id="planSacar">Sacar</button>';
+  }
+  var b1 = document.getElementById('planCargar');
+  if(b1) b1.onclick = function(){ document.getElementById('planArchivo').click(); };
+  var b2 = document.getElementById('planSacar');
+  if(b2) b2.onclick = planSacar;
+}
+function planEnganchar(){
+  var inp = document.getElementById('planArchivo');
+  if(!inp) return;
+  inp.onchange = function(){
+    var f = inp.files && inp.files[0];
+    if(!f) return;
+    var fr = new FileReader();
+    fr.onload = function(){
+      try{ planCargarTexto(String(fr.result||''), true); }
+      catch(e){ alert('No pude leer la planilla.\n\n' + e.message); }
+      inp.value = '';
+    };
+    fr.onerror = function(){ alert('No pude abrir el archivo.'); inp.value=''; };
+    fr.readAsText(f, 'utf-8');
+  };
+}
+
 function escucharTodo(){
   var db=firebase.database();
   db.ref('alumnos_v2').on('value', function(s){
@@ -1237,7 +1557,7 @@ function refrescar(){
   var antesH=histActualizado, antesP=padActualizado;
   b.disabled=true; b.textContent='Actualizando…';
   Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas(), cargarNombres(), cargarClaveBorrado()]).then(function(){
-    armarAlumnos(); pintar(); pintarFrescura();
+    armarAlumnos(); pintar(); pintarFrescura(); planPintarBarra();
     b.disabled=false; b.textContent='🔄 Actualizar ahora';
     refrescando=false;
     if(antesH===histActualizado && antesP===padActualizado)
@@ -1466,6 +1786,17 @@ function pintarFicha(){
     h+=op('flojo','Alumno becado','Sin cargo',
           gs(c.clases)+' clases en el período. No paga: en el padrón dice BECA. '+
           'Al profesor se le paga igual, porque su parte sale del tipo de clase.');
+  } else if(c.estado==='planilla'){
+    /* Todo el periodo sale de la planilla del sistema viejo: el monto es el que
+       ese sistema cobro de verdad, clase por clase. No se recalcula nada. */
+    h+=op('bien','Según la planilla','₲ '+gs(c.total),
+          gs(c.planClases)+' clases del sistema viejo, con el precio que se cobró en cada una. '+
+          'No se usa el padrón: el precio ya viene en el archivo.');
+  } else if(c.estado==='mixto'){
+    h+=op('bien','Planilla + historial propio','₲ '+gs(c.total),
+          gs(c.planClases)+' clases de la planilla · ₲ '+gs(c.planMonto)+'<br>'+
+          gs(c.propias)+' clases del historial · '+gs(c.propias)+' × ₲ '+gs(c.precio)+
+          ' = ₲ '+gs(c.precio*c.propias));
   } else if(c.estado==='sinprecio'){
     h+=op('malo','Según el padrón','Sin precio cargado',
           'Está en el padrón pero la columna de precio está vacía o en cero. Se carga en la app de Alumnos.');
@@ -2459,6 +2790,9 @@ firebase.auth().onAuthStateChanged(function(u){
     $('app').style.display='block';
     $('yoMail').textContent=miCorreo;
     Promise.all([cargarPadron(), cargarHistorial(), cargarTipos(), cargarVivo(), cargarColumnas(), cargarNombres(), cargarClaveBorrado()]).then(function(){
+      /* La planilla se recupera ANTES de armar los alumnos: si quedo cargada de
+         antes, entra en el mismo armado y no hace falta volver a elegir el archivo. */
+      planRecuperar();
       armarAlumnos();
       leidoTs=Date.now();
       $('cargando').style.display='none';
@@ -2468,6 +2802,7 @@ firebase.auth().onAuthStateChanged(function(u){
         : 'todavía sin clases cerradas';
       pintarFrescura();
       pintar();
+      planEnganchar(); planPintarBarra();
       escucharTodo();          // de acá en adelante, lo que cambie llega solo
     });
     $('btnRefrescar').onclick=refrescar;
