@@ -167,9 +167,14 @@
     border:1px solid rgba(255,255,255,.28);border-radius:10px;background:transparent;color:#BEDDE9;cursor:pointer}
   #adgErr{color:#FFC9C4;margin-top:16px;max-width:340px;line-height:1.5;font-size:14px;position:relative;z-index:1}
   #adgLogin .pie{position:relative;z-index:1;color:#8FC4D8;font-size:12px;margin-top:var(--e3);line-height:1.5}
+  /* MIENTRAS SE VERIFICAN LOS PERMISOS no se dibuja nada que dependa de ellos.
+     Antes se dibujaba TODO y después se ocultaba lo que no correspondía: por medio
+     segundo se veían secciones ajenas (Cobros, Pagos…) que después desaparecían
+     solas. Se muestra recién cuando los permisos ya están aplicados. */
+  body.verificando [data-go], body.verificando .grupo{visibility:hidden}
 </style>
 </head>
-<body>
+<body class="verificando">
 <div id="adgLogin" style="display:none">
   <svg class="cancha" viewBox="0 0 400 560" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
     <g fill="none" stroke="#fff" stroke-width="1.4">
@@ -503,6 +508,8 @@
     });
     $('adgQuienTxt').textContent = (nombre||correo);
     $('adgQuien').style.display='block';
+    /* Recién ahora se muestra el menú: ya quedó solo lo que esta persona puede ver. */
+    document.body.classList.remove('verificando');
     hide();
   }
 
