@@ -57,11 +57,24 @@ var RESPFB_AVISAR_A = '';
  * 'hijos' es para los nodos donde el permiso de lectura está puesto en los
  * hijos y no en el padre: si el padre se niega, se arma pedazo por pedazo.
  */
+/* OJO AL AGREGAR APPS: si nace un nodo nuevo, va acá. Dos que faltaban y son
+   justo los que más duelen perder:
+
+   · padron_v1  — el padrón canónico, cada alumno con su A#### y su precio. Es
+     el que declaramos maestro el 14/08/2026 y el que leen nivelación,
+     profe-agenda, profe-dia, envíos, pausas y alto-rendimiento. No estaba en
+     ningún respaldo: si se rompía, no había de dónde sacarlo.
+
+   · historial_v2 — el registro contable que escribe el cierre de las 23:30 y
+     del que salen los cobros y el pago a los profes. Reemplaza a historial_v1,
+     que venía de la planilla y quedó congelado el 10/08/2026. */
 var RESPFB_NODOS = [
   { k: 'calendario_v2' },
+  { k: 'padron_v1' },
   { k: 'alumnos_v1' },
   { k: 'alumnos_v2' },
   { k: 'historial_v1' },
+  { k: 'historial_v2' },
   { k: 'niveles_v1', hijos: ['evaluaciones', 'aprobados', 'auditoria'] },
   { k: 'usuarios' },
   { k: 'tipos_v1' },

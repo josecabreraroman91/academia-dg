@@ -1937,7 +1937,18 @@ function aplicarReservas(){
 
     /* MOVER y AGREGAR: los dos necesitan un casillero libre en el destino */
     const p=String(r.k).split('|');
-    if(p.length!==5){ marcarResvAplicada(r.k); return; }
+    /* EL DESTINO SALE DE LA CLAVE (DIA|sede|columna|hora|slot). Si la clave no
+       tiene esas cinco partes no hay dónde poner al alumno — pero antes esto lo
+       daba por APLICADO y salía: la reserva desaparecía sin entrar en la grilla,
+       sin sumarse a los que fallaron y sin dejar rastro en ningún log. Un alumno
+       perdido y nadie con qué buscarlo.
+       Ahora queda pendiente y a la vista en "Cambios de profes", como cualquier
+       otro que no se pudo aplicar. */
+    if(p.length!==5){
+      fallaron.push(r.alumno+' — el renglón llegó sin destino (clave "'+r.k+'")');
+      try{ logOp('reserva_sin_destino', r.alumno+' — clave "'+r.k+'"'); }catch(e){}
+      return;
+    }
 
     let previo=null;
     if(tipo==='mover'){
