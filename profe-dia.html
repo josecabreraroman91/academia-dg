@@ -98,6 +98,11 @@
   .slot .al.acople{border-style:dashed}
   .slot .al:active{transform:scale(.97)}
   .slot .al .conf{font-size:.85em}
+  /* Sin marcar: apagado y con el circulito vacío. Es lo que le dice al profe a
+     quién le falta tocar. Cuando marca "vino" queda firme y con el ✓. */
+  .slot .al.pormarcar{opacity:.62}
+  .slot .al .sinmarcar{font-size:.8em;color:var(--muted)}
+  .slot .al .vino{font-size:.8em;color:#2f9e6a;font-weight:900}
   .slot .al .mod{color:var(--muted);font-size:.82em}
   .slot .al .tag{font-size:.72em;background:var(--line);padding:0 .35em;border-radius:5px;color:var(--muted)}
   .slot .blk{display:inline-block;padding:.1em .4em;border-radius:6px;background:rgba(180,160,235,.16);font-weight:700}
@@ -331,9 +336,10 @@
 <div class="modal" id="ovEstado">
   <div class="sheet estado-sheet">
     <div class="me-top"><div class="me-nom" id="meNom">Alumno</div><div class="me-hora" id="meHora"></div></div>
-    <div class="me-q">¿A qué estado querés cambiar?</div>
-    <button class="me-opt pres" data-est="presente">🟢 Presente</button>
-    <button class="me-opt aus"  data-est="ausente">🔴 Ausente</button>
+    <div class="me-q">¿Vino a la clase?</div>
+    <button class="me-opt pres" data-est="presente">🟢 Vino</button>
+    <button class="me-opt aus"  data-est="ausente">🔴 No vino</button>
+    <button class="me-opt sinm" data-est="">⚪ Sin marcar todavía</button>
     <div class="me-sep"></div>
     <button class="me-opt mover" id="meMover">↔️ Mover a otro profe u hora</button>
     <button class="me-opt sacar" id="meSacar">🗑️ Sacar del día</button>
@@ -844,7 +850,14 @@ function render(){
             return `<span class="blk arTog" data-artog="${a.cid}">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}${dur} · ${nPres}/${lst.length} ▸</span>`;
           }
           const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';   // 👀 = no confirmó. Los acoples ya están presentes
-          return `<span class="al presente${a.acople?' acople':''}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
+          /* EL QUE TODAVÍA NADIE MARCÓ va más apagado y con el círculo vacío.
+             Sin esta señal el profe no tiene forma de saber a quién le falta
+             tocar, y marcar la asistencia no serviría de nada: el día entero
+             quedaría sin marcar como hasta ahora. El ✓ verde chico es el que ya
+             marcó "vino". */
+          const marcado = a.asis==='presente';
+          const senia = marcado ? ' <span class="vino">✓</span>' : ' <span class="sinmarcar">○</span>';
+          return `<span class="al presente${a.acople?' acople':''}${marcado?'':' pormarcar'}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito}${senia} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
         });
         html+=`<div class="slot">${`<span class="prof addp" data-add="${f.sede}|${f.profe}|${h}">(${escapeHtml(f.profe)}${em?' '+em:''})</span>`} ${partes.join(' <span class="sep">·</span> ')}${chipsAyuda?' '+chipsAyuda:''}</div>`;
       }
@@ -873,17 +886,36 @@ function render(){
 }
 
 // ---- Menú de estado (cartel centrado, para evitar toques accidentales) ----
+/* ============================================================
+   TRES ESTADOS, NO DOS
+
+   Antes el menú tenía Presente y Ausente, y el día nacía con todos en
+   'presente'. O sea que "presente" no quería decir que el alumno vino: quería
+   decir que nadie lo había tocado. Con eso el cierre no podía cobrar por
+   asistencia, solo por confirmación.
+
+   Ahora el día nace SIN MARCAR (ver publicarFecha en cal-unif) y el profe elige
+   entre los tres. Marcar "Vino" a alguien que no confirmó hace que SE LE COBRE:
+   es la forma de decir "vino igual". Marcar "No vino" al que confirmó lo deja
+   cobrado igual, porque avisó tarde. Y el que queda sin marcar cae en la regla
+   de siempre.
+   ============================================================ */
 function abrirMenuEstado(id){
   const rec=cacheDia[id]||{};
-  const cur=rec.asis==='ausente'?'ausente':'presente';
+  const cur = rec.asis==='ausente' ? 'ausente' : (rec.asis==='presente' ? 'presente' : '');
   const ov=document.getElementById('ovEstado');
   document.getElementById('meNom').textContent=rec.nombre||'Alumno';
   document.getElementById('meHora').textContent=(HORAS[rec.horaIdx]||'')+(rec.profe?(' · '+rec.profe):'');
   ov.querySelectorAll('.me-opt[data-est]').forEach(b=>{
     b.classList.toggle('actual', b.dataset.est===cur);
     b.onclick=()=>{
-      childRef(id).child('asis').set(b.dataset.est);
-      anotarOp(b.dataset.est, rec.nombre||'', lugarDe(id, rec),
+      const est=b.dataset.est;
+      /* Volver a "sin marcar" BORRA el campo. No se guarda '' porque las reglas
+         de Firebase solo aceptan 'presente' o 'ausente'; ausente el campo, la
+         validación ni corre y el registro queda como recién publicado. */
+      childRef(id).child('asis').set(est || null);
+      anotarOp(est || 'editar', rec.nombre||'',
+               (est ? '' : 'lo dejó sin marcar · ') + lugarDe(id, rec),
                {sede:sedeDeId(id), horaIdx:Number(rec.horaIdx)||0});
       cerrarMenuEstado();
     };

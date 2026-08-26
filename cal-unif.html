@@ -2920,7 +2920,28 @@ function publicarFecha(offset, silencioso){
         upd[k+'/pi']=(rec.pi==null?null:rec.pi);
         upd[k+'/mod']=rec.mod||''; upd[k+'/confirmado']=!!rec.confirmado;
         upd[k+'/lista']=rec.lista||null; upd[k+'/dur']=rec.dur||null;
-        if(!('asis' in p)) upd[k+'/asis']='presente';
+        /* ============================================================
+           EL DÍA NACE SIN MARCAR, NO "PRESENTE"
+
+           Acá se le ponía asis:'presente' a TODO el mundo al publicar el día, y
+           eso hacía que "presente" significara dos cosas a la vez: "el profe lo
+           marcó" y "nadie lo tocó". Como no se podían distinguir, el cierre no
+           tenía con qué decidir y terminaba cobrando por la confirmación, no por
+           la asistencia. Medido sobre 14 días reales: 4 ausencias marcadas en
+           1.223 clases. La marca no significaba nada.
+
+           Ahora hay tres estados de verdad:
+             · sin campo asis   → nadie lo tocó todavía
+             · asis:'presente'  → el profe dijo que vino
+             · asis:'ausente'   → el profe dijo que faltó
+
+           Con eso el profe puede hacer que se le cobre al que vino aunque no
+           haya confirmado, y el que queda sin marcar sigue cayendo en la regla
+           de siempre: se cobra si confirmó, no se cobra si tenía los ojitos.
+
+           Los días viejos ya tienen 'presente' escrito y se leen igual de bien:
+           quedan como "el profe lo marcó", que es lo más parecido a lo que se
+           venía haciendo con ellos. */
         if(p.borrado) upd[k+'/borrado']=true;
       });
       return Object.keys(upd).length ? ref.update(upd) : Promise.resolve();
