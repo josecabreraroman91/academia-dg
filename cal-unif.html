@@ -4256,18 +4256,53 @@ function resembrarTodo(){
   snapshotAuto();
   alert('✅ Calendario re-sembrado completo desde la semilla original y publicado a todos los dispositivos.');
 }
-function deshacerBackup(){
-  let b=[]; try{ b=JSON.parse(localStorage.getItem('cal_dg_backups')||'[]'); }catch(e){}
-  if(!b.length){ alert('No hay backups automáticos en este dispositivo todavía.\nSe crean solos antes de borrar columnas, resetear o avanzar semana.'); return; }
-  const lista=b.map((x,i)=>(i+1)+') '+new Date(x.t).toLocaleString('es-PY')+' — '+x.motivo).join('\n');
+/* ============================================================
+   LOS BACKUPS QUE NADIE PODÍA RESTAURAR
+
+   backupAuto() guarda DOS copias en este dispositivo y TRES en la nube
+   (backups_auto/b0..b2). Pero esta pantalla solo leía las locales: las tres de
+   la nube se escribían todas las veces y no había forma de sacarlas desde
+   ninguna app. Servían solo si alguien las abría a mano en Firebase.
+
+   Y son justo las que importan: las locales se pierden si cambiás de
+   computadora, si limpiás el navegador o si entrás desde otro lado. Las de la
+   nube son las que sobreviven a todo eso.
+
+   Ahora se leen las dos y se ofrecen juntas, marcando de dónde sale cada una y
+   ordenadas de la más nueva a la más vieja.
+   ============================================================ */
+async function deshacerBackup(){
+  let locales=[]; try{ locales=JSON.parse(localStorage.getItem('cal_dg_backups')||'[]'); }catch(e){}
+  const b = locales.map(x=>Object.assign({}, x, {_de:'este dispositivo'}));
+
+  /* Las de la nube: si Firebase no contesta, se sigue con las locales nomás. */
+  if(_fbdb){
+    try{
+      const snap = await _fbdb.ref('backups_auto').once('value');
+      const nube = snap.val() || {};
+      Object.keys(nube).forEach(k=>{
+        const x=nube[k];
+        if(x && x.estado) b.push(Object.assign({}, x, {_de:'la nube'}));
+      });
+    }catch(e){ console.warn('no pude leer los backups de la nube:', e.message); }
+  }
+
+  if(!b.length){ alert('No hay backups automáticos todavía.\nSe crean solos antes de borrar columnas, resetear o avanzar semana.'); return; }
+  b.sort((x,y)=>(y.t||0)-(x.t||0));   // el más nuevo primero
+
+  const lista=b.map((x,i)=>(i+1)+') '+new Date(x.t).toLocaleString('es-PY')+
+                           ' · '+x._de+' — '+(x.motivo||'sin motivo')).join('\n');
   const sel=prompt('⏪ Backups automáticos disponibles:\n\n'+lista+'\n\nEscribí el número a restaurar (o Cancelar):');
   const i=parseInt(sel)-1;
   if(isNaN(i)||!b[i]) return;
-  if(!confirm('Esto reemplaza TODO el estado actual por el backup del '+new Date(b[i].t).toLocaleString('es-PY')+'.\n\n¿Confirmás?')) return;
+  if(!confirm('Esto reemplaza TODO el estado actual por el backup del '+
+              new Date(b[i].t).toLocaleString('es-PY')+' ('+b[i]._de+').\n\n¿Confirmás?')) return;
+  let nuevo=null;
+  try{ nuevo=JSON.parse(b[i].estado); }catch(e){ alert('Ese backup está dañado y no se puede leer.'); return; }
   backupAuto('antes de deshacer');
-  state=JSON.parse(b[i].estado);
+  state=nuevo;
   saveState(); renderAll();
-  alert('✅ Estado restaurado. Revisá el calendario.');
+  alert('✅ Estado restaurado desde '+b[i]._de+'. Revisá el calendario.');
 }
 // ===== Restaurar UN SOLO día de la semana desde la MADRE =====
 function restaurarDiaDesdeMadre(){
