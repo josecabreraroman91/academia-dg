@@ -237,6 +237,10 @@
   .me-des{display:block;width:100%;background:none;border:0;color:var(--muted);
     font-size:13px;font-weight:600;text-decoration:underline;padding:6px 0 2px;
     margin:-4px 0 8px;cursor:pointer;font-family:inherit}
+  /* El deshacer se esconde cuando no hay nada marcado. La clase se venia
+     poniendo bien desde JS pero nunca estuvo definida en este archivo, asi
+     que el boton se mostraba siempre. */
+  .me-des.oculto{display:none}
   .me-opt.actual{box-shadow:0 0 0 3px rgba(17,129,164,.25);position:relative}
   .me-opt.actual::after{content:'actual';position:absolute;right:14px;font-size:10px;font-weight:800;color:var(--brand);background:#e2f1f7;padding:2px 7px;border-radius:8px}
   .me-opt:active{transform:scale(.99)}
@@ -809,22 +813,15 @@ function render(){
   const wrap=document.getElementById('wrap');
   const items=Object.entries(cacheDia).map(([cid,a])=>({cid,...a})).filter(a=>a && a.nombre && !a.borrado);
   /* ============================================================
-     EL QUE NO CONFIRMÓ BAJA CON LOS QUE NO VIENEN
+     CADA UNO EN SU CASILLERO
 
-     Los ojitos 👀 quieren decir "no contestó la confirmación", y la academia da
-     por hecho que ese no viene: no se le cobra. Antes igual ocupaba su casillero
-     en la grilla, así que el profe veía un lugar tomado por alguien que no iba a
-     aparecer y no podía usarlo.
-
-     Ahora baja a la lista de abajo junto con los que el profe marcó que no
-     vinieron, y el casillero se lee libre. Si al final aparece, se lo toca ahí
-     abajo y se le pone "Vino": sube solo a la grilla y pasa a cobrarse.
-
-     Ojo: solo baja el que NO confirmó y ADEMÁS nadie marcó. Al que el profe le
-     puso "Vino" no lo toca, aunque tenga los ojitos. */
-  const noVieneAun = a => !a.confirmado && !a.acople && !a.asis && !esBloque(a) && !esAyuda(a);
-  const presentes=items.filter(a=>a.asis!=='ausente' && !noVieneAun(a));
-  const ausentes=items.filter(a=>(a.asis==='ausente' || noVieneAun(a)) && !esBloque(a));
+     De la grilla NO sale nadie por no haber confirmado. El profe tiene que ver
+     con quién trabaja, en su lugar y su hora — sobre todo en MAÑANA, donde
+     todavía no salió ninguna confirmación y la grilla quedaba entera vacía.
+     Al que no confirmó se lo marca con el 👀 y listo; abajo bajan solo los
+     que el profe marcó 🔴 que no vinieron. */
+  const presentes=items.filter(a=>a.asis!=='ausente');
+  const ausentes=items.filter(a=>a.asis==='ausente' && !esBloque(a));
   // rango de horas: de la primera a la última con alumnos PRESENTES
   let minH=99,maxH=-1;
   presentes.forEach(a=>{ const h=a.horaIdx!=null?a.horaIdx:0; if(h<minH)minH=h; if(h>maxH)maxH=h; });
@@ -883,10 +880,11 @@ function render(){
              quedaría sin marcar como hasta ahora. El ✓ verde es el que ya marcó
              "vino". */
           const marcado = a.asis==='presente';
-          /* Si el profe dijo que vino, el 👀 sobra: la duda se terminó ahí. El
-             dato de que nunca confirmó por WhatsApp queda igual —es cierto— pero
-             mostrarlo al lado del ✓ se contradice y confunde. */
-          const ojito=(a.confirmado||a.acople||marcado)?'':' <span class="conf">👀</span>';
+          /* El 👀 dice "no contestó la confirmación" y eso es un dato del alumno,
+             no de la asistencia: NO se apaga porque el registro figure marcado.
+             Apagándolo, un día que arrastra asis:'presente' del código viejo dejaba
+             sin ojitos a todo el mundo, también a los que nunca confirmaron. */
+          const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';
           const senia = marcado ? ' <span class="vino">✓</span>' : ' <span class="sinmarcar">○</span>';
           return `<span class="al presente${a.acople?' acople':''}${marcado?'':' pormarcar'}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito}${senia} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
         });
