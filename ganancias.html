@@ -191,6 +191,33 @@ function parseCSV(txt){
   return rows;
 }
 
+/* EL HISTORIAL AHORA SALE DE historial_v2.
+   Antes venía de la hoja HISTORIAL de la planilla, copiada a historial_v1 por un
+   script. Ese camino se abandonó: el día lo cierra solo el servidor a las 23:30 y
+   escribe directo en Firebase, una fecha por paquete. Caja lee exactamente lo
+   mismo — si una de las dos leyera del nodo viejo, dirían cosas distintas. */
+function parsearHistorialV2(nodo){
+  historial=[];
+  if(!nodo || typeof nodo!=='object') return;
+  Object.keys(nodo).sort().forEach(function(fecha){
+    var filas=(nodo[fecha] && nodo[fecha].filas) || [];
+    if(!Array.isArray(filas)) return;
+    filas.forEach(function(r){
+      if(!r || !r.length) return;
+      var f=String(r[0]||'').trim();
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(f)) return;
+      var nom=String(r[1]||'').trim(); if(!nom) return;
+      var estado=String(r[6]||'').trim();
+      historial.push({
+        fecha:f, alumno:nom, hora:String(r[2]||'').trim(), sede:String(r[3]||'').trim(),
+        profe:String(r[4]||'').trim(), tipo:String(r[5]||'').trim(), estado:estado,
+        presente: estado.indexOf('Presente')===0,
+        seCobra: String(r[7]||'').trim().toLowerCase().indexOf('s')===0
+      });
+    });
+  });
+}
+
 /* HISTORIAL: Fecha · Alumno · Hora · Sede · Profe · Tipo · Estado · Cobro · Motivo · ID */
 function parsearHistorial(paq){
   if(!paq) return;
@@ -445,9 +472,9 @@ firebase.auth().onAuthStateChanged(function(u){
     var db=firebase.database();
     /* En vivo: cuando se cierra un día o cambia un aporte, la pantalla se
        actualiza sola sin recargar. */
-    db.ref('historial_v1').on('value', function(s){
-      parsearHistorial(s.val()); $('cargando').style.display='none'; pintar();
-    }, function(e){ console.warn('historial_v1:', e.message); $('cargando').textContent='No pude leer el historial.'; });
+    db.ref('historial_v2').on('value', function(s){
+      parsearHistorialV2(s.val()); $('cargando').style.display='none'; pintar();
+    }, function(e){ console.warn('historial_v2:', e.message); $('cargando').textContent='No pude leer el historial.'; });
 
     db.ref('tipos_v1').on('value', function(s){ tipos=s.val()||{}; pintar(); },
       function(e){ console.warn('tipos_v1:', e.message); });
