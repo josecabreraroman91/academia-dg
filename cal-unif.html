@@ -1880,15 +1880,27 @@ function datosDePadron(nombre){
        Alejandra Garcia Petty quedo D y G el mismo dia a la misma hora.
        El calendario sigue completando nivel y lado desde el indice: esos no
        tocan la plata. El tipo, no. */
-    const c = (state.contactos && state.contactos[k]) ||
-              (typeof contactosLocal!=='undefined' && contactosLocal[k]);
-    if(c) return { nivel:c.nivel||'', lado:c.lado||'', mod:c.mod||'' };
-    /* alumnos_v2 guarda los mismos datos con otros nombres de campo. */
+    /* 1) EL MAESTRO: padron_v1. Es el que manda. */
+    if(typeof padronMaestro!=='undefined' && padronMaestro[k]){
+      const p = padronMaestro[k];
+      return { nivel:p.nivel||'', lado:p.lado||'', mod:p.mod||'' };
+    }
+    /* 2) las altas en vivo (alumnos_v2): alumnos recien creados que todavia
+       no bajaron al maestro. */
     if(typeof alumnosVivo!=='undefined'){
       const vv = Object.values(alumnosVivo||{})
         .find(a=>a && a.nombre && normName(a.nombre)===k);
       if(vv) return { nivel:vv.cat||'', lado:vv.lado||'', mod:vv.tipo||'' };
     }
+    /* 3) la app de Alumnos de ESTE navegador. */
+    if(typeof contactosLocal!=='undefined' && contactosLocal[k]){
+      const cl = contactosLocal[k];
+      return { nivel:cl.nivel||'', lado:cl.lado||'', mod:cl.mod||'' };
+    }
+    /* 4) RED: la planilla del Drive. Solo si el maestro no contesto.
+       Si padron_v1 cargo bien, la planilla no se mira para nada. */
+    const c = (!_padronMaestroOk && state.contactos && state.contactos[k]);
+    if(c) return { nivel:c.nivel||'', lado:c.lado||'', mod:c.mod||'' };
     /* Sin ficha en ningun padron: nivel y lado se pueden heredar del
        calendario, el TIPO queda vacio a proposito. */
     const idx = (typeof _idxAlumnos!=='undefined' && _idxAlumnos[k]);
@@ -3458,7 +3470,9 @@ function autocompletarDesdeNube(){
   if(c.lado)  document.getElementById('fLado').value=c.lado;
   /* El TIPO solo se autocompleta si viene de una ficha de alumno.
      Del calendario (_idxAlumnos) no: ver la LEY en datosDePadron(). */
-  const deFicha = state.contactos[k] || contactosLocal[k];
+  const deFicha = (typeof padronMaestro!=='undefined' && padronMaestro[k]) ||
+                  contactosLocal[k] ||
+                  (!_padronMaestroOk && state.contactos[k]);
   if(deFicha && deFicha.mod) document.getElementById('fMod').value=deFicha.mod;
 }
 function closeEditor(){ document.getElementById('overlay').classList.remove('show'); editingCell=null; limpiarAlta(); }
@@ -4579,6 +4593,43 @@ function rebuildLocalContacts(){
    en el autocompletado en un segundo, sin sincronizar la planilla.
    Solo suma nombres y teléfonos. No toca la grilla ni la MADRE.
    ============================================================ */
+/* ============================================================
+   EL PADRON MAESTRO — padron_v1
+   Es la lista que manda. Vive en Firebase y es la unica que se
+   usa para el TIPO DE CLASE. La planilla del Drive quedo como
+   red: solo se mira si padron_v1 no contesta, igual que ya hacen
+   profe-dia y profe-agenda desde la migracion.
+   Clave: nombre normalizado -> { nivel, lado, mod }.
+   ============================================================ */
+let padronMaestro = {};
+let _padronMaestroOk = false;
+
+function cargarPadronMaestro(){
+  if(!_fbdb) return Promise.resolve(false);
+  return _fbdb.ref('padron_v1').once('value').then(function(s){
+    const pv = s.val();
+    if(!(pv && pv.alumnos && Object.keys(pv.alumnos).length)){
+      console.warn('padron_v1 vino vacio: se usa la planilla como red');
+      return false;
+    }
+    const m = {};
+    Object.keys(pv.alumnos).forEach(function(id){
+      const a = pv.alumnos[id];
+      const nom = ((a && a.nombre) || '').trim();
+      if(!nom) return;
+      m[normName(nom)] = { nivel:((a.cat||'')+'').trim(),
+                           lado:((a.lado||'')+'').trim(),
+                           mod:((a.tipo||'')+'').trim() };
+    });
+    padronMaestro = m; _padronMaestroOk = true;
+    console.log('padron_v1: '+Object.keys(m).length+' alumnos (manda para el tipo)');
+    return true;
+  }).catch(function(e){
+    console.warn('padron_v1:', e.message, '- se usa la planilla como red');
+    return false;
+  });
+}
+
 let alumnosVivo = {};
 
 function escucharAlumnosVivo(){
@@ -5913,6 +5964,7 @@ fillAlumnosDatalist();
           try{ escucharReservasProfes(); }catch(e){ console.warn('reservas:', e.message); }
           try{ escucharAsistenciaHoy(); }catch(e){ console.warn('asistencia:', e.message); }
           try{ cargarIdsAlumnos(); }catch(e){}
+          cargarPadronMaestro();           // padron_v1: el que manda para el tipo
           escucharAlumnosVivo();           // alumnos nuevos disponibles al instante
           setTimeout(function(){ publicarDiaHoy(true); }, 1200);
           setTimeout(limpiezaDiaria, 8000);
