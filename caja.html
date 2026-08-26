@@ -149,6 +149,22 @@
   .d.varias{background:var(--teal-osc)}
   .d .n{display:block;font-size:16px;font-weight:700}
   .d .c{display:block;font-size:10.5px;opacity:.85;margin-top:1px}
+  /* ---- Marca de PAGADO, por fecha ----
+     Se toca el dia y queda verde. Es la unica forma que hay de saber que esa
+     clase ya se cobro: hasta ahora ese dato no existia en ningun lado. */
+  .d{cursor:pointer;user-select:none;position:relative;transition:background .12s}
+  .d:hover{filter:brightness(1.12)}
+  .d.pagado{background:var(--verde)}
+  .d.pagado .n::after{content:'✓';position:absolute;top:3px;right:5px;
+    font-size:10px;font-weight:800;opacity:.95}
+  .d.guardando{opacity:.45}
+  /* El mes entero en verde cuando estan pagadas TODAS sus fechas: asi no hace
+     falta marcar el mes aparte, se deduce solo. */
+  .rotulo.pagado{color:var(--verde);font-weight:600}
+  .rotulo.pagado b{color:var(--verde)}
+  .rotulo .selloPago{background:var(--verde-claro);color:var(--verde);border-radius:7px;
+    padding:2px 8px;font-size:11px;font-weight:800;margin-left:8px;letter-spacing:.3px}
+  .diasMes.pagado{color:var(--verde)}
 
   .cobro{margin-top:16px;padding-top:13px;border-top:1px solid var(--linea)}
   .cobro .tit{font-size:11px;font-weight:700;color:var(--suave);letter-spacing:.4px;
@@ -1098,6 +1114,75 @@ function datosLlegaron(){
   pintar();
 }
 
+/* ============================================================
+   LAS MARCAS DE PAGO, POR FECHA
+
+   Hasta ahora no existia en NINGUN lado el dato de quien pago que: ni en este
+   sistema ni en el viejo (su modulo de Pagos tiene 2 registros, los dos de
+   2025). Se cobraba de memoria.
+
+   Se guarda una marca por ALUMNO y FECHA en `pagos_v1/<alumno>/<fecha>`:
+
+       { v: true|false, ts: <milisegundos>, por: <correo> }
+
+   POR QUE SE GUARDA EL "NO" Y NO SE BORRA LA MARCA
+   La herramienta provisoria borraba la llave al desmarcar y despues fusionaba
+   lo local con la nube sumando las dos (`Object.assign`). Como la nube todavia
+   tenia el `true`, la marca VOLVIA SOLA: desmarcar era imposible, rebotaba
+   siempre. Guardando el `false` con su hora, el ultimo que toca manda, y
+   desmarcar funciona igual de bien que marcar.
+
+   El MES no se marca aparte: se deduce. Si estan pagadas todas las fechas del
+   mes, el mes esta pagado. Una marca menos que mantener y una contradiccion
+   menos posible (mes pagado con fechas sin pagar).
+   ============================================================ */
+var PAGOS = {};          // { alumnoK: { 'YYYY-MM-DD': {v,ts,por} } }
+var _pagoEnVuelo = {};   // para no repintar en gris dos veces la misma celda
+
+function estaPagado(k, fecha){
+  var a = PAGOS[k];
+  return !!(a && a[fecha] && a[fecha].v === true);
+}
+
+/* Un mes esta pagado cuando lo estan TODAS sus fechas. Sin fechas no hay mes
+   pagado: si no dio clases, no hay nada que cobrar ni que marcar. */
+function mesPagado(a, m){
+  var mm = a && a.meses[m];
+  if(!mm) return false;
+  var ds = Object.keys(mm.dias);
+  if(!ds.length) return false;
+  for(var i=0;i<ds.length;i++){ if(!estaPagado(a.k, ds[i])) return false; }
+  return true;
+}
+function mesesPagados(a, sel){
+  if(!sel || !sel.length) return false;
+  for(var i=0;i<sel.length;i++){ if(!mesPagado(a, sel[i])) return false; }
+  return true;
+}
+
+/* Marcar / desmarcar una fecha. Se pinta al instante y se confirma cuando
+   Firebase contesta; si falla, se avisa y se vuelve atras. */
+function togglePago(k, fecha){
+  if(!puedeEditar) return;
+  var llave = k + '|' + fecha;
+  if(_pagoEnVuelo[llave]) return;
+  var nuevo = !estaPagado(k, fecha);
+  _pagoEnVuelo[llave] = true;
+  if(!PAGOS[k]) PAGOS[k] = {};
+  var antes = PAGOS[k][fecha];
+  PAGOS[k][fecha] = { v:nuevo, ts:Date.now(), por:miCorreo };
+  pintarFicha();
+  firebase.database().ref('pagos_v1/'+encodeURIComponent(k)+'/'+fecha)
+    .set({ v:nuevo, ts:Date.now(), por:miCorreo })
+    .then(function(){ delete _pagoEnVuelo[llave]; })
+    .catch(function(e){
+      delete _pagoEnVuelo[llave];
+      if(antes) PAGOS[k][fecha] = antes; else delete PAGOS[k][fecha];
+      pintarFicha();
+      alert('No pude guardar la marca de pago.\n\n'+e.message+'\n\nSi dice "permission denied", falta publicar la regla de pagos_v1.');
+    });
+}
+
 function escucharTodo(){
   var db=firebase.database();
   db.ref('alumnos_v2').on('value', function(s){
@@ -1123,6 +1208,15 @@ function escucharTodo(){
   db.ref('historial_v2').on('value', function(s){
     parsearHistorialV2(s.val()); datosLlegaron();
   }, function(e){ console.warn('historial_v2:', e.message); });
+
+  /* Las marcas de pago llegan solas: si el otro marca en su maquina, aca se
+     ve al instante. Firebase es la unica verdad, no se fusiona nada a mano
+     (ese fue el error de la herramienta provisoria). */
+  db.ref('pagos_v1').on('value', function(s){
+    PAGOS = s.val() || {};
+    var ov=$('ov');
+    if(ov && ov.classList.contains('show')) pintarFicha();
+  }, function(e){ console.warn('pagos_v1:', e.message); });
 }
 
 /* El botón. Vuelve a pedir todo de cero, sin esperar. */
@@ -1327,17 +1421,25 @@ function pintarFicha(){
     var mm=a.meses[m]; if(!mm) return;
     var ds=Object.keys(mm.dias).sort();
     clases+=mm.clases; dias+=ds.length;
-    if(sel.length>1) cuerpo+='<div class="diasMes">'+esc(mesNombre(m))+' · '+gs(mm.clases)+
-      (mm.clases===1?' clase':' clases')+'</div>';
+    var mPago = mesPagado(a, m);
+    if(sel.length>1) cuerpo+='<div class="diasMes'+(mPago?' pagado':'')+'">'+esc(mesNombre(m))+' · '+gs(mm.clases)+
+      (mm.clases===1?' clase':' clases')+(mPago?' · pagado':'')+'</div>';
     cuerpo+=ds.map(function(f){
       var n=+f.slice(8,10), c=mm.dias[f];
-      return '<div class="d'+(c>1?' varias':'')+'"><span class="n">'+n+'</span>'+
+      var pg=estaPagado(a.k, f);
+      return '<div class="d'+(c>1?' varias':'')+(pg?' pagado':'')+'"'+
+             ' data-pago="'+f+'" title="'+(pg?'Pagado · toca para desmarcar':'Toca si ya se cobro este dia')+'">'+
+             '<span class="n">'+n+'</span>'+
              '<span class="c">'+(c===1?'1 clase':c+' clases')+'</span></div>';
     }).join('');
   });
-  h+='<div class="rotulo"><b>'+gs(clases)+(clases===1?' clase':' clases')+'</b> en <b>'+
+  /* El mes va en verde solo cuando estan pagadas TODAS sus fechas. No hay
+     marca de mes que mantener: se lee de las fechas. */
+  var todoPago = mesesPagados(a, sel);
+  h+='<div class="rotulo'+(todoPago?' pagado':'')+'"><b>'+gs(clases)+(clases===1?' clase':' clases')+'</b> en <b>'+
      gs(dias)+(dias===1?' día':' días')+'</b>'+
-     (sel.length>1?' · <b>'+sel.length+' meses juntos</b>':'')+'</div>';
+     (sel.length>1?' · <b>'+sel.length+' meses juntos</b>':'')+
+     (todoPago?'<span class="selloPago">PAGADO</span>':'')+'</div>';
   h+='<div class="dias">'+cuerpo+'</div>';
 
   /* Cuánto pagar */
@@ -1387,6 +1489,18 @@ function pintarFicha(){
   $('ficha').querySelectorAll('[data-sumar]').forEach(function(b){
     b.onclick=function(){ MESES_SEL.push(b.dataset.sumar); _sumando=false; pintarFicha(); };
   });
+
+  /* Tocar un dia lo marca como pagado (o lo desmarca). Solo con permiso de
+     escribir: el que entra a mirar no puede cambiar la cobranza sin querer. */
+  if(puedeEditar){
+    $('ficha').querySelectorAll('[data-pago]').forEach(function(el){
+      el.onclick=function(){ togglePago(a.k, el.dataset.pago); };
+    });
+  } else {
+    $('ficha').querySelectorAll('[data-pago]').forEach(function(el){
+      el.style.cursor='default'; el.title='Sin permiso para marcar cobros';
+    });
+  }
 
   var msg=c.total?textoMensaje(a, sel, c):'';
   if(puede) $('fWa').onclick=function(){
