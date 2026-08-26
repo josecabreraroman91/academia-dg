@@ -1146,20 +1146,26 @@ function armarAlumnos(){
    precio por clase: no se multiplica por clase, se cobra una vez por mes. */
 function cobroDe(a, mesesSel){
   var f=a.ficha;
-  var clases=0, planClases=0, planMonto=0;
+  var clases=0, planClases=0, planMonto=0, planConPrecio=0, planIndiv=0;
   mesesSel.forEach(function(m){
     var mm=a.meses[m]; if(!mm) return;
-    clases += mm.clases;
-    planClases += (mm.planClases||0);
-    planMonto  += (mm.planMonto||0);
+    clases        += mm.clases;
+    planClases    += (mm.planClases||0);
+    planMonto     += (mm.planMonto||0);
+    planConPrecio += (mm.planConPrecio||0);
+    planIndiv     += (mm.planIndiv||0);
   });
   /* Las clases que salen de la PLANILLA ya vienen con el precio real que
      cobro el sistema viejo, clase por clase. Para esas no se usa el padron:
      usar el padron seria recalcular algo que ya esta calculado, y le erraria
      a todo el que tenga un precio negociado. El padron se usa solo para las
      clases del historial propio. */
-  var propias = clases - planClases;
-  var extra = { planClases:planClases, planMonto:planMonto, propias:propias };
+  /* `propias` = las que las cobra el PADRON. Son todas menos las que vinieron
+     con su propio precio adentro del archivo. Con el reporte de profesores
+     eso da cero, y entonces las cobra todas el padron. */
+  var propias = clases - planConPrecio;
+  var extra = { planClases:planClases, planMonto:planMonto, propias:propias,
+                planConPrecio:planConPrecio, planIndiv:planIndiv };
   /* La BECA se mira ANTES que la planilla, a proposito. Con la planilla
      adelante, un alumno marcado como becado en el padron podia terminar con
      un monto arriba de cero si el sistema viejo le habia cobrado algo, y de
@@ -1167,7 +1173,7 @@ function cobroDe(a, mesesSel){
      Entre cobrarle de mas a un becado y no cobrarle a alguien que debe, el
      error caro es el primero: uno lo ve el alumno, el otro lo ve Diego. */
   if(f && f.beca) return Object.assign({ estado:'beca', clases:clases, total:0 }, extra);
-  if(planClases && !propias)
+  if(planConPrecio && !propias)
     return Object.assign({ estado:'planilla', clases:clases, total:planMonto }, extra);
   if(!f) return Object.assign({ estado:'nopadron', clases:clases, total:planMonto }, extra);
   if(!f.precio) return Object.assign({ estado:'sinprecio', clases:clases, total:planMonto }, extra);
@@ -1176,7 +1182,7 @@ function cobroDe(a, mesesSel){
   /* Mezcla: los dias viejos con el precio de la planilla y los nuevos con el
      del padron. Se muestran las dos partes para que se vea de donde sale cada
      guarani. */
-  if(planClases)
+  if(planConPrecio)
     return Object.assign({ estado:'mixto', clases:clases, precio:f.precio,
                            total:f.precio*propias + planMonto }, extra);
   return Object.assign({ estado:'ok', clases:clases, precio:f.precio, total:f.precio*clases }, extra);
@@ -1464,9 +1470,19 @@ function planLeer(txt){
     throw new Error('no encuentro las columnas Fecha y Estudiantes.\n\n' +
                     'Tiene que ser el reporte de Informes -> Monto por Alumnos.');
   }
-  /* El reporte de PROFESORES no trae la columna PROFES; el de ALUMNOS si. Si
-     falta, lo que hay entre parentesis es lo que cobra el profe, no lo que
-     paga el alumno, y cobrar con eso seria cobrar de menos a todo el mundo. */
+  /* LOS DOS REPORTES SIRVEN, Y SE USAN DISTINTO.
+
+     - Monto por PROFESORES (el que se usa todos los dias): entre parentesis va
+       lo que cobra el PROFE. NO sirve para cobrarle al alumno, pero sirve para
+       dos cosas: contar cuantas veces vino, y saber cuales fueron INDIVIDUALES.
+       De toda la tabla de aportes, 70.000 es el unico monto que no se repite:
+       solo lo tiene la individual. Los demas se pisan entre si (50.000 es
+       grupal, dual y chicos individual; 30.000 es primera, chicos y profesores),
+       asi que con esos no se puede saber el tipo sin adivinar, y adivinar aca
+       termina en una clase mal cobrada. El precio sale del padron.
+     - Monto por ALUMNOS: entre parentesis va lo que paga el ALUMNO, clase por
+       clase. Ahi no hay nada que deducir ni que buscar en el padron.
+     Se reconocen por la columna PROFES, que solo trae el de alumnos. */
   var esDeAlumnos = cab.indexOf('profes') >= 0;
 
   var rx = /([^,(]+?)\s*\(([\d.]+)\)/g;
@@ -1481,7 +1497,11 @@ function planLeer(txt){
     while((m = rx.exec(String(f[iAl]||'')))){
       var nom = m[1].replace(/^[\s,]+|[\s,]+$/g,'');
       if(!nom) continue;
-      clases.push({ fecha:fecha, hora:hora, nombre:nom, monto:planMonto(m[2]) });
+      var mon = planMonto(m[2]);
+      clases.push({ fecha:fecha, hora:hora, nombre:nom, monto:mon,
+        /* Solo en el reporte de profes el monto delata el tipo. En el de alumnos
+           el monto ES el precio, y no se deduce nada. */
+        indiv: (!esDeAlumnos && mon === 70000) });
     }
   }
   if(!clases.length) throw new Error('no encontre ninguna clase adentro del archivo');
@@ -1514,10 +1534,17 @@ function planSumar(mapa, meses){
     if(!a.meses[mm]) a.meses[mm] = { clases:0, dias:{} };
     a.meses[mm].clases++;
     a.meses[mm].dias[c.fecha] = (a.meses[mm].dias[c.fecha]||0)+1;
-    /* La plata de la planilla se guarda aparte: viene con el precio real de esa
-       clase y no hay que recalcularlo con el padron. */
     a.meses[mm].planClases = (a.meses[mm].planClases||0)+1;
-    a.meses[mm].planMonto  = (a.meses[mm].planMonto||0) + (c.monto||0);
+    if(c.indiv) a.meses[mm].planIndiv = (a.meses[mm].planIndiv||0)+1;
+    /* LA PLATA SOLO SALE DEL ARCHIVO CUANDO EL ARCHIVO LA TRAE.
+       En el reporte de ALUMNOS el monto es lo que paga el alumno: se usa tal
+       cual. En el de PROFESORES es lo que cobra el profe, y usarlo para cobrar
+       seria cobrarle de menos a todo el mundo: ahi la clase queda SIN precio
+       propio y la cobra el padron, como corresponde. */
+    if(PLANILLA.esDeAlumnos){
+      a.meses[mm].planConPrecio = (a.meses[mm].planConPrecio||0)+1;
+      a.meses[mm].planMonto     = (a.meses[mm].planMonto||0) + (c.monto||0);
+    }
     a.total++;
   });
   PLANILLA.sinCruzar = Object.keys(sinCruzar).sort(function(x,y){
@@ -1537,13 +1564,9 @@ function planGuardarLocal(txt){
 }
 function planCargarTexto(txt, guardar){
   var p = planLeer(txt);
-  if(!p.esDeAlumnos){
-    if(!confirm('OJO: este archivo parece el reporte de PROFESORES, no el de alumnos.\n\n' +
-                'Los montos entre parentesis serian lo que cobra el PROFE, no lo que paga el\n' +
-                'alumno, y los cobros saldrian mal.\n\n' +
-                'El bueno es Informes -> Monto por Alumnos.\n\n' +
-                'Cargarlo igual?')) return false;
-  }
+  /* Los dos reportes se cargan sin preguntar nada: cada uno se usa como
+     corresponde. Antes esto frenaba con un cartel al reporte de PROFESORES,
+     que es justamente el que se usa todos los dias. */
   PLANILLA = p;
   _planCache = {};
   if(guardar) planGuardarLocal(txt);
@@ -1577,9 +1600,18 @@ function planPintarBarra(){
   } else {
     var n = PLANILLA.clases.length;
     var afuera = (PLANILLA.sinCruzar||[]).reduce(function(s,x){ return s+x.veces; }, 0);
+    var indiv = PLANILLA.clases.filter(function(c){ return c.indiv; }).length;
+    /* Se dice cual de los dos reportes es, porque cambia de donde sale el
+       precio: el de alumnos lo trae adentro, el de profesores lo saca del
+       padron. Si no se dice, no hay forma de saber por que un mes cobra
+       distinto que otro. */
     el.innerHTML = '<span class="planTxt"><b>Planilla cargada</b> · ' + gs(n) +
-      ' clases · del ' + PLANILLA.desde + ' al ' + PLANILLA.hasta +
-      (afuera ? ' · <span class="planAviso">' + gs(afuera) + ' sin cruzar con el padron</span>' : '') +
+      ' clases · del ' + PLANILLA.desde + ' al ' + PLANILLA.hasta + '<br>' +
+      (PLANILLA.esDeAlumnos
+        ? 'Reporte de <b>alumnos</b>: el precio viene en el archivo.'
+        : 'Reporte de <b>profesores</b>: cuenta las clases y marca las individuales; el precio sale del padrón.') +
+      (indiv ? ' · <b>' + gs(indiv) + '</b> individuales' : '') +
+      (afuera ? ' · <span class="planAviso">' + gs(afuera) + ' sin cruzar con el padrón</span>' : '') +
       '</span>' +
       '<button class="chico" id="planCargar">Cambiar</button>' +
       '<button class="chico" id="planSacar">Sacar</button>';
