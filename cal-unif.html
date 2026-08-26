@@ -1872,16 +1872,27 @@ function datosDePadron(nombre){
   try{
     const k = normName(nombre);
     if(!k) return vacio;
+    /* LEY: el tipo de clase sale SOLO de la ficha del alumno.
+       Antes la tercera fuente era _idxAlumnos, que es el PROPIO CALENDARIO.
+       Con eso el calendario se copiaba a si mismo: una celda que habia quedado
+       mal le pasaba el tipo a la siguiente y el padron no se miraba nunca mas.
+       Asi Gabriel Han quedo IND en 8 celdas mientras su ficha decia G, y
+       Alejandra Garcia Petty quedo D y G el mismo dia a la misma hora.
+       El calendario sigue completando nivel y lado desde el indice: esos no
+       tocan la plata. El tipo, no. */
     const c = (state.contactos && state.contactos[k]) ||
-              (typeof contactosLocal!=='undefined' && contactosLocal[k]) ||
-              (typeof _idxAlumnos!=='undefined' && _idxAlumnos[k]);
+              (typeof contactosLocal!=='undefined' && contactosLocal[k]);
     if(c) return { nivel:c.nivel||'', lado:c.lado||'', mod:c.mod||'' };
     /* alumnos_v2 guarda los mismos datos con otros nombres de campo. */
     if(typeof alumnosVivo!=='undefined'){
-      const v = Object.values(alumnosVivo||{})
+      const vv = Object.values(alumnosVivo||{})
         .find(a=>a && a.nombre && normName(a.nombre)===k);
-      if(v) return { nivel:v.cat||'', lado:v.lado||'', mod:v.tipo||'' };
+      if(vv) return { nivel:vv.cat||'', lado:vv.lado||'', mod:vv.tipo||'' };
     }
+    /* Sin ficha en ningun padron: nivel y lado se pueden heredar del
+       calendario, el TIPO queda vacio a proposito. */
+    const idx = (typeof _idxAlumnos!=='undefined' && _idxAlumnos[k]);
+    if(idx) return { nivel:idx.nivel||'', lado:idx.lado||'', mod:'' };
     return vacio;
   }catch(e){ return vacio; }
 }
@@ -3445,7 +3456,10 @@ function autocompletarDesdeNube(){
   if(!c) return; // alumno nuevo: no toca nada
   if(c.nivel) document.getElementById('fNivel').value=c.nivel;
   if(c.lado)  document.getElementById('fLado').value=c.lado;
-  if(c.mod)   document.getElementById('fMod').value=c.mod;
+  /* El TIPO solo se autocompleta si viene de una ficha de alumno.
+     Del calendario (_idxAlumnos) no: ver la LEY en datosDePadron(). */
+  const deFicha = state.contactos[k] || contactosLocal[k];
+  if(deFicha && deFicha.mod) document.getElementById('fMod').value=deFicha.mod;
 }
 function closeEditor(){ document.getElementById('overlay').classList.remove('show'); editingCell=null; limpiarAlta(); }
 function limpiarAlta(){
