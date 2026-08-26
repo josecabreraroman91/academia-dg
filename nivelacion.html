@@ -613,15 +613,45 @@ const FB_NS  = "niveles_v1";
 const SHEET_ID = "1DPyD7KmYSYNht2MHsn10csIMHPNRJpEhCJOgPtCRBrE";
 const GVIZ_ALUMNOS = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=ALUMNOS`;
 
-/* Iniciales de profe, tal como están en Envio Mensajes.gs (CONFIG.PROFESORES).
-   La planilla guarda la inicial; acá se muestra el nombre. */
-const PROFES = {
-  JM:"Jose Mongelos",   RS:"Rodolfo Silva",     ChG:"Checho Gonzalez",
-  FL:"Fernando Lavall", PR:"Pablo Recalde",     MP:"Matias Popovich",
-  VA:"Viani Alfonso",   TE:"Tati Enciso",       MF:"Mathias Fernandez",
-  FA:"Frida Arenas",    OB:"Olga Bareiro",      HR:"Hernan Rodriguez",
-  RA:"Rodrigo Avila"
+/* ============================================================
+   LOS NOMBRES DE LOS PROFES SALEN DEL CALENDARIO, NO DE ACÁ
+
+   Esta lista estaba escrita a mano y ya se había separado de la del calendario:
+   decía "Fernando Lavall" con dos eles donde calendario_v2/profesores dice
+   "Fernando Laval", tenía a HR (Hernán Rodríguez, que ya no trabaja) y le
+   faltaba SP. O sea que el mismo profe se llamaba distinto según la pantalla, y
+   uno que ya no está seguía apareciendo para elegir.
+
+   La casa de los nombres es calendario_v2/profesores, que es donde se definen
+   las columnas. Acá solo se lee. La lista de abajo queda como red por si el
+   calendario todavía no cargó, y por eso no lleva a HR.
+   ============================================================ */
+const PROFES_RED = {
+  JM:"Jose Mongelos",  RS:"Rodolfo Silva",   ChG:"Checho Gonzales",
+  FL:"Fernando Laval", PR:"Pablo Recalde",   MP:"Matias Popovich",
+  VA:"Viani Alfonzo",  TE:"Tati Enciso",     MF:"Mathias Fernandez",
+  FA:"Frida Arenas",   OB:"Olga Bareiro",    RA:"Rodrigo Avila"
 };
+let PROFES = Object.assign({}, PROFES_RED);
+
+/* Se pide DESPUÉS del login: calendario_v2 pide credencial, así que llamarlo al
+   cargar la página daría 401 y siempre quedarían los de la red. Lo dispara
+   onIdTokenChanged, con el token ya puesto. Si falla, quedan los de la red. */
+function traerProfesDelCalendario(){
+  try{
+    return fetch(FB_URL + '/calendario_v2/profesores.json')
+      .then(function(r){ return r.json(); })
+      .then(function(lista){
+        if(!lista) return;
+        const arr = Array.isArray(lista) ? lista : Object.keys(lista).map(function(k){ return lista[k]; });
+        const nuevo = {};
+        arr.forEach(function(p){ if(p && p.dim) nuevo[p.dim] = p.nombre || p.dim; });
+        if(Object.keys(nuevo).length){ PROFES = nuevo; try{ renderFilters(); renderList(); }catch(e){} }
+      })
+      .catch(function(e){ console.warn('profes del calendario:', e.message); });
+  }catch(e){}
+}
+
 function nombreProfe(ini){
   if(!ini) return "";
   const k=Object.keys(PROFES).find(x=>x.toUpperCase()===String(ini).toUpperCase());
@@ -1639,6 +1669,7 @@ renderFilters(); renderList(); estadoSync();
         hide(); arrancarSync();
         aplicarPermisos(u.email);
         escucharAlumnosNuevos();
+        traerProfesDelCalendario();  // los nombres salen del calendario, no de una lista a mano
         leerGviz();                 // ahora sí: con la credencial puesta
       });
     });
