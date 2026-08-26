@@ -187,6 +187,10 @@
   .d{cursor:pointer;user-select:none;position:relative;transition:background .12s}
   .d:hover{filter:brightness(1.12)}
   .d.pagado{background:var(--verde)}
+  /* Punto amarillo = fue clase individual. Se distingue del verde de pagado
+     porque son dos cosas distintas y pueden darse juntas. */
+  .d.indiv::before{content:'';position:absolute;top:4px;left:5px;width:6px;height:6px;
+    border-radius:50%;background:#f0b429;box-shadow:0 0 0 1.5px rgba(0,0,0,.15)}
   .d.pagado .n::after{content:'✓';position:absolute;top:3px;right:5px;
     font-size:10px;font-weight:800;opacity:.95}
   .d.guardando{opacity:.45}
@@ -1161,6 +1165,65 @@ function armarAlumnos(){
 /* Cuánto se le cobra a un alumno por los meses elegidos.
    Un precio de más de 500.000 es un abono mensual mal cargado en la casilla del
    precio por clase: no se multiplica por clase, se cobra una vez por mes. */
+/* ============================================================
+   DISCRIMINAR POR TIPO DE CLASE
+
+   Hay ~20 alumnos cargados DOS veces a proposito en el padron, uno por tipo de
+   clase, con su ID y su precio: "Rodrigo Lee INDIVIDUAL" (150.000) y "Rodrigo
+   Lee GRUPAL" (90.000). Son la misma persona y entrena de las dos formas.
+
+   Cobrarle todas las clases a un solo precio le erra siempre: de mas si se
+   agarra el de individual, de menos si se agarra el otro.
+
+   COMO SE SABE CUAL FUE INDIVIDUAL
+   Del reporte de PROFESORES. De toda la tabla de aportes, **70.000 es el unico
+   monto que no se repite**: solo lo tiene la clase individual. Los demas se
+   pisan entre si, asi que con esos no se puede saber el tipo sin adivinar.
+   Por eso solo se discriminan las individuales: son las unicas que el reporte
+   permite reconocer sin inventar nada.
+
+   Criterio tomado de clases-por-alumno, que ya lo hacia asi.
+   ============================================================ */
+
+/* Todas las fichas del padron que son de este alumno. Normalmente una; en los
+   pares a proposito, dos. */
+function fichasDe(a){
+  if(!a || !a.ficha) return [];
+  var base = keyAlumno(a.ficha.nombre);
+  if(!base) return [a.ficha];
+  var out = [];
+  for(var i=0;i<padron.length;i++){
+    var p = padron[i];
+    if(p && p.nombre && keyAlumno(p.nombre) === base) out.push(p);
+  }
+  return out.length ? out : [a.ficha];
+}
+
+/* Una ficha es la de INDIVIDUAL si lo dice el tipo o el nombre. No se adivina
+   por "la mas cara": un alumno puede tener dos precios sin que ninguno sea de
+   individual, y ahi discriminar seria inventar. */
+function esFichaIndividual(f){
+  if(!f) return false;
+  if(/^ind/i.test(String(f.tipo||''))) return true;
+  return /\b(individual|indiv|ind)\b/i.test(String(f.nombre||''));
+}
+
+/* Los dos precios que hacen falta para discriminar, o null si no se puede.
+   Hace falta: una ficha de individual con precio, y otra distinta con precio. */
+function preciosPorTipo(a){
+  var fs = fichasDe(a);
+  if(fs.length < 2) return null;
+  var ind = null, otro = null;
+  fs.forEach(function(f){
+    if(!f.precio || f.beca) return;
+    if(esFichaIndividual(f)){ if(!ind || f.precio > ind.precio) ind = f; }
+    else { if(!otro || f.precio > otro.precio) otro = f; }
+  });
+  if(!ind || !otro || ind.precio === otro.precio) return null;
+  return { individual: ind.precio, resto: otro.precio,
+           nombreInd: ind.nombre, nombreResto: otro.nombre };
+}
+
 function cobroDe(a, mesesSel){
   var f=a.ficha;
   /* ============================================================
@@ -1173,7 +1236,7 @@ function cobroDe(a, mesesSel){
      error que puede cometer esta pantalla: lo ve el alumno, no nosotros.
      ============================================================ */
   var clases=0, planClases=0, planMonto=0, planConPrecio=0, planIndiv=0;
-  var diasPagos=0, clasesPagas=0, mesesConSaldo=0;
+  var diasPagos=0, clasesPagas=0, mesesConSaldo=0, indivQuedan=0;
   mesesSel.forEach(function(m){
     var mm=a.meses[m]; if(!mm) return;
     var quedaAlgo=false;
@@ -1182,6 +1245,7 @@ function cobroDe(a, mesesSel){
       if(estaPagado(a.k, f)){ diasPagos++; clasesPagas += n; return; }
       quedaAlgo = true;
       clases        += n;
+      indivQuedan   += ((mm.planIndivDia && mm.planIndivDia[f]) || 0);
       planConPrecio += ((mm.planConPrecioDia && mm.planConPrecioDia[f]) || 0);
       planMonto     += ((mm.planMontoDia     && mm.planMontoDia[f])     || 0);
       planIndiv     += ((mm.planIndivDia     && mm.planIndivDia[f])     || 0);
@@ -1207,7 +1271,8 @@ function cobroDe(a, mesesSel){
   var propias = clases - planConPrecio;
   var extra = { planClases:planClases, planMonto:planMonto, propias:propias,
                 planConPrecio:planConPrecio, planIndiv:planIndiv,
-                diasPagos:diasPagos, clasesPagas:clasesPagas };
+                diasPagos:diasPagos, clasesPagas:clasesPagas,
+                indivQuedan:indivQuedan };
   /* La BECA se mira ANTES que la planilla, a proposito. Con la planilla
      adelante, un alumno marcado como becado en el padron podia terminar con
      un monto arriba de cero si el sistema viejo le habia cobrado algo, y de
@@ -1231,6 +1296,18 @@ function cobroDe(a, mesesSel){
   if(planConPrecio)
     return Object.assign({ estado:'mixto', clases:clases, precio:f.precio,
                            total:f.precio*propias + planMonto }, extra);
+  /* DISCRIMINADO POR TIPO: solo si el alumno tiene dos fichas con precio,
+     una de individual y otra no, y ademas el reporte muestra que hubo de las
+     dos. Si falta cualquiera de esas condiciones se cobra parejo, porque
+     discriminar sin datos seria adivinar. */
+  var pt = preciosPorTipo(a);
+  var resto = clases - indivQuedan;
+  if(pt && indivQuedan > 0 && resto > 0){
+    return Object.assign({ estado:'portipo', clases:clases,
+      total: indivQuedan*pt.individual + resto*pt.resto,
+      indiv:indivQuedan, resto:resto,
+      precioInd:pt.individual, precioResto:pt.resto }, extra);
+  }
   return Object.assign({ estado:'ok', clases:clases, precio:f.precio, total:f.precio*clases }, extra);
 }
 
@@ -1977,8 +2054,13 @@ function pintarFicha(){
     cuerpo+=ds.map(function(f){
       var n=+f.slice(8,10), c=mm.dias[f];
       var pg=estaPagado(a.k, f);
-      return '<div class="d'+(c>1?' varias':'')+(pg?' pagado':'')+'"'+
-             ' data-pago="'+f+'" title="'+(pg?'Pagado · toca para desmarcar':'Toca si ya se cobro este dia')+'">'+
+      /* El punto marca las que fueron INDIVIDUALES. Se ve ANTES de mandar el
+         mensaje, que es cuando importa: son las que valen distinto. */
+      var ind=(mm.planIndivDia && mm.planIndivDia[f]) || 0;
+      return '<div class="d'+(c>1?' varias':'')+(pg?' pagado':'')+(ind?' indiv':'')+'"'+
+             ' data-pago="'+f+'" title="'+
+             (ind?(ind===1?'Clase individual. ':gs(ind)+' clases individuales. '):'')+
+             (pg?'Pagado · tocá para desmarcar':'Tocá si ya se cobró este día')+'">'+
              '<span class="n">'+n+'</span>'+
              '<span class="c">'+(c===1?'1 clase':c+' clases')+'</span></div>';
     }).join('');
@@ -2014,6 +2096,11 @@ function pintarFicha(){
     h+=op('flojo','Alumno becado','Sin cargo',
           gs(c.clases)+' clases en el período. No paga: en el padrón dice BECA. '+
           'Al profesor se le paga igual, porque su parte sale del tipo de clase.');
+  } else if(c.estado==='portipo'){
+    h+=op('bien','Discriminado por tipo de clase','₲ '+gs(c.total),
+          gs(c.indiv)+(c.indiv===1?' individual':' individuales')+' × ₲ '+gs(c.precioInd)+
+          '<br>'+gs(c.resto)+(c.resto===1?' clase':' clases')+' × ₲ '+gs(c.precioResto)+
+          '<br><b>Sale del reporte</b>: las individuales se reconocen porque el profe cobra ₲ 70.000 por ellas.');
   } else if(c.estado==='pagado'){
     h+=op('bien','Todo cobrado','Sin saldo',
           gs(c.clasesPagas)+(c.clasesPagas===1?' clase marcada':' clases marcadas')+
