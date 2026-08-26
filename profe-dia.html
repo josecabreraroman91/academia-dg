@@ -98,10 +98,12 @@
   .slot .al.acople{border-style:dashed}
   .slot .al:active{transform:scale(.97)}
   .slot .al .conf{font-size:.85em}
-  /* Sin marcar: apagado y con el circulito vacío. Es lo que le dice al profe a
-     quién le falta tocar. Cuando marca "vino" queda firme y con el ✓. */
-  .slot .al.pormarcar{opacity:.62}
-  .slot .al .sinmarcar{font-size:.8em;color:var(--muted)}
+  /* UNA SOLA SEÑAL. Antes había dos cosas encima del mismo alumno: el 👀 de
+     "no confirmó" y el ✓/○ de "el profe ya lo marcó", más el gris del que
+     faltaba tocar. Tres señales para dos ideas, y nadie las leía igual.
+     Ahora, en la grilla: ✓ confirmó · 👀 no confirmó. Y NADIE va apagado.
+     El que no vino no se pinta acá: baja a "No vienen" con su 🔴, como ya
+     estaba. El contorno rojo de ese alumno se ve en el CALENDARIO. */
   .slot .al .vino{font-size:.8em;color:#2f9e6a;font-weight:900}
   .slot .al .mod{color:var(--muted);font-size:.82em}
   .slot .al .tag{font-size:.72em;background:var(--line);padding:0 .35em;border-radius:5px;color:var(--muted)}
@@ -879,14 +881,12 @@ function render(){
              tocar, y marcar la asistencia no serviría de nada: el día entero
              quedaría sin marcar como hasta ahora. El ✓ verde es el que ya marcó
              "vino". */
-          const marcado = a.asis==='presente';
-          /* El 👀 dice "no contestó la confirmación" y eso es un dato del alumno,
-             no de la asistencia: NO se apaga porque el registro figure marcado.
-             Apagándolo, un día que arrastra asis:'presente' del código viejo dejaba
-             sin ojitos a todo el mundo, también a los que nunca confirmaron. */
-          const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';
-          const senia = marcado ? ' <span class="vino">✓</span>' : ' <span class="sinmarcar">○</span>';
-          return `<span class="al presente${a.acople?' acople':''}${marcado?'':' pormarcar'}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito}${senia} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
+          /* CONFIRMÓ o NO CONFIRMÓ, nada más. Marcar "vino" ES confirmar: por eso
+             un 👀 al que el profe le pone presente pasa a ✓ acá y a verde en el
+             calendario. El acople lo agregó el profe, así que ya está confirmado. */
+          const confirmado= !!(a.confirmado || a.acople || a.asis==='presente');
+          const senia = confirmado ? ' <span class="vino">✓</span>' : ' <span class="conf">👀</span>';
+          return `<span class="al presente${a.acople?' acople':''}" data-id="${a.cid}">${escapeHtml(a.nombre)}${senia} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
         });
         html+=`<div class="slot">${`<span class="prof addp" data-add="${f.sede}|${f.profe}|${h}">(${escapeHtml(f.profe)}${em?' '+em:''})</span>`} ${partes.join(' <span class="sep">·</span> ')}${chipsAyuda?' '+chipsAyuda:''}</div>`;
       }
@@ -954,9 +954,28 @@ function abrirMenuEstado(id){
        solo aceptan 'presente' o 'ausente'; sin el campo, la validación ni corre
        y el registro queda igual que recién publicado. */
     childRef(id).child('asis').set(est || null);
+    /* MARCAR "VINO" ES CONFIRMAR. El ✓ de la tablet y el verde del calendario
+       pasan a ser el mismo dato: si el alumno aparece y el profe lo marca, ya
+       no tiene sentido que siga figurando como "no contestó".
+       "No vino" NO desconfirma: el que había avisado que venía sigue contando
+       como confirmado, que es lo que decide si se le cobra. */
+    if(est==='presente') childRef(id).child('confirmado').set(true);
     anotarOp(est || 'editar', rec.nombre||'',
              (est ? '' : 'deshizo la marca · ') + lugarDe(id, rec),
              {sede:sedeDeId(id), horaIdx:Number(rec.horaIdx)||0});
+    /* Y VIAJA AL CALENDARIO por el mismo puente que ya usan mover/sacar:
+       verde si vino, contorno rojo si no vino, y sin nada si se deshace.
+       Si el registro no tiene lugar en la grilla (un acople que el profe
+       agregó hoy) no hay a dónde mandarlo, y alPuente ya avisa por su cuenta. */
+    const _desde = slotDeOrigen(id);
+    if(_desde){
+      alPuente(_desde, {
+        tipo: est==='presente' ? 'confirmar' : (est==='ausente' ? 'ausente' : 'sinmarca'),
+        alumno: rec.nombre||'', tel:'', desde:_desde,
+        profe: rec.profe||'', sede: sedeDeId(id), dia: cacheMeta.dia||'',
+        horaIdx: Number(rec.horaIdx)||0
+      });
+    }
     cerrarMenuEstado();
   };
   ov.querySelectorAll('.me-opt[data-est]').forEach(b=>{
@@ -971,7 +990,9 @@ function abrirMenuEstado(id){
      no pisarse con el aviso de "atrás" que dispara el cierre. */
   document.getElementById('meMover').onclick=()=>{ cerrarMenuEstado(); setTimeout(()=>abrirMover(id), 0); };
   document.getElementById('meSacar').onclick=()=>{
-    if(confirm('¿Sacar a '+(rec.nombre||'este alumno')+' de la lista de hoy?\n(No afecta el calendario, solo lo saca del día en la tablet)')){
+    /* El texto decía que no afectaba al calendario, y era mentira: abajo se
+       manda un 'sacar' por el puente desde que existe. Ahora lo dice. */
+    if(confirm('¿Sacar a '+(rec.nombre||'este alumno')+' de la lista de hoy?\n\nTambién sale de esta semana en el calendario.\nLos días fijos de la MADRE no se tocan.')){
       childRef(id).child('borrado').set(true);
       anotarOp('sacar', rec.nombre||'', 'lo sacó de la lista · '+lugarDe(id, rec),
                {sede:sedeDeId(id), horaIdx:Number(rec.horaIdx)||0});

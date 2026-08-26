@@ -309,6 +309,13 @@
 .slot.atencion{outline:3px solid #9333ea;outline-offset:-3px;border-radius:6px}
 /* Marcado AUSENTE hoy desde la tablet. Es solo informativo — no cambia la grilla
    ni el cobro, avisa lo que está pasando en la cancha en este momento. */
+/* NO VINO. Lo pone el profe desde la tablet o el admin desde el menu de la
+   celda. Va DESPUES de .atencion a proposito: si un alumno tiene las dos, gana
+   el rojo, porque "no vino" es un hecho del dia y la morada es un recordatorio. */
+.slot.ausente{outline:3px solid #e5484d;outline-offset:-3px;border-radius:6px}
+.slot.ausente:not(.confirmado):not(.revisar):not(.coach){background:#ffe0e0 !important}
+.slot.ausente:not(.confirmado):not(.revisar):not(.coach) .nm{color:#b3261e}
+.slot.ausente .nm{text-decoration:line-through;text-decoration-color:#e5484d}
 .slot.falto{opacity:.62}
 .slot.falto .nm{text-decoration:line-through}
 .slot .faltox{position:absolute;top:2px;right:3px;font-size:10px;line-height:1}
@@ -477,6 +484,7 @@
     <div class="field" id="fieldAtencion">
       <label>Atención (lo ven todos los dispositivos)</label>
       <button class="btn" id="btnAtencion" style="width:100%;background:#f3e4ff;border-color:#c89bf0;color:#5b21b6;font-weight:700">🟣 Marcar atención</button>
+      <button class="btn" id="btnAusente" style="width:100%;background:#ffe4e4;border-color:#e8a49d;color:#b3261e;font-weight:700;margin-top:6px">🔴 Marcar que no vino</button>
     </div>
     <div class="sheet-actions">
       <button class="btn danger" id="btnDelete">Borrar</button>
@@ -1946,6 +1954,28 @@ function aplicarReservas(){
       marcarResvAplicada(r.k); return;
     }
 
+    /* LO QUE MARCO EL PROFE EN LA TABLET. No mueve ni saca a nadie: solo pinta.
+       · confirmar  → verde, y le saca el rojo si lo tenia
+       · ausente    → contorno rojo
+       · sinmarca   → le saca el rojo
+       El 'sinmarca' NO desconfirma a proposito: el verde puede venir de un
+       WhatsApp que el alumno contesto, y deshacer una marca de la tablet no
+       tiene por que borrar eso. */
+    if(tipo==='confirmar' || tipo==='ausente' || tipo==='sinmarca'){
+      const o=B.alumnos[r.desde];
+      if(o && o.nombre && normName(o.nombre)===normName(r.alumno)){
+        if(tipo==='confirmar'){ o.confirmado=true; delete o.ausente;
+          hechos.push('✅ '+r.alumno+' vino — '+(r.porNombre||'')); }
+        else if(tipo==='ausente'){ o.ausente=true;
+          hechos.push('🔴 '+r.alumno+' no vino — '+(r.porNombre||'')); }
+        else { delete o.ausente;
+          hechos.push('↩️ '+r.alumno+' sin marca — '+(r.porNombre||'')); }
+      } else {
+        fallaron.push(r.alumno+' — ya no estaba en '+lugarTxt(r.desde));
+      }
+      marcarResvAplicada(r.k); return;
+    }
+
     /* EDITAR: solo cambia el tipo de clase */
     if(tipo==='editar'){
       const o=B.alumnos[r.desde];
@@ -2062,8 +2092,9 @@ function pintarPropuestas(){
   const ps=propuestasPendientes();
   box.style.display = ps.length ? 'block' : 'none';
   if(!ps.length) return;
-  const ICO={agregar:'➕', mover:'↔️', sacar:'➖', editar:'✏️'};
-  const QUE={agregar:'entra', mover:'se mueve', sacar:'sale', editar:'cambia de tipo'};
+  const ICO={agregar:'➕', mover:'↔️', sacar:'➖', editar:'✏️', confirmar:'✅', ausente:'🔴', sinmarca:'↩️'};
+  const QUE={agregar:'entra', mover:'se mueve', sacar:'sale', editar:'cambia de tipo',
+             confirmar:'vino', ausente:'no vino', sinmarca:'queda sin marca'};
   lista.innerHTML = ps.map(r=>{
     const tipo=r.tipo||'agregar';
     let det='';
@@ -3257,11 +3288,12 @@ function _renderGridReal(){
             // azul = vigilancia de la persona (no de la celda). En la MADRE no se pinta: no lleva seguimiento.
             const marcado = enMadre() ? !!al.revisar : (!!al.revisar || estaVigilado(al.nombre));
             const atencion = !!al.atencion; // marca morada nuestra (va encima de todo)
+            const ausente  = !!al.ausente;  // el profe marco que no vino
             const esCoach = String(al.mod||'').toUpperCase()==='COACH';
             const checkBtn = state.mode==='semana'
               ? `<button class="check-btn" data-check="${c.sk}|${c.pi}|${hi}|${si}" title="${conf?'Confirmado':'Marcar asistencia'}">✓</button>` : '';
             const falto = faltoHoy(c.sk, hi, al.nombre);
-            html+=`<div class="slot${conf?' confirmado':''}${marcado?' revisar':''}${esCoach?' coach':''}${atencion?' atencion':''}${falto?' falto':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
+            html+=`<div class="slot${conf?' confirmado':''}${marcado?' revisar':''}${esCoach?' coach':''}${atencion?' atencion':''}${ausente?' ausente':''}${falto?' falto':''}" data-cell="${c.sk}|${c.pi}|${hi}|${si}">
               ${falto?`<span class="faltox" title="El profe lo marcó ausente hoy">🔴</span>`:''}
               <div class="nm">${esc(al.nombre)}</div>
               ${tags.length?`<div class="tags">${tags.join('')}</div>`:''}
@@ -3563,6 +3595,7 @@ function actualizarBtnRevisar(sk,pi,hi,si){
   if(estaMarcado(sk,pi,hi,si)){ b.textContent='✖️ Quitar marca de revisar'; b.style.background='#bfe9ff'; }
   else { b.textContent='⭐ Marcar para revisar'; b.style.background='#e3f4ff'; }
   actualizarBtnAtencion(sk,pi,hi,si);
+  actualizarBtnAusente(sk,pi,hi,si);
 }
 function tieneAtencion(sk,pi,hi,si){
   const al=book().alumnos[cellKey(sk,pi,hi,si)];
@@ -3572,6 +3605,27 @@ function actualizarBtnAtencion(sk,pi,hi,si){
   const b=document.getElementById('btnAtencion'); if(!b) return;
   if(tieneAtencion(sk,pi,hi,si)){ b.textContent='✖️ Quitar atención'; b.style.background='#e2c4fb'; }
   else { b.textContent='🟣 Marcar atención'; b.style.background='#f3e4ff'; }
+}
+function tieneAusente(sk,pi,hi,si){
+  const al=book().alumnos[cellKey(sk,pi,hi,si)];
+  return !!(al && al.ausente);
+}
+function actualizarBtnAusente(sk,pi,hi,si){
+  const b=document.getElementById('btnAusente'); if(!b) return;
+  if(tieneAusente(sk,pi,hi,si)){ b.textContent='✖️ Sacar el "no vino"'; b.style.background='#ffc9c9'; }
+  else { b.textContent='🔴 Marcar que no vino'; b.style.background='#ffe4e4'; }
+}
+/* A DIFERENCIA DE LA MORADA, esta NO se replica a las demas clases del alumno:
+   "no vino" es de esa clase y ese dia, no del alumno. */
+function toggleAusente(){
+  if(!editingCell) return;
+  const [sk,pi,hi,si]=editingCell.split('|');
+  const B=book();
+  const al=B.alumnos[cellKey(sk,+pi,+hi,+si)];
+  if(!al) return;
+  if(al.ausente) delete al.ausente; else al.ausente=true;
+  actualizarBtnAusente(sk,+pi,+hi,+si);
+  saveState(); renderGrid();
 }
 function toggleAtencion(){
   if(!editingCell) return;
@@ -3605,6 +3659,7 @@ function saveEditor(){
     if(mismaPersona){
       if(previo.confirmado) nuevo.confirmado=true;
       if(previo.atencion)   nuevo.atencion=true;   // la marca morada no se pierde al editar
+      if(previo.ausente)    nuevo.ausente=true;    // ni el "no vino"
     }
     /* El azul "para revisar" es una VIGILANCIA de la persona: si el nombre está en
        state.watch, la celda vuelve azul aunque se haya borrado y reescrito, o sea un
@@ -5285,6 +5340,7 @@ document.getElementById('arAdd').onclick=agregarAlumnoAR;
 document.getElementById('arNombre').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); agregarAlumnoAR(); } });
 document.getElementById('btnRevisar').onclick=toggleRevisar;
 document.getElementById('btnAtencion').onclick=toggleAtencion;
+document.getElementById('btnAusente').onclick=toggleAusente;
 document.getElementById('btnAlmuerzo').onclick=()=>guardarBloque('ALMUERZO');
 document.getElementById('btnBloquear').onclick=guardarBloqueado;
 document.getElementById('btnCancel').onclick=closeEditor;
