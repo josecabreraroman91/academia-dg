@@ -113,6 +113,13 @@
   .aus-item:active{transform:scale(.99)}
   .aus-nom{font-weight:700;color:#b3261e;text-decoration:line-through;text-decoration-color:#000;text-decoration-thickness:2px}
   .aus-meta{margin-left:auto;font-size:.82em;color:var(--muted);white-space:nowrap}
+  /* El que no confirmó todavía no es un ausente confirmado: va sin tachar y en
+     gris, para que se lea distinto del que el profe marcó que no vino. */
+  .aus-item.ojitos{background:var(--panel2);border-left-color:#c3ccd2}
+  .aus-item.ojitos .aus-nom{color:var(--muted);text-decoration:none}
+  .aus-ico{font-size:.9em;flex-shrink:0}
+  .aus-sub{font-weight:600;color:var(--muted);font-size:.82em;letter-spacing:0}
+  .aus-nota{font-size:.8em;color:var(--muted);margin:-4px 2px 9px;line-height:1.4}
   /* control de zoom */
   .zoomctl{display:inline-flex;align-items:center;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:2px}
   .zoomctl button{width:30px;height:30px;border:0;background:transparent;color:var(--txt);font-size:18px;font-weight:800;border-radius:8px;cursor:pointer}
@@ -226,7 +233,10 @@
   .mv-fld select{width:100%;padding:13px;border-radius:10px;border:1.5px solid var(--line);background:var(--cell);color:var(--txt);font-size:15px}
   .me-opt.pres{border-color:#8fd0a8}
   .me-opt.aus{border-color:#e8a49d}
-  .me-opt.sinm{border-color:#cfd8de}
+  /* Deshacer no compite con Vino / No vino: es texto chico, sin marco. */
+  .me-des{display:block;width:100%;background:none;border:0;color:var(--muted);
+    font-size:13px;font-weight:600;text-decoration:underline;padding:6px 0 2px;
+    margin:-4px 0 8px;cursor:pointer;font-family:inherit}
   .me-opt.actual{box-shadow:0 0 0 3px rgba(17,129,164,.25);position:relative}
   .me-opt.actual::after{content:'actual';position:absolute;right:14px;font-size:10px;font-weight:800;color:var(--brand);background:#e2f1f7;padding:2px 7px;border-radius:8px}
   .me-opt:active{transform:scale(.99)}
@@ -339,7 +349,10 @@
     <div class="me-q">¿Vino a la clase?</div>
     <button class="me-opt pres" data-est="presente">🟢 Vino</button>
     <button class="me-opt aus"  data-est="ausente">🔴 No vino</button>
-    <button class="me-opt sinm" data-est="">⚪ Sin marcar todavía</button>
+    <!-- Deshacer NO es una tercera opción: el profe elige entre dos. Esto es
+         solo para cuando marcó mal, así que va chiquito y aparte, y se esconde
+         si todavía no hay nada marcado. -->
+    <button class="me-des oculto" id="meDeshacer" data-est="">deshacer la marca</button>
     <div class="me-sep"></div>
     <button class="me-opt mover" id="meMover">↔️ Mover a otro profe u hora</button>
     <button class="me-opt sacar" id="meSacar">🗑️ Sacar del día</button>
@@ -795,8 +808,23 @@ function modTxt(m){ return m ? '('+m+')' : ''; }
 function render(){
   const wrap=document.getElementById('wrap');
   const items=Object.entries(cacheDia).map(([cid,a])=>({cid,...a})).filter(a=>a && a.nombre && !a.borrado);
-  const presentes=items.filter(a=>a.asis!=='ausente');
-  const ausentes=items.filter(a=>a.asis==='ausente' && !esBloque(a));
+  /* ============================================================
+     EL QUE NO CONFIRMÓ BAJA CON LOS QUE NO VIENEN
+
+     Los ojitos 👀 quieren decir "no contestó la confirmación", y la academia da
+     por hecho que ese no viene: no se le cobra. Antes igual ocupaba su casillero
+     en la grilla, así que el profe veía un lugar tomado por alguien que no iba a
+     aparecer y no podía usarlo.
+
+     Ahora baja a la lista de abajo junto con los que el profe marcó que no
+     vinieron, y el casillero se lee libre. Si al final aparece, se lo toca ahí
+     abajo y se le pone "Vino": sube solo a la grilla y pasa a cobrarse.
+
+     Ojo: solo baja el que NO confirmó y ADEMÁS nadie marcó. Al que el profe le
+     puso "Vino" no lo toca, aunque tenga los ojitos. */
+  const noVieneAun = a => !a.confirmado && !a.acople && !a.asis && !esBloque(a) && !esAyuda(a);
+  const presentes=items.filter(a=>a.asis!=='ausente' && !noVieneAun(a));
+  const ausentes=items.filter(a=>(a.asis==='ausente' || noVieneAun(a)) && !esBloque(a));
   // rango de horas: de la primera a la última con alumnos PRESENTES
   let minH=99,maxH=-1;
   presentes.forEach(a=>{ const h=a.horaIdx!=null?a.horaIdx:0; if(h<minH)minH=h; if(h>maxH)maxH=h; });
@@ -849,13 +877,16 @@ function render(){
                lista chiquita acá adentro y en la tablet era difícil de acertar. */
             return `<span class="blk arTog" data-artog="${a.cid}">${escapeHtml(a.nombre)} ${bloqueEmoji(a)}${dur} · ${nPres}/${lst.length} ▸</span>`;
           }
-          const ojito=(a.confirmado||a.acople)?'':' <span class="conf">👀</span>';   // 👀 = no confirmó. Los acoples ya están presentes
           /* EL QUE TODAVÍA NADIE MARCÓ va más apagado y con el círculo vacío.
              Sin esta señal el profe no tiene forma de saber a quién le falta
              tocar, y marcar la asistencia no serviría de nada: el día entero
-             quedaría sin marcar como hasta ahora. El ✓ verde chico es el que ya
-             marcó "vino". */
+             quedaría sin marcar como hasta ahora. El ✓ verde es el que ya marcó
+             "vino". */
           const marcado = a.asis==='presente';
+          /* Si el profe dijo que vino, el 👀 sobra: la duda se terminó ahí. El
+             dato de que nunca confirmó por WhatsApp queda igual —es cierto— pero
+             mostrarlo al lado del ✓ se contradice y confunde. */
+          const ojito=(a.confirmado||a.acople||marcado)?'':' <span class="conf">👀</span>';
           const senia = marcado ? ' <span class="vino">✓</span>' : ' <span class="sinmarcar">○</span>';
           return `<span class="al presente${a.acople?' acople':''}${marcado?'':' pormarcar'}" data-id="${a.cid}">${escapeHtml(a.nombre)}${ojito}${senia} <span class="mod">${modTxt(a.mod)}</span>${a.acople?' <span class="tag">ac</span>':''}</span>`;
         });
@@ -864,12 +895,20 @@ function render(){
     });
     html+='</div>';
   }
-  // ---- Sección de AUSENTES (abajo, con profe y hora para pagos) ----
+  /* ---- Sección de LOS QUE NO VIENEN (abajo, con profe y hora para pagos) ----
+     Van dos grupos juntos y se distinguen por el ícono: el 👀 es el que nunca
+     contestó la confirmación, y el 🔴 el que el profe marcó que no vino. A los
+     dos se los puede tocar para ponerles "Vino" si al final aparecen. */
   if(ausentes.length){
-    html+=`<div class="ausentes-sec"><div class="aus-h">🔴 Ausentes · ${ausentes.length}</div>`;
+    const nOjitos = ausentes.filter(a=>a.asis!=='ausente').length;
+    html+=`<div class="ausentes-sec"><div class="aus-h">No vienen · ${ausentes.length}` +
+          (nOjitos?` <span class="aus-sub">(${nOjitos} sin confirmar)</span>`:'') + `</div>`;
+    html+=`<div class="aus-nota">Tocá a cualquiera para ponerle <b>Vino</b> si al final apareció.</div>`;
     ausentes.sort((a,b)=>((a.horaIdx||0)-(b.horaIdx||0))||(a.nombre||'').localeCompare(b.nombre||'')).forEach(a=>{
       const em=SEDE_EMOJI[a._sede]||'';
-      html+=`<div class="aus-item" data-id="${a.cid}"><span class="aus-nom">${escapeHtml(a.nombre)}</span><span class="aus-meta">(${escapeHtml(a.profe)}${em?' '+em:''}) · ${HORAS[a.horaIdx]||''}</span></div>`;
+      const marcado = a.asis==='ausente';
+      const ico = marcado ? '🔴' : '👀';
+      html+=`<div class="aus-item${marcado?'':' ojitos'}" data-id="${a.cid}"><span class="aus-ico">${ico}</span><span class="aus-nom">${escapeHtml(a.nombre)}</span><span class="aus-meta">(${escapeHtml(a.profe)}${em?' '+em:''}) · ${HORAS[a.horaIdx]||''}</span></div>`;
     });
     html+=`</div>`;
   }
@@ -887,18 +926,23 @@ function render(){
 
 // ---- Menú de estado (cartel centrado, para evitar toques accidentales) ----
 /* ============================================================
-   TRES ESTADOS, NO DOS
+   EL PROFE ELIGE ENTRE DOS: VINO O NO VINO
 
-   Antes el menú tenía Presente y Ausente, y el día nacía con todos en
-   'presente'. O sea que "presente" no quería decir que el alumno vino: quería
-   decir que nadie lo había tocado. Con eso el cierre no podía cobrar por
-   asistencia, solo por confirmación.
+   Antes eran Presente y Ausente, pero el día nacía con TODOS en 'presente'. O
+   sea que "presente" no quería decir que el alumno vino: quería decir que nadie
+   lo había tocado. Con las dos cosas mezcladas el cierre no podía cobrar por
+   asistencia, solo por confirmación, y el profe que atendía a alguien que
+   apareció sin avisar daba esa clase de gratis.
 
-   Ahora el día nace SIN MARCAR (ver publicarFecha en cal-unif) y el profe elige
-   entre los tres. Marcar "Vino" a alguien que no confirmó hace que SE LE COBRE:
-   es la forma de decir "vino igual". Marcar "No vino" al que confirmó lo deja
-   cobrado igual, porque avisó tarde. Y el que queda sin marcar cae en la regla
-   de siempre.
+   Ahora el día nace SIN MARCAR y hay tres estados por dentro, pero el profe
+   solo elige entre dos. "Sin marcar" no es una opción: es de dónde arranca
+   todo. Por eso deshacer va aparte y chiquito, y solo se ve si hay algo
+   marcado — si fuera un tercer botón parecería que hay tres cosas que decidir.
+
+   Qué hace cada uno con la plata:
+     · Vino     → se cobra, haya confirmado o no. Es "vino igual".
+     · No vino  → se cobra solo si había confirmado (avisó tarde).
+     · sin marcar → la regla de siempre: cobra si confirmó, no si tenía 👀.
    ============================================================ */
 function abrirMenuEstado(id){
   const rec=cacheDia[id]||{};
@@ -906,20 +950,25 @@ function abrirMenuEstado(id){
   const ov=document.getElementById('ovEstado');
   document.getElementById('meNom').textContent=rec.nombre||'Alumno';
   document.getElementById('meHora').textContent=(HORAS[rec.horaIdx]||'')+(rec.profe?(' · '+rec.profe):'');
+
+  const marcar=(est)=>{
+    /* Deshacer BORRA el campo. No se guarda '' porque las reglas de Firebase
+       solo aceptan 'presente' o 'ausente'; sin el campo, la validación ni corre
+       y el registro queda igual que recién publicado. */
+    childRef(id).child('asis').set(est || null);
+    anotarOp(est || 'editar', rec.nombre||'',
+             (est ? '' : 'deshizo la marca · ') + lugarDe(id, rec),
+             {sede:sedeDeId(id), horaIdx:Number(rec.horaIdx)||0});
+    cerrarMenuEstado();
+  };
   ov.querySelectorAll('.me-opt[data-est]').forEach(b=>{
     b.classList.toggle('actual', b.dataset.est===cur);
-    b.onclick=()=>{
-      const est=b.dataset.est;
-      /* Volver a "sin marcar" BORRA el campo. No se guarda '' porque las reglas
-         de Firebase solo aceptan 'presente' o 'ausente'; ausente el campo, la
-         validación ni corre y el registro queda como recién publicado. */
-      childRef(id).child('asis').set(est || null);
-      anotarOp(est || 'editar', rec.nombre||'',
-               (est ? '' : 'lo dejó sin marcar · ') + lugarDe(id, rec),
-               {sede:sedeDeId(id), horaIdx:Number(rec.horaIdx)||0});
-      cerrarMenuEstado();
-    };
+    b.onclick=()=>marcar(b.dataset.est);
   });
+  /* Deshacer solo tiene sentido si hay algo que deshacer. */
+  const des=document.getElementById('meDeshacer');
+  des.classList.toggle('oculto', !cur);
+  des.onclick=()=>marcar('');
   /* Se cierra el menú y recién en el ciclo siguiente se abre el de mover, para
      no pisarse con el aviso de "atrás" que dispara el cierre. */
   document.getElementById('meMover').onclick=()=>{ cerrarMenuEstado(); setTimeout(()=>abrirMover(id), 0); };
