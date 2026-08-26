@@ -849,23 +849,51 @@ function aporteDe(tipo){
    ============================================================ */
 function calcularPozo(filas){
   var horas={};
+  /* Los bloques de Alto Rendimiento vacíos, contados una sola vez por
+     fecha+hora+profe: el mismo bloque puede venir en varias filas. */
+  var bloquesARvistos={}, arPorProfe={};
   filas.forEach(function(h){
     var k=h.fecha+'|'+h.hora;
-    if(!horas[k]) horas[k]={fecha:h.fecha, hora:h.hora, total:0, profes:{}, presentes:0, clases:0, sinTipo:0, estacionados:0, ayudas:0, decorativos:0, coach:0};
+    if(!horas[k]) horas[k]={fecha:h.fecha, hora:h.hora, total:0, profes:{}, presentes:0, clases:0, sinTipo:0, estacionados:0, ayudas:0, decorativos:0, coach:0, bloquesAR:0, porClase:{}};
     var b=horas[k];
     /* Una columna que no es un profesor no trabaja: ni cobra parte del pozo, ni
        lo que aporta el alumno estacionado ahí engorda la bolsa de los demás. */
     if(esColumnaSinProfe(h.profe)){ b.estacionados++; return; }
     if(esAyudante(h)){ if(h.profe) b.profes[h.profe]=true; b.ayudas++; return; }
-    /* El bloque de alto rendimiento: el profe trabaja esa hora, pero el bloque
-       en sí no aporta. Lo que aportan son sus alumnos, que vienen aparte. */
-    if(esBloqueAR(h.alumno)){ if(h.profe) b.profes[h.profe]=true; return; }
+    /* ============================================================
+       EL BLOQUE DE ALTO RENDIMIENTO VACÍO
+
+       El profe trabaja esa hora, así que entra al reparto. El bloque en sí no
+       aporta: lo que aporta son sus alumnos, que llegan en filas propias con su
+       tipo AR60 o AR30.
+
+       Pero si al bloque nadie le cargó los alumnos, esas filas propias NO
+       EXISTEN. Entonces el profe se lleva su parte de la hora aportando cero, y
+       esa plata sale de los otros profes que sí llenaron la bolsa. Medido sobre
+       14 días reales: Gs 4.144.579 movidos desde 8 profes hacia los 3 que dan
+       AR, con los 63 bloques vacíos.
+
+       No se cambia el reparto —el profe SÍ trabajó esa hora— pero se cuenta,
+       para que deje de pasar en silencio y se vea en "Para corregir". */
+    if(esBloqueAR(h.alumno)){
+      if(h.profe) b.profes[h.profe]=true;
+      b.bloquesAR++;
+      if(!bloquesARvistos[h.fecha+'|'+h.hora+'|'+h.profe]){
+        bloquesARvistos[h.fecha+'|'+h.hora+'|'+h.profe]=true;
+        arPorProfe[h.profe]=(arPorProfe[h.profe]||0)+1;
+      }
+      return;
+    }
     /* Un casillero decorativo no es una clase: no aporta y no da hora trabajada. */
     if(esBloque(h.alumno)){ b.decorativos++; return; }
     /* El coach es del profesor, no de la academia: ni aporta ni da hora trabajada. */
     if(esCoach(h)){ b.coach++; return; }
     b.clases++;
     if(h.profe) b.profes[h.profe]=true;
+    /* Quién estuvo esa hora por una CLASE de verdad, no solo por un bloque.
+       Sirve para saber, más abajo, a quién le cambiaría el pago si los bloques
+       vacíos dejaran de contar. */
+    if(h.profe) b.porClase[h.profe]=true;
     if(h.presente) b.presentes++;
     /* LO QUE SE COBRA ES LO QUE APORTA.
 
@@ -912,8 +940,57 @@ function calcularPozo(filas){
       if(h.presente) porProfe[h.profe].presentes++;
     }
   });
+
+  /* ============================================================
+     CUÁLES DE ESOS BLOQUES ESTÁN VACÍOS, Y CUÁNTO MUEVEN
+
+     Un bloque tiene sus alumnos cargados si en la misma fecha+hora+profe hay
+     filas con tipo AR (AR60 / AR30). Si no hay ninguna, el bloque está vacío:
+     el profe cobra su parte de esa hora sin haber aportado nada.
+
+     Para saber cuánto pesa se recalcula el reparto SIN los bloques vacíos y se
+     compara. Lo que un profe cobra de más es exactamente lo que los demás
+     cobran de menos. */
+  var conAlumnosAR={};
+  filas.forEach(function(h){
+    /* AR60 y AR30, con numero: la fila del BLOQUE tiene tipo 'AR' pelado y no
+       cuenta como alumno. Sin el digito, el bloque se contaba a si mismo como
+       si tuviera gente adentro y nunca aparecia como vacio. */
+    if(/^AR\d/i.test(String(h.tipo||'').trim())) conAlumnosAR[h.fecha+'|'+h.hora+'|'+h.profe]=true;
+  });
+  var arVacios=0, arVaciosPorProfe={};
+  Object.keys(bloquesARvistos).forEach(function(k){
+    if(conAlumnosAR[k]) return;
+    arVacios++;
+    var p=k.split('|')[2];
+    arVaciosPorProfe[p]=(arVaciosPorProfe[p]||0)+1;
+  });
+
+  /* Cuánto mueve: el mismo reparto pero sacando los bloques vacíos del conteo
+     de profes de cada hora. */
+  var desvio={};
+  if(arVacios){
+    var sinVacios={};
+    Object.keys(horas).forEach(function(k){
+      var b=horas[k], ps=Object.keys(b.profes).filter(function(p){
+        /* Se saca al profe solo si en esa hora SOLO estaba por un bloque vacío. */
+        if(!bloquesARvistos[b.fecha+'|'+b.hora+'|'+p]) return true;
+        if(conAlumnosAR[b.fecha+'|'+b.hora+'|'+p]) return true;
+        return b.porClase && b.porClase[p];
+      });
+      if(!ps.length || !b.total) return;
+      var parte=b.total/ps.length;
+      ps.forEach(function(p){ sinVacios[p]=(sinVacios[p]||0)+parte; });
+    });
+    Object.keys(porProfe).forEach(function(p){
+      var d=(sinVacios[p]||0)-porProfe[p].monto;
+      if(Math.abs(d)>=1) desvio[p]=d;
+    });
+  }
+
   return { horas:horas, porProfe:porProfe, total:totalPozo, clasesSinTipo:sinTipoTotal,
-           decorativos:decorativosTotal, coach:coachTotal };
+           decorativos:decorativosTotal, coach:coachTotal,
+           arVacios:arVacios, arVaciosPorProfe:arVaciosPorProfe, arDesvio:desvio };
 }
 
 /* ============================================================
@@ -2128,6 +2205,45 @@ function pantallaCorregir(){
     });
     html+='</tbody></table><div class="pie">Se cargan en la solapa <b>Tipos de clase</b>. '+
       'Mientras estén en cero, el pago a profesores sale corto.</div></div>';
+  }
+
+  /* ============================================================
+     BLOQUES DE ALTO RENDIMIENTO SIN ALUMNOS ADENTRO
+
+     Esto no se veía en ningún lado y mueve plata todos los días. El profe que
+     tiene el bloque cobra su parte de esa hora, pero como al bloque nadie le
+     cargó los alumnos, no aporta nada al pozo: esa parte sale de los otros
+     profes que sí lo llenaron.
+
+     No se cambia el reparto —el profe SÍ trabajó esa hora— pero se muestra, con
+     nombre y monto, para que se pueda arreglar cargando los alumnos.
+     ============================================================ */
+  var pz=calcularPozo(historial);
+  if(pz.arVacios){
+    var desv=pz.arDesvio||{};
+    var pierden=Object.keys(desv).filter(function(p){ return desv[p]>0; })
+                       .sort(function(a,b){ return desv[b]-desv[a]; });
+    var ganan=Object.keys(desv).filter(function(p){ return desv[p]<0; })
+                       .sort(function(a,b){ return desv[a]-desv[b]; });
+    var movido=pierden.reduce(function(s,p){ return s+desv[p]; },0);
+    html+='<div class="caja"><h3>Bloques de Alto Rendimiento sin alumnos cargados</h3>'+
+      '<div class="aviso"><b>'+gs(pz.arVacios)+' bloque(s)</b> ocupan una hora de un profesor y '+
+      'no aportan nada al pozo, porque nadie les cargó los alumnos adentro.'+
+      (movido>=1 ? ' Eso mueve <b>'+gs(Math.round(movido))+' Gs</b> desde los demás profesores hacia ellos.' : '')+
+      '</div>';
+    if(ganan.length || pierden.length){
+      html+='<table class="t"><thead><tr><th>Profesor</th><th class="num">Bloques vacíos</th>'+
+        '<th class="num">Cobra de más / de menos</th></tr></thead><tbody>';
+      ganan.concat(pierden).forEach(function(p){
+        var n=(pz.arVaciosPorProfe||{})[p]||0;
+        html+='<tr><td>'+esc(nombreProfe(p))+'</td><td class="num">'+(n||'—')+'</td>'+
+          '<td class="num">'+(desv[p]<0?'+':'−')+gs(Math.abs(Math.round(desv[p])))+'</td></tr>';
+      });
+      html+='</tbody></table>';
+    }
+    html+='<div class="pie">Se arregla cargando los alumnos en la app de <b>Alto rendimiento</b>, y '+
+      'recién después el aporte de <b>AR60</b> y <b>AR30</b> acá en Tipos de clase. En ese orden: '+
+      'al revés no cambia nada, porque las filas de esos alumnos todavía no existen.</div></div>';
   }
 
   html+='<div class="caja"><h3>Alumnos</h3>';
