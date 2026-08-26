@@ -287,19 +287,75 @@ var CUENTA={ nombre:'Diego González', alias:'1.549.349' };
    Firebase antes de escribir, así que el pedido viaja firmado. */
 var PUENTE_URL='https://script.google.com/macros/s/AKfycbx0sFIbIVKDslYQb1Dkk9Wo5AhykUFplMDIsuj1DWB4Xy7FSU1Ebn04ZcahHYqCB4cR/exec';
 
+/* ============================================================
+   EL PUENTE A LA PLANILLA, Y CÓMO SE ENTERA UNO CUANDO FALLA
+
+   El puente es un Apps Script que escribe en la hoja, y contesta
+   {ok:true} o {ok:false, error:"..."}. O sea que la respuesta SIEMPRE estuvo
+   ahí: nadie la leía.
+
+   Antes esto viajaba en un formulario a un iframe escondido y se daba por bueno
+   a los 5 segundos, pasara lo que pasara: token vencido, permiso sacado, Apps
+   Script caído, la hoja renombrada. El dato quedaba en Firebase —que acá se
+   escribe primero, así que no se pierde— pero la planilla se iba quedando atrás
+   en silencio. Y de la planilla sale `alumnos_v1`, que es de donde esta misma
+   pantalla lee los precios.
+
+   Ahora se intenta por fetch, que sí deja leer la respuesta. Si el navegador lo
+   bloquea por CORS se cae al iframe de siempre, pero distinguiendo "contestó" de
+   "se quedó mudo". Nunca sale peor que antes.
+   ============================================================ */
+/* El puente avisa por acá cuando la planilla no confirmó. Sin esto el fallo
+   queda solo en la consola, que nadie mira. */
+window.__avisoPuente=function(txt){ try{ toast('⚠️ '+txt); }catch(e){ console.warn(txt); } };
+
+function avisoPuente(res, action){
+  if(res && res.ok) return res;
+  var txt = 'La planilla no confirmó el cambio' + (res && res.error ? ': ' + res.error : '') +
+            '. El dato quedó guardado acá, pero la hoja puede estar desactualizada.';
+  try{ if(typeof window.__avisoPuente === 'function'){ window.__avisoPuente(txt, res, action); return res; } }catch(e){}
+  console.warn('puente (' + action + '): ' + txt);
+  return res;
+}
+
 function enviarAlPuente(action, payload){
   return firebase.auth().currentUser.getIdToken().catch(function(){ return ''; }).then(function(idToken){
-    return new Promise(function(resolve){
-      var name='pnt_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
-      var ifr=document.createElement('iframe'); ifr.name=name; ifr.style.display='none'; document.body.appendChild(ifr);
-      var form=document.createElement('form'); form.method='POST'; form.action=PUENTE_URL; form.target=name; form.style.display='none';
-      var inp=document.createElement('input'); inp.type='hidden'; inp.name='data';
-      inp.value=JSON.stringify(Object.assign({action:action, idToken:idToken}, payload));
-      form.appendChild(inp); document.body.appendChild(form);
-      var listo=false, fin=function(){ if(listo) return; listo=true;
-        setTimeout(function(){ try{ form.remove(); ifr.remove(); }catch(e){} },300); resolve(); };
-      ifr.onload=fin; setTimeout(fin, 5000);
-      form.submit();
+    var cuerpo = 'data=' + encodeURIComponent(JSON.stringify(Object.assign({action:action, idToken:idToken}, payload)));
+
+    /* CAMINO 1 — fetch. El Content-Type de formulario es a propósito: es de los
+       que el navegador manda sin preguntar antes (sin preflight), así que Apps
+       Script lo recibe igual que al formulario de toda la vida. */
+    return fetch(PUENTE_URL, {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+      body: cuerpo
+    }).then(function(r){ return r.text(); }).then(function(t){
+      var d=null; try{ d=JSON.parse(t); }catch(e){}
+      if(d && typeof d.ok === 'boolean') return avisoPuente({ok:d.ok, via:'fetch', error:d.error||''}, action);
+      /* Contestó algo que no es el JSON del puente (una pantalla de login de
+         Google, por ejemplo). No se da por bueno. */
+      return avisoPuente({ok:false, via:'fetch', error:'respuesta inesperada del puente'}, action);
+    }).catch(function(e){
+      console.warn('puente por fetch no salió (' + e.message + '), voy por el iframe');
+      /* CAMINO 2 — el formulario de siempre. No se puede leer la respuesta
+         porque viene de otro dominio, pero sí se puede saber si CONTESTÓ. */
+      return new Promise(function(resolve){
+        var name='pnt_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
+        var ifr=document.createElement('iframe'); ifr.name=name; ifr.style.display='none'; document.body.appendChild(ifr);
+        var form=document.createElement('form'); form.method='POST'; form.action=PUENTE_URL; form.target=name; form.style.display='none';
+        var inp=document.createElement('input'); inp.type='hidden'; inp.name='data';
+        inp.value=JSON.stringify(Object.assign({action:action, idToken:idToken}, payload));
+        form.appendChild(inp); document.body.appendChild(form);
+        var listo=false, fin=function(contesto){
+          if(listo) return; listo=true;
+          setTimeout(function(){ try{ form.remove(); ifr.remove(); }catch(e){} },300);
+          resolve(contesto ? {ok:true, via:'iframe', error:''}
+                           : avisoPuente({ok:false, via:'iframe', error:'no contestó en 8 segundos'}, action));
+        };
+        ifr.onload=function(){ fin(true); };
+        setTimeout(function(){ fin(false); }, 8000);   // 8s: Apps Script arranca lento la primera vez
+        form.submit();
+      });
     });
   });
 }

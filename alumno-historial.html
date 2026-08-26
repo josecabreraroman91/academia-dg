@@ -575,20 +575,71 @@ $('cGuardar').onclick=function(){
 
 /* El puente se llama con un formulario en un recuadro invisible: no se puede leer
    la respuesta. Por eso conviene verificar en la planilla si algo no cuadra. */
+/* ============================================================
+   EL PUENTE A LA PLANILLA, Y CÓMO SE ENTERA UNO CUANDO FALLA
+
+   Ésta era la peor de las cuatro copias: ni siquiera escuchaba si el iframe
+   cargaba. Mandaba el formulario, esperaba 2 segundos y medio y daba por hecho
+   que había salido bien. Token vencido, permiso sacado, Apps Script caído: todo
+   pasaba por bueno.
+
+   Y acá pesa más que en otros lados, porque lo que viaja por este puente son
+   correcciones de COBRO: marcar que una clase no se cobra. Si no llegan a la
+   hoja, el alumno sigue apareciendo como cobrable.
+
+   Ahora se intenta por fetch, que sí deja leer el {ok, error} que el puente ya
+   venía contestando. Si el navegador lo bloquea por CORS se cae al formulario,
+   pero esperando el onload y distinguiendo "contestó" de "se quedó mudo".
+   ============================================================ */
+/* El puente avisa por acá cuando la planilla no confirmó. Acá pesa más que en
+   otros lados: lo que viaja son correcciones de COBRO. */
+window.__avisoPuente=function(txt){ try{ toast('⚠️ '+txt); }catch(e){ console.warn(txt); } };
+
+function avisoPuente(res, action){
+  if(res && res.ok) return res;
+  var txt = 'La planilla no confirmó el cambio' + (res && res.error ? ': ' + res.error : '') +
+            '. El dato quedó guardado acá, pero la hoja puede estar desactualizada.';
+  try{ if(typeof window.__avisoPuente === 'function'){ window.__avisoPuente(txt, res, action); return res; } }catch(e){}
+  console.warn('puente (' + action + '): ' + txt);
+  return res;
+}
+
 function enviarAlPuente(action, payload, idToken){
-  return new Promise(function(res){
-    var name='puente_'+Date.now();
-    var ifr=document.createElement('iframe'); ifr.name=name; ifr.style.display='none';
-    document.body.appendChild(ifr);
-    var f=document.createElement('form');
-    f.method='POST'; f.action=PUENTE_URL; f.target=name; f.style.display='none';
-    var i=document.createElement('input');
-    i.name='data'; i.value=JSON.stringify(Object.assign({action:action, idToken:idToken}, payload));
-    f.appendChild(i); document.body.appendChild(f); f.submit();
-    setTimeout(function(){
-      try{ f.remove(); ifr.remove(); }catch(e){}
-      res();
-    }, 2500);
+  var cuerpo = 'data=' + encodeURIComponent(JSON.stringify(Object.assign({action:action, idToken:idToken}, payload)));
+
+  /* CAMINO 1 — fetch. El Content-Type de formulario es a propósito: es de los
+     que el navegador manda sin preguntar antes (sin preflight), así que Apps
+     Script lo recibe igual que al formulario de toda la vida. */
+  return fetch(PUENTE_URL, {
+    method:'POST',
+    headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
+    body: cuerpo
+  }).then(function(r){ return r.text(); }).then(function(t){
+    var d=null; try{ d=JSON.parse(t); }catch(e){}
+    if(d && typeof d.ok === 'boolean') return avisoPuente({ok:d.ok, via:'fetch', error:d.error||''}, action);
+    return avisoPuente({ok:false, via:'fetch', error:'respuesta inesperada del puente'}, action);
+  }).catch(function(e){
+    console.warn('puente por fetch no salió (' + e.message + '), voy por el iframe');
+    /* CAMINO 2 — el formulario, ahora esperando el onload de verdad. */
+    return new Promise(function(res){
+      var name='puente_'+Date.now();
+      var ifr=document.createElement('iframe'); ifr.name=name; ifr.style.display='none';
+      document.body.appendChild(ifr);
+      var f=document.createElement('form');
+      f.method='POST'; f.action=PUENTE_URL; f.target=name; f.style.display='none';
+      var i=document.createElement('input');
+      i.name='data'; i.value=JSON.stringify(Object.assign({action:action, idToken:idToken}, payload));
+      f.appendChild(i); document.body.appendChild(f);
+      var listo=false, fin=function(contesto){
+        if(listo) return; listo=true;
+        setTimeout(function(){ try{ f.remove(); ifr.remove(); }catch(e){} }, 300);
+        res(contesto ? {ok:true, via:'iframe', error:''}
+                     : avisoPuente({ok:false, via:'iframe', error:'no contestó en 8 segundos'}, action));
+      };
+      ifr.onload=function(){ fin(true); };
+      setTimeout(function(){ fin(false); }, 8000);
+      f.submit();
+    });
   });
 }
 
