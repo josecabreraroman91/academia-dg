@@ -1139,8 +1139,17 @@ function datosLlegaron(){
 var PAGOS = {};          // { alumnoK: { 'YYYY-MM-DD': {v,ts,por} } }
 var _pagoEnVuelo = {};   // para no repintar en gris dos veces la misma celda
 
+/* La clave del alumno tal cual va en Firebase. Firebase NO admite . $ # [ ] /
+   en las claves; keyAlumno ya deja solo letras, numeros y espacios, y el id
+   es A####, asi que en la practica no cambia nada. Pero tiene que pasar por
+   ACA las dos veces: al leer y al escribir. Codificar solo al escribir hacia
+   que la marca no se encontrara al recargar y pareciera que no se guardo. */
+function clavePago(k){
+  return String(k==null?'':k).replace(/[.$#\[\]\/]/g, '_');
+}
+
 function estaPagado(k, fecha){
-  var a = PAGOS[k];
+  var a = PAGOS[clavePago(k)];
   return !!(a && a[fecha] && a[fecha].v === true);
 }
 
@@ -1168,16 +1177,17 @@ function togglePago(k, fecha){
   if(_pagoEnVuelo[llave]) return;
   var nuevo = !estaPagado(k, fecha);
   _pagoEnVuelo[llave] = true;
-  if(!PAGOS[k]) PAGOS[k] = {};
-  var antes = PAGOS[k][fecha];
-  PAGOS[k][fecha] = { v:nuevo, ts:Date.now(), por:miCorreo };
+  var kf = clavePago(k);
+  if(!PAGOS[kf]) PAGOS[kf] = {};
+  var antes = PAGOS[kf][fecha];
+  PAGOS[kf][fecha] = { v:nuevo, ts:Date.now(), por:miCorreo };
   pintarFicha();
-  firebase.database().ref('pagos_v1/'+encodeURIComponent(k)+'/'+fecha)
+  firebase.database().ref('pagos_v1/'+kf+'/'+fecha)
     .set({ v:nuevo, ts:Date.now(), por:miCorreo })
     .then(function(){ delete _pagoEnVuelo[llave]; })
     .catch(function(e){
       delete _pagoEnVuelo[llave];
-      if(antes) PAGOS[k][fecha] = antes; else delete PAGOS[k][fecha];
+      if(antes) PAGOS[kf][fecha] = antes; else delete PAGOS[kf][fecha];
       pintarFicha();
       alert('No pude guardar la marca de pago.\n\n'+e.message+'\n\nSi dice "permission denied", falta publicar la regla de pagos_v1.');
     });
