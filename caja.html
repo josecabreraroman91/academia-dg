@@ -52,6 +52,13 @@
   .solapas button b{opacity:.65;font-weight:600;margin-left:4px}
 
   /* ---- Cifras de arriba ---- */
+  /* Filtro por mes del resumen de cobrado. */
+  .cobFiltro{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-bottom:16px}
+  .cobLbl{font-size:12px;color:var(--suave);margin-right:2px}
+  .chipMes{font-size:12.5px;padding:6px 13px;border-radius:20px;text-transform:capitalize}
+  .chipMes.on{border-color:var(--verde);background:var(--verde-claro);color:var(--verde);font-weight:700}
+  .verFicha{background:none;border:0;padding:0;font:inherit;color:var(--teal);cursor:pointer;text-align:left}
+  .verFicha:hover{text-decoration:underline}
   .cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px}
   .cifra{background:var(--tarjeta);border:1px solid var(--linea);border-radius:12px;padding:12px 14px}
   .cifra b{display:block;font-size:23px;font-weight:600;line-height:1.15;letter-spacing:-.5px}
@@ -91,6 +98,14 @@
     font-weight:700;cursor:pointer;line-height:1.1;text-align:center}
   .cnt:hover{border-color:var(--teal);background:#d2e9f1}
   .cnt small{display:block;font-size:9.5px;font-weight:500;opacity:.75}
+  /* La casilla del mes se pinta sola segun las marcas de pago: verde si el mes
+     esta todo cobrado, con un borde si esta a medias. Sin esto habia que
+     entrar alumno por alumno para saber a quien le falta. */
+  .cnt.pago{background:var(--verde);color:#fff}
+  .cnt.pago:hover{background:#126b34;border-color:var(--verde)}
+  .cnt.pago small{opacity:.9}
+  .cnt.medio{background:var(--verde-claro);color:var(--verde);border-color:var(--verde)}
+  .cnt.medio:hover{background:#d8eede}
   .sin{color:#c3ced5;font-size:15px;user-select:none}
   .pin{font-size:9.5px;padding:2px 6px;border-radius:20px;font-weight:700;white-space:nowrap}
   .pin.no{background:var(--rojo-claro);color:var(--rojo)}
@@ -275,6 +290,7 @@
     <button data-s="profes">Pago a profesores</button>
     <button data-s="tipos">Tipos de clase</button>
     <button data-s="corregir">Para corregir <b id="nCorregir"></b></button>
+    <button data-s="cobrado">Cobrado <b id="nCobrado"></b></button>
   </div>
 
   <div id="cargando" class="vacio">Leyendo el historial…</div>
@@ -1321,6 +1337,18 @@ function estaPagado(k, fecha){
 
 /* Un mes esta pagado cuando lo estan TODAS sus fechas. Sin fechas no hay mes
    pagado: si no dio clases, no hay nada que cobrar ni que marcar. */
+/* Como esta de cobrado un mes: nada, a medias, o todo. Lo usan la casilla de
+   la lista y el resumen de cobrado. */
+function estadoPagoMes(a, m){
+  var mm = a && a.meses[m];
+  if(!mm) return { todo:false, algo:false, pagas:0, quedan:0 };
+  var pagas=0, quedan=0;
+  Object.keys(mm.dias).forEach(function(f){
+    if(estaPagado(a.k, f)) pagas += (mm.dias[f]||0); else quedan += (mm.dias[f]||0);
+  });
+  return { todo: pagas>0 && quedan===0, algo: pagas>0 && quedan>0, pagas:pagas, quedan:quedan };
+}
+
 function mesPagado(a, m){
   var mm = a && a.meses[m];
   if(!mm) return false;
@@ -1347,7 +1375,7 @@ function togglePago(k, fecha){
   if(!PAGOS[kf]) PAGOS[kf] = {};
   var antes = PAGOS[kf][fecha];
   PAGOS[kf][fecha] = { v:nuevo, ts:Date.now(), por:miCorreo };
-  pintarFicha();
+  pintarFicha(); try{ pintar(); }catch(e){}
   firebase.database().ref('pagos_v1/'+kf+'/'+fecha)
     .set({ v:nuevo, ts:Date.now(), por:miCorreo })
     .then(function(){ delete _pagoEnVuelo[llave]; })
@@ -1716,6 +1744,9 @@ function escucharTodo(){
      (ese fue el error de la herramienta provisoria). */
   db.ref('pagos_v1').on('value', function(s){
     PAGOS = s.val() || {};
+    /* Se repinta TODO, no solo la ficha: las casillas de los meses en la lista
+       tambien se pintan segun las marcas, y el resumen de cobrado tambien. */
+    try{ pintar(); }catch(e){}
     var ov=$('ov');
     if(ov && ov.classList.contains('show')) pintarFicha();
   }, function(e){ console.warn('pagos_v1:', e.message); });
@@ -1768,6 +1799,7 @@ function pintar(){
   else if(solapa==='informes') pantallaInformes();
   else if(solapa==='profes') pantallaProfes();
   else if(solapa==='tipos') pantallaTipos();
+  else if(solapa==='cobrado') pantallaCobrado();
   else pantallaCorregir();
   contarCorregir();
 }
@@ -1843,9 +1875,13 @@ function pantallaCobros(){
     MESES_HAY.forEach(function(m){
       var mm=a.meses[m];
       html+='<div class="td mesc'+fin+'">';
+      var est = mm ? estadoPagoMes(a, m) : null;
       html+= mm
-        ? '<button class="cnt" data-k="'+esc(a.k)+'" data-m="'+m+'">'+gs(mm.clases)+
-          '<small>'+(mm.clases===1?'clase':'clases')+'</small></button>'
+        ? '<button class="cnt'+(est.todo?' pago':(est.algo?' medio':''))+'"'+
+          ' data-k="'+esc(a.k)+'" data-m="'+m+'" title="'+
+          (est.todo?'Todo cobrado':(est.algo?gs(est.pagas)+' de '+gs(mm.clases)+' cobradas':'Sin cobrar'))+'">'+
+          gs(mm.clases)+
+          '<small>'+(est.todo?'pagado':(est.algo?gs(est.pagas)+' pagas':(mm.clases===1?'clase':'clases')))+'</small></button>'
         : '<span class="sin">·</span>';
       html+='</div>';
     });
@@ -2649,10 +2685,167 @@ function calcularCorregir(){
   return { items:items, tiposSinAporte:tiposSinAporte };
 }
 
+/* ============================================================
+   SOLAPA COBRADO — cuanto se lleva cobrado, segun las marcas
+
+   Las marcas verdes son el unico registro de quien pago que: ni este sistema
+   ni el viejo lo tenian. Esta pantalla las suma, para poder mirar de un
+   vistazo cuanto entro sin abrir alumno por alumno.
+
+   COMO SE LE PONE PRECIO A UN DIA YA COBRADO
+   El precio de una clase sale de dos lados segun de donde venga la clase: si
+   la trajo el reporte de ALUMNOS, viene adentro del archivo; si no, sale del
+   padron. Se respeta lo mismo que hace `cobroDe`, para que el resumen no diga
+   una cosa y la ficha otra.
+
+   OJO: el becado cuenta 0. Marcar como pagada una clase de alguien que no paga
+   no suma plata, suma una clase.
+   ============================================================ */
+var cobradoMes = '';   // '' = todos los meses
+
+function plataDeUnDia(a, m, f){
+  var mm = a.meses[m]; if(!mm) return 0;
+  var n = mm.dias[f] || 0;
+  if(!n) return 0;
+  if(a.ficha && a.ficha.beca) return 0;
+  /* Las que vinieron con precio adentro del archivo se cobran con ese. */
+  var conPrecio = (mm.planConPrecioDia && mm.planConPrecioDia[f]) || 0;
+  var monto     = (mm.planMontoDia     && mm.planMontoDia[f])     || 0;
+  var porPadron = n - conPrecio;
+  var precio = (a.ficha && a.ficha.precio) || 0;
+  /* Un abono mensual no se multiplica por clase; en el resumen se cuenta el
+     mes entero una sola vez, mas abajo. */
+  if(precio > TOPE_ABONO) return monto;
+  return monto + precio * porPadron;
+}
+
+function calcularCobrado(){
+  var meses = {};      // mesK -> {clases, monto, alumnos:{}}
+  var total = { clases:0, monto:0, alumnos:{} };
+  var sinPrecio = { clases:0, alumnos:{} };
+  var filas = [];      // por alumno
+
+  ALUMNOS.forEach(function(a){
+    var suyo = { nombre:a.nombre, k:a.k, clases:0, monto:0, meses:{}, sinPrecio:0 };
+    Object.keys(a.meses).forEach(function(m){
+      if(cobradoMes && m !== cobradoMes) return;
+      var mm = a.meses[m];
+      var abono = a.ficha && a.ficha.precio > TOPE_ABONO;
+      var est = estadoPagoMes(a, m);
+      Object.keys(mm.dias).forEach(function(f){
+        if(!estaPagado(a.k, f)) return;
+        var n = mm.dias[f] || 0;
+        var plata = plataDeUnDia(a, m, f);
+        if(!plata && !(a.ficha && a.ficha.beca)) sinPrecio.clases += n;
+        if(!plata && !(a.ficha && a.ficha.beca)) sinPrecio.alumnos[a.k] = true;
+        suyo.clases += n; suyo.monto += plata;
+        if(!suyo.meses[m]) suyo.meses[m] = { clases:0, monto:0 };
+        suyo.meses[m].clases += n; suyo.meses[m].monto += plata;
+        if(!meses[m]) meses[m] = { clases:0, monto:0, alumnos:{} };
+        meses[m].clases += n; meses[m].monto += plata; meses[m].alumnos[a.k] = true;
+        total.clases += n; total.monto += plata; total.alumnos[a.k] = true;
+      });
+      /* El abono se cobra por mes: si el mes quedo todo pagado, se suma una vez. */
+      if(abono && est.todo){
+        var p = a.ficha.precio;
+        suyo.monto += p;
+        if(suyo.meses[m]) suyo.meses[m].monto += p;
+        if(meses[m]) meses[m].monto += p;
+        total.monto += p;
+      }
+    });
+    if(suyo.clases) filas.push(suyo);
+  });
+
+  filas.sort(function(x,y){ return y.monto - x.monto || x.nombre.localeCompare(y.nombre); });
+  return { meses:meses, total:total, filas:filas, sinPrecio:sinPrecio };
+}
+
+function contarCobrado(){
+  var guardo = cobradoMes; cobradoMes = '';
+  var c;
+  try{ c = calcularCobrado(); }catch(e){ cobradoMes = guardo; return; }
+  cobradoMes = guardo;
+  var el = document.getElementById('nCobrado');
+  if(el) el.textContent = c.total.clases ? '· ' + gs(c.total.clases) : '';
+}
+
+function pantallaCobrado(){
+  var c = calcularCobrado();
+  var html = '';
+
+  /* El filtro. Los meses salen de los que hay cargados, no de una lista fija. */
+  html += '<div class="cobFiltro"><span class="cobLbl">Ver</span>' +
+          '<button class="chipMes' + (cobradoMes?'':' on') + '" data-mes="">Todo</button>';
+  MESES_HAY.forEach(function(m){
+    html += '<button class="chipMes' + (cobradoMes===m?' on':'') + '" data-mes="'+m+'">' +
+            esc(mesNombre(m)) + '</button>';
+  });
+  html += '</div>';
+
+  /* Las cifras de arriba */
+  html += '<div class="cifras">' +
+    '<div class="cifra"><b>' + gs(Object.keys(c.total.alumnos).length) + '</b><span>alumnos con algo cobrado</span></div>' +
+    '<div class="cifra"><b>' + gs(c.total.clases) + '</b><span>clases marcadas como pagadas</span></div>' +
+    '<div class="cifra bien"><b>₲ ' + gs(c.total.monto) + '</b><span>cobrado' +
+      (cobradoMes ? ' en ' + esc(mesNombre(cobradoMes)) : ' en total') + '</span></div>' +
+    (c.sinPrecio.clases
+      ? '<div class="cifra malo"><b>' + gs(c.sinPrecio.clases) + '</b><span>marcadas sin precio · no suman</span></div>'
+      : '') +
+    '</div>';
+
+  if(!c.total.clases){
+    html += '<div class="vacio">Todavía no hay ninguna clase marcada como pagada' +
+            (cobradoMes ? ' en ' + esc(mesNombre(cobradoMes)) : '') + '.<br><br>' +
+            'Las marcas se ponen en la ficha del alumno, tocando el día.</div>';
+    $('pantalla').innerHTML = html;
+    engancharCobrado();
+    return;
+  }
+
+  /* Mes a mes, solo cuando se mira TODO */
+  if(!cobradoMes && Object.keys(c.meses).length > 1){
+    html += '<div class="caja"><h3>Mes a mes</h3><table class="t"><thead><tr><th>Mes</th>' +
+            '<th class="num">Alumnos</th><th class="num">Clases</th><th class="num">Cobrado</th>' +
+            '</tr></thead><tbody>';
+    Object.keys(c.meses).sort().forEach(function(m){
+      var x = c.meses[m];
+      html += '<tr><td>' + esc(mesNombre(m)) + '</td>' +
+              '<td class="num">' + gs(Object.keys(x.alumnos).length) + '</td>' +
+              '<td class="num">' + gs(x.clases) + '</td>' +
+              '<td class="num bien">₲ ' + gs(x.monto) + '</td></tr>';
+    });
+    html += '</tbody></table></div>';
+  }
+
+  /* Alumno por alumno, del que mas pago al que menos */
+  html += '<div class="caja"><h3>Por alumno</h3><table class="t"><thead><tr><th>Alumno</th>' +
+          '<th class="num">Clases</th><th class="num">Cobrado</th></tr></thead><tbody>';
+  c.filas.forEach(function(f){
+    html += '<tr><td><button class="verFicha" data-k="' + esc(f.k) + '">' + esc(f.nombre) + '</button></td>' +
+            '<td class="num">' + gs(f.clases) + '</td>' +
+            '<td class="num' + (f.monto?' bien':' flojo') + '">₲ ' + gs(f.monto) + '</td></tr>';
+  });
+  html += '</tbody></table></div>';
+
+  $('pantalla').innerHTML = html;
+  engancharCobrado();
+}
+
+function engancharCobrado(){
+  document.querySelectorAll('.chipMes').forEach(function(b){
+    b.onclick = function(){ cobradoMes = b.dataset.mes; pantallaCobrado(); };
+  });
+  document.querySelectorAll('.verFicha').forEach(function(b){
+    b.onclick = function(){ abrirFicha(b.dataset.k, cobradoMes || null); };
+  });
+}
+
 function contarCorregir(){
   var c=calcularCorregir();
   var n=c.items.length+Object.keys(c.tiposSinAporte).length;
   $('nCorregir').textContent=n?'· '+n:'';
+  try{ contarCobrado(); }catch(e){}
 }
 
 /* ============================================================
