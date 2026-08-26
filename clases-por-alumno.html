@@ -806,14 +806,18 @@ function pintarLista(){
   $('lista').querySelectorAll('button[data-env]').forEach(b=>{
     b.onclick=()=>{
       const k=b.dataset.env;
-      if(MARCAS.enviado[k]) delete MARCAS.enviado[k]; else MARCAS.enviado[k]=true;
+      /* Se guarda el FALSE en vez de borrar la llave. Borrandola, la fusion
+         con la nube (que todavia tiene el true) la volvia a meter y la marca
+         revivia sola: desmarcar no funcionaba nunca. Con el false explicito,
+         la fusion lo respeta en las dos direcciones. */
+      MARCAS.enviado[k] = !MARCAS.enviado[k];
       guardarMarcas(); pintarLista();
     };
   });
   $('lista').querySelectorAll('button[data-pag]').forEach(b=>{
     b.onclick=()=>{
       const kk=llavePago(b.dataset.pag, b.dataset.pagm);
-      if(MARCAS.pagado[kk]) delete MARCAS.pagado[kk]; else MARCAS.pagado[kk]=true;
+      MARCAS.pagado[kk] = !MARCAS.pagado[kk];   // idem: el false se guarda, no se borra
       guardarMarcas(); pintarLista();
     };
   });

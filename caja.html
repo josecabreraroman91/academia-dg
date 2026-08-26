@@ -684,10 +684,91 @@ function parsearPadron(paq){
 
 /* Padrón: los encabezados NO están en la primera fila y hay columnas ocultas,
    así que las columnas se buscan por su nombre, nunca por posición. */
+/* ============================================================
+   DE DONDE SALE EL PADRON: PRIMERO FIREBASE, LA PLANILLA DE RESPALDO
+
+   Hasta ahora mandaba la planilla de Google (`alumnos_v1`) y `padron_v1` se
+   escribia pero no se leia nunca. Desde el 26/08/2026 se da vuelta: manda
+   Firebase, que es donde vive el sistema.
+
+   MEDIDO ANTES DE DARLO VUELTA, alumno por alumno:
+     945 estan en las dos · 5 solo en la planilla · 0 solo en Firebase
+     7 precios distintos, y en 6 de esos 7 Firebase tiene el precio bueno y
+     la planilla dice 0Gs. (alguien lo cargo desde la app y nunca volvio).
+
+   POR QUE LA PLANILLA SIGUE DE RESPALDO Y NO SE SACA DE UNA
+   El robot que copia planilla -> padron_v1 no corre desde el 24/08, asi que
+   los alumnos que Diego anota A MANO EN LA PLANILLA todavia no llegan solos
+   a Firebase (son los 5 de arriba, todos con ID alto: A0931 a A0950). Si se
+   sacara la planilla hoy, esos 5 desaparecerian de Caja.
+   Cuando el padron este regularizado se saca este respaldo y la planilla
+   queda muerta.
+
+   EL PRECIO NO SE ROMPE: padron_v1 lo guarda igual que la planilla
+   ('110,000Gs.'), y aca se lee con soloDigitos(), que saca todo lo que no
+   sea numero. De los 945: 891 en ese formato, 18 como numero, 35 vacios y
+   1 en BECA. Los cuatro casos ya andaban.
+   ============================================================ */
 function cargarPadron(){
-  return firebase.database().ref('alumnos_v1').once('value').then(function(s){
-    parsearPadron(s.val());
-  }).catch(function(e){ console.warn('alumnos_v1:', e.message); });
+  return Promise.all([
+    firebase.database().ref('alumnos_v1').once('value')
+      .then(function(s){ return s.val(); })
+      .catch(function(e){ console.warn('alumnos_v1:', e.message); return null; }),
+    firebase.database().ref('padron_v1/alumnos').once('value')
+      .then(function(s){ return s.val()||{}; })
+      .catch(function(e){ console.warn('padron_v1:', e.message); return {}; })
+  ]).then(function(r){
+    /* Primero la planilla, que es la que trae la estructura y los pares de
+       ficha a proposito; despues Firebase le pisa lo que importa. */
+    _padronV1 = r[1] || {};
+    parsearPadron(r[0]);
+    aplicarPadronV1(_padronV1);
+  });
+}
+
+/* Firebase le gana a la planilla en precio, tipo y telefono. Y el que esta en
+   Firebase y no en la planilla se agrega: al reves de antes, ahora no se
+   pierde el que se creo desde una app. */
+var padronV1Origen = { pisados:0, agregados:0, total:0 };
+/* Se guarda el ultimo padron_v1 que llego: cuando cambia la planilla hay que
+   rearmar todo desde cero, y sin esta copia el rearmado dejaria a Caja
+   leyendo la planilla sola y con los precios viejos. */
+var _padronV1 = {};
+function aplicarPadronV1(pv1){
+  padronV1Origen = { pisados:0, agregados:0, total:0 };
+  if(!pv1) return;
+  Object.keys(pv1).forEach(function(id){
+    var p = pv1[id]; if(!p || !p.nombre) return;
+    padronV1Origen.total++;
+    var f = idxId[id];
+    if(f){
+      /* Solo se pisa lo que Firebase tiene cargado. Un precio vacio en
+         Firebase no borra el que trae la planilla: seria perder un dato
+         bueno por uno que no existe. */
+      var tienePrecio = String(p.precio==null?'':p.precio).trim() !== '';
+      if(tienePrecio){
+        f.beca   = /beca/i.test(String(p.precio));
+        f.precio = +soloDigitos(p.precio) || 0;
+      }
+      if(p.tipo) f.tipo = p.tipo;
+      if(p.tel){ f.telCrudo = String(p.tel); f.tel = normTel(p.tel); }
+      if(p.cat) f.cat = p.cat;
+      padronV1Origen.pisados++;
+      return;
+    }
+    var nuevo = {
+      nombre: p.nombre, id: id,
+      beca: /beca/i.test(String(p.precio||'')),
+      precio: +soloDigitos(p.precio) || 0,
+      tel: normTel(p.tel||''), telCrudo: String(p.tel||''),
+      tipo: p.tipo||'', cat: p.cat||''
+    };
+    padron.push(nuevo);
+    idxId[id] = nuevo;
+    var e = normNom(nuevo.nombre); if(e && !idxNom[e]) idxNom[e] = nuevo;
+    var k = keyAlumno(nuevo.nombre); if(k && !idxNom[k]) idxNom[k] = nuevo;
+    padronV1Origen.agregados++;
+  });
 }
 
 /* ============================================================
@@ -1532,8 +1613,15 @@ function escucharTodo(){
   }, function(e){ console.warn('tipos_v1:', e.message); });
 
   db.ref('alumnos_v1').on('value', function(s){
-    parsearPadron(s.val()); datosLlegaron();
+    /* Rearmar desde la planilla borra el padron entero, asi que hay que
+       volver a aplicarle Firebase encima o se pierden los precios buenos. */
+    parsearPadron(s.val()); aplicarPadronV1(_padronV1); datosLlegaron();
   }, function(e){ console.warn('alumnos_v1:', e.message); });
+
+  db.ref('padron_v1/alumnos').on('value', function(s){
+    _padronV1 = s.val() || {};
+    aplicarPadronV1(_padronV1); datosLlegaron();
+  }, function(e){ console.warn('padron_v1:', e.message); });
 
   db.ref('historial_v2').on('value', function(s){
     parsearHistorialV2(s.val()); datosLlegaron();
