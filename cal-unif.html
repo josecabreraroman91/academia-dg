@@ -3615,6 +3615,51 @@ function actualizarBtnAusente(sk,pi,hi,si){
   if(tieneAusente(sk,pi,hi,si)){ b.textContent='✖️ Sacar el "no vino"'; b.style.background='#ffc9c9'; }
   else { b.textContent='🔴 Marcar que no vino'; b.style.background='#ffe4e4'; }
 }
+/* ============================================================
+   EL "NO VINO" TAMBIÉN TIENE QUE BAJAR A LA TABLET
+
+   El puente andaba en una sola dirección. La tablet ya devolvía el "no vino"
+   al calendario (por reservas_v1, tipo `ausente`), pero al revés no: marcar
+   acá dejaba `al.ausente` guardado SOLO en calendario_v2, y la tablet lee
+   otro campo —`asis`, en dia/<fecha>— así que el alumno se quedaba arriba en
+   la grilla con su 👀, sin bajar a "No vienen" ni cambiar de estado.
+
+   Se escribe el MISMO campo que escribe el profe, en el MISMO lugar, igual
+   que ya hace la libreta del agente cuando alguien cancela por WhatsApp.
+
+   No se publica el día entero a propósito: publicarFecha() nunca toca `asis`
+   —es de la tablet— y hacerlo desde acá pisaría las marcas de los profes.
+   Esto toca UN registro, el de la celda que la persona acaba de marcar.
+   ============================================================ */
+function fechaDeLaCeldaVisible(){
+  if(state.mode==='madre') return null;              // la MADRE no es un día del calendario
+  const idx=DAYS.indexOf(state.dia); if(idx<0) return null;
+  const d=new Date((state.lunesActual||lunesDeHoy())+'T00:00:00');
+  const sem=state.semActiva||'actual';
+  if(sem==='proxima')       d.setDate(d.getDate()+7);
+  else if(sem==='anterior') d.setDate(d.getDate()-7);
+  d.setDate(d.getDate()+idx);
+  return isoDe(d);
+}
+function mandarAusenteAlDia(sk,pi,hi,si,nombre,marcando){
+  if(!_fbdb || !nombre) return;
+  const fecha=fechaDeLaCeldaVisible(); if(!fecha) return;
+  /* sedesTodas() es la MISMA fuente que usa armarDiaDe() para publicar: si la
+     clave saliera de otra lista, el "no vino" podría caer en el casillero del
+     profe de al lado. */
+  const s=(sedesTodas()[state.dia]||[]).find(x=>x.key===sk); if(!s) return;
+  const dim=s.profes[pi]; if(!dim || dim==='—') return;
+  const ref=_fbdb.ref('dia/'+fecha+'/'+sk+'/'+fbKey(hi,dim,si,nombre));
+  /* Solo si el registro ya está publicado. Si se marca en un día que la tablet
+     todavía no tiene, no hay a dónde mandarlo y no se inventa uno a medias. */
+  ref.once('value').then(sn=>{
+    if(!sn.exists()) return;
+    /* Al campo directo y con set(), igual que la tablet: sacar la marca BORRA el
+       campo, no guarda vacío. Las reglas de Firebase solo aceptan 'presente' o
+       'ausente' ahí, y sin el campo el registro queda como recién publicado. */
+    return ref.child('asis').set(marcando ? 'ausente' : null);
+  }).catch(e=>console.warn('no pude pasar el "no vino" a la tablet:', e.message));
+}
 /* A DIFERENCIA DE LA MORADA, esta NO se replica a las demas clases del alumno:
    "no vino" es de esa clase y ese dia, no del alumno. */
 function toggleAusente(){
@@ -3624,6 +3669,7 @@ function toggleAusente(){
   const al=B.alumnos[cellKey(sk,+pi,+hi,+si)];
   if(!al) return;
   if(al.ausente) delete al.ausente; else al.ausente=true;
+  mandarAusenteAlDia(sk,+pi,+hi,+si,al.nombre,!!al.ausente);
   actualizarBtnAusente(sk,+pi,+hi,+si);
   saveState(); renderGrid();
 }
