@@ -2215,21 +2215,72 @@ function fraseDias(ds){
 /* El mensaje que definió José. Con dos meses la frase se encadena sola. */
 function textoMensaje(a, sel, c){
   var primer=(a.nombre||'').trim().split(/\s+/)[0];
-  var partes=sel.slice().sort().map(function(m,i){
-    var mm=a.meses[m]; if(!mm) return '';
-    /* Los dias ya cobrados NO van en el mensaje. Es la misma regla que en el
-       total: si ya lo pago, nombrarselo de nuevo lo hace dudar de la cuenta. */
-    var ds=Object.keys(mm.dias).sort().filter(function(f){
+  var orden = sel.slice().sort();
+
+  /* El año solo se escribe si los meses elegidos son de años distintos: cobrar
+     "enero" cuando hay dos eneros arriba de la mesa se presta a confusión. */
+  var anios = {}; orden.forEach(function(m){ anios[m.split('-')[0]]=1; });
+  var variosAnios = Object.keys(anios).length > 1;
+  function nombreDe(m){
+    var n = MESES[(+m.split('-')[1])-1];
+    n = n.charAt(0).toUpperCase()+n.slice(1);
+    return variosAnios ? n+' '+m.split('-')[0] : n;
+  }
+
+  /* Los días que todavía se cobran de ese mes. Los marcados como pagados no
+     van: nombrarle una clase que ya pagó lo hace dudar de toda la cuenta. */
+  function diasDe(m){
+    var mm=a.meses[m]; if(!mm) return [];
+    return Object.keys(mm.dias).sort().filter(function(f){
       return !estaPagado(a.k, f);
     }).map(function(f){
       var d=+f.slice(8,10), n=mm.dias[f];
       return n>1 ? d+' ('+n+' clases)' : ''+d;
     });
-    if(!ds.length) return '';   // ese mes quedo todo pagado
-    var nom=MESES[(+m.split('-')[1])-1];
-    return (i===0?'En '+nom+' entrenaste los días ':'y en '+nom+' los días ')+fraseDias(ds);
-  }).filter(Boolean);
-  var frase=partes.join(', ')+' y el total es '+gs(c.total)+' Gs.';
+  }
+  function entrenasteLos(ds){
+    return (ds.length===1 ? 'entrenaste el día ' : 'entrenaste los días ')+fraseDias(ds);
+  }
+
+  /* CUÁLES FUERON INDIVIDUALES.
+     Sale del aporte del profe que trae el reporte: 70.000 es el único monto que
+     no se repite en toda la tabla. En el mensaje va SOLO el aviso de cuáles
+     fueron —no los precios—: el desglose por tipo se ve en la tarjeta de
+     "cuánto pagar", que es para vos, no para el alumno. */
+  function detalleIndividual(m){
+    var mm=a.meses[m]; if(!mm || !mm.planIndivDia) return '';
+    var ds=[];
+    Object.keys(mm.dias).sort().forEach(function(f){
+      if(estaPagado(a.k, f)) return;
+      if(mm.planIndivDia[f]) ds.push(+f.slice(8,10));
+    });
+    if(!ds.length) return '';
+    return (ds.length===1
+      ? '\n(1 fue clase individual: día '
+      : '\n('+gs(ds.length)+' fueron clases individuales: días ')+ds.join(', ')+')';
+  }
+
+  /* CADA MES CON SU MONTO, uno debajo del otro, para que el alumno pueda mirar
+     mes por mes y entender de dónde sale cada número. Con varios meses se suma
+     el total abajo, así no tiene que hacer la cuenta él. Con un mes solo no se
+     repite el total: decir dos veces el mismo número confunde. */
+  var conDias = orden.filter(function(m){ return diasDe(m).length; });
+  var frase;
+  if(!conDias.length) return '';
+  if(conDias.length === 1){
+    var m0 = conDias[0];
+    frase = 'En '+nombreDe(m0).toLowerCase()+' '+entrenasteLos(diasDe(m0))+
+            detalleIndividual(m0)+
+            '\n\nEl monto es '+gs(c.total)+' Gs.';
+  } else {
+    frase = conDias.map(function(m){
+      var cm = cobroDe(a, [m]);
+      return '*'+nombreDe(m)+':* '+entrenasteLos(diasDe(m))+
+             detalleIndividual(m)+
+             '\n👉 *'+gs(cm.total)+' Gs.*';
+    }).join('\n\n');
+    frase += '\n\n*TOTAL: '+gs(c.total)+' Gs.*';
+  }
 
   return '*Hola '+primer+' cómo estás? 🎾*\n\n'+
     'Quiero pasarte tu estado de cuenta y detalle de clases por favor.\n\n'+
