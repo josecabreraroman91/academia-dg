@@ -598,6 +598,23 @@ function abrirAcciones(d){
   $('aNom').textContent=accNom;
   var _c=catDe(accNom);
   $('aDonde').textContent=dondeTxt(slot)+' · '+accDim+(_c?' · categoría '+_c:'');
+  /* ============================================================
+     EL TIPO DE CLASE NO SE PISA DESDE ACÁ
+
+     Este botón aparecía SIEMPRE, así que un profe podía cambiarle el tipo a
+     cualquier alumno. El cambio quedaba en el casillero del calendario y en
+     ningún lado más: profe-agenda solo LEE el padrón, nunca le escribe. La
+     ficha del alumno seguía diciendo otra cosa, para siempre, y el tipo del
+     casillero le gana al de la ficha a la hora de armar la bolsa del profe.
+     Pasó de verdad: Naza Ferreira quedó G en el calendario con la ficha en D.
+
+     Ahora el botón solo se muestra cuando la ficha NO tiene tipo — el caso que
+     sí hace falta: un alumno nuevo, o uno al que nadie se lo cargó todavía.
+     Si ya tiene, se cambia donde corresponde, en el módulo de Alumnos.
+     Misma regla que ya usa la tablet, que solo pide el tipo si el alumno es
+     nuevo (profe-dia, `if(esNuevo)`).
+     ============================================================ */
+  $('aTipo').style.display = modDe(accNom) ? 'none' : '';
   $('aTipoOps').style.display='none'; $('aErr').textContent='';
   $('ovAcc').style.display='flex';
   ventanaAbierta(cerrarAcciones);
@@ -625,6 +642,14 @@ $('aTipo').onclick=function(){ $('aTipoOps').style.display='flex'; };
 $('aTipoOps').onclick=function(ev){
   var b=ev.target.closest('button[data-t]'); if(!b || !accSlot) return;
   var slot=accSlot, nom=accNom, t=b.dataset.t;
+  /* Candado de verdad, no solo el botón escondido: esconderlo es de la vista y
+     el evento se puede disparar igual. Si la ficha ya tiene tipo, no sale. */
+  var _yaTiene=modDe(nom);
+  if(_yaTiene){
+    $('aErr').textContent=nom+' ya tiene tipo '+_yaTiene+' en su ficha. Eso se cambia en Alumnos.';
+    $('aTipoOps').style.display='none';
+    return;
+  }
   var datos=Object.assign(baseOp(), {tipo:'editar', alumno:nom, tel:'', desde:slot, mod:t, estado:'pendiente',
     profe:accDim, sede:slot.split('|')[1], dia:slot.split('|')[0], horaIdx:+slot.split('|')[3]});
   guardarOp(slot, datos, Object.assign(baseOp(), {tipo:'editar', alumno:nom, desde:slot, mod:t,
@@ -705,10 +730,40 @@ function catDe(nombre){
   var a=_porNombre[normNom(nombre)];
   return a && a.cat ? a.cat : '';
 }
+/* El tipo de clase que tiene el alumno EN SU FICHA (padron_v1, o alumnos_v2 si
+   es un alta reciente). Vacío = todavía no se lo cargó nadie. */
+function modDe(nombre){
+  var a=_porNombre[normNom(nombre)];
+  return a && a.mod ? String(a.mod).trim() : '';
+}
 function juntarAlumnos(){
   var m={};
   Object.keys(_base).forEach(function(k){ m[k]=_base[k]; });
-  Object.keys(_vivo).forEach(function(k){ m[k]=_vivo[k]; });   // el vivo pisa al de la planilla
+  /* ============================================================
+     EL ALTA EN VIVO COMPLETA, NO BORRA
+
+     Acá el registro de alumnos_v2 REEMPLAZABA entero al del padrón. Un alta
+     hecha desde la cancha guarda solo lo que el profe escribió, así que si vino
+     sin tipo de clase le BORRABA el tipo a un alumno que sí lo tenía cargado:
+     para esta pantalla el alumno quedaba "sin tipo" aunque su ficha dijera D.
+
+     Medido sobre los datos del 27/08/2026: le pasaba a 14 alumnos con el tipo,
+     33 con la categoría y 22 con el teléfono.
+
+     Es lo que está detrás del único cambio de tipo que hizo un profe: a Naza
+     Ferreira (ficha D) la pantalla se la mostraba sin tipo, y se lo puso a mano.
+
+     Ahora cada campo del alta en vivo gana SOLO si trae algo. Lo que está vacío
+     no pisa nada.
+     ============================================================ */
+  Object.keys(_vivo).forEach(function(k){
+    var v=_vivo[k], b=m[k];
+    if(!b){ m[k]=v; return; }                  // alumno que solo existe en el alta
+    m[k]={ nombre: v.nombre || b.nombre,
+           tel:    v.tel    || b.tel,
+           mod:    v.mod    || b.mod,
+           cat:    v.cat    || b.cat };
+  });
   _porNombre=m;
   alumnos=Object.keys(m).map(function(k){ return m[k]; })
     .sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
