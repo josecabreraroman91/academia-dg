@@ -983,6 +983,21 @@ function _reabrirFranjaSiBloqueada(libro, k){
   if(B && B.libres && B.libres[franja]) delete B.libres[franja];
 }
 
+/* ¿Ese día de la SEMANA EN CURSO ya pasó?
+   Si hoy es jueves y cargás a alguien en el LUNES de la MADRE, el lunes de esta
+   semana ya se dio: bajarlo ahí no le sirve a nadie y encima levanta la alerta
+   de "está a la misma hora en dos lugares". El día de HOY no cuenta como
+   pasado: todavía está en juego y tiene que bajar.
+   Se mide contra `lunesActual` (el lunes del libro que se está editando), no
+   contra el lunes del reloj: si la semana no se avanzó, el libro sigue siendo
+   el de esa semana vieja y sus días efectivamente ya pasaron. */
+function _diaDeLaSemanaYaPaso(dia){
+  const idx = DAYS.indexOf(dia);
+  if(idx < 0) return false;                          // día raro: no bloquear nada
+  const base = state.lunesActual || lunesDeHoy();
+  return isoDe(isoMas(base, idx)) < isoDe(new Date());
+}
+
 function propagarMadreASemana(){
   const M = state.madre && state.madre.alumnos;
   if(!M || !state.semana || !state.semana.alumnos) return 0;
@@ -997,6 +1012,7 @@ function propagarMadreASemana(){
   let bajaron = 0;
   const chocaron = [];      // no bajaron porque la celda estaba ocupada
   const sobreTumba = [];    // bajaron a un casillero que alguien había vaciado antes
+  const pasado = [];        // no bajaron porque ese día de la semana ya pasó
 
   /* Foto del registro ANTES de tocar nada. La parte que agrega lo va pisando
      mientras trabaja, y sin esta foto un reemplazo en la MADRE (sale uno, entra
@@ -1008,6 +1024,17 @@ function propagarMadreASemana(){
     const al = M[k];
     if(!al || !al.nombre) return;
     if(state.madreSync[k] === al.nombre) return;      // ya estaba, no es nuevo
+
+    /* EL PASADO NO SE TOCA.
+       Cargar a alguien en el LUNES de la MADRE un jueves lo metía en el lunes
+       de ESTA semana, que ya se dio: no le sirve a nadie y dispara la alerta de
+       "está a la misma hora en dos lugares". Se deja PENDIENTE a propósito (no
+       se marca en `madreSync`): cuando la semana avance, baja solo en la semana
+       nueva, que es donde esa clase existe de verdad. */
+    if(_diaDeLaSemanaYaPaso(k.split('|')[0])){
+      pasado.push(al.nombre + ' (' + lugarTxt(k) + ')');
+      return;
+    }
 
     /* ¿ESA CELDA TIENE LÁPIDA?
        Antes acá se cortaba: si alguien había vaciado ese casillero alguna vez,
@@ -1097,6 +1124,7 @@ function propagarMadreASemana(){
 
   window._madreChoques = chocaron;
   window._madreSobreTumba = sobreTumba;
+  window._madrePasado = pasado;
 
   /* ---------- LO QUE SE SACÓ DE LA MADRE ----------
      Si sacás a alguien de la MADRE, tiene que salir también de la semana en curso.
@@ -1128,6 +1156,9 @@ function propagarMadreASemana(){
     let aSacar = antes - ahora;
     const corte = dn.indexOf('|');
     const dia = dn.slice(0, corte), nomNorm = dn.slice(corte+1);
+    /* Y tampoco se saca del pasado: esa clase ya se dio y ya se contó para la
+       plata. Sacarla ahora reescribiría una semana que ya está cerrada. */
+    if(_diaDeLaSemanaYaPaso(dia)) return;
     // candidatos: casilleros de la semana ESE día con esa persona
     const cand = Object.keys(state.semana.alumnos).filter(k2=>{
       if(k2.indexOf(dia+'|')!==0) return false;
@@ -1174,8 +1205,16 @@ function revisarMadre(){
   const ch = window._madreChoques || [];
   const st = window._madreSobreTumba || [];
   const sacados = window._madreSacados || [];
-  if(!n && !sacados.length) return;                   // no pasó nada que contar
   if(state.mode!=='madre') return;                    // en la semana editable, nunca
+  /* Los que no bajaron por ser día pasado se avisan UNA sola vez cada uno:
+     como quedan pendientes a propósito, vuelven a aparecer en cada guardado y
+     sin este filtro el cartel saldría todas las veces. */
+  if(!window._madrePasadoVisto) window._madrePasadoVisto = {};
+  const pasado = (window._madrePasado || []).filter(t=>{
+    if(window._madrePasadoVisto[t]) return false;
+    window._madrePasadoVisto[t] = 1; return true;
+  });
+  if(!n && !sacados.length && !pasado.length) return;   // no pasó nada que contar
   let msg = '';
   if(n) msg += '✅ ' + n + ' alumno(s) de la MADRE quedaron cargados en la semana.\n\n';
   if(sacados.length) msg += '🗑️ ' + sacados.length + ' alumno(s) se sacaron también de esta semana:\n\n· ' +
@@ -1186,7 +1225,12 @@ function revisarMadre(){
   }
   if(ch.length){
     msg += '⚠️ Estos no entraron porque esa hora está completa:\n\n· ' + ch.join('\n· ') +
-           '\n\nBajan solos cuando se libere un lugar.';
+           '\n\nBajan solos cuando se libere un lugar.\n\n';
+  }
+  if(pasado.length){
+    msg += '📅 Estos NO se cargaron en esta semana porque ese día ya pasó:\n\n· ' +
+           pasado.join('\n· ') +
+           '\n\nQuedan puestos en la MADRE y entran solos en la semana que viene.';
   }
   setTimeout(()=>alert(msg.trim()), 200);
 }
