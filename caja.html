@@ -420,6 +420,16 @@ function enviarAlPuente(action, payload){
 /* Corrige el precio y el tipo de un alumno. Escribe en las DOS casas a la vez:
    en Firebase al instante (para verlo ya) y en la planilla por el puente, que
    es donde vive el padrón de verdad. Es el mismo camino de la app de Alumnos. */
+/* Crea o corrige la ficha en alumnos_v2, que es una de las fuentes de padron
+   que ya lee Caja. Devuelve promesa para poder avisar si falla: escribir ahi
+   pide permiso de ALUMNOS (o admin), no alcanza con el de caja. */
+function _guardarEnAlumnosV2(ficha, esBeca, num, tipo){
+  var k = keyAlumno(ficha.nombre).replace(/s+/g,'_');
+  return firebase.database().ref('alumnos_v2/'+k).update({
+    nombre: ficha.nombre, precio: esBeca?0:num, tipo: tipo||'', tel: ficha.tel||''
+  });
+}
+
 function corregirAlumno(ficha, precioTxt, tipo){
   var esBeca=/beca/i.test(precioTxt);
   var num=+soloDigitos(precioTxt)||0;
@@ -448,6 +458,18 @@ function corregirAlumno(ficha, precioTxt, tipo){
       }
     }).catch(function(){});
   }catch(e){}
+  /* ALUMNO QUE NO ESTA EN EL PADRON.
+     No se lo manda al puente ni se lo busca en padron_v1: dar de alta a alguien
+     es tarea de la app de Alumnos, y Caja inventando filas en la planilla
+     terminaria en nombres repetidos. Se le guarda el precio en alumnos_v2 --
+     que Caja ya lee como padron -- y con eso alcanza para poner el monto y
+     armar el mensaje. En la app de Alumnos hay que cargarlo igual. */
+  if(ficha._fueraDelPadron){
+    return _guardarEnAlumnosV2(ficha, esBeca, num, datos.tipo).then(function(){
+      ficha.precio = esBeca?0:num; ficha.beca=esBeca; ficha.tipo=datos.tipo;
+      anotarOp('editar', 'Precio a mano (fuera del padron) a '+ficha.nombre+' · '+precioPlanilla);
+    });
+  }
   return enviarAlPuente('alumnos', {alumnos:[datos]}).then(function(){
     ficha.precio = esBeca?0:num; ficha.beca=esBeca; ficha.tipo=datos.tipo;
     anotarOp('editar', 'Corrigió a '+ficha.nombre+' · precio '+precioPlanilla+(datos.tipo?' · tipo '+datos.tipo:''));
@@ -2012,9 +2034,10 @@ function pintarFicha(){
      precio a mano vivia en memoria y se perdia al recargar -- este se guarda
      de verdad: va a alumnos_v2, a padron_v1 y a la planilla por el puente.
      O sea que corrige al alumno para todo el sistema, no para esta pantalla. */
-  var faltaPrecio = a.ficha && !a.ficha.beca && !a.ficha.precio;
+  /* Sin ficha en el padron tambien falta el precio: el boton tiene que salir igual, si no al alumno de afuera no hay forma de cobrarle. */
+  var faltaPrecio = a.ficha ? (!a.ficha.beca && !a.ficha.precio) : true;
   var h='<div class="f-cab"><h2>'+esc(a.nombre)+'</h2>'+
-        (puedeEditar && a.ficha ? '<div class="pbox" id="pbox">'+
+        (puedeEditar ? '<div class="pbox" id="pbox">'+
            '<button class="pbtn'+(faltaPrecio?' falta':'')+'" id="fPrecioBtn" title="'+
            (faltaPrecio?'Falta el precio: ponelo a mano':'Cambiar el precio')+'">₲</button>'+
            '<input id="fPrecio" type="text" inputmode="numeric" autocomplete="off" '+
@@ -2122,7 +2145,8 @@ function pintarFicha(){
           'Está en el padrón pero la columna de precio está vacía o en cero. Se carga en la app de Alumnos.');
   } else {
     h+=op('malo','Según el padrón','No está en el padrón',
-          'Tiene clases en el historial pero no existe como alumno. Se crea en la app de Alumnos.');
+          'Tiene clases en el historial pero no existe como alumno. Ponéle el precio con el botón ₲ de arriba '+
+          'y ya podés armarle el mensaje. Para que quede bien cargado, creálo después en la app de Alumnos.');
   }
   h+='</div>';
 
@@ -2132,8 +2156,10 @@ function pintarFicha(){
   h+='<button class="wa" id="fWa"'+(puede?'':' disabled')+'>Enviar por WhatsApp</button>';
   h+='<button class="chico" id="fCopiar" style="width:100%;margin-top:7px"'+(c.total>0?'':' disabled')+'>Copiar el mensaje</button>';
   var nota='';
-  if(!c.total) nota='Sin precio no hay mensaje que mandar.';
-  else if(!tel) nota='Este alumno no tiene teléfono en el padrón.';
+  if(!c.total) nota = (c.estado==='nopadron')
+      ? 'No está en el padrón: ponéle el precio con el ₲ de arriba y el mensaje se arma solo.'
+      : 'Sin precio no hay mensaje que mandar.';
+  else if(!tel) nota='Este alumno no tiene teléfono en el padrón. Copiá el mensaje y mandalo vos.';
   else if(telRaro(tel)) nota='El teléfono está mal cargado: '+telRaro(tel)+'.';
   else nota='Abre WhatsApp con el mensaje escrito. No lo manda: lo revisás y apretás enviar vos.';
   h+='<div class="waNota">'+esc(nota)+'</div>';
@@ -2144,7 +2170,8 @@ function pintarFicha(){
   $('fCerrar').onclick=cerrarFicha;
   if($('fPrecioBtn')){
     var _pb=$('pbox'), _pi=$('fPrecio');
-    _pi.value = a.ficha.beca ? 'BECA' : (a.ficha.precio ? gs(a.ficha.precio) : '');
+    var _f0 = a.ficha || {};
+    _pi.value = _f0.beca ? 'BECA' : (_f0.precio ? gs(_f0.precio) : '');
     $('fPrecioBtn').onclick=function(){ _pb.classList.add('abierto'); _pi.focus(); _pi.select(); };
     _pi.oninput=function(){
       if(/beca/i.test(_pi.value)) return;              // BECA se escribe como palabra
@@ -2153,6 +2180,11 @@ function pintarFicha(){
     var _guardar=function(){
       _pb.classList.remove('abierto');
       var txt=(_pi.value||'').trim();
+      /* El que no esta en el padron no tiene ficha: se le arma una en el acto, marcada, para que corregirAlumno no la mande al puente. */
+      if(!a.ficha){
+        a.ficha = { nombre:a.nombre, id:'', precio:0, beca:false, tipo:'', cat:'',
+                    tel:'', telCrudo:'', _fueraDelPadron:true };
+      }
       var antesN=a.ficha.precio||0, antesB=!!a.ficha.beca;
       var nuevoB=/beca/i.test(txt), nuevoN=+soloDigitos(txt)||0;
       if(nuevoB===antesB && nuevoN===antesN) return;   // no cambio nada
@@ -2166,7 +2198,7 @@ function pintarFicha(){
     _pi.onblur=_guardar;
     _pi.onkeydown=function(ev){
       if(ev.key==='Enter'){ _pi.blur(); }
-      else if(ev.key==='Escape'){ _pi.value = a.ficha.beca?'BECA':(a.ficha.precio?gs(a.ficha.precio):''); _pb.classList.remove('abierto'); }
+      else if(ev.key==='Escape'){ var _fe=a.ficha||{}; _pi.value = _fe.beca?'BECA':(_fe.precio?gs(_fe.precio):''); _pb.classList.remove('abierto'); }
     };
   }
   $('fMes').onchange=function(){ MESES_SEL=[$('fMes').value]; _sumando=false; pintarFicha(); };
