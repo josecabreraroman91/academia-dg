@@ -5129,6 +5129,22 @@ function sendQueue(){ return agruparConsecutivas(buildEnvioList().filter(c=>phon
 function adefList(){ return buildEnvioList().filter(c=>c.sedeKey==='adefinir' && !c.confirmado && !c.revisar); }
 // Los que quedaron afuera del envío por estar en verde/celeste (para mostrar el motivo, no se ocultan en silencio).
 function excluidosEnvio(){ return buildEnvioList().filter(c=>c.sedeKey!=='adefinir' && phoneOk(c.tel) && (c.confirmado||c.revisar)); }
+/* Los mismos, pero UNO POR ALUMNO y con el motivo escrito. Un alumno con tres
+   horas ese día aparecía tres veces; acá aparece una sola, que es como se lee.
+   POR QUE EXISTE: el celeste es por PERSONA y solo se saca a mano, así que un
+   alumno que quedó vigilado deja de recibir la confirmación TODOS los días sin
+   que nadie se entere. El resumen del envío decía "salieron todos" porque el
+   servidor nunca supo que existía: ya lo había sacado sendQueue() acá. */
+function excluidosEnvioPorAlumno(){
+  const vistos = new Map();
+  excluidosEnvio().forEach(c=>{
+    const k = (c.nombre||'').trim().toLowerCase();
+    if(!k || vistos.has(k)) return;
+    vistos.set(k, { nombre:c.nombre, tel:c.tel,
+                    motivo: c.confirmado ? 'ya confirmó (verde)' : 'está para revisar (celeste)' });
+  });
+  return Array.from(vistos.values());
+}
 
 function enviadosHoy(){
   const f=fechaCorta(_envioDia||state.dia);
@@ -5524,8 +5540,15 @@ function renderMetaLista(){
     return;
   }
 
+  /* A quién NO le va a llegar por estar en verde/celeste. Antes se lo comía la
+     lista en silencio y nadie lo veía hasta que el alumno faltaba. */
+  const fuera = (typeof excluidosEnvioPorAlumno==='function') ? excluidosEnvioPorAlumno() : [];
   aviso.innerHTML = 'Le va a llegar a <b>'+lista.length+'</b> alumno(s) del día <b>'+dia+'</b>.'+
-    (tpl==='sabado' ? '  <span style="color:#a15c00">La plantilla de sábado manda SOLO el nombre (sin hora ni sede).</span>' : '');
+    (tpl==='sabado' ? '  <span style="color:#a15c00">La plantilla de sábado manda SOLO el nombre (sin hora ni sede).</span>' : '')+
+    (fuera.length ? '<div style="margin-top:6px;color:#a15c00;font-size:12px">⚠️ <b>'+fuera.length+
+        '</b> NO va(n) a recibir nada por estar en verde/celeste: '+
+        fuera.slice(0,8).map(x=>esc(x.nombre)+' ('+x.motivo+')').join(', ')+
+        (fuera.length>8?' …':'')+'</div>' : '');
 
   let filas = lista.map((a,i)=>{
     const datos = tpl==='sabado'
@@ -5551,6 +5574,12 @@ async function enviarPorMeta(){
      y es fácil que pasen desapercibidos. Los guardamos para recordárselos en el
      resultado, así ninguno se escapa en silencio (caso Juliana). */
   const sinTelDia = buildEnvioList().filter(c=>c.sedeKey!=='adefinir' && !phoneOk(c.tel));
+
+  /* Alumnos del día que quedaron AFUERA por estar en verde o celeste. El
+     servidor no se entera de ellos (sendQueue los sacó antes de armar el
+     paquete), así que su "salieron bien: N" los cuenta como si no existieran y
+     el resumen quedaba diciendo que se mandó todo. Se listan acá. */
+  const fueraPorColor = excluidosEnvioPorAlumno();
 
   // La plantilla se manda al servidor; para sábado solo importa el nombre.
   const alumnos = lista.map(a=>({
@@ -5595,6 +5624,12 @@ async function enviarPorMeta(){
     if(d.saltados && d.saltadosLista && d.saltadosLista.length){
       msg += '\n\nNo repetidos (ya tenían su confirmación de hoy):\n'+
              d.saltadosLista.slice(0,15).map(n=>'· '+n).join('\n');
+    }
+    if(fueraPorColor.length){
+      msg += '\n\n🔵 OJO: '+fueraPorColor.length+' NO recibieron nada por estar en verde/celeste:\n'+
+             fueraPorColor.slice(0,15).map(x=>'· '+x.nombre+' — '+x.motivo).join('\n')+
+             (fueraPorColor.length>15?'\n…':'')+
+             '\n\nEl celeste queda pegado al alumno hasta que alguien lo saque a mano.';
     }
     if(sinTelDia.length){
       msg += '\n\n⚠️ OJO: '+sinTelDia.length+' quedaron SIN número (no se les mandó nada). Buscales el teléfono:\n'+
