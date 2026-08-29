@@ -15,6 +15,7 @@
   body{margin:0;background:var(--bg);color:var(--txt);
     font-family:var(--sans);font-size:15px;line-height:1.5}
   .wrap{max-width:820px;margin:0 auto;padding:16px 14px 70px}
+  body.conBarra .wrap{padding-bottom:96px}
 
   header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
   h1{font-size:21px;margin:0}
@@ -127,6 +128,65 @@
   #login h2,#nopuede h2{margin:0 0 8px;font-size:20px}
   #login p,#nopuede p{color:var(--sec);max-width:340px;margin:0 0 22px}
 
+  /* ---- Las dos vistas ---- */
+  .solapas{display:flex;gap:6px;margin-bottom:16px;background:var(--panel);
+    border:1px solid var(--linea);border-radius:12px;padding:5px}
+  .solapas button{flex:1;font-family:inherit;font-size:14px;padding:10px 12px;border-radius:9px;
+    border:0;background:transparent;color:var(--sec);cursor:pointer;font-weight:600}
+  .solapas button.on{background:var(--azul);color:#fff}
+  .solapas button small{display:block;font-size:11px;font-weight:400;opacity:.8}
+
+  /* ---- El día ---- */
+  .barraDia{display:flex;gap:8px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
+  .barraDia input[type=date]{background:var(--panel);border:1px solid var(--linea);border-radius:10px;
+    color:var(--txt);padding:9px 11px;font-family:inherit;font-size:15px}
+  .barraDia .flecha{padding:9px 13px}
+  .diaTit{font-size:17px;font-weight:600;flex:1;min-width:130px}
+
+  /* El cartel de estado: dice de una si el día está guardado o no, porque de
+     eso depende que a alguien se le cobre o no se le cobre. */
+  .estadoDia{border-radius:12px;padding:11px 14px;margin-bottom:14px;font-size:13.5px;
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .estadoDia .txt{flex:1;min-width:180px}
+  .estadoDia b{font-weight:700}
+  .estadoDia small{display:block;font-size:12px;opacity:.85;margin-top:2px}
+  .estadoDia.abierto{background:#FFF6E0;border:1px solid #E8CE8A;color:#8A6A16}
+  .estadoDia.guardado{background:#E6F5EC;border:1px solid #A8DBBE;color:#1F6B43}
+  .estadoDia.auto{background:#EDF1F3;border:1px solid var(--linea);color:var(--sec)}
+
+  .hora{display:flex;align-items:baseline;gap:9px;margin:18px 0 8px}
+  .hora .h{font-size:15px;font-weight:700}
+  .hora .cuantos{font-size:12px;color:var(--sec)}
+  .hora .raya{flex:1;height:1px;background:var(--linea)}
+
+  /* Una clase del día. Toda la fila es tocable: en el celular apuntarle a un
+     botón chico con el dedo, sesenta veces, no es forma de trabajar. */
+  .cl{background:var(--panel);border:1px solid var(--linea);border-radius:11px;
+    padding:10px 13px;margin-bottom:6px;display:flex;gap:11px;align-items:center;cursor:pointer}
+  .cl:hover{border-color:var(--sec)}
+  .cl.tocada{border-color:var(--azul);background:#F4FAFC}
+  .cl .nom{font-size:14.5px;font-weight:600}
+  .cl .det{font-size:12.5px;color:var(--sec)}
+  .cl .der{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+  .cl .info{flex:1;min-width:0}
+  .cl .est{font-size:12.5px}
+  .cl.sintipo{border-left:3px solid var(--ambar)}
+  .cl .cambiada{font-size:11px;color:var(--azul);font-weight:600}
+
+  /* La barra de guardar va CLAVADA abajo de la pantalla, no al final de la
+     lista: con sesenta y cinco clases la página mide seis mil píxeles y un
+     botón allá abajo no lo encuentra nadie. */
+  .guardarBarra{position:fixed;left:0;right:0;bottom:0;z-index:40;
+    background:var(--panel);border-top:1px solid var(--linea);padding:10px 14px;
+    box-shadow:0 -3px 14px rgba(0,0,0,.10)}
+  .guardarBarra .dentro{max-width:820px;margin:0 auto;
+    display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .guardarBarra .cuenta{flex:1;min-width:150px;font-size:13px;color:var(--sec)}
+  .guardarBarra .cuenta b{color:var(--txt)}
+  .avisos{background:#FFF6E0;border:1px solid #E8CE8A;color:#8A6A16;border-radius:11px;
+    padding:10px 13px;margin-bottom:13px;font-size:12.5px}
+  .avisos b{display:block;margin-bottom:4px}
+
 </style>
 </head>
 <body>
@@ -162,6 +222,32 @@
 
 <div class="wrap" id="app" style="display:none">
 
+  <!-- Dos vistas. La principal es EL DÍA: es la que se usa todos los días para
+       revisar y cerrar. La de alumno queda para cuando hay que buscar el
+       historial de uno en particular. -->
+  <div class="solapas" id="solapas">
+    <button data-v="dia" class="on">El día<small>revisar y guardar</small></button>
+    <button data-v="alumno">Por alumno<small>buscar en el historial</small></button>
+  </div>
+
+  <div id="vistaDia">
+    <div class="barraDia">
+      <button class="b flecha" id="dAyer" title="El día anterior">‹</button>
+      <input type="date" id="dFecha">
+      <button class="b flecha" id="dManana" title="El día siguiente">›</button>
+      <div class="diaTit" id="dTitulo"></div>
+      <button class="b" id="dHoy">Hoy</button>
+    </div>
+
+    <div id="dEstado"></div>
+    <div id="dAvisos"></div>
+    <div id="dCargando" style="display:none">Cargando el día…</div>
+    <div id="dLista"></div>
+    <div id="dGuardar"></div>
+  </div>
+
+  <div id="vistaAlumno" style="display:none">
+
   <div id="aprobar"></div>
 
   <div class="buscador">
@@ -180,6 +266,7 @@
   </div>
 
   <div id="detalle"></div>
+  </div>
 </div>
 
 <div id="ov">
@@ -245,6 +332,11 @@ var DIAS=['dom','lun','mar','mié','jue','vie','sáb'];
 
 var $ = function(id){ return document.getElementById(id); };
 var miCorreo=null, historial=[], alumnos=[], elegido=null, editando=null, opElegida=null;
+/* Qué días ya están cerrados en historial_v2, y por quién. Sirve para dos
+   cosas: no sumar dos veces una fecha que también está en la planilla, y
+   saber si una clase se corrige en el día (las nuevas) o en la planilla
+   (las viejas). */
+var diasCerrados={};
 
 function esc(t){ return String(t==null?'':t)
   .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -280,27 +372,62 @@ function parseCSV(txt){
   return rows;
 }
 
-/* El historial vive en la planilla; historial_v1 es la copia que refresca un
-   script cada 30 minutos. Por eso un cambio tarda un rato en verse acá. */
+/* ============================================================
+   DE DÓNDE SALE EL HISTORIAL
+
+   De dos lados, y hay que juntarlos:
+
+   · historial_v2  — el de ahora. Un día por fecha, escrito por el cierre de
+     las 23:30 o guardado a mano desde la solapa del día. Es el que Caja y
+     Ganancias usan para cobrar y pagar.
+
+   · historial_v1  — la copia de la planilla, que un script refrescaba cada 30
+     minutos. Ahí está lo VIEJO: la planilla dejó de llenarse el 10/08/2026,
+     cuando se sacó el cierre que la escribía.
+
+   Si una fecha está en los dos, manda historial_v2: es donde se corrige hoy.
+   ============================================================ */
+function filaAClase(f){
+  if(!f || !f.length) return null;
+  var fecha=String(f[0]||'').trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return null;
+  var nom=String(f[1]||'').trim(); if(!nom) return null;
+  return { fecha:fecha, alumno:nom, hora:String(f[2]||'').trim(), sede:String(f[3]||'').trim(),
+           profe:String(f[4]||'').trim(), tipo:String(f[5]||'').trim(),
+           estado:String(f[6]||'').trim(), cobro:String(f[7]||'').trim(),
+           motivo:String(f[8]||'').trim(), id:String(f[9]||'').trim() };
+}
+
 function cargarHistorial(){
-  return firebase.database().ref('historial_v1/csv').once('value').then(function(s){
-    var csv=s.val(); if(!csv) return;
-    var rows=parseCSV(csv); if(rows.length<2) return;
+  return Promise.all([
+    firebase.database().ref('historial_v2').once('value').then(function(s){ return s.val()||{}; })
+      .catch(function(e){ console.warn('historial_v2:', e.message); return {}; }),
+    firebase.database().ref('historial_v1/csv').once('value').then(function(s){ return s.val()||''; })
+      .catch(function(e){ console.warn('historial_v1:', e.message); return ''; })
+  ]).then(function(r){
+    var v2=r[0], csv=r[1];
     historial=[];
-    for(var i=1;i<rows.length;i++){
-      var r=rows[i];
-      var fecha=(r[0]||'').trim();
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
-      var nom=(r[1]||'').trim(); if(!nom) continue;
-      historial.push({
-        fecha:fecha, alumno:nom, hora:(r[2]||'').trim(), sede:(r[3]||'').trim(),
-        profe:(r[4]||'').trim(), tipo:(r[5]||'').trim(),
-        estado:(r[6]||'').trim(), cobro:(r[7]||'').trim(),
-        motivo:(r[8]||'').trim(), id:(r[9]||'').trim()
+    diasCerrados={};
+
+    Object.keys(v2).forEach(function(fecha){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return;
+      var d=v2[fecha]||{};
+      diasCerrados[fecha]={ cuando:d.cerrado||'', por:d.por||'', aMano:!!d.aMano };
+      (d.filas||[]).forEach(function(f){
+        var c=filaAClase(f);
+        if(c){ c.deDia=true; historial.push(c); }
       });
+    });
+
+    /* La planilla solo aporta las fechas que historial_v2 todavía no tiene. */
+    var rows=parseCSV(csv);
+    for(var i=1;i<rows.length;i++){
+      var c=filaAClase(rows[i]);
+      if(c && !diasCerrados[c.fecha]) historial.push(c);
     }
+
     historial.sort(function(a,b){ return a.fecha<b.fecha?1:(a.fecha>b.fecha?-1:0); });
-  }).catch(function(e){ console.warn('historial_v1:', e.message); });
+  });
 }
 
 /* Migración a Firebase: la lista de alumnos sale de padron_v1 (canónico por
@@ -548,6 +675,312 @@ function pintarDetalle(){
   });
 }
 
+
+/* ============================================================
+   LA VISTA DEL DÍA
+
+   QUÉ MUESTRA
+   Las clases de un día tal como están AHORA, con lo que el profe marcó en la
+   tablet, y al lado si esa clase se cobra o no. Administración lo revisa a la
+   noche, corrige lo que haga falta y lo guarda. Eso guardado es lo que después
+   usan Caja (para cobrarle al alumno) y Ganancias (para pagarle al profe).
+
+   POR QUÉ NO SE CALCULA ACÁ
+   La regla del cobro vive en el agente, en una sola función, y esta pantalla se
+   la pregunta. Si la copiáramos acá habría dos reglas, y el día que se cambie
+   una y no la otra un profe cobra de menos sin que nadie se entere.
+
+   LOS TRES ESTADOS DE UN DÍA
+   · SIN GUARDAR      todavía se puede revisar; a las 23:30 se guarda solo
+   · GUARDADO SOLO    lo cerró el agente porque nadie entró a revisarlo
+   · GUARDADO A MANO  alguien lo revisó; el automático ya no lo toca
+   ============================================================ */
+
+/* El agente. Misma dirección que usa cal-unif; cuando se mude de servidor se
+   cambia en los dos con CAMBIAR-URL-DEL-AGENTE.cmd. */
+const SERVIDOR_AGENTE = 'https://academiadg-agente-production.up.railway.app';
+
+var dFecha = null;        // qué día se está mirando
+var dDatos = null;        // lo que contestó el agente
+var dFilas = [];          // las filas como quedaron en pantalla (con los cambios)
+var dTocadas = {};        // qué filas cambió el usuario, por posición
+var dEditando = -1;
+
+/* Las diez columnas, por nombre, para no andar contando con los dedos. */
+var C = { FECHA:0, ALUMNO:1, HORA:2, SEDE:3, PROFE:4, TIPO:5, ESTADO:6, COBRO:7, MOTIVO:8, ID:9 };
+
+function isoDe(d){
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function correrDia(iso, cuantos){
+  var d = new Date(iso+'T00:00:00'); d.setDate(d.getDate()+cuantos); return isoDe(d);
+}
+function tituloDia(iso){
+  var d = new Date(iso+'T00:00:00');
+  var DIASL = ['domingo','lunes','martes','miércoles','jueves','viernes','sábado'];
+  return DIASL[d.getDay()]+' '+d.getDate()+' de '+MESES[d.getMonth()];
+}
+function horaDeReloj(txt){
+  /* "21:07" del reloj de Asunción o de un ISO, para el cartel de estado. */
+  try{
+    var d = new Date(txt);
+    if(isNaN(d)) return '';
+    return d.toLocaleTimeString('es-PY', { hour:'2-digit', minute:'2-digit', hour12:false });
+  }catch(e){ return ''; }
+}
+
+/* ---------- hablar con el agente ---------- */
+/* Siempre con el token de quien está adentro: el agente vuelve a preguntarle a
+   Google de quién es y si es administrador. Un token vencido da 401 y acá se
+   pide de nuevo, en vez de dejar la pantalla en blanco sin explicación. */
+function alAgente(camino, opciones){
+  return firebase.auth().currentUser.getIdToken().then(function(tk){
+    var o = opciones || {};
+    return fetch(SERVIDOR_AGENTE + camino, {
+      method: o.metodo || 'GET',
+      headers: Object.assign({ 'Authorization':'Bearer '+tk },
+                             o.cuerpo ? {'Content-Type':'application/json'} : {}),
+      body: o.cuerpo ? JSON.stringify(o.cuerpo) : undefined
+    });
+  }).then(function(r){
+    return r.json().catch(function(){ return null; }).then(function(d){
+      if(!r.ok || !d || d.ok === false){
+        var m = (d && d.error) || ('el servidor contestó '+r.status);
+        if(r.status === 401) m += ' — probá salir y volver a entrar';
+        throw new Error(m);
+      }
+      return d;
+    });
+  });
+}
+
+/* ---------- cargar un día ---------- */
+function verDia(iso){
+  dFecha = iso;
+  $('dFecha').value = iso;
+  $('dTitulo').textContent = tituloDia(iso);
+  $('dLista').innerHTML = ''; $('dGuardar').innerHTML = '';
+  $('dEstado').innerHTML = ''; $('dAvisos').innerHTML = '';
+  $('dCargando').style.display = 'block';
+  dTocadas = {};
+
+  alAgente('/dia-en-vivo?fecha='+encodeURIComponent(iso)).then(function(d){
+    dDatos = d;
+    /* Si el día ya está guardado, se muestra lo GUARDADO, que es lo que se
+       cobra. Lo de ahora queda al costado solo para poder compararlo. */
+    var base = (d.cerrado && d.guardadas && d.guardadas.length) ? d.guardadas : (d.filas || []);
+    dFilas = base.map(function(f){ return f.slice(); });
+    $('dCargando').style.display = 'none';
+    pintarDia();
+  }).catch(function(e){
+    $('dCargando').style.display = 'none';
+    $('dEstado').innerHTML = '<div class="estadoDia abierto"><div class="txt"><b>No pude traer el día.</b>'+
+      '<small>'+esc(e.message)+'</small></div></div>';
+  });
+}
+
+/* ---------- el cartel de estado ---------- */
+function pintarEstadoDia(){
+  var c = dDatos && dDatos.cerrado;
+  var h;
+  if(!c){
+    h = '<div class="estadoDia abierto"><div class="txt"><b>Sin guardar.</b>'+
+        '<small>Revisalo y guardalo. Si no, a las 23:30 se guarda solo con lo que haya.</small></div></div>';
+  } else if(c.aMano){
+    var vueltas = (c.correcciones || []).length;
+    h = '<div class="estadoDia guardado"><div class="txt"><b>Guardado por '+esc(c.por)+'</b>'+
+        '<small>'+esc(horaDeReloj(c.cuando))+' · '+c.filas+' clases'+
+        (vueltas ? ' · corregido '+vueltas+(vueltas===1?' vez':' veces') : '')+
+        '. El guardado automático ya no lo toca.</small></div></div>';
+  } else {
+    h = '<div class="estadoDia auto"><div class="txt"><b>Se guardó solo a las '+esc(horaDeReloj(c.cuando))+'.</b>'+
+        '<small>'+c.filas+' clases. Nadie lo revisó. Si corregís algo y guardás, queda a tu nombre.</small></div></div>';
+  }
+  $('dEstado').innerHTML = h;
+
+  /* Sin tipo de clase el alumno aporta cero a la bolsa y el profe cobra de
+     menos: hay que verlo antes de guardar, no después. */
+  var av = (dDatos && dDatos.avisos) || [];
+  $('dAvisos').innerHTML = av.length
+    ? '<div class="avisos"><b>⚠ '+av.length+' sin tipo de clase</b>'+
+      esc(av.slice(0,6).join(' · '))+(av.length>6 ? ' … y '+(av.length-6)+' más' : '')+
+      '<div style="margin-top:5px">Sin tipo, el alumno no suma a la bolsa de esa hora y el profe cobra de menos. Se arregla en la ficha del alumno.</div></div>'
+    : '';
+}
+
+/* ---------- la lista del día ---------- */
+function pintarDia(){
+  pintarEstadoDia();
+
+  if(!dFilas.length){
+    $('dLista').innerHTML = '<div class="vacio">No hay clases ese día.</div>';
+    $('dGuardar').innerHTML = '';
+    document.body.classList.remove('conBarra');
+    return;
+  }
+
+  /* Por hora, que es como se mira la cancha. Dentro de cada hora, por sede y
+     profe, para que las de un mismo profe queden juntas. */
+  var orden = dFilas.map(function(f,i){ return i; }).sort(function(a,b){
+    var A = dFilas[a], B = dFilas[b];
+    var ha = String(A[C.HORA]).padStart(5,'0'), hb = String(B[C.HORA]).padStart(5,'0');
+    if(ha !== hb) return ha < hb ? -1 : 1;
+    if(A[C.SEDE] !== B[C.SEDE]) return A[C.SEDE] < B[C.SEDE] ? -1 : 1;
+    if(A[C.PROFE] !== B[C.PROFE]) return A[C.PROFE] < B[C.PROFE] ? -1 : 1;
+    return String(A[C.ALUMNO]).localeCompare(String(B[C.ALUMNO]));
+  });
+
+  var cobra = dFilas.filter(function(f){ return f[C.COBRO] === 'Sí'; }).length;
+  var noCobra = dFilas.filter(function(f){ return f[C.COBRO] === 'No'; }).length;
+  var sinTipo = dFilas.filter(function(f){ return !String(f[C.TIPO]).trim(); }).length;
+
+  var h = '<div class="totales">'+
+    '<div class="tot"><b>'+dFilas.length+'</b>clases</div>'+
+    '<div class="tot cobra"><b>'+cobra+'</b>se cobran</div>'+
+    '<div class="tot nocobra"><b>'+noCobra+'</b>no se cobran</div>'+
+    (sinTipo ? '<div class="tot revisar"><b>'+sinTipo+'</b>sin tipo</div>' : '')+
+    '</div>';
+
+  var horaAct = null, abierto = false;
+  orden.forEach(function(i){
+    var f = dFilas[i];
+    if(f[C.HORA] !== horaAct){
+      if(abierto) h += '';
+      horaAct = f[C.HORA];
+      var cuantos = dFilas.filter(function(x){ return x[C.HORA] === horaAct; }).length;
+      h += '<div class="hora"><span class="h">'+esc(horaAct || 'sin hora')+'</span>'+
+           '<span class="cuantos">'+cuantos+(cuantos===1?' clase':' clases')+'</span>'+
+           '<span class="raya"></span></div>';
+      abierto = true;
+    }
+    var si = f[C.COBRO] === 'Sí';
+    var noAplica = f[C.COBRO] === '—';
+    h += '<div class="cl'+(dTocadas[i]?' tocada':'')+(String(f[C.TIPO]).trim()?'':' sintipo')+'" data-i="'+i+'">'+
+      '<div class="info">'+
+        '<div class="nom">'+esc(f[C.ALUMNO])+'</div>'+
+        '<div class="det">'+esc(f[C.SEDE])+(f[C.PROFE]?' · '+esc(f[C.PROFE]):'')+
+          (f[C.TIPO]?' · '+esc(f[C.TIPO]):' · <b style="color:var(--ambar)">sin tipo</b>')+'</div>'+
+        '<div class="est">'+esc(f[C.ESTADO])+
+          (f[C.MOTIVO]?' <span style="color:var(--sec)">· '+esc(f[C.MOTIVO])+'</span>':'')+'</div>'+
+      '</div>'+
+      '<div class="der">'+
+        '<span class="cobro '+(noAplica?'no':(si?'si':'no'))+'">'+
+          (noAplica ? 'no aplica' : (si ? 'se cobra' : 'no se cobra'))+'</span>'+
+        (dTocadas[i] ? '<span class="cambiada">cambiado</span>' : '')+
+      '</div>'+
+    '</div>';
+  });
+
+  $('dLista').innerHTML = h;
+  $('dLista').querySelectorAll('.cl').forEach(function(el){
+    el.onclick = function(){ abrirCambioDia(+el.dataset.i); };
+  });
+  pintarBotonGuardar();
+}
+
+function pintarBotonGuardar(){
+  var cuantas = Object.keys(dTocadas).length;
+  var c = dDatos && dDatos.cerrado;
+  var texto, aviso;
+  if(!c){
+    texto = cuantas ? 'Guardar el día con los cambios' : 'Guardar el día así';
+    aviso = cuantas ? '<b>'+cuantas+'</b> '+(cuantas===1?'clase cambiada':'clases cambiadas')+', sin guardar todavía.'
+                    : 'Todavía nadie lo revisó. Si guardás, queda cerrado a tu nombre.';
+  } else {
+    texto = 'Guardar la corrección';
+    aviso = cuantas ? '<b>'+cuantas+'</b> '+(cuantas===1?'clase cambiada':'clases cambiadas')+' sobre lo guardado.'
+                    : 'El día ya está guardado. Cambiá algo si hay que corregirlo.';
+  }
+  $('dGuardar').innerHTML = '<div class="guardarBarra"><div class="dentro">'+
+    '<div class="cuenta">'+aviso+'</div>'+
+    '<button class="b pri gr" id="btnGuardarDia"'+((c && !cuantas)?' disabled style="opacity:.5"':'')+'>'+texto+'</button>'+
+    '</div></div>';
+  document.body.classList.add('conBarra');
+  var b = $('btnGuardarDia');
+  if(b) b.onclick = guardarElDia;
+}
+
+/* ---------- cambiar una clase ---------- */
+/* Los cambios quedan en pantalla hasta que se aprieta Guardar. Así se puede
+   corregir varias de una y revisar antes de que toque la plata. */
+function abrirCambioDia(i){
+  dEditando = i;
+  var f = dFilas[i];
+  $('cNom').textContent = f[C.ALUMNO];
+  $('cDonde').textContent = f[C.HORA]+' · '+f[C.SEDE]+(f[C.PROFE]?' · '+f[C.PROFE]:'')+
+    ' — ahora: '+f[C.ESTADO]+(f[C.COBRO]==='Sí'?' (se cobra)':(f[C.COBRO]==='No'?' (no se cobra)':''));
+  $('cMotivo').value = ''; $('cErr').textContent = '';
+  opElegida = null;
+  $('cOps').querySelectorAll('button').forEach(function(b){
+    var mismo = b.dataset.e.split('|')[0] === f[C.ESTADO];
+    b.classList.toggle('on', mismo);
+    if(mismo) opElegida = b.dataset.e;
+  });
+  $('ov').dataset.modo = 'dia';
+  $('ov').classList.add('show');
+}
+
+function aplicarCambioDia(){
+  if(dEditando < 0 || !opElegida){ $('cErr').textContent = 'Elegí qué pasó.'; return; }
+  var motivo = $('cMotivo').value.trim();
+  if(motivo.length < 3){ $('cErr').textContent = 'Escribí por qué lo cambiás. Dentro de tres meses lo vas a agradecer.'; return; }
+  var p = opElegida.split('|'), f = dFilas[dEditando];
+  f[C.ESTADO] = p[0];
+  f[C.COBRO]  = p[1];
+  f[C.MOTIVO] = motivo + ' · ' + miCorreo;
+  dTocadas[dEditando] = true;
+  cerrarCambio();
+  pintarDia();
+}
+
+/* ---------- guardar ---------- */
+function guardarElDia(){
+  var b = $('btnGuardarDia');
+  b.disabled = true; b.textContent = 'Guardando…';
+  var cuantas = Object.keys(dTocadas).length;
+  alAgente('/guardar-dia', { metodo:'POST', cuerpo:{
+    fecha: dFecha, filas: dFilas,
+    nota: cuantas ? (cuantas + (cuantas===1?' clase corregida':' clases corregidas')) : 'revisado sin cambios'
+  }}).then(function(r){
+    toast('✅ Día guardado · '+r.filas+' clases');
+    verDia(dFecha);          // se recarga para ver el estado como quedó
+  }).catch(function(e){
+    b.disabled = false;
+    b.textContent = 'Guardar el día';
+    toast('⚠️ No se pudo guardar: '+e.message);
+  });
+}
+
+/* ---------- moverse de día ---------- */
+$('dAyer').onclick   = function(){ verDia(correrDia(dFecha, -1)); };
+$('dManana').onclick = function(){ verDia(correrDia(dFecha, +1)); };
+$('dHoy').onclick    = function(){ verDia(isoDeHoy()); };
+$('dFecha').onchange = function(){ if(/^\d{4}-\d{2}-\d{2}$/.test($('dFecha').value)) verDia($('dFecha').value); };
+
+/* ---------- las dos solapas ---------- */
+var vistaActual = 'dia';
+$('solapas').onclick = function(ev){
+  var b = ev.target.closest('button[data-v]'); if(!b) return;
+  vistaActual = b.dataset.v;
+  $('solapas').querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x === b); });
+  $('vistaDia').style.display    = (vistaActual === 'dia') ? 'block' : 'none';
+  $('vistaAlumno').style.display = (vistaActual === 'alumno') ? 'block' : 'none';
+  /* La barra de guardar es del día: en la vista de alumno no pinta nada. */
+  $('dGuardar').style.display = (vistaActual === 'dia') ? 'block' : 'none';
+  document.body.classList.toggle('conBarra', vistaActual === 'dia' && !!$('btnGuardarDia'));
+  window.scrollTo(0, 0);
+  if(vistaActual === 'alumno' && !window._alumnoCargado){
+    window._alumnoCargado = true;
+    $('cargando').style.display = 'block';
+    Promise.all([cargarAlumnos(), cargarHistorial()]).then(function(){
+      $('cargando').style.display = 'none';
+      pintarAprobar();
+      pintarDetalle();
+      $('q').focus();
+    });
+  }
+};
+
 /* ---------- Cambiar el cobro ---------- */
 function abrirCambio(c){
   editando=c; opElegida=null;
@@ -561,7 +994,8 @@ function abrirCambio(c){
   });
   $('ov').classList.add('show');
 }
-function cerrarCambio(){ $('ov').classList.remove('show'); editando=null; }
+function cerrarCambio(){ $('ov').classList.remove('show'); editando=null;
+  dEditando=-1; $('ov').dataset.modo=''; }
 $('cCancel').onclick=cerrarCambio;
 $('ov').onclick=function(e){ if(e.target===$('ov')) cerrarCambio(); };
 $('cOps').onclick=function(ev){
@@ -570,12 +1004,59 @@ $('cOps').onclick=function(ev){
   $('cOps').querySelectorAll('button').forEach(function(x){ x.classList.toggle('on', x===b); });
 };
 
+/* ============================================================
+   CORREGIR UNA CLASE DE UN DÍA YA CERRADO
+
+   Las clases nuevas no viven en la planilla sino en historial_v2, así que el
+   puente de Apps Script no las toca. Se corrigen por el mismo camino que la
+   solapa del día: se trae el día entero, se cambia esa fila y se vuelve a
+   guardar. La fila se busca por fecha + alumno + hora + sede, que es como se
+   emparejaba siempre.
+   ============================================================ */
+function corregirClaseDelDia(c, estado, cobro, motivo){
+  return alAgente('/dia-en-vivo?fecha='+encodeURIComponent(c.fecha)).then(function(d){
+    var filas=(d.guardadas && d.guardadas.length) ? d.guardadas : (d.filas||[]);
+    filas=filas.map(function(f){ return f.slice(); });
+    var i=filas.findIndex(function(f){
+      return normNom(f[1])===normNom(c.alumno) &&
+             String(f[2]).trim()===String(c.hora).trim() &&
+             String(f[3]).trim().toUpperCase()===String(c.sede).trim().toUpperCase();
+    });
+    if(i<0) throw new Error('esa clase ya no está en el día ' + c.fecha);
+    filas[i][6]=estado; filas[i][7]=cobro; filas[i][8]=motivo+' · '+miCorreo;
+    return alAgente('/guardar-dia', { metodo:'POST', cuerpo:{
+      fecha:c.fecha, filas:filas, nota:'corregido desde el historial del alumno' } })
+      .then(function(){ return filas[i]; });
+  });
+}
+
 $('cGuardar').onclick=function(){
+  /* El mismo recuadro sirve para las dos vistas. En la del día el cambio queda
+     en pantalla hasta que se guarda el día entero. En la del alumno se guarda
+     al toque, y va a historial_v2 o a la planilla según de dónde salió esa
+     clase. */
+  if($('ov').dataset.modo === 'dia'){ aplicarCambioDia(); return; }
   if(!editando || !opElegida){ $('cErr').textContent='Elegí qué pasó.'; return; }
   var motivo=$('cMotivo').value.trim();
   if(motivo.length<3){ $('cErr').textContent='Escribí por qué lo cambiás. Dentro de tres meses lo vas a agradecer.'; return; }
   var p=opElegida.split('|');
   var b=$('cGuardar'); b.disabled=true; b.textContent='Guardando…';
+
+  if(editando.deDia){
+    /* cerrarCambio() deja `editando` en null, asi que la clase se guarda acá
+       antes de cerrar: si no, el aviso sale sin fecha. */
+    var clase = editando;
+    corregirClaseDelDia(clase, p[0], p[1], motivo).then(function(){
+      clase.estado=p[0]; clase.cobro=p[1]; clase.motivo=motivo+' · '+miCorreo;
+      cerrarCambio(); pintarDetalle();
+      b.disabled=false; b.textContent='Guardar el cambio';
+      toast('✅ Cambio guardado en el día ' + fechaLarga(clase.fecha));
+    }).catch(function(e){
+      b.disabled=false; b.textContent='Guardar el cambio';
+      $('cErr').textContent='No se pudo guardar: '+e.message;
+    });
+    return;
+  }
 
   firebase.auth().currentUser.getIdToken().then(function(tk){
     return enviarAlPuente('corregir', {cambios:[{
@@ -897,14 +1378,11 @@ firebase.auth().onAuthStateChanged(function(u){
     $('app').style.display='block';
     document.querySelector('.adg-barra').style.display='flex';
     $('yoMail').textContent=miCorreo;
-    $('cargando').style.display='block';
     escucharAtrasadas();
-    Promise.all([cargarAlumnos(), cargarHistorial()]).then(function(){
-      $('cargando').style.display='none';
-      pintarAprobar();          // ahora que el historial está, puede detectar choques
-      pintarDetalle();          // arranca mostrando a todos, con los filtros
-      $('q').focus();
-    });
+    /* Arranca en el día de hoy, que es para lo que se entra todos los días.
+       El historial completo del alumno pesa (todas las clases de todos) y se
+       carga recién cuando se abre esa solapa. */
+    verDia(isoDeHoy());
   }).catch(function(e){
     $('login').style.display='none';
     $('nopuedeTxt').textContent='No se pudo verificar tu acceso. '+e.message;
