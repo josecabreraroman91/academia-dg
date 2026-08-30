@@ -2377,11 +2377,70 @@ function asegurarSemanas(){
 
    Sacando la copia de la MADRE en el momento de avanzar, eso no puede pasar.
    ============================================================ */
+/* ============================================================
+   QUIÉNES PIERDEN EL CELESTE AL AVANZAR
+
+   La semana nueva arranca como copia fiel de la MADRE. El celeste se vuelve a
+   pintar por nombre — pero solo se puede pintar sobre alguien que EXISTA en la
+   semana nueva. Un alumno que estaba puesto solo para esa semana (un acople,
+   una recuperación) no está en la MADRE, así que no aparece, y su celeste se
+   pierde sin que nadie se entere.
+
+   Esto no lo arregla: lo cuenta antes, para poder decidir con el dato a la
+   vista. Función aparte y sin efectos, para poder probarla sin navegador.
+   ============================================================ */
+function celestesQueSePierden(semanaVieja, madre){
+  const enMadre = {};
+  Object.keys((madre && madre.alumnos) || {}).forEach(function(k){
+    const a = madre.alumnos[k];
+    if(a && a.nombre) enMadre[normName(a.nombre)] = true;
+  });
+  const pierden = {}, siguen = {};
+  Object.keys((semanaVieja && semanaVieja.alumnos) || {}).forEach(function(k){
+    const a = semanaVieja.alumnos[k];
+    if(!a || !a.revisar || !a.nombre) return;
+    (enMadre[normName(a.nombre)] ? siguen : pierden)[a.nombre] = true;
+  });
+  return { pierden: Object.keys(pierden).sort(), siguen: Object.keys(siguen).length };
+}
+
+/* ============================================================
+   LA TRABA DE AVANZAR
+
+   Avanzar de semana no se deshace: la semana que estaba en pantalla se
+   descarta y todo vuelve a la MADRE. Con un solo confirm() alcanzaba con un
+   toque sin querer para perderla.
+
+   Ahora hay que ESCRIBIR la palabra. Es la misma traba que usa Caja para
+   borrar el historial: no hay clave nueva que recordar ni que perder, y frena
+   justo lo que tiene que frenar, que es el toque distraído.
+   ============================================================ */
+function pedirPalabraAvanzar(resumen){
+  const escrito = prompt(
+    resumen + '\n' +
+    '───────────────────────────────\n' +
+    'Esto NO se puede deshacer.\n\n' +
+    'Escribí la palabra AVANZAR para confirmar:'
+  );
+  if(escrito === null) return false;                     // apretó Cancelar
+  if(String(escrito).trim().toUpperCase() !== 'AVANZAR'){
+    alert('No se avanzó nada.\n\nPara avanzar hay que escribir la palabra AVANZAR.');
+    return false;
+  }
+  return true;
+}
+
+
 function avanzarSemana(){
   /* Los cambios que los profes dejaron sin aplicar se pierden de vista al
      avanzar: viven etiquetados con el lunes de su semana. Se avisa antes. */
   let pend = 0;
   try{ pend = resvPendientes().length + fijosPendientes().length; }catch(e){}
+
+  /* Y los celestes que no van a poder repintarse: son los que no estan en la
+     MADRE. Antes se perdian sin que nadie se enterara. */
+  let cel = { pierden: [], siguen: 0 };
+  try{ cel = celestesQueSePierden(state.semana, state.madre); }catch(e){}
 
   const aviso = '▸ Avanzar de semana.\n\n' +
     'La semana nueva arranca como COPIA FIEL DE LA MADRE.\n\n' +
@@ -2389,8 +2448,14 @@ function avanzarSemana(){
     '• Lo cargado en "la que viene" TAMBIÉN se descarta: esa vista es para mirar, no para planificar.\n' +
     '• Lo que tiene que valer todas las semanas va en la MADRE.\n' +
     (pend ? ('\n⚠️ Hay ' + pend + ' cambio(s) de profesores sin aplicar. Si avanzás ahora, no los vas a ver más.\n') : '') +
-    '\n¿Confirmás?';
-  if(!confirm(aviso)) return;
+    (cel.siguen ? ('\n🔵 ' + cel.siguen + ' persona(s) en celeste se mantienen.\n') : '') +
+    (cel.pierden.length
+      ? ('\n🔵 PIERDEN el celeste ' + cel.pierden.length + ' persona(s), porque no estan en la MADRE:\n   ' +
+         cel.pierden.slice(0, 12).join('\n   ') +
+         (cel.pierden.length > 12 ? ('\n   ...y ' + (cel.pierden.length - 12) + ' mas') : '') + '\n')
+      : '');
+
+  if(!pedirPalabraAvanzar(aviso)) return;
 
   backupAuto('antes de avanzar semana');
 
