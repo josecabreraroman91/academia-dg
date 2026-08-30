@@ -107,11 +107,10 @@
   .slot .tags{font-size:9.5px;font-weight:700;color:var(--muted);margin:0;grid-column:2;grid-row:1/3;display:flex;flex-direction:column;gap:2px;align-items:stretch;justify-content:center;overflow:hidden}
   .slot .tag{background:#262b36;padding:0 3px;border-radius:3px;text-align:center;line-height:1.3}
   /* ALTO RENDIMIENTO: la duracion se lee de un vistazo, sin buscar una etiqueta.
-     Sin duracion guardada va un "?" en ambar: hay que definirla, no darla por hecha. */
-  .slot .nm.ar{font-size:14px;letter-spacing:.3px;-webkit-line-clamp:2;white-space:normal}
-  .slot .nm.ar60{color:#8fd3ff}
-  .slot .nm.ar30{color:#ffc98f}
-  .slot .nm.arsd{color:#f2b23a}
+     Va en el mismo color que cualquier alumno, en negrita: los colores del
+     calendario ya significan otra cosa (verde, celeste, morado, rojo) y uno
+     mas se confunde con esos. Lo que diferencia es el TEXTO, no el color. */
+  .slot .nm.ar{font-size:14px;letter-spacing:.3px;-webkit-line-clamp:2;white-space:normal;font-weight:800}
   .slot .tag.mod{background:#33405a;color:#bcd0ff}
   .slot .tag.nivel{background:#3a2f4d;color:#d6b8ff;font-weight:700}
   .slot .nota{font-size:10px;font-weight:400;margin-top:2px;padding:0 4px;border-radius:3px;grid-column:1;grid-row:2;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -473,14 +472,21 @@
       </div>
 
       <!-- Los alumnos que entrenan dentro de un bloque de alto rendimiento -->
+      <!-- Los alumnos del bloque se cargan en la pantalla de Alto rendimiento, no
+           acá. Esa pantalla hace lo mismo y una cosa más: si el bloque se toca
+           en la MADRE, también lo baja a las semanas. Desde el calendario eso
+           no pasaba, porque el nombre del bloque no cambia y sin cambio de
+           nombre la MADRE no propaga: el alumno quedaba arriba y no llegaba a
+           la semana, que es de donde sale lo que se cobra. -->
       <div id="panelAR" style="display:none">
         <div id="arTitulo" class="arTit"></div>
         <div id="arLista"></div>
-        <div class="arAgregar">
-          <input id="arNombre" list="alumnosList" placeholder="Nombre del alumno" autocomplete="off">
-          <button type="button" class="btn" id="arAdd">Agregar</button>
+        <div class="arPie">
+          Los alumnos de este bloque se cargan en
+          <a id="arIrAlModulo" href="alto-rendimiento.html" target="_blank" rel="noopener"
+             style="font-weight:700;color:#0e7490">Alto rendimiento</a>.
+          Ahí se ve quién entrena en cada bloque, y el cambio baja solo a las semanas.
         </div>
-        <div class="arPie">Se ve desplegable en la vista de profes, para marcar quién vino.</div>
       </div>
     </div>
     <div class="field" id="fieldRevisar">
@@ -3895,37 +3901,15 @@ function pintarListaAR(){
   if(!esBloqueAR(al)){ cont.style.display='none'; return; }
   cont.style.display='';
   const lista=al.lista||[];
-  const dur=al.dur||60;
+  /* SOLO LECTURA. Los alumnos del bloque se cargan en la pantalla de Alto
+     rendimiento: hace lo mismo y ademas baja el cambio de la MADRE a las
+     semanas, cosa que desde aca no pasaba. Aca se muestran para saber quien
+     esta, nada mas. */
   document.getElementById('arTitulo').textContent =
-    'Alumnos del bloque · '+(dur===30?'media hora':'una hora')+' · '+lista.length;
+    'Alumnos del bloque · ' + nombreDelBloqueAR(al.dur) + ' · ' + lista.length;
   document.getElementById('arLista').innerHTML = lista.length
-    ? lista.map((n,i)=>'<div class="arFila"><span>'+esc(n)+'</span>'+
-        '<button type="button" class="arQuitar" data-i="'+i+'" title="Sacar">✕</button></div>').join('')
+    ? lista.map(function(n){ return '<div class="arFila"><span>'+esc(n)+'</span></div>'; }).join('')
     : '<div class="arVacio">Todavía no hay nadie en este bloque.</div>';
-  cont.querySelectorAll('.arQuitar').forEach(b=>{
-    b.onclick=()=>{
-      const arr=(book().alumnos[cellKey(sk,+pi,+hi,+si)].lista||[]).slice();
-      arr.splice(+b.dataset.i,1);
-      book().alumnos[cellKey(sk,+pi,+hi,+si)].lista=arr;
-      saveState(); pintarListaAR(); renderGrid();
-    };
-  });
-}
-function agregarAlumnoAR(){
-  if(!editingCell) return;
-  const inp=document.getElementById('arNombre');
-  const nom=(inp.value||'').trim();
-  if(!nom) return;
-  const [sk,pi,hi,si]=editingCell.split('|');
-  const k=cellKey(sk,+pi,+hi,+si);
-  const cel=book().alumnos[k]; if(!esBloqueAR(cel)) return;
-  const arr=(cel.lista||[]).slice();
-  if(arr.some(x=>normName(x)===normName(nom))){ inp.value=''; return; }   // ya estaba
-  arr.push(nom);
-  cel.lista=arr;
-  inp.value='';
-  saveState(); pintarListaAR(); renderGrid();
-  inp.focus();
 }
 // Marca el horario del profe como NO disponible (celda roja con candado). Usa el mecanismo "libres".
 function guardarBloqueado(){
@@ -5533,8 +5517,6 @@ document.getElementById('btnCrearAlumno').onclick=async ()=>{
 document.getElementById('btnSave').onclick=saveEditor;
 document.getElementById('btnAltoRend').onclick=()=>guardarBloque('ALTO RENDIMIENTO', 60);
 document.getElementById('btnAltoRend30').onclick=()=>guardarBloque('ALTO RENDIMIENTO', 30);
-document.getElementById('arAdd').onclick=agregarAlumnoAR;
-document.getElementById('arNombre').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); agregarAlumnoAR(); } });
 document.getElementById('btnRevisar').onclick=toggleRevisar;
 document.getElementById('btnAtencion').onclick=toggleAtencion;
 document.getElementById('btnAusente').onclick=toggleAusente;
