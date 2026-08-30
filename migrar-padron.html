@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pasar el padrón a Firebase · Academia DG</title>
+<link rel="stylesheet" href="tema-adg.css?v=2026-08-14a">
+<style>
+  :root{ --bg:#EEF2F4; --panel:#FFFFFF; --linea:#DFE8EC; --txt:#16262E; --sec:#5A6E7A;
+         --azul:#1080A5; --azul-d:#0C6A8A; --verde:#2F9E62; --rojo:#E0483D; --ambar:#D9982B; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font-family:var(--sans),system-ui,sans-serif;
+    font-size:15px;line-height:1.55}
+  .wrap{max-width:860px;margin:0 auto;padding:18px 14px 70px}
+  h1{font-size:21px;margin:0 0 3px}
+  .sub{color:var(--sec);font-size:13.5px;margin-bottom:18px}
+
+  .paso{background:var(--panel);border:1px solid var(--linea);border-radius:12px;
+    padding:14px 16px;margin-bottom:11px}
+  .paso h2{font-size:15px;margin:0 0 6px;display:flex;align-items:center;gap:8px}
+  .paso .n{background:var(--bg);border-radius:20px;width:23px;height:23px;display:inline-flex;
+    align-items:center;justify-content:center;font-size:12.5px;color:var(--sec);flex:none}
+  .paso.listo .n{background:var(--verde);color:#fff}
+  .paso p{margin:0;font-size:13px;color:var(--sec)}
+  .paso .acc{margin-top:11px}
+
+  .aviso{border-radius:12px;padding:12px 15px;margin-bottom:15px;font-size:13.5px;
+    background:#FFF6E0;border:1px solid #E8CE8A;color:#8A6A16}
+  .aviso.ok{background:#E6F5EC;border-color:#A8DBBE;color:#1F6B43}
+  .aviso.mal{background:#FDECEA;border-color:#F3C9C4;color:#96271D}
+  .aviso ul{margin:6px 0 0;padding-left:19px}
+  .aviso b{font-weight:700}
+
+  button{font-family:inherit;font-size:14.5px;padding:11px 18px;border-radius:10px;
+    border:1px solid var(--linea);background:var(--panel);color:var(--txt);cursor:pointer}
+  button.pri{background:var(--azul);border-color:var(--azul);color:#fff;font-weight:700}
+  button:disabled{opacity:.42;cursor:default}
+
+  table{border-collapse:collapse;width:100%;font-size:13px;margin-top:10px}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.4px;color:var(--sec);
+    padding:8px 7px 5px;border-bottom:1px solid var(--linea);white-space:nowrap}
+  td{padding:7px;border-bottom:1px solid var(--linea);vertical-align:top}
+  tr:last-child td{border-bottom:0}
+  .id{font-family:ui-monospace,Consolas,monospace;color:var(--azul);font-weight:700;white-space:nowrap}
+  .chico{font-size:11.5px;color:var(--sec)}
+  .rojo{color:var(--rojo)}
+  .tabla{overflow-x:auto;margin-top:4px}
+  details{margin-top:10px} summary{cursor:pointer;font-size:13.5px;color:var(--azul-d);font-weight:600}
+
+  #log{font-family:ui-monospace,Consolas,monospace;font-size:12px;white-space:pre-wrap;
+    background:#0F1D24;color:#CFE3EC;border-radius:11px;padding:13px;margin-top:14px;
+    display:none;max-height:320px;overflow:auto}
+
+  #login,#nopuede{position:fixed;inset:0;z-index:99;background:var(--bg);display:none;
+    align-items:center;justify-content:center;flex-direction:column;padding:26px;text-align:center}
+  #login h2,#nopuede h2{margin:0 0 8px;font-size:20px}
+  #login p,#nopuede p{color:var(--sec);max-width:340px;margin:0 0 22px}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <img class="adg-marca" src="logo-adg.png" alt="Academia Diego Gonz&aacute;lez" width="405" height="191">
+  <div class="adg-caja">
+    <h2>Pasar el padrón a Firebase</h2>
+    <p>Los alumnos que están solo en la planilla, y los IDs cruzados.</p>
+    <button class="pri" id="btnEntrar">Entrar con Google</button>
+  </div>
+  <div id="errLogin" style="color:var(--rojo);font-size:13.5px;margin-top:14px"></div>
+</div>
+
+<div id="nopuede">
+  <img class="adg-marca" src="logo-adg.png" alt="Academia Diego Gonz&aacute;lez" width="405" height="191">
+  <div class="adg-caja">
+    <h2>No tenés acceso</h2>
+    <p id="nopuedeTxt"></p>
+    <button id="btnSalir2">Salir</button>
+  </div>
+</div>
+
+<div class="adg-barra" style="display:none">
+  <img class="ico" src="logo-adg-icono.png" alt="Academia DG" width="90" height="90">
+  <div class="tit">Pasar el padrón a Firebase <span>Los que quedaron en la planilla</span></div>
+  <div class="sp"></div>
+  <div class="quien"><b id="yoMail"></b><a href="#" id="btnSalir">Salir</a></div>
+</div>
+
+<div class="wrap" id="app" style="display:none">
+
+  <div class="aviso">
+    <b>Qué hace esta pantalla.</b> Compara la hoja ALUMNOS contra el padrón de Firebase y
+    arregla lo que quedó colgado cuando el robot que los copiaba dejó de correr:
+    <ul>
+      <li>crea en Firebase a los que están <b>solo en la planilla</b>, con un ID nuevo que nadie más usa</li>
+      <li>le corrige el ID a las clases del historial que apuntan <b>a otra persona</b></li>
+      <li><b>no borra nada</b>, no toca a los que ya están, y no escribe en la planilla</li>
+    </ul>
+    Manda el padrón de Firebase: si un alumno está en los dos lados, valen su nombre y su ID.
+  </div>
+
+  <div class="paso" id="p1">
+    <h2><span class="n">1</span> Mirar cómo está</h2>
+    <p>Lee la hoja y el padrón y te dice qué encontró. <b>No escribe nada.</b></p>
+    <div class="acc"><button class="pri" id="btnCalcular">Revisar</button></div>
+  </div>
+
+  <div id="resumen"></div>
+
+  <div class="paso" id="p2">
+    <h2><span class="n">2</span> Aplicar</h2>
+    <p>Se destraba recién cuando la revisión sale bien.</p>
+    <div class="acc"><button class="pri" id="btnAplicar" disabled>Aplicar en Firebase</button></div>
+  </div>
+
+  <div id="log"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+  authDomain: "academia-dg.firebaseapp.com",
+  databaseURL: "https://academia-dg-default-rtdb.firebaseio.com",
+  projectId: "academia-dg",
+  storageBucket: "academia-dg.firebasestorage.app",
+  messagingSenderId: "623967243039",
+  appId: "1:623967243039:web:e22397b466b63aefdf3e2a"
+});
+
+/* ============================================================
+   POR QUE ESTA PANTALLA EXISTE
+
+   Un alumno nuevo se cargaba en la planilla, ahi un script le ponia el ID, y
+   otro lo traia de vuelta a Firebase. Ese ultimo dejo de correr el 24/08/2026
+   y desde entonces hay alumnos que viven SOLO en la planilla.
+
+   Peor: la planilla reparte los IDs por orden (A0931, A0932...) sin saber que
+   Firebase ya le dio esos mismos numeros a otras personas. Por eso hay clases
+   guardadas con el ID de otro alumno, y Caja -- que cobra por ID -- les aplica
+   el precio equivocado.
+
+   Aca se arregla de una vez: a los que faltan se les da un ID en un rango que
+   la planilla no alcanza, y a las clases se les corrige el ID.
+
+   EL PLAN NO VIENE ESCRITO EN NINGUN LADO: se calcula cada vez, con los datos
+   del momento. Asi este archivo no guarda ni un nombre de alumno.
+   ============================================================ */
+
+/* Desde donde arrancan los IDs nuevos. Lejos del ultimo que reparte la planilla
+   (que va por A0956): mientras la planilla siga dando A0957, A0958..., un ID
+   nuestro no puede chocar con uno suyo. */
+var DESDE_ID = 1001;
+
+/* ============================================================
+   EL MISMO ALUMNO ESCRITO DISTINTO
+
+   En la hoja hay nombres cortos o con un typo que en Firebase estan completos.
+   Crear ficha nueva para esos seria duplicar a la persona.
+
+   No hay una lista escrita aca a proposito: este archivo es publico y no tiene
+   por que guardar el nombre de ningun alumno. Se DETECTAN, comparando palabra
+   por palabra, y se muestran para que un humano confirme antes de unirlos.
+   Unir a dos personas distintas por error es peor que dejar un duplicado, asi
+   que la decision no se toma sola.
+
+   Manda el nombre del modulo de Alumnos, decidido por Jose el 29/08/2026.
+   ============================================================ */
+function palabras(n){ return norm(n).split(' ').filter(function(x){ return x.length>1; }); }
+
+/* Es candidato si TODAS las palabras del nombre corto estan en el largo, o si
+   los dos empiezan igual y solo cambian una o dos letras al final (el typo). */
+function pareceElMismo(a, b){
+  var pa = palabras(a), pb = palabras(b);
+  if(!pa.length || !pb.length) return false;
+  var corto = pa.length <= pb.length ? pa : pb;
+  var largo = pa.length <= pb.length ? pb : pa;
+  var todasEstan = corto.every(function(w){ return largo.indexOf(w) >= 0; });
+  if(todasEstan && corto.length >= 1) return true;
+  /* mismo largo de palabras y una sola distinta, por un par de letras */
+  if(pa.length !== pb.length) return false;
+  var distintas = 0, casi = true;
+  for(var i=0;i<pa.length;i++){
+    if(pa[i] === pb[i]) continue;
+    distintas++;
+    var x = pa[i], y = pb[i];
+    var cortoW = x.length < y.length ? x : y, largoW = x.length < y.length ? y : x;
+    if(!(largoW.indexOf(cortoW) === 0 && largoW.length - cortoW.length <= 2)) casi = false;
+  }
+  return distintas === 1 && casi;
+}
+
+/* Filas del historial que NO son un alumno. Van sin ID a proposito, aunque en
+   el padron exista alguien que se llame igual. */
+var NO_SON_ALUMNOS = ['alto rendimiento','ayudante','almuerzo'];
+
+var $ = function(id){ return document.getElementById(id); };
+var miCorreo = null, PLAN = null;
+
+function esc(t){ return String(t==null?'':t)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+  .replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+function aClave(m){ return String(m).trim().toLowerCase().replace(/\./g, ','); }
+function norm(s){ return String(s==null?'':s).normalize('NFD').replace(/[̀-ͯ]/g,'')
+  .toLowerCase().replace(/\s+/g,' ').trim(); }
+function dig(s){ return +String(s==null?'':s).replace(/[^0-9]/g,'') || 0; }
+function log(t){ var e=$('log'); e.style.display='block'; e.textContent += t+'\n'; e.scrollTop=e.scrollHeight; }
+function cartel(clase, html){ $('resumen').innerHTML = '<div class="aviso '+clase+'">'+html+'</div>'; }
+
+function parseCSV(txt){
+  var rows=[], row=[], cur='', q=false;
+  for(var i=0;i<txt.length;i++){ var c=txt[i];
+    if(q){ if(c==='"'){ if(txt[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=c; }
+    else { if(c==='"') q=true;
+      else if(c===','){ row.push(cur); cur=''; }
+      else if(c==='\n'){ row.push(cur); rows.push(row); row=[]; cur=''; }
+      else if(c!=='\r') cur+=c; }
+  }
+  if(cur.length||row.length){ row.push(cur); rows.push(row); }
+  return rows;
+}
+
+/* ---------- calcular el plan ---------- */
+function calcularPlan(csv, pad, hist, noUnir){
+  var filas = parseCSV(csv);
+  var H = (filas[1]||[]).map(function(x){ return String(x).toLowerCase().trim(); });
+  var col = function(n){ return H.indexOf(n); };
+  var iN = col('alumnos'), iId = col('id');
+  if(iN<0 || iId<0) throw new Error('la hoja no tiene las columnas Alumnos/ID');
+  var campos = { cat:col('categoria'), lado:col('lado'), profe:col('profesor'), tipo:col('tipo de clase'),
+                 precio:col('precio de clase'), coment:col('comentarios'), nomHor:col('nombre p/ horario'),
+                 nomWpp:col('nombre_calendario'), tel:col('telefono') };
+  var DIAS = ['lunes','martes','miercoles','jueves','viernes','sabado'];
+  var iDia = {}; DIAS.forEach(function(d){ iDia[d]=col(d); });
+
+  var hoja = [];
+  for(var i=2;i<filas.length;i++){
+    var g = function(j){ return j>=0 ? String(filas[i][j]||'').trim() : ''; };
+    var nombre = g(iN); if(!nombre) continue;
+    var rec = { nombre:nombre, id:g(iId) };
+    Object.keys(campos).forEach(function(k){ var v=g(campos[k]); if(v) rec[k]=v; });
+    var dd={}; DIAS.forEach(function(d){ var v=g(iDia[d]); if(v) dd[d.toUpperCase()]=v; });
+    if(Object.keys(dd).length) rec.dias=dd;
+    hoja.push(rec);
+  }
+
+  var padPorNombre = {};
+  Object.keys(pad).forEach(function(id){
+    var n = norm((pad[id]||{}).nombre);
+    if(n && !padPorNombre[n]) padPorNombre[n]=id;
+  });
+
+  /* Las palabras de cada nombre del padrón, calculadas una sola vez: buscar el
+     parecido de 956 nombres contra 947 son casi un millón de comparaciones. */
+  var nombresPad = Object.keys(padPorNombre);
+
+  var yaEstan=[], aCrear=[], dobleId=[], alias=[];
+  hoja.forEach(function(h){
+    var idPad = padPorNombre[norm(h.nombre)];
+    if(idPad){
+      if(h.id && h.id !== idPad) dobleId.push({ nombre:h.nombre, idHoja:h.id, idPadron:idPad });
+      else yaEstan.push(h);
+      return;
+    }
+    /* No está por nombre exacto. ¿Se parece a alguno? Si se parece NO se decide
+       solo: se propone, y abajo hay una casilla para desmarcarlo. */
+    var parecido = null;
+    if(!(noUnir && noUnir[norm(h.nombre)])){
+      for(var k=0;k<nombresPad.length;k++){
+        if(pareceElMismo(h.nombre, nombresPad[k])){ parecido = padPorNombre[nombresPad[k]]; break; }
+      }
+    }
+    if(parecido){
+      alias.push({ nombreEnLaHoja:h.nombre, idHoja:h.id||'(sin ID)',
+                   quedaComo:(pad[parecido]||{}).nombre, id:parecido, ficha:h });
+      return;
+    }
+    aCrear.push(h);
+  });
+
+  /* El ID nuevo. Se le da a TODOS los que hay que crear, aunque el de la hoja
+     este libre: heredar un numero de la planilla es lo que armo este lio. */
+  var usados = {}; Object.keys(pad).forEach(function(id){ usados[id]=1; });
+  var siguiente = DESDE_ID;
+  function idNuevo(){
+    var id;
+    do { id = 'A' + String(siguiente++).padStart(4,'0'); } while(usados[id]);
+    usados[id]=1; return id;
+  }
+  var altas = aCrear.map(function(h){
+    var f = { id:idNuevo(), nombre:h.nombre, origen:'planilla-migrado' };
+    ['cat','lado','profe','tipo','precio','coment','nomHor','nomWpp','tel'].forEach(function(k){ if(h[k]) f[k]=h[k]; });
+    if(h.dias) f.dias = h.dias;
+    return { idViejo:h.id||'(sin ID)', loUsa:(pad[h.id]||{}).nombre||'', ficha:f };
+  });
+
+  /* El historial: que filas guardan el ID de otra persona. */
+  var idBueno = {};
+  Object.keys(pad).forEach(function(id){ var n=norm((pad[id]||{}).nombre); if(n && !idBueno[n]) idBueno[n]=id; });
+  altas.forEach(function(a){ idBueno[norm(a.ficha.nombre)] = a.ficha.id; });
+  /* El nombre de la hoja apunta al ID del que ya existe, no a uno nuevo. */
+  alias.forEach(function(a){ idBueno[norm(a.nombreEnLaHoja)] = a.id; });
+
+  var filasMal = [];
+  Object.keys(hist).forEach(function(fecha){
+    ((hist[fecha]||{}).filas||[]).forEach(function(f, i){
+      var nombre=f[1], idFila=f[9]||'', cobro=String(f[7]||'').trim();
+      if(NO_SON_ALUMNOS.indexOf(norm(nombre))>=0) return;
+      if(cobro!=='No' && !/^S/i.test(cobro)) return;
+      var bueno = idBueno[norm(nombre)];
+      if(!bueno || idFila===bueno) return;
+      filasMal.push({ fecha:fecha, i:i, alumno:nombre, idQueTiene:idFila||'(vacío)',
+                      idQueVa:bueno, deQuien:(pad[idFila]||{}).nombre||'', cobro:cobro });
+    });
+  });
+
+  return { hoja:hoja.length, padron:Object.keys(pad).length, yaEstan:yaEstan.length,
+           altas:altas, alias:alias, dobleId:dobleId, filasMal:filasMal };
+}
+
+/* ---------- pintar lo que se encontró ---------- */
+function pintarPlan(p){
+  var h = '<div class="aviso ok"><b>Esto es lo que hay.</b> En la hoja hay <b>'+p.hoja+'</b> alumnos y en Firebase <b>'+p.padron+'</b>. '+
+    'Coinciden y no se tocan: <b>'+p.yaEstan+'</b>.<ul>'+
+    '<li><b>'+p.altas.length+'</b> hay que crearlos en Firebase, con ID nuevo</li>'+
+    '<li><b>'+p.dobleId.length+'</b> son la misma persona con dos IDs — queda el de Firebase</li>'+
+    '<li><b>'+p.alias.length+'</b> están escritos distinto — queda el nombre de Firebase</li>'+
+    '<li><b>'+p.filasMal.length+'</b> clases del historial tienen el ID de otra persona</li>'+
+    '</ul></div>';
+
+  if(p.altas.length){
+    h += '<div class="paso"><h2>Los '+p.altas.length+' que se van a crear</h2><div class="tabla"><table>'+
+      '<tr><th>Alumno</th><th>ID nuevo</th><th>Traía de la planilla</th><th>Precio</th></tr>'+
+      p.altas.map(function(a){
+        return '<tr><td><b>'+esc(a.ficha.nombre)+'</b></td><td class="id">'+a.ficha.id+'</td>'+
+          '<td class="chico">'+esc(a.idViejo)+(a.loUsa?' <span class="rojo">(lo usa '+esc(a.loUsa)+')</span>':' (libre)')+'</td>'+
+          '<td>'+(dig(a.ficha.precio)?dig(a.ficha.precio).toLocaleString('es-PY'):'<span class="rojo">sin precio</span>')+'</td></tr>';
+      }).join('')+'</table></div></div>';
+  }
+
+  if(p.filasMal.length){
+    h += '<div class="paso"><h2>Las '+p.filasMal.length+' clases con el ID de otro</h2><div class="tabla"><table>'+
+      '<tr><th>Fecha</th><th>Alumno</th><th>Tiene el ID de…</th><th>Va</th></tr>'+
+      p.filasMal.map(function(f){
+        return '<tr><td class="chico">'+esc(f.fecha)+'</td><td><b>'+esc(f.alumno)+'</b></td>'+
+          '<td>'+(f.deQuien?'<span class="rojo">'+esc(f.deQuien)+'</span> <span class="chico">('+esc(f.idQueTiene)+')</span>':'<span class="chico">sin ID</span>')+'</td>'+
+          '<td class="id">'+esc(f.idQueVa)+'</td></tr>';
+      }).join('')+'</table></div></div>';
+  }
+
+  /* Los parecidos NO se unen solos: van con una casilla para desmarcar. Unir a
+     dos personas distintas por error es peor que dejar un duplicado. */
+  if(p.alias.length){
+    h += '<div class="paso" id="pAlias"><h2>¿Son la misma persona? ('+p.alias.length+')</h2>'+
+      '<p>Estos nombres de la planilla se parecen a alguien que ya está en Firebase. Si dejás la casilla marcada, '+
+      'la clase queda en la ficha que ya existe. Si la desmarcás, se crea como alumno nuevo.</p>'+
+      '<div class="tabla"><table><tr><th>Unir</th><th>En la planilla</th><th>Con esta ficha</th><th>ID</th></tr>'+
+      p.alias.map(function(a,i){
+        return '<tr><td><input type="checkbox" class="unir" data-i="'+i+'" checked></td>'+
+          '<td>'+esc(a.nombreEnLaHoja)+' <span class="chico">('+esc(a.idHoja)+')</span></td>'+
+          '<td><b>'+esc(a.quedaComo)+'</b></td><td class="id">'+esc(a.id)+'</td></tr>';
+      }).join('')+'</table></div></div>';
+  }
+
+  if(p.dobleId.length){
+    h += '<details><summary>Ver los '+p.dobleId.length+' que tienen dos IDs (quedan como están)</summary><div class="paso">'+
+      '<div class="tabla"><table><tr><th>Alumno</th><th>En la planilla</th><th>Queda</th></tr>'+
+      p.dobleId.map(function(d){ return '<tr><td><b>'+esc(d.nombre)+'</b></td><td class="chico">'+esc(d.idHoja)+'</td><td class="id">'+esc(d.idPadron)+'</td></tr>'; }).join('')+
+      '</table></div></div></details>';
+  }
+  $('resumen').innerHTML = h;
+
+  /* Desmarcar una unión rehace el plan: ese alumno pasa a ser un alta nueva. */
+  $('resumen').querySelectorAll('input.unir').forEach(function(c){
+    c.onchange = function(){
+      PLAN.noUnir = {};
+      $('resumen').querySelectorAll('input.unir').forEach(function(x){
+        if(!x.checked) PLAN.noUnir[norm(PLAN.alias[+x.dataset.i].nombreEnLaHoja)] = 1;
+      });
+      $('btnCalcular').click();
+    };
+  });
+}
+
+/* ---------- 1) revisar ---------- */
+$('btnCalcular').onclick = function(){
+  var b = $('btnCalcular'); b.disabled = true; b.textContent = 'Revisando…';
+  var db = firebase.database();
+  Promise.all([
+    db.ref('alumnos_v1/csv').once('value').then(function(s){ return s.val()||''; }),
+    db.ref('padron_v1/alumnos').once('value').then(function(s){ return s.val()||{}; }),
+    db.ref('historial_v2').once('value').then(function(s){ return s.val()||{}; })
+  ]).then(function(r){
+    if(!r[0]) throw new Error('no pude leer la copia de la hoja (alumnos_v1/csv)');
+    PLAN = calcularPlan(r[0], r[1], r[2], (PLAN && PLAN.noUnir) || {});
+    PLAN.noUnir = (PLAN.noUnir) || {};
+    log('hoja: '+PLAN.hoja+' · padrón: '+PLAN.padron+' · días cerrados: '+Object.keys(r[2]).length);
+    log('a crear: '+PLAN.altas.length+' · filas a corregir: '+PLAN.filasMal.length);
+    pintarPlan(PLAN);
+    $('p1').classList.add('listo');
+    b.textContent = 'Revisar de nuevo'; b.disabled = false;
+    $('btnAplicar').disabled = !(PLAN.altas.length || PLAN.filasMal.length);
+    if(!PLAN.altas.length && !PLAN.filasMal.length)
+      cartel('ok', '<b>No hay nada que hacer.</b> La hoja y Firebase ya están al día.');
+  }).catch(function(e){
+    cartel('mal', 'No pude revisar: '+esc(e.message));
+    b.textContent = 'Revisar'; b.disabled = false;
+  });
+};
+
+/* ---------- 2) aplicar ---------- */
+$('btnAplicar').onclick = function(){
+  if(!PLAN) return;
+  if(!confirm('Se van a crear '+PLAN.altas.length+' fichas y corregir '+PLAN.filasMal.length+
+              ' clases del historial.\n\nNo se borra nada y no se toca a los que ya están.\n\n¿Vamos?')) return;
+  var b = $('btnAplicar'); b.disabled = true; b.textContent = 'Aplicando…';
+  var db = firebase.database();
+
+  /* Antes de escribir, que ninguno de los IDs nuevos se haya ocupado desde que
+     se calculó. Si pasó, se corta y se vuelve a revisar. */
+  db.ref('padron_v1/alumnos').once('value').then(function(s){
+    var pad = s.val()||{};
+    var chocan = PLAN.altas.filter(function(a){ return pad[a.ficha.id]; });
+    if(chocan.length) throw new Error('los IDs '+chocan.map(function(c){ return c.ficha.id; }).join(', ')+
+                                      ' se ocuparon recién. Apretá Revisar otra vez.');
+
+    log('\n--- las altas ---');
+    var cadena = Promise.resolve();
+    PLAN.altas.forEach(function(a){
+      cadena = cadena.then(function(){
+        /* update y no set: escribe la ficha sin tocar nada de al lado. */
+        return db.ref('padron_v1/alumnos/'+a.ficha.id).update(a.ficha).then(function(){
+          log('  '+a.ficha.id+'  '+a.ficha.nombre);
+        });
+      });
+    });
+    return cadena;
+  }).then(function(){
+    log('\n--- el ID de las clases ---');
+    var porFecha = {};
+    PLAN.filasMal.forEach(function(f){ (porFecha[f.fecha] = porFecha[f.fecha] || []).push(f); });
+    var cadena = Promise.resolve();
+    Object.keys(porFecha).sort().forEach(function(fecha){
+      cadena = cadena.then(function(){
+        return db.ref('historial_v2/'+fecha).once('value').then(function(s){
+          var dia = s.val();
+          if(!dia || !dia.filas){ log('  '+fecha+': no está, lo salteo'); return; }
+          var filas = dia.filas.map(function(x){ return x.slice(); });
+          var tocadas = 0;
+          porFecha[fecha].forEach(function(f){
+            var fila = filas[f.i];
+            /* Se compara el nombre antes de tocar: si el día cambió desde que se
+               calculó, el índice ya no sirve y es preferible saltearla. */
+            if(!fila || fila[1] !== f.alumno){ log('  '+fecha+' fila '+f.i+': cambió, la salteo'); return; }
+            fila[9] = f.idQueVa; tocadas++;
+          });
+          if(!tocadas){ log('  '+fecha+': 0'); return; }
+          /* update de la llave filas: no toca cerrado, por, ni las correcciones. */
+          return db.ref('historial_v2/'+fecha).update({ filas:filas }).then(function(){
+            log('  '+fecha+': '+tocadas+' fila(s)');
+          });
+        });
+      });
+    });
+    return cadena;
+  }).then(function(){
+    log('\n--- verificación ---');
+    return firebase.database().ref('padron_v1/alumnos').once('value').then(function(s){
+      var pad = s.val()||{};
+      var faltan = PLAN.altas.filter(function(a){ return !pad[a.ficha.id]; });
+      log('  altas: '+(PLAN.altas.length-faltan.length)+'/'+PLAN.altas.length);
+      log('  el padrón quedó con '+Object.keys(pad).length+' alumnos');
+      $('p2').classList.add('listo');
+      $('btnAplicar').textContent = 'Aplicado ✓';
+      cartel(faltan.length ? 'mal' : 'ok',
+        faltan.length
+          ? '<b>Quedó a medias.</b> Faltan '+faltan.length+' altas. Apretá Revisar y volvé a aplicar: lo que ya está no se duplica.'
+          : '<b>Listo.</b> El padrón quedó con <b>'+Object.keys(pad).length+'</b> alumnos.<br><br>'+
+            'Apretá <b>Revisar</b> otra vez para confirmar que no queda nada pendiente. Después hay que cargarle el precio a los que están en cero, desde el módulo de Alumnos.');
+      if(faltan.length){ $('btnAplicar').disabled = false; $('btnAplicar').textContent = 'Reintentar'; }
+    });
+  }).catch(function(e){
+    cartel('mal', 'Se cortó: '+esc(e.message)+'<br>Lo que ya se escribió quedó escrito. Apretá Revisar y volvé a intentar: lo que ya está no se duplica.');
+    b.disabled = false; b.textContent = 'Reintentar';
+  });
+};
+
+/* ---------- entrar ---------- */
+$('btnEntrar').onclick = function(){
+  firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider())
+    .catch(function(e){ $('errLogin').textContent = 'No pude entrar: '+e.message; });
+};
+$('btnSalir').onclick = function(e){ e.preventDefault(); firebase.auth().signOut(); };
+$('btnSalir2').onclick = function(){ firebase.auth().signOut(); };
+
+/* Nada que lea Firebase corre antes del login. */
+firebase.auth().onAuthStateChanged(function(u){
+  if(!u){ $('login').style.display='flex'; $('nopuede').style.display='none'; $('app').style.display='none'; return; }
+  miCorreo = u.email.toLowerCase();
+  firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
+    var f = s.val()||{}, p = f.permisos||{};
+    /* Esto crea alumnos y toca el historial que se cobra: solo administradores. */
+    if(f.activo !== true || p.admin !== true){
+      $('login').style.display='none';
+      $('nopuedeTxt').textContent = miCorreo+'\n\nEsta pantalla es solo para administradores.';
+      $('nopuede').style.display='flex';
+      return;
+    }
+    $('login').style.display='none'; $('nopuede').style.display='none';
+    $('app').style.display='block';
+    document.querySelector('.adg-barra').style.display='flex';
+    $('yoMail').textContent = miCorreo;
+  }).catch(function(e){
+    $('login').style.display='none';
+    $('nopuedeTxt').textContent = 'No se pudo verificar tu acceso. '+e.message;
+    $('nopuede').style.display='flex';
+  });
+});
+</script>
+<script src="tema-adg.js?v=2026-08-14a"></script>
+</body>
+</html>
