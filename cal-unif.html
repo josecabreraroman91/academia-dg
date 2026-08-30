@@ -4093,6 +4093,59 @@ function fechaDelDia(){
   return `${state.dia} ${t.getDate()} DE ${meses[t.getMonth()]}`;
 }
 
+/* ============================================================
+   LOS AUSENTES, AL FINAL DEL RESUMEN DE WHATSAPP
+
+   El profe marca en la tablet quién no vino. Eso se ve en la grilla (contorno
+   rojo) pero no salía en el resumen que se manda por WhatsApp, así que había
+   que ir a buscarlo a mano.
+
+   Solo el que el profe marcó que NO VINO. El que nunca confirmó ya sale con
+   los ojitos 👀 en su renglón de arriba: repetirlo abajo sería decir dos veces
+   lo mismo.
+
+   Y solo cuando lo que se está mirando ES HOY. La asistencia vive en
+   dia/<hoy>: en la MADRE, en otro día o en otra semana no hay nada que decir,
+   y una sección vacía o equivocada es peor que ninguna. Es la misma condición
+   que usa faltoHoy() para pintar la grilla.
+   ============================================================ */
+function ausentesDelResumen(B, sedes){
+  if(state.mode === 'madre') return [];
+  if((state.semActiva || 'actual') !== 'actual') return [];
+  if(state.dia !== diaHoyNombre()) return [];
+
+  const vistos = {}, out = [];
+  HORAS.forEach(function(hora, hi){
+    sedes.forEach(function(s){
+      s.profes.forEach(function(d, pi){
+        if(!d || d === '—') return;
+        for(let si = 0; si < SLOTS_POR_HORA; si++){
+          const al = B.alumnos[aKey(s.key, pi, hi, si)];
+          if(!al || !al.nombre) continue;
+          if(esBloque(al.nombre)) continue;               // bloques y almuerzos no faltan
+          if(!faltoHoy(s.key, hi, al.nombre)) continue;
+          /* El mismo alumno puede estar en dos columnas del mismo profe: se
+             nombra una sola vez por hora. */
+          const k = hi + '|' + normName(al.nombre);
+          if(vistos[k]) continue;
+          vistos[k] = true;
+          out.push({ hora: hora, nombre: al.nombre });
+        }
+      });
+    });
+  });
+  return out;
+}
+
+/* El pedazo de texto que se pega al final. Vacío si no faltó nadie: el mensaje
+   no tiene por qué crecer para decir que no pasó nada. */
+function bloqueAusentes(lista){
+  if(!lista || !lista.length) return '';
+  return '\n\n––––––––––––––––––––– \n🔴 AUSENTES\n\n' +
+    lista.map(function(a){ return a.hora + ' · ' + a.nombre; }).join('\n');
+}
+
+
 function buildResumen(){
   const sedes=sedesDelDia();
   const B=libroDelResumen();
@@ -4146,7 +4199,8 @@ function buildResumen(){
     });
     out += '\n'; // espacio entre bloques de horario
   });
-  return out.trim();
+  out = out.trim() + bloqueAusentes(ausentesDelResumen(B, sedes));
+  return out;
 }
 
 /* ===== Arrastrar alumno (mantener apretado ~medio segundo) a un espacio VACÍO ===== */
