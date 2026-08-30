@@ -4048,48 +4048,49 @@ function sedeEmoji(key){ return key==='elite'?' 💎':key==='segurola'?' 🏝️
    porque estás preparando la semana que arranca mañana, así que el resumen —fecha
    Y alumnos— sale de la semana PRÓXIMA. Solo aplica si esa semana existe: si
    todavía no se cargó, se queda con la de siempre y no se inventa nada. */
-function domingoPreparaProxima(){
-  return new Date().getDay()===0
-      && state.mode!=='madre'
-      && (state.semActiva||'actual')==='actual'
-      && !!(state.semanaProxima && state.semanaProxima.alumnos);
-}
+/* El resumen es del libro que se esta viendo. Nada mas. Antes, los domingos,
+   saltaba solo a la semana siguiente: el titulo decia una semana y la lista
+   era de otra. */
 function libroDelResumen(){
-  return domingoPreparaProxima() ? state.semanaProxima : book();
+  return book();
 }
 
+/* ============================================================
+   LA FECHA DEL DIA QUE SE ESTA MIRANDO
+
+   Se calcula desde la semana que MUESTRA el calendario (state.lunesActual),
+   no desde el reloj. El calendario ya sabe que semana tiene abierta: la fecha
+   del dia elegido es ese lunes mas el dia que se toco.
+
+   Antes se calculaba a partir de que dia era HOY, y hubo que ir tapando casos
+   uno por uno: el domingo caia en el lunes de la semana pasada, tocar
+   PROXIMA no movia la fecha, y el ultimo parche hacia que los domingos el
+   resumen saltara a la semana siguiente -- con el titulo de una semana y la
+   lista de otra. Calculando desde lunesActual no queda ningun caso especial:
+   el resumen es del dia que se eligio, siempre.
+   ============================================================ */
 function fechaDelDia(){
   const meses=['ENERO','FEBRERO','MARZO','ABRIL','MAYO','JUNIO','JULIO','AGOSTO','SEPTIEMBRE','OCTUBRE','NOVIEMBRE','DICIEMBRE'];
-  const idx=DAYS.indexOf(state.dia); // 0=LUNES..5=SABADO
-  const hoy=new Date();
-  const dow=hoy.getDay(); // 0=dom..6=sab
+  const idx = Math.max(0, DAYS.indexOf(state.dia));   // 0=LUNES..5=SABADO
 
-  /* EL DOMINGO MIRA PARA ADELANTE.
-     Antes el domingo restaba 6 días y caía en el lunes de la semana que YA pasó:
-     armando el resumen un domingo a la noche para el día siguiente salía con la
-     fecha de 7 días atrás. El domingo no se entrena, así que si estás acá es
-     preparando la semana que arranca: va al lunes SIGUIENTE.
+  /* El lunes de la semana abierta. Si por lo que fuera no estuviera guardado,
+     se cae al lunes de esta semana: es lo que se veria en pantalla igual. */
+  let lunes;
+  if(/^\d{4}-\d{2}-\d{2}$/.test(state.lunesActual || '')){
+    const p = state.lunesActual.split('-').map(Number);
+    lunes = new Date(p[0], p[1]-1, p[2]);
+  } else {
+    const hoy = new Date(), dow = hoy.getDay();       // 0=dom..6=sab
+    lunes = new Date(hoy);
+    lunes.setDate(hoy.getDate() + (dow===0 ? -6 : 1-dow));
+  }
 
-     Va de la mano con libroDelResumen(): si la fecha salta a la semana que viene,
-     los alumnos también tienen que salir de ESA semana. Adelantar solo la fecha
-     dejaba un resumen con el encabezado del lunes que viene y la lista de la
-     semana que terminó. */
-  const lunes=new Date(hoy);
-  /* Ojo con el domingo: `1-dow` da +1 igual que la rama de arriba, así que si no
-     hay semana próxima cargada hay que volver EXPRESAMENTE al -6 de siempre. Sin
-     eso la fecha saltaba al lunes que viene mientras los alumnos seguían saliendo
-     de la semana que terminó: encabezado de una semana, lista de la otra. */
-  lunes.setDate(hoy.getDate()+(dow===0 ? (domingoPreparaProxima() ? 1 : -6) : 1-dow));
-
-  /* Y SIGUE A LA SEMANA QUE ESTÁS MIRANDO.
-     Esta función no leía state.semActiva: tocabas PRÓXIMA, la grilla cambiaba
-     pero la fecha del encabezado se quedaba en la semana de hoy. Cada resumen de
-     la semana que viene salía fechado en la semana anterior. */
+  /* Y sigue a la pestana de semana que este elegida, igual que la grilla. */
   const sem = state.semActiva || 'actual';
   if(sem==='proxima')       lunes.setDate(lunes.getDate()+7);
   else if(sem==='anterior') lunes.setDate(lunes.getDate()-7);
 
-  const t=new Date(lunes); t.setDate(lunes.getDate()+idx);
+  const t = new Date(lunes); t.setDate(lunes.getDate()+idx);
   return `${state.dia} ${t.getDate()} DE ${meses[t.getMonth()]}`;
 }
 
