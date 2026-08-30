@@ -946,6 +946,11 @@ function esBloque(nombre){
   return letras.length<=2;                                      // "-", "AR", "G" sueltos
 }
 
+/* La fila de un ALUMNO de alto rendimiento: AR60 o AR30, con número. La fila
+   del BLOQUE tiene el tipo 'AR' pelado y no es un alumno — sin el dígito, el
+   bloque se contaría a sí mismo. */
+function esAlumnoAR(tipo){ return /^AR\d/i.test(String(tipo==null?'':tipo).trim()); }
+
 /* ============================================================
    LA CLASE DE COACH
 
@@ -1067,7 +1072,23 @@ function calcularPozo(filas){
 
        Antes aportaban solo los presentes, así que esa plata se cobraba pero
        el profe no veía un peso de ella. */
-    if(h.seCobra){
+    /* ============================================================
+       ALTO RENDIMIENTO: NO SE LE COBRA, PERO SÍ LE PAGA AL PROFE
+
+       El alumno de alto rendimiento paga una mensualidad aparte, por fuera del
+       sistema, así que su fila viene con cobro "—" y no entra en la cuenta de
+       nadie. Si el pozo sumara solo "lo que se cobra", el profe que da el
+       bloque no vería un peso de esos alumnos.
+
+       Por eso estas filas aportan por haber VENIDO, no por cobrarse. El que
+       faltó no aporta: el alumno pagó su mes igual, pero esa plata no pasa al
+       profe (decidido por José el 29/08/2026).
+
+       El aporte sale de Tipos de clase como el resto — AR60 la hora, AR30 la
+       media — y el pozo se reparte igual que siempre, entre todos los profes
+       que trabajaron esa hora.
+       ============================================================ */
+    if(h.seCobra || (esAlumnoAR(h.tipo) && h.presente)){
       var ap=aporteDe(h.tipo);
       if(!ap) b.sinTipo++;
       b.total+=ap;

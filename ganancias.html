@@ -264,6 +264,9 @@ var DECORATIVOS=/almuerzo|\blibre\b|pretemporada|no\s*hay\s*cancha|nohaycancha|\
 function esBloqueAR(nombre){ return /alto\s*rendimiento|alto\s*r\b/i.test(String(nombre==null?'':nombre).trim()); }
 function esBloque(nombre){ var crudo=String(nombre==null?'':nombre).trim(); if(esBloqueAR(crudo)||DECORATIVOS.test(crudo)) return true; var letras=crudo.replace(/[^a-z0-9]/gi,''); if(!letras) return true; return letras.length<=2; }
 function esCoach(h){ return String(h&&h.tipo||'').trim().toUpperCase()==='COACH'; }
+/* La fila de un ALUMNO de alto rendimiento: AR60 o AR30, con número. La del
+   BLOQUE tiene el tipo 'AR' pelado y no es un alumno. */
+function esAlumnoAR(tipo){ return /^AR\d/i.test(String(tipo==null?'':tipo).trim()); }
 /* La misma cuenta que la Caja. Si cambia una, hay que cambiar la otra. */
 function calcularPozo(filas){
   var horas={};
@@ -278,7 +281,10 @@ function calcularPozo(filas){
     if(esCoach(h)) return;
     if(h.profe) b.profes[h.profe]=true;
     if(h.presente) b.presentes++;
-    if(h.seCobra){
+    /* ALTO RENDIMIENTO: no se le cobra al alumno (paga mensual aparte, su fila
+       viene con "—"), pero el que VINO igual le aporta al profe. El que faltó
+       no. Tiene que decir lo mismo que la Caja: si cambia acá, cambiar allá. */
+    if(h.seCobra || (esAlumnoAR(h.tipo) && h.presente)){
       var ap=aporteDe(h.tipo);
       if(!ap) b.sinTipo++;
       b.total+=ap;
