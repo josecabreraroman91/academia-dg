@@ -78,9 +78,9 @@
   .vacio{color:var(--sec);text-align:center;padding:40px 10px;font-size:14px}
   #cargando{color:var(--sec);text-align:center;padding:36px 0}
 
-  #ov,#ovRech{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:none;
+  #ov,#ovRech,#ovAdd{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.72);display:none;
     align-items:center;justify-content:center;padding:16px}
-  #ov.show,#ovRech.show{display:flex}
+  #ov.show,#ovRech.show,#ovAdd.show{display:flex}
   .caja{background:var(--panel);border:1px solid var(--linea);border-radius:14px;
     padding:18px 16px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto}
   .caja h3{margin:0 0 3px;font-size:17px}
@@ -158,6 +158,27 @@
   .hora .h{font-size:15px;font-weight:700}
   .hora .cuantos{font-size:12px;color:var(--sec)}
   .hora .raya{flex:1;height:1px;background:var(--linea)}
+  /* El + para cargar una clase que alguien se olvido de marcar */
+  .hora .mas{font-family:inherit;font-size:15px;line-height:1;width:26px;height:26px;
+    border-radius:8px;border:1px solid var(--linea);background:transparent;color:var(--sec);
+    cursor:pointer;flex:none;align-self:center}
+  .hora .mas:hover{border-color:var(--azul);color:var(--azul)}
+  .hora .mas:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
+  .masAbajo{margin:16px 0 4px;text-align:center}
+  /* La clase que se agrego a mano: se ve distinta hasta que se guarda */
+  .cl.agregada{border-left:3px solid var(--azul)}
+  #agSug{margin-top:6px;max-height:190px;overflow-y:auto;border:1px solid var(--linea);
+    border-radius:9px;display:none}
+  #agSug.show{display:block}
+  #agSug button{display:block;width:100%;text-align:left;font-family:inherit;font-size:14px;
+    padding:9px 11px;border:0;border-bottom:1px solid var(--linea);background:transparent;
+    color:var(--txt);cursor:pointer}
+  #agSug button:last-child{border-bottom:0}
+  #agSug button:hover,#agSug button:focus-visible{background:var(--bg)}
+  #agSug button small{display:block;font-size:11.5px;color:var(--sec)}
+  .avisoAg{font-size:12.5px;color:var(--ambar);margin-top:7px;min-height:16px}
+  .campo select{width:100%;background:var(--bg);border:1px solid var(--linea);border-radius:9px;
+    color:var(--txt);padding:11px;font-family:inherit;font-size:15px}
 
   /* Una clase del día. Toda la fila es tocable: en el celular apuntarle a un
      botón chico con el dedo, sesenta veces, no es forma de trabajar. */
@@ -309,6 +330,39 @@
   </div>
 </div>
 
+<div id="ovAdd">
+  <div class="caja">
+    <h3>Agregar una clase</h3>
+    <div class="donde" id="agDonde"></div>
+
+    <div class="campo">
+      <label>¿Quién vino?</label>
+      <input id="agNombre" type="text" autocomplete="off" placeholder="Escribí el nombre…">
+      <div id="agSug"></div>
+      <div class="avisoAg" id="agAviso"></div>
+    </div>
+
+    <div class="campo" id="agCampoHora" style="display:none">
+      <label>¿A qué hora?</label>
+      <select id="agHora"></select>
+    </div>
+
+    <div class="campo">
+      <label>¿Con qué profe?</label>
+      <select id="agDestino"></select>
+    </div>
+
+    <div style="font-size:12.5px;color:var(--sec);margin-top:11px">
+      Se agrega como <b>Presente</b> y <b>se cobra</b>. Queda anotado que la cargaste vos.
+    </div>
+    <div class="err" id="agErr"></div>
+    <div class="acc">
+      <button class="b" id="agCancel">Cancelar</button>
+      <button class="b pri" id="agOk" style="flex:1">Agregar la clase</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -445,7 +499,11 @@ function cargarAlumnos(){
       alumnos.push({ nombre: nom,
                      id:  (((a && a.id)  || id) + '').trim(),
                      tel: (((a && a.tel) || '') + '').trim(),
-                     cat: (((a && a.cat) || '') + '').trim() });
+                     cat: (((a && a.cat) || '') + '').trim(),
+                     /* EL TIPO DE CLASE. Sin esto, una clase agregada a mano
+                        entra sin tipo, no suma a la bolsa de esa hora y el
+                        profe cobra de menos — justo lo que se quiere evitar. */
+                     tipo: (((a && a.tipo) || '') + '').trim() });
     });
     alumnos.sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
   }).catch(function(e){
@@ -458,7 +516,7 @@ function cargarAlumnosCSV(){
   return firebase.database().ref('alumnos_v1/csv').once('value').then(function(s){
     var csv=s.val(); if(!csv) return;
     var rows=parseCSV(csv); if(rows.length<2) return;
-    var headRow=-1, iNom=-1, iId=-1, iTel=-1, iCat=-1;
+    var headRow=-1, iNom=-1, iId=-1, iTel=-1, iCat=-1, iTip=-1;
     for(var r=0;r<Math.min(rows.length,12);r++){
       var h=rows[r].map(normNom);
       var n=h.findIndex(function(x){ return x==='alumnos'||x==='alumno'||x==='nombre'; });
@@ -467,6 +525,7 @@ function cargarAlumnosCSV(){
         headRow=r; iNom=n; iId=d;
         iTel=h.findIndex(function(x){ return x==='telefono'; });
         iCat=h.findIndex(function(x){ return x==='categoria'; });
+        iTip=h.findIndex(function(x){ return x==='tipo de clase'||x==='tipo'; });
         break;
       }
     }
@@ -475,7 +534,8 @@ function cargarAlumnosCSV(){
     for(var i=headRow+1;i<rows.length;i++){
       var nom=(rows[i][iNom]||'').trim(); if(!nom) continue;
       alumnos.push({nombre:nom, id:(rows[i][iId]||'').trim(),
-        tel:iTel>=0?(rows[i][iTel]||'').trim():'', cat:iCat>=0?(rows[i][iCat]||'').trim():''});
+        tel:iTel>=0?(rows[i][iTel]||'').trim():'', cat:iCat>=0?(rows[i][iCat]||'').trim():'',
+        tipo:iTip>=0?(rows[i][iTip]||'').trim():''});
     }
     alumnos.sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
   }).catch(function(e){ console.warn('alumnos_v1:', e.message); });
@@ -704,6 +764,7 @@ var dFecha = null;        // qué día se está mirando
 var dDatos = null;        // lo que contestó el agente
 var dFilas = [];          // las filas como quedaron en pantalla (con los cambios)
 var dTocadas = {};        // qué filas cambió el usuario, por posición
+var dAgregadas = {};      // cuáles se cargaron a mano acá, por posición
 var dEditando = -1;
 
 /* Las diez columnas, por nombre, para no andar contando con los dedos. */
@@ -762,7 +823,7 @@ function verDia(iso){
   $('dLista').innerHTML = ''; $('dGuardar').innerHTML = '';
   $('dEstado').innerHTML = ''; $('dAvisos').innerHTML = '';
   $('dCargando').style.display = 'block';
-  dTocadas = {};
+  dTocadas = {}; dAgregadas = {};
 
   alAgente('/dia-en-vivo?fecha='+encodeURIComponent(iso)).then(function(d){
     dDatos = d;
@@ -813,9 +874,13 @@ function pintarDia(){
   pintarEstadoDia();
 
   if(!dFilas.length){
-    $('dLista').innerHTML = '<div class="vacio">No hay clases ese día.</div>';
-    $('dGuardar').innerHTML = '';
-    document.body.classList.remove('conBarra');
+    /* Aunque no haya nada, tiene que poder cargarse algo: el caso "ese día no
+       se marcó a NADIE" es justo cuando más falta hace. */
+    $('dLista').innerHTML = '<div class="vacio">No hay clases ese día.</div>' +
+      '<div class="masAbajo"><button class="b" id="masOtraHora">➕ Agregar una clase</button></div>';
+    var b0 = document.getElementById('masOtraHora');
+    if(b0) b0.onclick = function(){ abrirAgregar(null); };
+    pintarBotonGuardar();
     return;
   }
 
@@ -850,12 +915,15 @@ function pintarDia(){
       var cuantos = dFilas.filter(function(x){ return x[C.HORA] === horaAct; }).length;
       h += '<div class="hora"><span class="h">'+esc(horaAct || 'sin hora')+'</span>'+
            '<span class="cuantos">'+cuantos+(cuantos===1?' clase':' clases')+'</span>'+
+           '<button class="mas" data-hora="'+esc(horaAct||'')+'" title="Agregar una clase a las '+
+             esc(horaAct||'')+'" aria-label="Agregar una clase a las '+esc(horaAct||'')+'">+</button>'+
            '<span class="raya"></span></div>';
       abierto = true;
     }
     var si = f[C.COBRO] === 'Sí';
     var noAplica = f[C.COBRO] === '—';
-    h += '<div class="cl'+(dTocadas[i]?' tocada':'')+(String(f[C.TIPO]).trim()?'':' sintipo')+'" data-i="'+i+'">'+
+    h += '<div class="cl'+(dTocadas[i]?' tocada':'')+(String(f[C.TIPO]).trim()?'':' sintipo')+
+      (dAgregadas[i]?' agregada':'')+'" data-i="'+i+'">'+
       '<div class="info">'+
         '<div class="nom">'+esc(f[C.ALUMNO])+'</div>'+
         '<div class="det">'+esc(f[C.SEDE])+(f[C.PROFE]?' · '+esc(f[C.PROFE]):'')+
@@ -871,10 +939,20 @@ function pintarDia(){
     '</div>';
   });
 
+  /* Las horas que se ven salen de las clases que YA existen. Si a las 6:00 no
+     hubo ninguna, esa hora no aparece y no habria donde apretar el +. Por eso
+     va tambien este boton, donde la hora se elige a mano. */
+  h += '<div class="masAbajo"><button class="b" id="masOtraHora">➕ Agregar en otro horario</button></div>';
+
   $('dLista').innerHTML = h;
   $('dLista').querySelectorAll('.cl').forEach(function(el){
     el.onclick = function(){ abrirCambioDia(+el.dataset.i); };
   });
+  $('dLista').querySelectorAll('.hora .mas').forEach(function(el){
+    el.onclick = function(ev){ ev.stopPropagation(); abrirAgregar(el.dataset.hora); };
+  });
+  var bOtra = document.getElementById('masOtraHora');
+  if(bOtra) bOtra.onclick = function(){ abrirAgregar(null); };
   pintarBotonGuardar();
 }
 
@@ -932,6 +1010,216 @@ function aplicarCambioDia(){
   cerrarCambio();
   pintarDia();
 }
+
+/* ============================================================
+   AGREGAR UNA CLASE QUE NO SE CARGÓ
+
+   Pasa: el profe se olvida de marcar a alguien que vino, o el alumno se acopla
+   sobre la hora y nadie lo anota. Esa clase no existe en ningún lado, así que
+   no se le cobra al alumno y no le suma a la bolsa del profe.
+
+   CÓMO SE GUARDA: no se escribe en Firebase desde acá. La fila se agrega a
+   `dFilas`, que es la lista que ya se manda entera a /guardar-dia cuando se
+   aprieta "Guardar el día". El agente acepta que la lista tenga más filas que
+   antes y deja anotado en `correcciones` cuántas había y cuántas hay, con quién
+   y cuándo. Es el mismo camino que usa cualquier corrección.
+
+   Sirve también en un día YA CERRADO: ahí el día queda marcado como corregido.
+   ============================================================ */
+var agHoraFija = null;    /* la hora del + que se apretó; null = se elige */
+var agElegido  = null;    /* el alumno del padrón, o null si va a mano */
+
+/* Las horas que se pueden elegir: las del día más la grilla de siempre. */
+function agHorasPosibles(){
+  var set = {};
+  dFilas.forEach(function(f){ var x = String(f[C.HORA] || '').trim(); if(x) set[x] = 1; });
+  for(var i = 6; i <= 21; i++) set[i + ':00'] = 1;
+  return Object.keys(set).sort(function(a, b){
+    return (parseInt(a, 10) || 0) - (parseInt(b, 10) || 0);
+  });
+}
+
+/* Los lugares donde puede ir la clase: cada par sede+profe que YA está
+   trabajando ese día. Primero los de esa hora, que es el caso normal. */
+function agDestinos(hora){
+  var vistos = {}, deLaHora = [], delDia = [];
+  dFilas.forEach(function(f){
+    var sede = String(f[C.SEDE] || '').trim(), profe = String(f[C.PROFE] || '').trim();
+    if(!sede && !profe) return;
+    var k = sede + '|' + profe;
+    if(vistos[k]) return;
+    vistos[k] = 1;
+    var item = { sede: sede, profe: profe, hora: String(f[C.HORA] || '').trim() };
+    if(item.hora === hora) deLaHora.push(item); else delDia.push(item);
+  });
+  var orden = function(a, b){
+    if(a.sede !== b.sede) return a.sede < b.sede ? -1 : 1;
+    return a.profe < b.profe ? -1 : 1;
+  };
+  return { deLaHora: deLaHora.sort(orden), delDia: delDia.sort(orden) };
+}
+
+/* EL PADRON SE CARGA TARDE.
+
+   La lista de alumnos se traía recién al entrar a la solapa "Por alumno", para
+   que el día abra rápido. Pero el + vive en la solapa del día, así que el
+   buscador salía vacío y todo el mundo quedaba "sin ficha". Se trae acá la
+   primera vez que se abre la ventanita, y nada más. */
+var agPidiendoPadron = null;
+function asegurarPadron(){
+  if(alumnos.length) return Promise.resolve();
+  if(agPidiendoPadron) return agPidiendoPadron;
+  $('agAviso').textContent = 'Buscando la lista de alumnos…';
+  agPidiendoPadron = cargarAlumnos().then(function(){
+    agPidiendoPadron = null;
+    if($('agAviso').textContent === 'Buscando la lista de alumnos…') $('agAviso').textContent = '';
+  }).catch(function(e){
+    agPidiendoPadron = null;
+    $('agAviso').textContent = 'No pude traer la lista de alumnos: escribí el nombre a mano.';
+  });
+  return agPidiendoPadron;
+}
+
+function abrirAgregar(hora){
+  agHoraFija = hora || null;
+  agElegido  = null;
+  $('agNombre').value = '';
+  $('agSug').innerHTML = ''; $('agSug').classList.remove('show');
+  $('agAviso').textContent = '';
+  $('agErr').textContent = '';
+
+  $('agDonde').textContent = (agHoraFija ? agHoraFija + ' · ' : '') + tituloDia(dFecha);
+
+  /* El selector de hora solo aparece cuando no vino del + de una hora. */
+  var cHora = $('agCampoHora');
+  if(agHoraFija){
+    cHora.style.display = 'none';
+  } else {
+    cHora.style.display = '';
+    $('agHora').innerHTML = agHorasPosibles().map(function(x){
+      return '<option value="' + esc(x) + '">' + esc(x) + '</option>';
+    }).join('');
+  }
+
+  pintarDestinos();
+  $('ovAdd').classList.add('show');
+  setTimeout(function(){ try{ $('agNombre').focus(); }catch(e){} }, 40);
+  asegurarPadron();
+}
+
+function pintarDestinos(){
+  var hora = agHoraFija || $('agHora').value || '';
+  var d = agDestinos(hora);
+  var op = function(x){
+    return '<option value="' + esc(x.sede + '|' + x.profe) + '">' +
+           esc(x.profe || 'sin profe') + ' · ' + esc(x.sede || 'sin sede') + '</option>';
+  };
+  var h = '';
+  if(d.deLaHora.length) h += '<optgroup label="Los que trabajan a las ' + esc(hora) + '">' + d.deLaHora.map(op).join('') + '</optgroup>';
+  if(d.delDia.length)   h += '<optgroup label="Otros del día">' + d.delDia.map(op).join('') + '</optgroup>';
+  if(!h) h = '<option value="|">(no hay ningún profe cargado ese día)</option>';
+  $('agDestino').innerHTML = h;
+}
+
+function cerrarAgregar(){ $('ovAdd').classList.remove('show'); }
+
+/* Buscador: se muestran hasta 8. Si no hay ninguno se avisa que igual se puede
+   cargar a mano, pero diciendo claro qué se pierde. */
+$('agNombre').oninput = function(){
+  agElegido = null;
+  /* Si todavía está viniendo la lista, se espera y se vuelve a buscar solo:
+     escribir rápido no puede dejar a alguien marcado como "sin ficha". */
+  if(!alumnos.length && agPidiendoPadron){
+    agPidiendoPadron.then(function(){ if($('ovAdd').classList.contains('show')) $('agNombre').oninput(); });
+    return;
+  }
+  var t = normNom($('agNombre').value), box = $('agSug');
+  if(t.length < 2){ box.innerHTML = ''; box.classList.remove('show'); $('agAviso').textContent = ''; return; }
+  var hay = alumnos.filter(function(a){ return normNom(a.nombre).indexOf(t) >= 0; }).slice(0, 8);
+  if(!hay.length){
+    box.innerHTML = ''; box.classList.remove('show');
+    $('agAviso').textContent = 'No está en el padrón. Se puede cargar igual, pero va a quedar sin tipo de clase ni precio.';
+    return;
+  }
+  $('agAviso').textContent = '';
+  box.innerHTML = hay.map(function(a, i){
+    return '<button type="button" data-i="' + i + '">' + esc(a.nombre) +
+           '<small>' + esc(a.id || 'sin ID') + (a.tipo ? ' · ' + esc(a.tipo) : ' · sin tipo de clase') + '</small></button>';
+  }).join('');
+  box.classList.add('show');
+  box.querySelectorAll('button').forEach(function(b){
+    b.onclick = function(){
+      agElegido = hay[+b.dataset.i];
+      $('agNombre').value = agElegido.nombre;
+      box.innerHTML = ''; box.classList.remove('show');
+      $('agAviso').textContent = agElegido.tipo ? ''
+        : 'Este alumno no tiene tipo de clase en su ficha: no le va a sumar a la bolsa del profe.';
+    };
+  });
+};
+
+/* Arma la fila de 10 columnas. Aparte de confirmarAgregar() para poder probarla
+   sin navegador: es la que decide qué se cobra. */
+function armarFilaNueva(fecha, nombre, hora, sede, profe, ficha, correo){
+  var fila = [];
+  fila[C.FECHA]  = fecha;
+  fila[C.ALUMNO] = ficha ? ficha.nombre : String(nombre || '').trim();
+  fila[C.HORA]   = hora;
+  fila[C.SEDE]   = sede || '';
+  fila[C.PROFE]  = profe || '';
+  fila[C.TIPO]   = ficha ? (ficha.tipo || '') : '';
+  fila[C.ESTADO] = 'Presente';
+  fila[C.COBRO]  = 'Sí';
+  fila[C.MOTIVO] = 'agregado a mano por ' + (correo || '');
+  fila[C.ID]     = ficha ? (ficha.id || '') : '';
+  return fila;
+}
+
+/* ¿Ya está esa persona a esa hora? Cargarla dos veces se cobra dos veces. */
+function yaEstaEnEsaHora(filas, hora, nombre){
+  return filas.some(function(f){
+    return String(f[C.HORA]).trim() === String(hora).trim() &&
+           normNom(f[C.ALUMNO]) === normNom(nombre);
+  });
+}
+
+function confirmarAgregar(){
+  var nombre = ($('agNombre').value || '').trim();
+  if(!nombre){ $('agErr').textContent = 'Escribí el nombre del alumno.'; return; }
+
+  var hora = agHoraFija || $('agHora').value || '';
+  if(!hora){ $('agErr').textContent = 'Elegí a qué hora fue la clase.'; return; }
+
+  var partes = String($('agDestino').value || '|').split('|');
+  var sede = partes[0] || '', profe = partes[1] || '';
+
+  /* Si el nombre coincide exacto con alguien del padrón se toma su ficha aunque
+     no lo haya elegido de la lista: así no queda sin ID por escribirlo entero. */
+  var ficha = agElegido;
+  if(!ficha){
+    var t = normNom(nombre);
+    ficha = alumnos.find(function(a){ return normNom(a.nombre) === t; }) || null;
+  }
+
+  if(yaEstaEnEsaHora(dFilas, hora, ficha ? ficha.nombre : nombre)){
+    $('agErr').textContent = 'Ese alumno ya está cargado a las ' + hora + ' ese día.';
+    return;
+  }
+
+  var fila = armarFilaNueva(dFecha, nombre, hora, sede, profe, ficha, miCorreo);
+  var i = dFilas.push(fila) - 1;
+  dTocadas[i] = true;      /* cuenta como cambio: prende el botón de guardar */
+  dAgregadas[i] = true;
+  cerrarAgregar();
+  pintarDia();
+  toast(fila[C.ALUMNO] + ' agregado a las ' + hora + ' · falta guardar el día');
+}
+
+$('agCancel').onclick   = cerrarAgregar;
+$('agOk').onclick       = confirmarAgregar;
+$('agHora').onchange    = pintarDestinos;
+$('ovAdd').onclick      = function(ev){ if(ev.target.id === 'ovAdd') cerrarAgregar(); };
+$('agNombre').onkeydown = function(ev){ if(ev.key === 'Enter'){ ev.preventDefault(); confirmarAgregar(); } };
 
 /* ---------- guardar ---------- */
 function guardarElDia(){
