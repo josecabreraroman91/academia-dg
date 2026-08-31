@@ -249,6 +249,26 @@
   .agregarTipo #tMonto{width:120px;text-align:right;font-weight:600}
   .agregarTipo input:focus{outline:none;border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-claro)}
 
+  /* Agregar o sacar un día a mano */
+  .d{position:relative}
+  .d .sacaDia{position:absolute;top:-6px;right:-6px;width:19px;height:19px;line-height:1;
+    border-radius:50%;border:1px solid var(--linea);background:var(--panel);color:var(--sec);
+    font-size:11px;font-family:inherit;cursor:pointer;padding:0;display:none}
+  .d:hover .sacaDia,.d:focus-within .sacaDia{display:block}
+  .d .sacaDia:hover{border-color:var(--rojo);color:var(--rojo)}
+  .d.puesto{border-style:dashed}
+  .d.puesto .n::after{content:'+';font-size:10px;vertical-align:super;opacity:.6}
+  .sacados{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:9px}
+  .sacados .rot{font-size:11.5px;color:var(--sec)}
+  .sacados .volvDia{font-family:inherit;font-size:11.5px;padding:3px 8px;border-radius:8px;
+    border:1px dashed var(--linea);background:transparent;color:var(--sec);cursor:pointer;
+    text-decoration:line-through}
+  .sacados .volvDia:hover{border-color:var(--azul);color:var(--azul);text-decoration:none}
+  .masDia{margin-top:10px}
+  .btnMasDia{font-family:inherit;font-size:12.5px;padding:7px 13px;border-radius:9px;
+    border:1px dashed var(--linea);background:transparent;color:var(--txt);cursor:pointer}
+  .btnMasDia:hover{border-color:var(--azul);color:var(--azul)}
+
   #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:24px;z-index:80;
     background:var(--texto);color:#fff;padding:11px 18px;border-radius:12px;font-size:14px;display:none}
 
@@ -1200,6 +1220,9 @@ function armarAlumnos(){
   /* La planilla del sistema viejo se suma ACA, despues del historial propio:
      asi se rearma sola cada vez que llegan datos nuevos de Firebase. */
   try{ planSumar(mapa, meses); }catch(e){ console.warn('planilla:', e.message); }
+  /* Y al final los ajustes a mano: van despues de la planilla para poder
+     sacar tambien un dia que vino de ahi. */
+  try{ aplicarAjustes(mapa, meses); }catch(e){ console.warn('ajustes:', e.message); }
   ALUMNOS=Object.keys(mapa).map(function(k){ return mapa[k]; })
     .sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
   MESES_HAY=Object.keys(meses).sort();
@@ -1446,6 +1469,185 @@ var _pagoEnVuelo = {};   // para no repintar en gris dos veces la misma celda
    es A####, asi que en la practica no cambia nada. Pero tiene que pasar por
    ACA las dos veces: al leer y al escribir. Codificar solo al escribir hacia
    que la marca no se encontrara al recargar y pareciera que no se guardo. */
+/* ============================================================
+   AGREGAR O SACAR UN DÍA DE ENTRENAMIENTO, A MANO
+
+   Pasa: un día quedó sin cargar, o quedó cargado dos veces, o directamente no
+   fue. La ficha del alumno muestra los días del mes y hay que poder corregirlos.
+
+   POR QUÉ EL AJUSTE VIVE APARTE Y NO SE TOCA EL HISTORIAL
+   historial_v2 arranca el 25/08/2026. Junio, julio y casi todo agosto NO están
+   en Firebase: salen del CSV que se carga a mano en esta pantalla y que no se
+   guarda en ningún lado. Para corregir junio no habría dónde escribir — el
+   cambio se perdería al recargar la planilla.
+
+   Por eso el ajuste se guarda con la llave `alumno + fecha`, igual que las
+   marcas de pago, en su propio nodo. Así sobrevive a que se recargue la
+   planilla y funciona igual para un mes viejo que para uno nuevo.
+
+   QUÉ NO HACE
+   No toca lo que se le paga al profe (decidido por José): corrige lo que se le
+   cobra al alumno y nada más. El pozo de esos meses ya está pagado hace rato.
+   Si alguna vez hay que corregirle al profe, eso se hace desde el historial del
+   día, que tiene su propio botón.
+   ============================================================ */
+var AJUSTES = {};        // { alumnoK: { 'YYYY-MM-DD': {modo:'mas'|'menos', por, ts} } }
+
+function claveAjuste(k){ return String(k == null ? '' : k).replace(/[.$#\[\]\/]/g, '_'); }
+
+function ajusteDe(k, fecha){
+  var a = AJUSTES[claveAjuste(k)];
+  return (a && a[fecha]) ? a[fecha] : null;
+}
+function esDiaAgregado(k, fecha){ var x = ajusteDe(k, fecha); return !!(x && x.modo === 'mas'); }
+function esDiaSacado(k, fecha){   var x = ajusteDe(k, fecha); return !!(x && x.modo === 'menos'); }
+
+function escucharAjustes(){
+  firebase.database().ref('ajustes_cobro_v1').on('value', function(s){
+    AJUSTES = s.val() || {};
+    try{ armarAlumnos(); pintar(); }catch(e){}
+    /* armarAlumnos() rehace la lista desde cero, asi que VIENDO queda apuntando
+       al objeto VIEJO y la ficha se repintaba con los dias de antes. Hay que
+       volver a agarrarlo por su clave. (A las marcas de pago no les pasa: no
+       tocan a.meses, se consultan aparte.) */
+    var ov = $('ov');
+    if(ov && ov.classList.contains('show') && VIENDO){
+      var k = VIENDO.k;
+      VIENDO = ALUMNOS.filter(function(x){ return x.k === k; })[0] || VIENDO;
+      pintarFicha();
+    }
+  }, function(e){ console.warn('ajustes_cobro_v1:', e.message); });
+}
+
+/* ============================================================
+   APLICAR LOS AJUSTES
+
+   Corre al final de armarAlumnos(), cuando ya están el historial propio Y la
+   planilla. Los dos casos tocan `mm.dias`, que es de donde sale la cuenta:
+
+   · SACAR   borra la fecha entera del mes, y también sus entradas en los mapas
+             de la planilla (planMontoDia, planConPrecioDia, planIndivDia). Sin
+             eso el día desaparecía de la lista pero el monto seguía igual.
+   · AGREGAR suma una clase en esa fecha y NO toca los mapas de la planilla: así
+             se cobra con el precio del padrón, como cualquier clase propia.
+
+   Un alumno que solo tiene días agregados no existe en `mapa`: se crea, para
+   poder cargarle una clase a alguien que ese mes no figuraba.
+   ============================================================ */
+function aplicarAjustes(mapa, meses){
+  Object.keys(AJUSTES).forEach(function(kSano){
+    var porFecha = AJUSTES[kSano] || {};
+    Object.keys(porFecha).forEach(function(fecha){
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) return;
+      var aj = porFecha[fecha]; if(!aj || !aj.modo) return;
+
+      /* La clave guardada está saneada; hay que encontrar al alumno que le
+         corresponde. Casi siempre es igual, salvo que tenga puntos o barras. */
+      var k = Object.keys(mapa).filter(function(x){ return claveAjuste(x) === kSano; })[0];
+      var m = fecha.slice(0, 7);
+
+      if(aj.modo === 'menos'){
+        if(!k) return;                                  // no está: no hay nada que sacar
+        var mm = mapa[k].meses[m]; if(!mm) return;
+        var cuantas = mm.dias[fecha] || 0; if(!cuantas) return;
+        delete mm.dias[fecha];
+        mm.clases = Math.max(0, (mm.clases || 0) - cuantas);
+        mapa[k].total = Math.max(0, (mapa[k].total || 0) - cuantas);
+        /* y lo que ese día aportaba al monto, si venía de la planilla */
+        ['planMontoDia', 'planConPrecioDia', 'planIndivDia'].forEach(function(campo){
+          if(mm[campo] && mm[campo][fecha] != null){
+            var v = mm[campo][fecha];
+            delete mm[campo][fecha];
+            var total = campo.replace('Dia', '');       // planMonto, planConPrecio, planIndiv
+            if(mm[total] != null) mm[total] = Math.max(0, mm[total] - v);
+          }
+        });
+        if(mm.planClases) mm.planClases = Math.max(0, mm.planClases - cuantas);
+        return;
+      }
+
+      /* modo 'mas' */
+      if(!k){
+        /* No estaba en la lista de este período: se lo crea con su ficha. */
+        var ficha = null;
+        try{ ficha = idxId[aj.id] || idxNom[normNom(aj.nombre || '')] || null; }catch(e){}
+        k = aj.id || ('?' + claveAjuste(aj.nombre || kSano));
+        mapa[k] = { k: k, nombre: (ficha ? ficha.nombre : (aj.nombre || kSano)),
+                    ficha: ficha, meses: {}, total: 0 };
+      }
+      meses[m] = true;
+      if(!mapa[k].meses[m]) mapa[k].meses[m] = { clases: 0, dias: {} };
+      var M = mapa[k].meses[m];
+      M.dias[fecha] = (M.dias[fecha] || 0) + 1;
+      M.clases = (M.clases || 0) + 1;
+      mapa[k].total = (mapa[k].total || 0) + 1;
+    });
+  });
+}
+
+/* ============================================================
+   LOS BOTONES DE LA FICHA
+   ============================================================ */
+function guardarAjuste(k, fecha, modo, extra){
+  var ref = firebase.database().ref('ajustes_cobro_v1/' + claveAjuste(k) + '/' + fecha);
+  var dato = Object.assign({ modo: modo, por: miCorreo, ts: Date.now() }, extra || {});
+  return ref.set(dato).catch(function(e){
+    alert('No pude guardar el cambio.\n\n' + e.message +
+          (/permission/i.test(e.message || '')
+            ? '\n\nFalta publicar la regla de ajustes_cobro_v1 en Firebase.' : ''));
+    throw e;
+  });
+}
+function borrarAjuste(k, fecha){
+  return firebase.database().ref('ajustes_cobro_v1/' + claveAjuste(k) + '/' + fecha).remove()
+    .catch(function(e){ alert('No pude deshacer el cambio.\n\n' + e.message); throw e; });
+}
+
+/* Sacar un día. Si el día lo habías agregado vos, se borra el ajuste y listo:
+   deshacer un agregado no es lo mismo que marcar como sacado un día real. */
+function sacarDia(k, fecha){
+  if(esDiaAgregado(k, fecha)){ borrarAjuste(k, fecha); return; }
+  if(!confirm('¿Sacar el ' + diaBonito(fecha) + ' de la cuenta?\n\n' +
+              'Deja de cobrarse. Se puede volver a poner cuando quieras.')) return;
+  guardarAjuste(k, fecha, 'menos');
+}
+function volverAPonerDia(k, fecha){ borrarAjuste(k, fecha); }
+
+/* Agregar un día. La fecha la elige la persona; se controla que no sea del
+   futuro y que ese día no esté ya cargado. */
+function agregarDiaAMano(k){
+  var a = VIENDO; if(!a) return;
+  var hoy = new Date();
+  var maxima = hoy.getFullYear() + '-' + String(hoy.getMonth() + 1).padStart(2, '0') +
+               '-' + String(hoy.getDate()).padStart(2, '0');
+  var f = prompt('¿Qué día entrenó?\n\nEscribilo así: 2026-06-14', '');
+  if(f === null) return;
+  f = String(f).trim();
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(f)){ alert('La fecha va así: 2026-06-14'); return; }
+  var d = new Date(f + 'T00:00:00');
+  if(isNaN(d.getTime()) || f.slice(0, 10) !== isoDeFecha(d)){ alert('Ese día no existe.'); return; }
+  if(f > maxima){ alert('Esa fecha todavía no llegó.'); return; }
+  if(esDiaSacado(k, f)){ borrarAjuste(k, f); return; }   // estaba sacado: alcanza con reponerlo
+
+  var m = f.slice(0, 7);
+  var yaEsta = a.meses[m] && a.meses[m].dias[f];
+  if(yaEsta && !confirm('Ese día ya tiene ' + yaEsta + ' clase(s) cargada(s).\n\n' +
+                        '¿Sumarle una más?')) return;
+
+  guardarAjuste(k, f, 'mas', { nombre: a.nombre, id: (a.ficha && a.ficha.id) || '' });
+}
+
+function isoDeFecha(d){
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+         '-' + String(d.getDate()).padStart(2, '0');
+}
+function diaBonito(f){
+  var MES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto',
+             'septiembre','octubre','noviembre','diciembre'];
+  return (+f.slice(8, 10)) + ' de ' + MES[(+f.slice(5, 7)) - 1];
+}
+
+
 function clavePago(k){
   return String(k==null?'':k).replace(/[.$#\[\]\/]/g, '_');
 }
@@ -1870,6 +2072,10 @@ function escucharTodo(){
     var ov=$('ov');
     if(ov && ov.classList.contains('show')) pintarFicha();
   }, function(e){ console.warn('pagos_v1:', e.message); });
+
+  /* Los días agregados o sacados a mano, igual que las marcas de pago: llegan
+     solos y no se fusiona nada. */
+  escucharAjustes();
 }
 
 /* El botón. Vuelve a pedir todo de cero, sin esperar. */
@@ -2101,12 +2307,19 @@ function pintarFicha(){
       /* El punto marca las que fueron INDIVIDUALES. Se ve ANTES de mandar el
          mensaje, que es cuando importa: son las que valen distinto. */
       var ind=(mm.planIndivDia && mm.planIndivDia[f]) || 0;
-      return '<div class="d'+(c>1?' varias':'')+(pg?' pagado':'')+(ind?' indiv':'')+'"'+
+      var puesto = esDiaAgregado(a.k, f);
+      return '<div class="d'+(c>1?' varias':'')+(pg?' pagado':'')+(ind?' indiv':'')+
+             (puesto?' puesto':'')+'"'+
              ' data-pago="'+f+'" title="'+
+             (puesto?'Lo cargaste vos a mano. ':'')+
              (ind?(ind===1?'Clase individual. ':gs(ind)+' clases individuales. '):'')+
              (pg?'Pagado · tocá para desmarcar':'Tocá si ya se cobró este día')+'">'+
              '<span class="n">'+n+'</span>'+
-             '<span class="c">'+(c===1?'1 clase':c+' clases')+'</span></div>';
+             '<span class="c">'+(c===1?'1 clase':c+' clases')+'</span>'+
+             (puedeEditar ? '<button class="sacaDia" data-sacar="'+f+'" title="'+
+                (puesto?'Deshacer: lo cargaste vos':'Sacar este día de la cuenta')+
+                '">✕</button>' : '')+
+             '</div>';
     }).join('');
   });
   /* El mes va en verde solo cuando estan pagadas TODAS sus fechas. No hay
@@ -2124,7 +2337,27 @@ function pintarFicha(){
      (sel.length>1?' · <b>'+sel.length+' meses juntos</b>':'')+
      (yaPagas && !todoPago ? ' · <span class="yaPago">'+gs(yaPagas)+' ya cobradas</span>' : '')+
      (todoPago?'<span class="selloPago">PAGADO</span>':'')+'</div>';
+  /* Los días que se SACARON a mano no están en mm.dias — aplicarAjustes los
+     quitó — así que se listan aparte, para poder reponerlos. */
+  var sacados = [];
+  var aj = AJUSTES[claveAjuste(a.k)] || {};
+  Object.keys(aj).sort().forEach(function(f){
+    if(aj[f] && aj[f].modo === 'menos' && sel.indexOf(f.slice(0,7)) >= 0) sacados.push(f);
+  });
+
   h+='<div class="dias">'+cuerpo+'</div>';
+  if(sacados.length){
+    h+='<div class="sacados"><span class="rot">Sacados a mano</span>'+
+       sacados.map(function(f){
+         /* mesNombre() trae "agosto 2026"; el año acá sobra: la ficha ya dice
+            de qué mes se está hablando. */
+         return '<button class="volvDia" data-volver="'+f+'" title="Volver a contarlo">'+
+                esc(diaBonito(f))+' ↩</button>';
+       }).join('')+'</div>';
+  }
+  if(puedeEditar){
+    h+='<div class="masDia"><button class="btnMasDia" id="btnMasDia">➕ Agregar un día</button></div>';
+  }
 
   /* Cuánto pagar */
   var c=cobroDe(a, sel);
@@ -2241,6 +2474,20 @@ function pintarFicha(){
     $('ficha').querySelectorAll('[data-pago]').forEach(function(el){
       el.style.cursor='default'; el.title='Sin permiso para marcar cobros';
     });
+  }
+
+  /* Agregar y sacar días. El ✕ va ADENTRO del día, que ya tiene su propio
+     click para marcar el cobro: sin frenar el evento, sacar un día lo marcaba
+     como pagado de paso. */
+  if(puedeEditar){
+    $('ficha').querySelectorAll('[data-sacar]').forEach(function(el){
+      el.onclick=function(ev){ ev.stopPropagation(); sacarDia(a.k, el.dataset.sacar); };
+    });
+    $('ficha').querySelectorAll('[data-volver]').forEach(function(el){
+      el.onclick=function(ev){ ev.stopPropagation(); volverAPonerDia(a.k, el.dataset.volver); };
+    });
+    var bMas=document.getElementById('btnMasDia');
+    if(bMas) bMas.onclick=function(){ agregarDiaAMano(a.k); };
   }
 
   var msg=c.total?textoMensaje(a, sel, c):'';
