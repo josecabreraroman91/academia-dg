@@ -131,7 +131,7 @@ function $(id){ return document.getElementById(id); }
 function aClave(mail){ return String(mail).trim().toLowerCase().replace(/\./g,','); }
 function esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
-var miCorreo='', miNombre='', soyAdmin=false;
+var miCorreo='', miNombre='', soyAdmin=false, puedeEscribir=false;
 var NOTAS=[];
 
 /* Fecha y hora lindas, con hora de Asunción. */
@@ -158,8 +158,12 @@ firebase.auth().onAuthStateChanged(function(u){
   firebase.database().ref('usuarios/'+aClave(miCorreo)).once('value').then(function(s){
     var f = s.val() || {}, p = f.permisos || {};
     soyAdmin = p.admin === true;
-    /* El bloc es SOLO para administradores. */
-    var puedeVer = soyAdmin;
+    /* Antes el bloc era SOLO para administradores, y darle el bloc a alguien
+       significaba darle tambien la Caja, los pagos y los accesos de los demas.
+       Ahora tiene su propio permiso: se da desde Accesos y no abre nada mas.
+       El administrador entra siempre, como en el resto del sistema. */
+    var puedeVer = soyAdmin || p.bloc === 'leer' || p.bloc === 'escribir';
+    puedeEscribir = soyAdmin || p.bloc === 'escribir';
     miNombre = f.nombre || u.displayName || miCorreo;
     if(!puedeVer){
       $('login').classList.remove('on');
@@ -169,6 +173,12 @@ firebase.auth().onAuthStateChanged(function(u){
     }
     $('login').classList.remove('on'); $('nopuede').classList.remove('on');
     $('app').style.display='block';
+    /* Con permiso de solo leer, el formulario no aparece: dejarlo a la vista y
+       que despues Firebase rechace el guardado es peor que no mostrarlo. */
+    if(!puedeEscribir){
+      if($('txtNota')) $('txtNota').style.display='none';
+      if($('btnAgregar')) $('btnAgregar').style.display='none';
+    }
     $('yoNombre').textContent = miNombre;
     $('quienEscribe').textContent = miNombre;
     escuchar();
@@ -204,7 +214,7 @@ function pintar(){
   $('cuenta').innerHTML = 'Hay <b>'+NOTAS.length+'</b> '+(NOTAS.length===1?'nota':'notas')+' pendiente'+(NOTAS.length===1?'':'s')+'.';
   cont.innerHTML = NOTAS.map(function(n){
     /* Solo quien la escribió, o un admin, puede borrar. */
-    var puedeBorrar = soyAdmin || (n.correo && n.correo===miCorreo);
+    var puedeBorrar = puedeEscribir && (soyAdmin || (n.correo && n.correo===miCorreo));
     return '<div class="nota">'+
       '<div style="flex:1">'+
         '<div class="texto">'+esc(n.texto)+'</div>'+
@@ -243,7 +253,7 @@ $('txtNota').addEventListener('keydown', function(e){
 function resolver(id){
   var n = NOTAS.find(function(x){ return x.id===id; });
   if(!n) return;
-  var puedeBorrar = soyAdmin || (n.correo && n.correo===miCorreo);
+  var puedeBorrar = puedeEscribir && (soyAdmin || (n.correo && n.correo===miCorreo));
   if(!puedeBorrar){ alert('Solo quien la escribió (o un administrador) puede borrar esta nota.'); return; }
   if(!confirm('¿Marcar como resuelta y borrar esta nota?\n\n"'+ (n.texto.length>80 ? n.texto.slice(0,80)+'…' : n.texto) +'"\n\nDesaparece para siempre.')) return;
   firebase.database().ref('bloc_notas/'+id).remove().catch(function(e){
