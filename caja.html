@@ -57,6 +57,13 @@
   .cobLbl{font-size:12px;color:var(--suave);margin-right:2px}
   .chipMes{font-size:12.5px;padding:6px 13px;border-radius:20px;text-transform:capitalize}
   .chipMes.on{border-color:var(--verde);background:var(--verde-claro);color:var(--verde);font-weight:700}
+  /* Los chips del filtro de Cobros. No reusan .chipMes porque ese tiene
+     capitalize, que dejaba "No Están En El Padrón". */
+  .filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:-4px 0 14px}
+  .chipF{font-size:12.5px;padding:6px 13px;border-radius:20px;white-space:nowrap}
+  .chipF.on{border-color:var(--teal);background:var(--teal-claro);color:var(--teal);font-weight:700}
+  .chipF.falta.on{border-color:var(--ambar);background:var(--ambar-claro);color:var(--ambar)}
+  .chipF b{font-weight:700;opacity:.75;margin-left:3px}
   .verFicha{background:none;border:0;padding:0;font:inherit;color:var(--teal);cursor:pointer;text-align:left}
   .verFicha:hover{text-decoration:underline}
   .cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:12px;margin-bottom:16px}
@@ -510,6 +517,8 @@ var profesores={}, noProfe={};
 var histActualizado='', padActualizado='', leidoTs=0, refrescando=false;
 var idxId={}, idxNom={};
 var solapa='cobros', mesElegido='', filtroTxt='', tope=TOPE_FILAS;
+/* Filtro de Cobros por dato que falta. '' = todos. */
+var filtroFalta='';
 var esAdminCaja=false;   // el borrado del historial es solo para administradores
 var ALUMNOS=[], MESES_HAY=[], VIENDO=null, MESES_SEL=[], _sumando=false;
 
@@ -2151,6 +2160,37 @@ function marcas(a){
   return p;
 }
 
+/* ============================================================
+   QUE LE FALTA A UN ALUMNO PARA PODER COBRARLE
+
+   Los mismos tres datos que marcas() ya pinta arriba de cada nombre, pero
+   devueltos como lista para poder filtrar por ellos. Un alumno puede tener
+   mas de uno.
+
+   El que no esta en el padron devuelve SOLO 'nopadron': no tiene ficha, asi
+   que no se puede decir que le falta el precio o el telefono. Contarlo tres
+   veces haria que los numeros de los chips no cierren con la lista.
+
+   El becado NO cuenta como "sin precio": su cero es a proposito.
+
+   'sintel' es no tener telefono. El telefono cargado pero mal escrito
+   (digitos de mas, pais que no se reconoce) no entra aca: eso se ve en la
+   solapa Para corregir, que lo muestra con el detalle de que tiene mal.
+   ============================================================ */
+var FALTAS=[
+  { k:'nopadron',  txt:'No están en el padrón' },
+  { k:'sinprecio', txt:'Sin precio' },
+  { k:'sintel',    txt:'Sin teléfono' }
+];
+function queLeFalta(a){
+  var f=a.ficha;
+  if(!f) return ['nopadron'];
+  var falta=[];
+  if(!f.beca && !f.precio) falta.push('sinprecio');
+  if(telRaro(f.tel)==='sin teléfono') falta.push('sintel');
+  return falta;
+}
+
 function pantallaCobros(){
   if(!ALUMNOS.length){
     $('pantalla').innerHTML='<div class="vacio">Todavía no hay clases cerradas en el historial.<br>'+
@@ -2159,6 +2199,12 @@ function pantallaCobros(){
   }
   var q=filtroTxt?normNom(filtroTxt):'';
   var lista=q.length>=2 ? ALUMNOS.filter(function(a){ return normNom(a.nombre).indexOf(q)>=0; }) : ALUMNOS;
+  /* El filtro por dato que falta se aplica DESPUES del buscador: los dos se
+     acumulan, asi se puede buscar un nombre adentro de "sin precio". */
+  if(filtroFalta==='completos')
+    lista=lista.filter(function(a){ return !queLeFalta(a).length; });
+  else if(filtroFalta)
+    lista=lista.filter(function(a){ return queLeFalta(a).indexOf(filtroFalta)>=0; });
 
   /* Cifras de arriba: siempre sobre TODOS los alumnos, no sobre el filtro. */
   var conPrecio=0, sinPrecio=0, clasesSinPrecio=0, totalTodo=0, clasesTodo=0, becados=0;
@@ -2185,9 +2231,30 @@ function pantallaCobros(){
     '<input id="q" type="search" autocomplete="off" placeholder="Buscar un alumno por su nombre…" value="'+esc(filtroTxt)+'">'+
   '</div>';
 
+  /* Los chips cuentan sobre TODOS los alumnos, no sobre lo que quedo del
+     buscador: son el mapa de como esta el padron, y ese numero no tiene que
+     moverse mientras se escribe un nombre. */
+  var cuenta={ completos:0 };
+  FALTAS.forEach(function(x){ cuenta[x.k]=0; });
+  ALUMNOS.forEach(function(a){
+    var fa=queLeFalta(a);
+    if(!fa.length) cuenta.completos++;
+    fa.forEach(function(k){ cuenta[k]++; });
+  });
+
+  html+='<div class="filtros">'+
+    '<button class="chico chipF'+(filtroFalta?'':' on')+'" data-f="">Todos <b>'+gs(ALUMNOS.length)+'</b></button>'+
+    '<button class="chico chipF'+(filtroFalta==='completos'?' on':'')+'" data-f="completos">Con todo cargado <b>'+gs(cuenta.completos)+'</b></button>';
+  FALTAS.forEach(function(x){
+    if(!cuenta[x.k]) return;   /* si no hay ninguno, el chip no aparece */
+    html+='<button class="chico chipF falta'+(filtroFalta===x.k?' on':'')+'" data-f="'+x.k+'">'+
+      esc(x.txt)+' <b>'+gs(cuenta[x.k])+'</b></button>';
+  });
+  html+='</div>';
+
   if(!lista.length){
     html+='<div class="tabla"><div class="vacio">Ningún alumno coincide con eso.</div></div>';
-    $('pantalla').innerHTML=html; engancharBuscador(); return;
+    $('pantalla').innerHTML=html; engancharBuscador(); engancharFiltros(); return;
   }
 
   var muestra=lista.slice(0, tope);
@@ -2217,6 +2284,7 @@ function pantallaCobros(){
 
   $('pantalla').innerHTML=html;
   engancharBuscador();
+  engancharFiltros();
   document.querySelectorAll('button.cnt').forEach(function(b){
     b.onclick=function(){ abrirFicha(b.dataset.k, b.dataset.m); };
   });
@@ -2229,6 +2297,18 @@ function engancharBuscador(){
     filtroTxt=q.value; tope=TOPE_FILAS; pantallaCobros();
     var n=$('q'); if(n){ n.focus(); n.setSelectionRange(n.value.length, n.value.length); }
   };
+}
+
+function engancharFiltros(){
+  document.querySelectorAll('.chipF').forEach(function(b){
+    b.onclick=function(){
+      /* Volver a tocar el chip prendido apaga el filtro: no hace falta ir
+         hasta "Todos" para salir. */
+      filtroFalta = (filtroFalta===b.dataset.f) ? '' : b.dataset.f;
+      tope=TOPE_FILAS;
+      pantallaCobros();
+    };
+  });
 }
 
 /* ---------- La ficha del alumno ---------- */
