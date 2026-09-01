@@ -63,6 +63,11 @@
   .chipF{font-size:12.5px;padding:6px 13px;border-radius:20px;white-space:nowrap}
   .chipF.on{border-color:var(--teal);background:var(--teal-claro);color:var(--teal);font-weight:700}
   .chipF.falta.on{border-color:var(--ambar);background:var(--ambar-claro);color:var(--ambar)}
+  /* El que no esta en el padron va en rojo y no en ambar: es el unico de los
+     tres que no se puede cobrar de ninguna manera, y el pin de esa misma cosa
+     (.pin.no) ya es rojo en toda la app. Que el chip fuera ambar como los
+     otros dos lo ponia al mismo nivel que "le falta un dato". */
+  .chipF.grave.on{border-color:var(--rojo);background:var(--rojo-claro);color:var(--rojo)}
   .chipF b{font-weight:700;opacity:.75;margin-left:3px}
   .verFicha{background:none;border:0;padding:0;font:inherit;color:var(--teal);cursor:pointer;text-align:left}
   .verFicha:hover{text-decoration:underline}
@@ -2178,7 +2183,7 @@ function marcas(a){
    solapa Para corregir, que lo muestra con el detalle de que tiene mal.
    ============================================================ */
 var FALTAS=[
-  { k:'nopadron',  txt:'No están en el padrón' },
+  { k:'nopadron',  txt:'No están en el padrón', grave:true },
   { k:'sinprecio', txt:'Sin precio' },
   { k:'sintel',    txt:'Sin teléfono' }
 ];
@@ -2247,7 +2252,7 @@ function pantallaCobros(){
     '<button class="chico chipF'+(filtroFalta==='completos'?' on':'')+'" data-f="completos">Con todo cargado <b>'+gs(cuenta.completos)+'</b></button>';
   FALTAS.forEach(function(x){
     if(!cuenta[x.k]) return;   /* si no hay ninguno, el chip no aparece */
-    html+='<button class="chico chipF falta'+(filtroFalta===x.k?' on':'')+'" data-f="'+x.k+'">'+
+    html+='<button class="chico chipF falta'+(x.grave?' grave':'')+(filtroFalta===x.k?' on':'')+'" data-f="'+x.k+'">'+
       esc(x.txt)+' <b>'+gs(cuenta[x.k])+'</b></button>';
   });
   html+='</div>';
@@ -2622,23 +2627,14 @@ function textoMensaje(a, sel, c){
     return (ds.length===1 ? 'entrenaste el día ' : 'entrenaste los días ')+fraseDias(ds);
   }
 
-  /* CUÁLES FUERON INDIVIDUALES.
-     Sale del aporte del profe que trae el reporte: 70.000 es el único monto que
-     no se repite en toda la tabla. En el mensaje va SOLO el aviso de cuáles
-     fueron —no los precios—: el desglose por tipo se ve en la tarjeta de
-     "cuánto pagar", que es para vos, no para el alumno. */
-  function detalleIndividual(m){
-    var mm=a.meses[m]; if(!mm || !mm.planIndivDia) return '';
-    var ds=[];
-    Object.keys(mm.dias).sort().forEach(function(f){
-      if(estaPagado(a.k, f)) return;
-      if(mm.planIndivDia[f]) ds.push(+f.slice(8,10));
-    });
-    if(!ds.length) return '';
-    return (ds.length===1
-      ? '\n(1 fue clase individual: día '
-      : '\n('+gs(ds.length)+' fueron clases individuales: días ')+ds.join(', ')+')';
-  }
+  /* EL MENSAJE NO SEPARA LAS INDIVIDUALES.
+     Antes agregaba un renglon aparte: "3 fueron clases individuales: dias 5,
+     12, 19". Se saco por pedido de Jose el 01/09/2026: el mensaje va con los
+     dias y el monto, asi nomas.
+
+     No cambia un guarani. El total se calcula igual que antes: esto era solo
+     texto. El detalle por tipo se sigue viendo en la tarjeta de "cuanto
+     pagar", que es para nosotros y no para el alumno. */
 
   /* CADA MES CON SU MONTO, uno debajo del otro, para que el alumno pueda mirar
      mes por mes y entender de dónde sale cada número. Con varios meses se suma
@@ -2650,13 +2646,11 @@ function textoMensaje(a, sel, c){
   if(conDias.length === 1){
     var m0 = conDias[0];
     frase = 'En '+nombreDe(m0).toLowerCase()+' '+entrenasteLos(diasDe(m0))+
-            detalleIndividual(m0)+
             '\n\nEl monto es '+gs(c.total)+' Gs.';
   } else {
     frase = conDias.map(function(m){
       var cm = cobroDe(a, [m]);
       return '*'+nombreDe(m)+':* '+entrenasteLos(diasDe(m))+
-             detalleIndividual(m)+
              '\n👉 *'+gs(cm.total)+' Gs.*';
     }).join('\n\n');
     frase += '\n\n*TOTAL: '+gs(c.total)+' Gs.*';
