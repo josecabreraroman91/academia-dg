@@ -356,7 +356,7 @@
 
 
 <header>
-  <div class="title">🎾 Calendario Academia DG <small>v2026-09-02 · PRODUCCIÓN</small></div>
+  <div class="title">🎾 Calendario Academia DG <small>v2026-08-23a · PRODUCCIÓN</small></div>
 
   <div class="mode-switch">
     <button class="mode-btn semana active" data-mode="semana">✏️ SEMANA (editable)</button>
@@ -1428,23 +1428,7 @@ function celdaDeAnotacion(a){
    borrar/reescribir el nombre ni al resetear la semana desde la MADRE. Solo se saca a
    mano o al marcarlo PRESENTE. `al.revisar` (lo que ya leen el render, los envíos y el
    sync) se DERIVA de la vigilancia con sincronizarRevisarConWatch(). */
-/* Une la vigilancia local con la de la nube. Cada nombre guarda CUANDO cambio:
-   positivo = se marco, negativo = se desmarco (lapida). Gana el mas reciente en
-   valor absoluto. Sin esto, la nube pisaba entero y el desmarcado rebotaba: se
-   borraba la llave local y la nube la devolvia con el true todavia puesto. Es el
-   mismo bug que ya se arreglo en Caja (ver memoria: el rebote al desmarcar). */
-function fusionarWatch(local, remoto){
-  const out = {};
-  const L = local || {}, R = remoto || {};
-  Object.keys(L).concat(Object.keys(R)).forEach(function(k){
-    const a = L[k], b = R[k];
-    if(a === undefined){ out[k] = b; return; }
-    if(b === undefined){ out[k] = a; return; }
-    out[k] = Math.abs(a) >= Math.abs(b) ? a : b;
-  });
-  return out;
-}
-function estaVigilado(nombre){ const k=normName(nombre); return !!(k && state.watch && state.watch[k] > 0); }
+function estaVigilado(nombre){ const k=normName(nombre); return !!(k && state.watch && state.watch[k]); }
 /* LA MADRE NO SE TOCA. La vigilancia trabaja SOLO sobre las semanas: la MADRE es
    la planilla de los días fijos y no lleva colores de seguimiento. Ni se le escribe
    la marca, ni se la pinta, ni se saca de ella la lista de vigilados. */
@@ -1469,7 +1453,7 @@ function sembrarWatchDesdeAlumnos(){
   _librosVigilancia().forEach(B=>{
     if(!B || !B.alumnos) return;
     Object.values(B.alumnos).forEach(al=>{
-      if(al && al.nombre && al.revisar){ const k=normName(al.nombre); if(k && state.watch[k]===undefined) state.watch[k]=_ahora(); }
+      if(al && al.nombre && al.revisar){ const k=normName(al.nombre); if(k && !state.watch[k]) state.watch[k]=_ahora(); }
     });
   });
 }
@@ -1477,7 +1461,7 @@ function sembrarWatchDesdeAlumnos(){
 function celesteTodasLasClases(nombre, B){
   const n = normName(nombre); if(!n) return 0;
   if(!state.watch) state.watch={};
-  if(!(state.watch[n] > 0)) state.watch[n] = _ahora();   // entra a la vigilancia (persona)
+  state.watch[n] = state.watch[n] || _ahora();       // entra a la vigilancia (persona)
   B = B || state.semana; let c = 0;
   if(B && B.alumnos) Object.keys(B.alumnos).forEach(k=>{
     const al = B.alumnos[k];
@@ -1494,8 +1478,7 @@ function celesteTodasLasClases(nombre, B){
    que dejó el agente). Un pedido de OTRO alumno o de otra celda no se toca. */
 function quitarRevisarTodasLasClases(nombre){
   const n = normName(nombre); if(!n) return 0;
-  if(!state.watch) state.watch={};
-  state.watch[n] = -_ahora();                        // LAPIDA: sale de la vigilancia y queda escrito el "no"
+  if(state.watch) delete state.watch[n];             // sale de la vigilancia (persona)
   const B = state.semana; let c = 0;
   if(B && B.alumnos) Object.keys(B.alumnos).forEach(k=>{
     const al = B.alumnos[k];
@@ -2922,7 +2905,7 @@ function iniciarCalendarioCompartido(){
     // Firebase borra objetos vacíos: rehidratar para que nunca falte la estructura
     ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{ if(state[k]){ if(!state[k].alumnos) state[k].alumnos={}; if(!state[k].libres) state[k].libres={}; } });
     if(r.lunesActual) state.lunesActual = r.lunesActual;
-    if(r.watch) state.watch = fusionarWatch(state.watch, r.watch);   // gana el cambio mas nuevo, no el que llega ultimo
+    if(r.watch) state.watch = r.watch;   // vigilancia por persona: manda la nube (igual que profesores/columnas)
     if(!state.watch || typeof state.watch!=='object') state.watch = {};
     try{ escucharReservasProfes(); }catch(e){}
     try{ escucharAsistenciaHoy(); }catch(e){}
