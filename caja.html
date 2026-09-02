@@ -2644,9 +2644,15 @@ function textoMensaje(a, sel, c){
   var frase;
   if(!conDias.length) return '';
   if(conDias.length === 1){
+    /* Un mes solo va con el MISMO formato que varios meses. Antes decía
+       "En junio entrenaste... El monto es X Gs.", que afirma la deuda como un
+       hecho probado: el que ya pagó lo leía como un reclamo doble. Unificado el
+       02/09/2026 con las plantillas de Meta, que arrastraban el mismo desalineo
+       entre la de 1 mes y las de 2/3/4. Sigue sin TOTAL: con un mes solo,
+       repetir el mismo número dos veces confunde. */
     var m0 = conDias[0];
-    frase = 'En '+nombreDe(m0).toLowerCase()+' '+entrenasteLos(diasDe(m0))+
-            '\n\nEl monto es '+gs(c.total)+' Gs.';
+    frase = '*'+nombreDe(m0)+':* '+entrenasteLos(diasDe(m0))+
+            '\n👉 *'+gs(c.total)+' Gs.*';
   } else {
     frase = conDias.map(function(m){
       var cm = cobroDe(a, [m]);
@@ -2656,13 +2662,25 @@ function textoMensaje(a, sel, c){
     frase += '\n\n*TOTAL: '+gs(c.total)+' Gs.*';
   }
 
+  /* EL VERBO, NO EL NÚMERO (02/09/2026).
+     El sistema sabe cuántas veces vino cada alumno — eso sale del calendario y
+     es firme — pero NO sabe qué pagó. El mensaje viejo igual afirmaba la deuda
+     ("El monto es X Gs.") y el que ya había pagado lo leía como un reclamo.
+     Por eso ahora: se avisa que el sistema está incompleto ANTES del número,
+     "Nos figura que" reconoce que es nuestro registro y no una verdad, y la
+     salida (mandar el comprobante) aparece ANTES de los datos bancarios, para
+     que el que ya pagó encuentre qué hacer sin tener que enojarse primero.
+     Es el mismo texto de las 4 plantillas de Meta. Si se cambia acá, hay que
+     cambiarlo allá también (una edición por día por plantilla). */
   return '*Hola '+primer+' cómo estás? 🎾*\n\n'+
-    'Quiero pasarte tu estado de cuenta y detalle de clases por favor.\n\n'+
+    'Estamos pasando la Academia a un sistema nuevo y todavía nos faltan cargar algunos pagos viejos. Puede que algo de esto ya lo hayas abonado?\n\n'+
+    '📅 Nos figura que:\n\n'+
     frase+'\n\n'+
+    '⚠️ Si ya se abonó, no lo tomes como un reclamo por favor. Si nos podés facilitar el comprobante, lo cargamos al sistema nuevo enseguida.\n\n'+
     '*CUENTA PARA TRANSFERENCIAS*\n\n'+
-    '👤*Nombre:* '+CUENTA.nombre+'\n'+
+    '👤 *Nombre:* '+CUENTA.nombre+'\n'+
     '💰 *Alias CI:* '+CUENTA.alias+'\n\n'+
-    'Muchas gracias!!!!';
+    'Gracias por la paciencia y mil disculpas por la molestia 🙏';
 }
 
 /* ============================================================
