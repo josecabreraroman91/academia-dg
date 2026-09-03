@@ -1122,7 +1122,7 @@ load(); render();
 
   /* Convierte las claves de la MADRE en { nombre: [{dia,hora}] } */
   function diasDeLaMadre(madre){
-    var out = {};
+    var out = { exactas:{}, cortas:{} };
     Object.keys(madre||{}).forEach(function(clave){
       var al = madre[clave];
       if(!al || !al.nombre) return;
@@ -1132,12 +1132,28 @@ load(); render();
       if(DIAS.indexOf(dia) < 0) return;
       var hora = HORAS[Number(p[3])];
       if(!hora) return;
-      var k = keyCanonADG(al.nombre);
-      if(!out[k]) out[k] = [];
-      var repetido = out[k].some(function(h){ return h.dia===dia && h.hora===hora; });
-      /* Se guarda la clave de la celda: es la dirección exacta en la MADRE y
-         es lo único que permite sacar ese día desde acá. */
-      if(!repetido) out[k].push({dia:dia, hora:hora, clave:clave});
+      /* ============================================================
+         LOS PARES A PROPOSITO: "Rodrigo Lee GRUPAL" y "Rodrigo Lee INDIVIDUAL"
+
+         Son DOS alumnos distintos, cada uno con su ID y su precio. La clave
+         corta les borra el tipo y los junta: cada ficha terminaba mostrando
+         los dias de las dos. Y como cada dia trae la direccion de su celda,
+         la X borraba del calendario la clase de la OTRA ficha.
+
+         Se arma el mismo indice doble que ya usa Caja: por nombre COMPLETO y
+         por clave corta. Al aplicar se prueba primero el completo.
+         ============================================================ */
+      var kx = keyAlumnoADG(al.nombre);
+      var k  = keyCanonADG(al.nombre);
+      [[out.exactas, kx], [out.cortas, k]].forEach(function(par){
+        var mapa = par[0], llave = par[1];
+        if(!llave) return;
+        if(!mapa[llave]) mapa[llave] = [];
+        var repetido = mapa[llave].some(function(h){ return h.dia===dia && h.hora===hora; });
+        /* Se guarda la clave de la celda: es la direccion exacta en la MADRE y
+           es lo unico que permite sacar ese dia desde aca. */
+        if(!repetido) mapa[llave].push({dia:dia, hora:hora, clave:clave});
+      });
     });
     return out;
   }
@@ -1150,7 +1166,7 @@ load(); render();
        días, que no traen la dirección de la celda. Sin dirección no hay ✕.
        Y la MADRE no volvía a intentarlo nunca, porque solo se despierta cuando
        alguien la modifica. */
-    window.__madreMapa = mapa || {};
+    window.__madreMapa = mapa || { exactas:{}, cortas:{} };
     window.__aplicarMadre();
   }
 
@@ -1159,10 +1175,14 @@ load(); render();
      planilla es una copia y sus días no sirven para borrar nada. */
   window.__aplicarMadre = function(){
     var mapa = window.__madreMapa;
-    if(!mapa) return false;
+    if(!mapa || !mapa.exactas) return false;
     if(typeof alumnos === 'undefined' || !alumnos.length) return false;
     alumnos.forEach(function(a){
-      var hs = mapa[keyCanonADG(a.nombre)];
+      /* El nombre COMPLETO manda: asi "Rodrigo Lee GRUPAL" se queda con SUS
+         clases y no con las de la individual. La clave corta queda de respaldo
+         para el caso comun: en la grilla dice "Pedro Gomez G" y la ficha esta
+         pelada, "Pedro Gomez". */
+      var hs = mapa.exactas[keyAlumnoADG(a.nombre)] || mapa.cortas[keyCanonADG(a.nombre)];
       a.horarios = hs ? hs.slice() : [];
     });
     var v=document.getElementById('adgVivo'); if(v) v.style.display='block';
