@@ -439,7 +439,44 @@
     if(window._cerrarSecciones) window._cerrarSecciones();   // al elegir, se cierra
   }
 
-  document.querySelectorAll('[data-go]').forEach(b=> b.onclick=()=>go(b.dataset.go));
+  /* ============================================================
+     EL BOTON ATRAS DEL NAVEGADOR
+
+     Las secciones se abren en iframes, asi que la direccion de arriba nunca
+     cambiaba: para el navegador nunca te movias de pagina. Le dabas atras
+     estando en el Calendario y, en vez de volver al menu, te sacaba del
+     sistema (al buscador, o a donde hubieras estado antes).
+
+     Ahora cada seccion queda anotada en el historial y atras deshace el
+     ultimo movimiento, como en cualquier pagina. go() no se toca: sigue
+     siendo la unica que muestra y carga; esto solo la envuelve.
+     ============================================================ */
+  const DESTINOS = new Set([...document.querySelectorAll('[data-go]')].map(b=>b.dataset.go));
+
+  function irA(dest){
+    const actual = (history.state && history.state.adg) || 'menu';
+    /* Tocar dos veces la misma seccion no deja dos entradas: si no, habria que
+       apretar atras varias veces para deshacer un solo movimiento. */
+    if(dest !== actual){
+      try{
+        history.pushState({adg:dest}, '',
+          dest==='menu' ? location.pathname + location.search : '#'+dest);
+      }catch(e){}   /* si el navegador no deja, se sigue igual: solo se pierde el atras */
+    }
+    go(dest);
+  }
+
+  document.querySelectorAll('[data-go]').forEach(b=> b.onclick=()=>irA(b.dataset.go));
+
+  window.addEventListener('popstate', function(e){
+    const dest = (e.state && e.state.adg) || 'menu';
+    go(DESTINOS.has(dest) ? dest : 'menu');
+  });
+
+  /* La primera entrada es el menu. Sin esto, el primer atras desde una seccion
+     llegaba a una entrada sin estado y aunque volvia al menu, la direccion
+     quedaba con el # de la seccion anterior. */
+  try{ if(!history.state) history.replaceState({adg:'menu'}, '', location.pathname + location.search); }catch(e){}
 </script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-auth-compat.js"></script>

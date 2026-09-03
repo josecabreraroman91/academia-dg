@@ -409,7 +409,13 @@
 </header>
 
 <main>
-  <div id="avisoConflicto" style="display:none;margin:0 0 8px;background:#3a1513;border:1px solid #e5534b;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+  <!-- El aviso nace OCULTO. Antes el style llevaba display dos veces
+     -none al principio y -flex al final- y en CSS gana el ultimo: el
+     cartel se veia un instante al abrir, con el texto de relleno que esta
+     escrito aca abajo, hasta que renderGrid lo apagaba. Parecia que habia
+     un alumno repetido y no habia ninguno. El display:flex lo pone
+     avisoConflictoBarra() cuando de verdad hay un conflicto. -->
+  <div id="avisoConflicto" style="margin:0 0 8px;background:#3a1513;border:1px solid #e5534b;border-radius:10px;padding:8px 12px;display:none;align-items:center;gap:10px;flex-wrap:wrap">
     <span style="font-size:13px;font-weight:700;color:#ff9b93">&#9888;&#65039; <span id="avisoConflictoTxt">Hay un alumno en dos lugares a la misma hora</span></span>
     <button class="btn danger" id="btnVerConflicto" style="font-size:11px;padding:4px 10px">Ver y resolver</button>
   </div>

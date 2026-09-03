@@ -7,8 +7,12 @@
 <meta http-equiv="Expires" content="0">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Academia DG</title>
+<!-- Una SOLA redireccion. Antes habia dos peleando: este script y un
+     meta refresh abajo. El meta refresh deja su propia entrada en el
+     historial en varios navegadores, asi que el boton atras se portaba
+     distinto en cada aparato. Se deja el replace, que NO ensucia el
+     historial, y el ?v= para que no quede cacheado. -->
 <script>location.replace('academia-dg.html?v='+Date.now());</script>
-<meta http-equiv="refresh" content="0; url=academia-dg.html">
 <style>body{font-family:system-ui,Arial,sans-serif;background:#0e7490;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;margin:0}a{color:#fff}</style>
 </head>
 <body>
