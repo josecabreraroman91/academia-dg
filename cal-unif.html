@@ -2753,6 +2753,37 @@ function _diffCalendario(base, ahora){
   return { upd, celdas, bajas, altas };
 }
 
+/* ============================================================
+   EL FRENO: cuántas clases se van de una sola vez
+
+   El 03/09/2026 José borró UNA celda del viernes y se publicaron 61 borrados:
+   50 eran del SÁBADO, un día que no había tocado. La copia de su navegador
+   había perdido esas celdas, y como el calendario publica la DIFERENCIA
+   contra su propia copia, el sistema las dio por borradas para todos.
+
+   La guardia que existía solo saltaba si un día quedaba VACÍO. El sábado
+   quedó con 41 alumnos, así que no avisó nada.
+
+   Esto no arregla la causa —todavía no se sabe por qué la copia perdió esas
+   celdas— pero corta el daño: antes de publicar una tanda grande de bajas,
+   se muestra cuántas y de qué días, y hay que confirmar.
+   ============================================================ */
+const BAJAS_QUE_ASUSTAN = 5;      // de acá para arriba, se pregunta
+
+function _bajasPorDia(upd){
+  const porDia = {};
+  Object.keys(upd || {}).forEach(k => {
+    /* una baja deja la celda en null Y escribe su lápida; se cuenta por la lápida */
+    if(k.indexOf('borrados/') !== 0) return;
+    if(upd[k] === null) return;                       // eso es un ALTA (limpia lápida)
+    const celda = k.split('/').slice(2).join('/');    // borrados/<libro>/<celda>
+    const dia = String(celda).split('|')[0];
+    if(!dia) return;
+    porDia[dia] = (porDia[dia] || 0) + 1;
+  });
+  return porDia;
+}
+
 /* Las claves del calendario ("LUNES|lomas|3|11|0") no se pueden usar tal cual como
    ruta de Firebase si trajeran . # $ / [ ] — se escapan por las dudas. */
 function _ruta(k){ return String(k).replace(/[.#$/\[\]]/g, '_'); }
@@ -2812,6 +2843,26 @@ function empujarCalendario(){
 
     const d = _diffCalendario(_baseRemota, ahora);
     if(!d.celdas && Object.keys(d.upd).length===0) return;   // nada cambió: no se escribe
+
+    /* FRENO: una tanda grande de bajas se confirma antes de publicarse. */
+    if(d.bajas >= BAJAS_QUE_ASUSTAN){
+      const porDia = _bajasPorDia(d.upd);
+      const NL = String.fromCharCode(10);
+      const detalle = Object.keys(porDia).sort((a,b)=>porDia[b]-porDia[a])
+                        .map(x=>'   ' + x + ': ' + porDia[x]).join(NL);
+      try{ logOp('intento_borrado_masivo', d.bajas+' bajas — '+JSON.stringify(porDia)); }catch(e){}
+      const aviso = '⚠️ ATENCIÓN ⚠️' + NL + NL
+                  + 'Estás por BORRAR ' + d.bajas + ' clases de una sola vez:' + NL + NL
+                  + detalle + NL + NL
+                  + 'Se borran para todos los dispositivos.' + NL + NL
+                  + 'Si solo tocaste una o dos, algo está mal: cancelá y volvé a abrir el calendario.' + NL + NL
+                  + '¿Confirmás el borrado?';
+      if(!confirm(aviso)){
+        try{ logOp('borrado_masivo_cancelado', d.bajas+' bajas frenadas a tiempo'); }catch(e){}
+        console.warn('Publicación cancelada: borraba', d.bajas, porDia);
+        return;
+      }
+    }
 
     _limpiarTumbas(d.upd);
     d.upd['revisar'] = ahora.revisar;
