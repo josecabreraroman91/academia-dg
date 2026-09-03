@@ -938,6 +938,9 @@ function publicarAlumnosEnVivo(lista){
          anterior) en la MISMA escritura, así no queda la ficha vacía duplicada. */
       if(a._nombreAnterior){ var kViejo = claveAlumno_(a._nombreAnterior); if(kViejo && kViejo!==k) updates[kViejo] = null; }
       updates[k] = {
+        /* El ID viaja con la ficha: antes alumnos_v2 no lo guardaba y el otro
+           dispositivo recibia un alumno sin numero. */
+        id:     idPlanillaDe(a.nombre) || '',
         nombre: a.nombre || '',
         lado:   a.lado || '',
         profe:  a.profe || '',
@@ -971,6 +974,59 @@ function borrarAlumnoEnVivo(nombre){
     var k = claveAlumno_(nombre);
     if(k) firebase.database().ref('alumnos_v2/'+k).remove();
   }catch(e){}
+}
+
+/* ============================================================
+   EL ID NACE CON EL ALUMNO
+
+   Antes el ID lo ponia SOLO el script asignarIdsAlumnos, cada tanto y sobre
+   la planilla: el alumno recien creado quedaba sin ID hasta que ese pase
+   corriera, y si no llegaba a la planilla no lo agarraba nunca. Asi
+   quedaron 11 alumnos sin ID, uno de hace un mes.
+
+   Ahora el numero se reserva ACA, al guardar. Sale de un contador en
+   Firebase que se pide con transaction(): si dos personas crean un alumno
+   en el mismo momento, cada una se lleva un numero distinto. El piso nunca
+   baja de PISO_ID, asi que aunque el contador se borre no se vuelven a
+   repartir numeros ya usados.
+   ============================================================ */
+var PISO_ID = 1040;   /* el mayor repartido hasta el 03/09/2026 fue A1039 */
+
+function reservarIdAlumno(){
+  var ref = firebase.database().ref('padron_v1/ultimoId');
+  return ref.transaction(function(n){
+    return Math.max(Number(n)||0, PISO_ID-1) + 1;
+  }).then(function(res){
+    if(!res || !res.committed || !res.snapshot) return '';
+    var n = Number(res.snapshot.val());
+    return n ? 'A'+String(n).padStart(4,'0') : '';
+  });
+}
+
+/* Le da ID al que no tiene. El guardado ESPERA a que termine: sin ID,
+   publicarEnPadronV1 no escribe la ficha y el alumno queda invisible para
+   las apps que ya leen de padron_v1. Se piden de a uno para no pelear por
+   el mismo numero. */
+function asegurarIdsDePadron(lista){
+  var faltan = (lista||[]).filter(function(a){
+    if(!a || !a.nombre) return false;
+    var clave = claveAlumno_(a._nombreAnterior || a.nombre);
+    return !_idsPlanilla[clave];       /* renombrar NO pide numero nuevo */
+  });
+  if(!faltan.length) return Promise.resolve([]);
+  return faltan.reduce(function(cadena, a){
+    return cadena.then(function(dados){
+      return reservarIdAlumno().then(function(id){
+        if(id){ _idsPlanilla[claveAlumno_(a.nombre)] = id; dados.push(a.nombre+' = '+id); }
+        return dados;
+      }).catch(function(e){
+        /* Sin numero se sigue igual: el alumno se guarda lo mismo y el puente
+           lo levanta despues. Peor seria perder el alta. */
+        console.warn('no pude reservar ID para '+a.nombre+':', e && e.message);
+        return dados;
+      });
+    });
+  }, Promise.resolve([]));
 }
 
 /* Migración a Firebase (paso 3 — escritura doble): al guardar, además de la
@@ -1007,6 +1063,9 @@ async function guardarEnPlanilla(silent){
      un alumno creado acá le aparezca solo a Diego en su computadora. Antes
      esto vivía adentro del camino del puente: si el puente fallaba o no
      estaba configurado, el alumno quedaba encerrado en esta máquina. */
+  /* El numero PRIMERO: publicarEnPadronV1 no escribe nada sin ID, y
+     publicarAlumnosEnVivo lo guarda junto con el resto de la ficha. */
+  await asegurarIdsDePadron(dirty);
   publicarAlumnosEnVivo(dirty);
   publicarEnPadronV1(dirty);   // paso 3: escritura doble a padron_v1 (instantáneo)
   const gsTxt=(n)=>(Number(n)||0).toLocaleString('en-US')+'Gs.';   // 120000 -> "120,000Gs." (igual que la planilla)
