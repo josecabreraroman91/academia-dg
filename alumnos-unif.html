@@ -1177,13 +1177,23 @@ load(); render();
     var mapa = window.__madreMapa;
     if(!mapa || !mapa.exactas) return false;
     if(typeof alumnos === 'undefined' || !alumnos.length) return false;
+    /* Primera vuelta: cada ficha se queda con las celdas que llevan SU nombre
+       completo, y esas celdas quedan reclamadas. */
+    var reclamadas = {};
     alumnos.forEach(function(a){
-      /* El nombre COMPLETO manda: asi "Rodrigo Lee GRUPAL" se queda con SUS
-         clases y no con las de la individual. La clave corta queda de respaldo
-         para el caso comun: en la grilla dice "Pedro Gomez G" y la ficha esta
-         pelada, "Pedro Gomez". */
-      var hs = mapa.exactas[keyAlumnoADG(a.nombre)] || mapa.cortas[keyCanonADG(a.nombre)];
-      a.horarios = hs ? hs.slice() : [];
+      var hs = mapa.exactas[keyAlumnoADG(a.nombre)];
+      a.horarios = hs ? hs.slice() : null;
+      if(hs) hs.forEach(function(h){ reclamadas[h.clave] = true; });
+    });
+    /* Segunda vuelta: la que no tiene celda propia usa el respaldo de la clave
+       corta, pero SOLO con lo que nadie reclamo. Asi sigue andando el caso
+       comun —en la grilla dice "Pedro Gomez G" y la ficha esta pelada— y deja
+       de pasar lo otro: "Misti Bogado" pelada, que ya no esta en la MADRE,
+       mostraba las clases de su GRUPAL y su INDIVIDUAL. */
+    alumnos.forEach(function(a){
+      if(a.horarios) return;
+      var hs = mapa.cortas[keyCanonADG(a.nombre)];
+      a.horarios = hs ? hs.filter(function(h){ return !reclamadas[h.clave]; }) : [];
     });
     var v=document.getElementById('adgVivo'); if(v) v.style.display='block';
     return true;
