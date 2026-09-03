@@ -1284,6 +1284,12 @@ load(); render();
         });
 
         if(nuevos || completados){
+          /* El que recién llegó entra con horarios en blanco, y la MADRE ya
+             pasó hace rato: se quedó sin sus días hasta la próxima recarga.
+             Se vuelve a aplicar acá, igual que después de traer el padrón.
+             No pisa a nadie: reponer los mismos días que ya tenía es gratis, y
+             al que tiene cambios sin guardar no se lo toca más arriba. */
+          try{ if(window.__aplicarMadre) window.__aplicarMadre(); }catch(e){}
           save(); render();
           if(nuevos) toast('👥 '+nuevos+' alumno(s) nuevo(s) de otro dispositivo');
         }
