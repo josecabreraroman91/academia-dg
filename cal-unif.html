@@ -124,6 +124,10 @@
   td.cell.libre{background:var(--libre)}
   td.cell.libre .slot.libre-slot{cursor:pointer;color:#fff;text-align:center;display:flex;align-items:center;justify-content:center;height:100%;min-height:30px;font-weight:800;font-size:15px;opacity:.92}
   td.cell.libre .slot.libre-slot:active{background:#0003}
+  /* Bloqueado PERO con alumnos adentro: no puede pasar desapercibido. */
+  td.cell.libre .slot.libre-slot.con-ocultos{gap:4px;box-shadow:inset 0 0 0 3px #FFD84D}
+  td.cell.libre .slot.libre-slot .ocultos{font-size:11px;font-weight:800;background:#FFD84D;color:#3A2A00;
+    border-radius:8px;padding:1px 5px;line-height:1.3}
   .drag-ghost{position:fixed;z-index:9999;transform:translate(-50%,-50%);background:var(--accent);color:#0c2a18;font-weight:800;padding:6px 10px;border-radius:8px;box-shadow:0 8px 22px #0008;pointer-events:none;font-size:13px;max-width:170px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .slot.dragging{opacity:.35}
   body.arrastrando, body.arrastrando *{-webkit-user-select:none!important;user-select:none!important;cursor:grabbing!important}
@@ -2065,6 +2069,21 @@ function aplicarReservas(){
       return;
     }
 
+    /* EN UN HORARIO BLOQUEADO NO ENTRA NADIE. El candado significa "el profe no
+       está a esa hora": si igual escribimos al alumno ahí, el alumno queda vivo
+       en los datos pero INVISIBLE — la grilla dibuja solo el candado, armarDiaDe
+       saltea la celda (no le llega al profe en la tablet) y los envíos también
+       (no recibe el mensaje). Y como el detector de duplicados sí lo ve, salta
+       "está en dos lugares a la misma hora" sin que nadie pueda encontrarlo.
+       Pasó el 6/9/2026 con los alumnos que movió PR. Se deja pendiente, con el
+       motivo a la vista, y se reintenta solo si alguien desbloquea el horario. */
+    const lkDestino = p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3];
+    if(B.libres && B.libres[lkDestino]){
+      fallaron.push(r.alumno+' — '+lugarTxt(r.k)+' está bloqueada: el profe no está disponible a esa hora');
+      try{ logOp('reserva_a_horario_bloqueado', r.alumno+' — '+lugarTxt(r.k)); }catch(e){}
+      return;
+    }
+
     let previo=null;
     if(tipo==='mover'){
       const o=B.alumnos[r.desde];
@@ -3448,7 +3467,12 @@ function _renderGridReal(){
       const sc = `sede-col-${c.sk}${first?' sede-start':''}`;
       const esLibre = B.libres[libreKey(c.sk,c.pi,hi)];
       if(esLibre){
-        html+=`<td class="cell libre ${sc}"><div class="slot libre-slot" data-libreon="${c.sk}|${c.pi}|${hi}" title="Tocá para habilitar">🔒</div></td>`;
+        /* Un horario bloqueado PUEDE tener alumnos adentro: los mete el puente de
+           los profes, o quedaron de antes de bloquearlo. Si solo se dibuja el
+           candado, esos alumnos no existen para nadie. Se muestra cuántos son. */
+        let ocultos=0;
+        for(let si=0; si<SLOTS_POR_HORA; si++){ const a=B.alumnos[cellKey(c.sk,c.pi,hi,si)]; if(a && a.nombre) ocultos++; }
+        html+=`<td class="cell libre ${sc}"><div class="slot libre-slot${ocultos?' con-ocultos':''}" data-libreon="${c.sk}|${c.pi}|${hi}" title="${ocultos?ocultos+' alumno(s) escondido(s) acá dentro — tocá para habilitar y verlos':'Tocá para habilitar'}">🔒${ocultos?`<span class="ocultos">⚠️${ocultos}</span>`:''}</div></td>`;
       } else {
         html+=`<td class="cell ${sc}"><button class="libre-toggle" data-libre="${c.sk}|${c.pi}|${hi}" title="Marcar: profe NO disponible en este horario">🔒</button><div class="slotwrap">`;
         for(let si=0; si<SLOTS_POR_HORA; si++){
@@ -3973,7 +3997,21 @@ function guardarBloqueado(){
   if(!editingCell) return;
   if(!confirmarSiMadre()) return;
   const [sk,pi,hi,si]=editingCell.split('|');
-  book().libres[libreKey(sk,+pi,+hi)]=true;
+  const B=book();
+  /* Bloquear no borra a nadie: el candado TAPA lo que haya adentro. Si quedan
+     alumnos en la celda desaparecen de la grilla, del día del profe y de los
+     envíos, y no hay forma de verlos hasta desbloquear. Antes de tapar, se dice
+     quiénes son y se pide confirmación. */
+  const dentro=[];
+  for(let s=0; s<SLOTS_POR_HORA; s++){
+    const a=B.alumnos[cellKey(sk,+pi,+hi,s)];
+    if(a && a.nombre) dentro.push(a.nombre);
+  }
+  if(dentro.length && !confirm('⚠️ Este horario tiene '+dentro.length+' alumno(s) cargado(s):\n\n   '+
+      dentro.join('\n   ')+'\n\nSi lo bloqueás quedan escondidos: no se ven en la grilla, no le llegan al '+
+      'profe en la tablet y no reciben el mensaje de confirmación.\n\n¿Bloquear igual?')) return;
+  if(dentro.length){ try{ logOp('bloqueo_con_alumnos', dentro.join(', ')+' — '+lugarTxt(cellKey(sk,+pi,+hi,0))); }catch(e){} }
+  B.libres[libreKey(sk,+pi,+hi)]=true;
   saveState(); closeEditor(); renderGrid();
 }
 function deleteEditor(){
