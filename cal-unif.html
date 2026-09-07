@@ -1444,14 +1444,41 @@ function estaVigilado(nombre){ const k=normName(nombre); return !!(k && state.wa
    la marca, ni se la pinta, ni se saca de ella la lista de vigilados. */
 function _librosVigilancia(){ return [state.semana, state.semanaProxima, state.semanaAnterior]; }
 function enMadre(){ return state.mode==='madre'; }
+/* ===== LA REGLA DEL VERDE (José, 07/09/2026) =====
+   Una clase CONFIRMADA no vuelve nunca al celeste. El verde es la respuesta del
+   alumno para ese día y no se toca: lo que llegue después —una cancelación, un
+   pedido raro, o algo que el agente no entendió— se marca en LILA (`atencion`),
+   que se ve encima y NO saca la confirmación.
+
+   Antes pasaba esto: el alumno confirmaba, más tarde escribía cualquier cosa y el
+   celeste (que es por PERSONA) le borraba el verde de ese día y le manchaba
+   además todos los otros días de la semana. Se perdía la confirmación, que es la
+   que decide el cobro.
+
+   El celeste sigue igual para las clases que NO están confirmadas: ahí es la
+   señal de "esto lo mira una persona", incluida la de mañana.
+
+   Devuelve qué hizo, para poder contarlo en los avisos. */
+function marcarParaMirar(al){
+  if(!al || !al.nombre) return null;
+  if(al.confirmado){                      // ya confirmó: el verde manda
+    if(al.revisar) delete al.revisar;     // si venía celeste de antes, se corrige
+    if(al.atencion) return 'ya';
+    al.atencion = true; return 'lila';
+  }
+  if(al.revisar) return 'ya';
+  al.revisar = true; return 'celeste';
+}
 function sincronizarRevisarConWatch(){
   _librosVigilancia().forEach(B=>{
     if(!B || !B.alumnos) return;
     Object.keys(B.alumnos).forEach(k=>{
       const al = B.alumnos[k]; if(!al || !al.nombre) return;
       const debe = estaVigilado(al.nombre);
-      if(debe){ if(!al.revisar) al.revisar = true; }
+      if(debe){ marcarParaMirar(al); }
       else if(al.revisar){ delete al.revisar; }
+      /* El lila NO se saca solo: es una marca para que una persona la mire y la
+         resuelva a mano, como el resto de las marcas de atención. */
     });
   });
 }
@@ -1475,7 +1502,9 @@ function celesteTodasLasClases(nombre, B){
   B = B || state.semana; let c = 0;
   if(B && B.alumnos) Object.keys(B.alumnos).forEach(k=>{
     const al = B.alumnos[k];
-    if(al && al.nombre && normName(al.nombre) === n && !al.revisar){ al.revisar = true; c++; }
+    /* En las clases ya confirmadas esto pinta LILA en vez de celeste: el verde
+       de ese día no se pierde. Ver la regla del verde en marcarParaMirar(). */
+    if(al && al.nombre && normName(al.nombre) === n){ if(marcarParaMirar(al)==='celeste') c++; }
   });
   try{ sincronizarRevisarConWatch(); }catch(e){}      // y queda azul en toda la semana y próximas
   return c;
@@ -1683,20 +1712,22 @@ function autoAplicarLibreta(){
 
            El pedido NO se cierra: sigue pendiente en la libreta hasta que
            alguien lo marque resuelto. Pintar no es resolver. */
-        /* SI YA ESTABA CONFIRMADO (verde), SACARLE EL VERDE. Un alumno confirma
-           ("Ok") y horas después el padre avisa "no va, tiene un cumple": ese
-           aviso entra como pedido/celeste. Si el verde queda, el alumno sigue
-           contado como PRESENTE y se cobra una clase que no fue. Sacar el verde
-           deja la celda solo en celeste para que una persona la resuelva; el
-           verde solo vuelve si alguien lo re-confirma a mano. */
+        /* SI YA ESTABA CONFIRMADO, EL VERDE SE QUEDA (José, 07/09/2026).
+           Antes acá se le sacaba el verde y la celda caía a celeste. El problema:
+           el celeste es por PERSONA, así que un mensaje suelto —muchas veces ni
+           siquiera una cancelación, sino un "gracias" o algo que el agente no
+           entendió— borraba la confirmación de ese día y encima manchaba los
+           otros días del alumno. La confirmación es la respuesta del alumno y
+           decide el cobro: no la pisa un mensaje posterior.
+           Ahora la clase confirmada se marca en LILA (atención), que se ve encima
+           del verde sin sacarlo, y una persona decide. Las clases que NO están
+           confirmadas siguen yendo a celeste igual que siempre. */
         const hechosAntes = hechos.length;
-        if(al.confirmado){
-          al.confirmado = false;
-          hechos.push('⚠️ '+a.alumno+' estaba CONFIRMADO y ahora avisó cambio / que no viene — se le sacó el verde, revisar — '+lugarTxt(hit.k));
-          anotarOpAgente('revisar', a.alumno, lugarTxt(hit.k)+' · ⚠️ estaba confirmado y llegó un aviso de cambio/que no viene: se sacó el verde');
-        }
-        if(!al.revisar){
-          al.revisar = true;
+        const _marca = marcarParaMirar(al);
+        if(_marca === 'lila'){
+          hechos.push('🟣 '+a.alumno+' ya había confirmado y ahora escribió algo — queda VERDE y marcado en lila para mirar — '+lugarTxt(hit.k));
+          anotarOpAgente('atencion', a.alumno, lugarTxt(hit.k)+' · ya estaba confirmado y llegó un aviso: se marcó en lila, el verde queda');
+        } else if(_marca === 'celeste'){
           hechos.push('🔵 '+a.alumno+' pidió un cambio — '+lugarTxt(hit.k));
           anotarOpAgente('revisar', a.alumno, lugarTxt(hit.k)+' · pidió un cambio por WhatsApp');
         }
@@ -3783,7 +3814,9 @@ function importarMarcasViejas(mapa){
     const A=(b&&b.alumnos)||{};
     Object.keys(A).forEach(k=>{ const al=A[k]; if(!al) return;
       const debe=!!mapa[pref+k];
-      if(!!al.revisar!==debe){ if(debe) al.revisar=true; else delete al.revisar; n++; }
+      /* Las marcas que llegan de una versión vieja tampoco pisan un verde: si la
+         clase está confirmada, la marca entra como lila. Ver marcarParaMirar(). */
+      if(!!al.revisar!==debe){ if(debe) marcarParaMirar(al); else delete al.revisar; n++; }
     });
   });
   return n;
@@ -3938,7 +3971,7 @@ function saveEditor(){
        alumno recién tipeado. Así no se pierde el aviso y no se lo vuelve a molestar.
        En la MADRE no aplica: solo se conserva su propia marca si la tenía. */
     if(enMadre()){ if(mismaPersona && previo.revisar) nuevo.revisar=true; }
-    else if(estaVigilado(nombre)) nuevo.revisar=true;
+    else if(estaVigilado(nombre)) marcarParaMirar(nuevo);   // si ya está en verde va lila, no celeste
     /* Si la celda era un BLOQUE y el nombre no cambió, sigue siendo un bloque:
        se conservan su marca, su duración y la lista de alumnos que tiene adentro.
        Sin esto, apretar "Guardar" lo convertía en un alumno normal y borraba todo. */
