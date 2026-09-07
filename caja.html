@@ -1277,8 +1277,37 @@ function _puntajeFicha(f){
 }
 function _mejorFicha(a, b){ return _puntajeFicha(a) >= _puntajeFicha(b) ? a : b; }
 
+/* Todas las fichas del padron que se llaman IGUAL. Hace falta mirar el padron y no
+   solo las fichas que traen las clases: Kiara Gonzalez tiene su unica clase con la
+   ficha A1008 (sin precio) y el precio de 100.000 esta en A0947, que no aparece en
+   ninguna clase. Juntando solo lo que traen las clases, Caja la seguia mostrando
+   "sin precio" aunque el precio estuviera cargado. */
+var _idxFichasNombre = null;
+function _fichasDelNombre(nom){
+  if(!_idxFichasNombre){
+    _idxFichasNombre = {};
+    for(var i=0;i<padron.length;i++){
+      var f = padron[i]; if(!f || !f.nombre) continue;
+      var n = normNom(f.nombre); if(!n) continue;
+      (_idxFichasNombre[n] = _idxFichasNombre[n] || []).push(f);
+    }
+  }
+  return _idxFichasNombre[normNom(nom)] || [];
+}
+/* Le suma al alumno todas las fichas de su nombre y deja mandando a la mejor. */
+function _juntarFichasDelNombre(a){
+  if(!a || !a.ficha) return;
+  var fs = _fichasDelNombre(a.ficha.nombre);
+  if(!a.fichas) a.fichas = [];
+  for(var i=0;i<fs.length;i++){
+    if(a.fichas.indexOf(fs[i])<0) a.fichas.push(fs[i]);
+    a.ficha = _mejorFicha(a.ficha, fs[i]);
+  }
+}
+
 function armarAlumnos(){
   var mapa={}, meses={};
+  _idxFichasNombre = null;                   // el padron pudo cambiar desde el ultimo armado
   historial.forEach(function(h){
     if(!h.seCobra) return;
     if(esAyudante(h) || esBloque(h.alumno)) return;   // no son alumnos
@@ -1290,6 +1319,7 @@ function armarAlumnos(){
     if(f){
       if(a.fichas.indexOf(f)<0) a.fichas.push(f);
       a.ficha = _mejorFicha(a.ficha, f);       // manda la ficha con más datos cargados
+      _juntarFichasDelNombre(a);               // y las que estan en el padron con el mismo nombre
     }
     a.kPago = _clavePagoDe(a);
     var huella = h.fecha+'|'+(h.hora||'');     // la misma clase no se cuenta dos veces
@@ -2012,6 +2042,7 @@ function planSumar(mapa, meses){
       if(!a.fichas) a.fichas=[];
       if(a.fichas.indexOf(ficha)<0) a.fichas.push(ficha);
       a.ficha = _mejorFicha(a.ficha, ficha);
+      _juntarFichasDelNombre(a);
     }
     a.kPago = _clavePagoDe(a);
     meses[mm] = true;
