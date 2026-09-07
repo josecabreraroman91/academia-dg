@@ -1215,6 +1215,30 @@ function calcularPozo(filas){
    el que vino, y el que dijo que venía y no vino. Acá no se vuelve a decidir
    nada, solo se le pone precio.
    ============================================================ */
+/* ============================================================
+   DOS FICHAS, UN SOLO ALUMNO (pedido por José el 07/09/2026)
+
+   El padrón tiene 30 alumnos cargados DOS veces: un par de IDs para la misma
+   persona (A0946 + A1007 = Marc Duarte), porque se los dio de alta otra vez
+   cuando ya existían. La ficha nueva quedó sin teléfono y sin precio, y como las
+   clases llegan con el ID de esa ficha, el alumno salía DOS VECES en el reporte,
+   con las clases partidas entre las dos y sin poder cobrarle ninguna.
+
+   Acá NO se toca el padrón —eso se arregla cuando se migre del todo—: se los
+   muestra juntos. La fila se arma por NOMBRE COMPLETO en vez de por ID:
+     · "Marc Duarte" (A0946) y "Marc Duarte" (A1007)   -> una sola fila;
+     · "Rodrigo Lee GRUPAL" y "Rodrigo Lee INDIVIDUAL" -> siguen separados, que
+       es a propósito: son dos precios distintos.
+   El precio y el teléfono salen de la ficha que los tenga cargados, y la MISMA
+   clase (misma fecha y misma hora) no se cuenta dos veces. Dos clases el mismo
+   día a distinta hora sí son dos clases y se cobran las dos — Alejandra Garcia
+   Petty y Nicole Heyn entrenan 8:00 y 9:00 los lunes. */
+function _puntajeFicha(f){
+  if(!f) return -1;
+  return (f.precio>0?4:0) + (f.beca?4:0) + (f.tel?2:0) + (f.tipo?1:0) + (f.cat?1:0);
+}
+function _mejorFicha(a, b){ return _puntajeFicha(a) >= _puntajeFicha(b) ? a : b; }
+
 function armarAlumnos(){
   var mapa={}, meses={};
   historial.forEach(function(h){
@@ -1222,9 +1246,16 @@ function armarAlumnos(){
     if(esAyudante(h) || esBloque(h.alumno)) return;   // no son alumnos
     if(esCoach(h)) return;                            // el coach tiene su propio precio
     var f=fichaDe(h);
-    var k=f?(f.id||keyAlumno(f.nombre)):('?'+keyAlumno(h.alumno));
-    if(!mapa[k]) mapa[k]={ k:k, nombre:f?f.nombre:h.alumno, ficha:f, meses:{}, total:0 };
+    var k=f?normNom(f.nombre):('?'+keyAlumno(h.alumno));
+    if(!mapa[k]) mapa[k]={ k:k, nombre:f?f.nombre:h.alumno, ficha:f, fichas:[], meses:{}, total:0, vistas:{} };
     var a=mapa[k], m=mesDe(h.fecha);
+    if(f){
+      if(a.fichas.indexOf(f)<0) a.fichas.push(f);
+      a.ficha = _mejorFicha(a.ficha, f);       // manda la ficha con más datos cargados
+    }
+    var huella = h.fecha+'|'+(h.hora||'');     // la misma clase no se cuenta dos veces
+    if(a.vistas[huella]) return;
+    a.vistas[huella] = true;
     meses[m]=true;
     if(!a.meses[m]) a.meses[m]={ clases:0, dias:{} };
     a.meses[m].clases++;
@@ -1558,6 +1589,17 @@ function aplicarAjustes(mapa, meses){
       /* La clave guardada está saneada; hay que encontrar al alumno que le
          corresponde. Casi siempre es igual, salvo que tenga puntos o barras. */
       var k = Object.keys(mapa).filter(function(x){ return claveAjuste(x) === kSano; })[0];
+      /* COMPATIBILIDAD. Los ajustes viejos se guardaron con la clave de antes,
+         que era el ID de la ficha (A0946). Desde que la fila se arma por nombre,
+         esa clave ya no existe en el mapa y el ajuste se perdía en silencio: un
+         día sacado a mano volvía a aparecer y se cobraba de nuevo. Si no se
+         encuentra por la clave nueva, se busca al alumno que tenga esa ficha. */
+      if(!k){
+        k = Object.keys(mapa).filter(function(x){
+          var a = mapa[x], fs = (a.fichas && a.fichas.length) ? a.fichas : (a.ficha?[a.ficha]:[]);
+          return fs.some(function(f){ return f && f.id && claveAjuste(f.id) === kSano; });
+        })[0];
+      }
       var m = fecha.slice(0, 7);
 
       if(aj.modo === 'menos'){
@@ -1920,10 +1962,18 @@ function planSumar(mapa, meses){
     if(fechasPropias[c.fecha]) return;              // ese dia ya lo tiene el historial
     var ficha = planCruzar(c.nombre);
     if(!ficha) sinCruzar[c.nombre] = (sinCruzar[c.nombre]||0)+1;
-    var k = ficha ? (ficha.id || keyAlumno(ficha.nombre)) : ('?'+keyAlumno(c.nombre));
+    /* Misma clave que el historial propio: por NOMBRE, no por ID, así las clases
+       de la planilla vieja caen en la misma fila que las nuevas aunque el alumno
+       tenga dos fichas. Ver "DOS FICHAS, UN SOLO ALUMNO" en armarAlumnos(). */
+    var k = ficha ? normNom(ficha.nombre) : ('?'+keyAlumno(c.nombre));
     if(!mapa[k]) mapa[k] = { k:k, nombre: ficha?ficha.nombre:c.nombre, ficha:ficha,
-                             meses:{}, total:0 };
+                             fichas:[], meses:{}, total:0, vistas:{} };
     var a = mapa[k], mm = c.fecha.slice(0,7);
+    if(ficha){
+      if(!a.fichas) a.fichas=[];
+      if(a.fichas.indexOf(ficha)<0) a.fichas.push(ficha);
+      a.ficha = _mejorFicha(a.ficha, ficha);
+    }
     meses[mm] = true;
     if(!a.meses[mm]) a.meses[mm] = { clases:0, dias:{} };
     a.meses[mm].clases++;
@@ -2815,7 +2865,7 @@ function pantallaInformes(){
   historial.forEach(function(h){
     if(!h.presente) return;
     var f=fichaDe(h);
-    var k=f?(f.id||keyAlumno(f.nombre)):keyAlumno(h.alumno);
+    var k=f?normNom(f.nombre):keyAlumno(h.alumno);   // por nombre: dos fichas = un alumno
     if(!ult[k]) ult[k]={fecha:h.fecha, nombre:f?f.nombre:h.alumno, total:0};
     if(h.fecha>ult[k].fecha) ult[k].fecha=h.fecha;
     ult[k].total++;
@@ -3176,8 +3226,9 @@ function calcularCorregir(){
     if(esAyudante(h) || esBloque(h.alumno)) return;   // el ayudante y los bloques no son alumnos
     if(esCoach(h)) return;                            // el coach no se cobra por precio de ficha
     var f=fichaDe(h);
-    var k=f?(f.id||keyAlumno(f.nombre)):('?'+keyAlumno(h.alumno));
+    var k=f?normNom(f.nombre):('?'+keyAlumno(h.alumno));   // por nombre: dos fichas = un alumno
     if(!porAlumno[k]) porAlumno[k]={ nombre:f?f.nombre:h.alumno, ficha:f, clases:0, cobrables:0, tipos:{} };
+    if(f) porAlumno[k].ficha = _mejorFicha(porAlumno[k].ficha, f);
     var a=porAlumno[k];
     a.clases++;
     if(h.seCobra) a.cobrables++;
