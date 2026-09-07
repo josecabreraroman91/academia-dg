@@ -3162,9 +3162,33 @@ function publicarFecha(offset, silencioso){
       /* Se ESCRIBEN solo los campos que salen de la grilla; asis y arAsis son de
          la tablet y NUNCA se pisan (antes el set() del nodo entero revertia una
          asistencia marcada entre la lectura y la escritura, y borraba el arAsis
-         del bloque de Alto Rendimiento). Los que salieron de la grilla se borran;
-         los acoples de profes quedan intactos. */
-      Object.keys(prev).forEach(k=>{ if(prev[k] && prev[k].acople) return; if(!porSede[sk][k]) upd[k]=null; });
+         del bloque de Alto Rendimiento). Los que salieron de la grilla se borran.
+
+         LOS ACOPLES TAMBIEN SE LIMPIAN. Antes se salteaban siempre y por eso el
+         alumno que un profe agrego desde la tablet le seguia apareciendo aunque
+         lo hubieran borrado del calendario: la grilla decia una cosa y la tablet
+         otra, y solo se arreglaba borrandolo a mano en los dos lados (caso Ale
+         Kallsen, 6/9/2026). Un acople sobrevive solo mientras tenga sentido:
+           · su alumno YA esta en la grilla del dia  -> es un duplicado, se borra;
+           · no esta en la grilla pero todavia tiene una reserva PENDIENTE de esa
+             fecha (el profe lo agrego recien y cal-unif no la aplico) -> se respeta;
+           · no esta en la grilla y no hay reserva pendiente -> lo sacaron del
+             calendario, se borra.
+         Asi la tablet y el calendario muestran siempre lo mismo. */
+      const _enGrilla = new Set(Object.keys(porSede[sk]).map(k2=>normName((porSede[sk][k2]||{}).nombre||'')));
+      let _pend2=[]; try{ _pend2=resvPendientes(); }catch(e){}
+      const _conReserva = new Set(_pend2.filter(r=>!r.fecha || r.fecha===fecha)
+                                        .map(r=>normName(r.alumno||'')));
+      Object.keys(prev).forEach(k=>{
+        const rec = prev[k];
+        if(rec && rec.acople){
+          const n = normName(rec.nombre||'');
+          if(n && !_enGrilla.has(n) && _conReserva.has(n)) return;   // recien agregado, todavia sin aplicar
+          upd[k]=null;
+          return;
+        }
+        if(!porSede[sk][k]) upd[k]=null;
+      });
       Object.entries(porSede[sk]).forEach(([k,rec])=>{
         const p = prev[k] || {};
         upd[k+'/nombre']=rec.nombre; upd[k+'/horaIdx']=rec.horaIdx; upd[k+'/profe']=rec.profe;
