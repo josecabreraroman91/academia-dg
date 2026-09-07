@@ -1482,6 +1482,54 @@ function sincronizarRevisarConWatch(){
     });
   });
 }
+/* ===== EL VERDE, IGUAL QUE EL CELESTE =====
+   El celeste sobrevive a una foto remota porque vive aparte, en state.watch, y
+   sincronizarRevisarConWatch() lo vuelve a pintar. El verde no tenia nada asi:
+   la linea `state.semana = r.semana` del listener se lo llevaba puesto y, como
+   la anotacion del agente ya habia quedado en 'aplicado', no volvia nunca mas.
+   Medido en produccion el 07/09/2026: 211 'agente_confirma' de solo 49 alumnos,
+   el mismo verde puesto hasta 8 veces en 8 segundos.
+   Ahora cada confirmacion deja un registro por celda que viaja entero a la nube
+   y se vuelve a aplicar despues de cada foto. Desconfirmar a mano lo borra, asi
+   que el check apagado sigue mandando. */
+function _kConf(k, nombre){ const n=normName(nombre||''); return n ? (k+'~'+n) : null; }
+function recordarConfirmado(k, al){
+  if(!k || !al || !al.nombre) return;
+  if(state.mode !== 'semana') return;          // la MADRE no lleva confirmaciones
+  if(!state.confirmados) state.confirmados={};
+  const c=_kConf(k, al.nombre); if(c) state.confirmados[c]=_ahora();
+}
+function olvidarConfirmado(k, al){
+  if(!k || !al || !al.nombre || !state.confirmados) return;
+  const c=_kConf(k, al.nombre); if(c) delete state.confirmados[c];
+}
+/* Repone el verde donde el registro dice que hubo confirmacion. Solo la semana
+   editable, y solo si el alumno de esa celda sigue siendo el mismo: si lo movieron
+   o lo sacaron, la entrada se limpia sola. */
+function sincronizarConfirmadosConRegistro(){
+  const R=state.confirmados; if(!R) return 0;
+  const B=state.semana; if(!B || !B.alumnos) return 0;
+  let n=0;
+  Object.keys(R).forEach(c=>{
+    const i=c.lastIndexOf('~'); if(i<0){ delete R[c]; return; }
+    const k=c.slice(0,i), nom=c.slice(i+1);
+    const al=B.alumnos[k];
+    if(!al || !al.nombre || normName(al.nombre)!==nom){ delete R[c]; return; }
+    if(!al.confirmado){ al.confirmado=true; n++; }
+  });
+  return n;
+}
+/* Migracion: un dispositivo con la version vieja no manda `confirmados`. Se siembra
+   desde los verdes que ya estan en la grilla para no perder ninguno al pasar. */
+function sembrarConfirmadosDesdeAlumnos(){
+  if(!state.confirmados) state.confirmados={};
+  const B=state.semana; if(!B || !B.alumnos) return;
+  Object.keys(B.alumnos).forEach(k=>{
+    const al=B.alumnos[k];
+    if(al && al.nombre && al.confirmado){ const c=_kConf(k, al.nombre); if(c && !state.confirmados[c]) state.confirmados[c]=_ahora(); }
+  });
+}
+
 /* Siembra la vigilancia a partir de las marcas al.revisar ya existentes. Se usa una
    vez, al migrar (arranque local o publicación de un dispositivo con la versión vieja),
    para que ninguna marca cargada se pierda al pasar al modelo por persona. */
@@ -1693,6 +1741,7 @@ function autoAplicarLibreta(){
       if(a.tipo === 'confirma'){
         if(!al.confirmado){
           al.confirmado = true;
+          recordarConfirmado(hit.k, al);
           hechos.push('🟢 '+a.alumno+' confirmó — '+lugarTxt(hit.k));
           anotarOpAgente('confirmar', a.alumno, lugarTxt(hit.k)+' · confirmó por WhatsApp');
         }
@@ -2061,7 +2110,7 @@ function aplicarReservas(){
     if(tipo==='confirmar' || tipo==='ausente' || tipo==='sinmarca'){
       const o=B.alumnos[r.desde];
       if(o && o.nombre && normName(o.nombre)===normName(r.alumno)){
-        if(tipo==='confirmar'){ o.confirmado=true; delete o.ausente;
+        if(tipo==='confirmar'){ o.confirmado=true; delete o.ausente; recordarConfirmado(r.desde, o);
           hechos.push('✅ '+r.alumno+' vino — '+(r.porNombre||'')); }
         else if(tipo==='ausente'){ o.ausente=true;
           hechos.push('🔴 '+r.alumno+' no vino — '+(r.porNombre||'')); }
@@ -2750,6 +2799,7 @@ function _fotoCalendario(){
     madreSync: copia(state.madreSync || {}),
     revisar: { marks: _derivarMarcas(), upd: _ahora(), enAlumno: true },
     watch: copia(state.watch || {}),   // vigilancia por persona (azul persistente), viaja entera a la nube
+    confirmados: copia(state.confirmados || {}),   // confirmaciones por celda: viajan enteras, igual que watch
     libros: {}, borrados: {}
   };
   LIBROS_SYNC.forEach(L=>{
@@ -2768,7 +2818,7 @@ function _diffCalendario(base, ahora){
   const upd = {};
   let celdas = 0, bajas = 0, altas = 0;
 
-  ['profesores','sedesPorDia','sedesUnif','lunesActual','madreSync','seedVersion','watch'].forEach(campo=>{
+  ['profesores','sedesPorDia','sedesUnif','lunesActual','madreSync','seedVersion','watch','confirmados'].forEach(campo=>{
     if(JSON.stringify(base[campo]) !== JSON.stringify(ahora[campo])) upd[campo] = ahora[campo];
   });
 
@@ -3013,6 +3063,13 @@ function iniciarCalendarioCompartido(){
     ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{ if(state[k]){ if(!state[k].alumnos) state[k].alumnos={}; if(!state[k].libres) state[k].libres={}; } });
     if(r.lunesActual) state.lunesActual = r.lunesActual;
     if(r.watch) state.watch = r.watch;   // vigilancia por persona: manda la nube (igual que profesores/columnas)
+    /* Las confirmaciones se UNEN, no se reemplazan (mismo criterio que madreSync).
+       Si se reemplazaran, la foto de un dispositivo que todavia no vio la confirmacion
+       la borraria - que es justo el bug que esto viene a arreglar. El costo del union:
+       un verde apagado a mano puede volver una vez si otro aparato todavia lo tenia;
+       se apaga de nuevo y queda. Perder una confirmacion mueve plata; que vuelva un
+       verde de mas, no. */
+    state.confirmados = Object.assign({}, r.confirmados || {}, state.confirmados || {});
     if(!state.watch || typeof state.watch!=='object') state.watch = {};
     try{ escucharReservasProfes(); }catch(e){}
     try{ escucharAsistenciaHoy(); }catch(e){}
@@ -3045,6 +3102,11 @@ function iniciarCalendarioCompartido(){
        r.watch) se siembra desde las marcas al.revisar para no perder ninguna; después
        al.revisar se re-deriva de la vigilancia para que todo quede consistente. */
     try{ if(!r.watch) sembrarWatchDesdeAlumnos(); sincronizarRevisarConWatch(); }catch(e){ console.warn('watch:', e.message); }
+    /* El verde tambien se repone. Sin esto, la foto remota que acaba de reemplazar
+       state.semana se lleva puesta cualquier confirmacion que todavia no estuviera
+       en la nube, y como la anotacion del agente ya quedo en 'aplicado', nadie la
+       vuelve a poner nunca. Ver sincronizarConfirmadosConRegistro(). */
+    try{ if(!r.confirmados) sembrarConfirmadosDesdeAlumnos(); sincronizarConfirmadosConRegistro(); }catch(e){ console.warn('confirmados:', e.message); }
     guardarRevisar();
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
     _aplicandoRemoto = false; _calListo = true;
@@ -3635,6 +3697,10 @@ function _renderGridReal(){
       const al=book().alumnos[cellKey(sk,+pi,+hi,+si)];
       if(!al) return;
       al.confirmado = !al.confirmado;
+      /* El registro sigue al boton: confirmar anota, desconfirmar borra. Asi el check
+         apagado a mano no lo revive sincronizarConfirmadosConRegistro(). */
+      if(al.confirmado) recordarConfirmado(cellKey(sk,+pi,+hi,+si), al);
+      else olvidarConfirmado(cellKey(sk,+pi,+hi,+si), al);
       // Al marcar PRESENTE queda resuelto: la persona sale de la vigilancia y el azul
       // desaparece en TODOS sus días (semana + próximas), no solo en esta celda.
       if(al.confirmado && al.nombre) quitarRevisarTodasLasClases(al.nombre);
