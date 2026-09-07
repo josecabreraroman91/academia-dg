@@ -1233,6 +1233,44 @@ function calcularPozo(filas){
    clase (misma fecha y misma hora) no se cuenta dos veces. Dos clases el mismo
    día a distinta hora sí son dos clases y se cobran las dos — Alejandra Garcia
    Petty y Nicole Heyn entrenan 8:00 y 9:00 los lunes. */
+/* ============================================================
+   LA CLAVE DE LOS PAGOS NO CAMBIA NUNCA
+
+   Las marcas de "ya pagó" viven en `pagos_v1/<clave>/<fecha>` y esa clave era la
+   misma del reporte: el ID de la ficha. Al armar la fila por nombre, la clave
+   cambió y las marcas viejas dejaron de encontrarse — TODOS los verdes de Caja
+   desaparecieron de golpe (07/09/2026). Los datos nunca se borraron: estaban
+   guardados con la otra clave.
+
+   Desde acá la clave de pago se calcula aparte y sigue siendo la de siempre —el
+   ID de la ficha— pase lo que pase con el agrupado del reporte. Y al leer se
+   miran TAMBIÉN las claves de las otras fichas del mismo alumno, porque un
+   alumno con ficha duplicada puede tener marcas viejas bajo cualquiera de los
+   dos IDs. */
+function _clavePagoDe(a){
+  var f = a && a.ficha;
+  if(f) return f.id || keyAlumno(f.nombre);
+  return a && a.k ? a.k : '';
+}
+/* Todas las claves donde puede estar una marca de pago de este alumno. */
+function _clavesPagoDe(a){
+  var out = [];
+  if(!a) return out;
+  var fs = (a.fichas && a.fichas.length) ? a.fichas : (a.ficha ? [a.ficha] : []);
+  fs.forEach(function(f){
+    if(!f) return;
+    var k1 = f.id || keyAlumno(f.nombre);
+    if(k1 && out.indexOf(k1)<0) out.push(k1);
+  });
+  if(a.kPago && out.indexOf(a.kPago)<0) out.push(a.kPago);
+  if(a.k && out.indexOf(a.k)<0) out.push(a.k);
+  return out;
+}
+function pagoDeAlumno(a, fecha){
+  var ks = _clavesPagoDe(a);
+  for(var i=0;i<ks.length;i++){ if(estaPagado(ks[i], fecha)) return true; }
+  return false;
+}
 function _puntajeFicha(f){
   if(!f) return -1;
   return (f.precio>0?4:0) + (f.beca?4:0) + (f.tel?2:0) + (f.tipo?1:0) + (f.cat?1:0);
@@ -1253,6 +1291,7 @@ function armarAlumnos(){
       if(a.fichas.indexOf(f)<0) a.fichas.push(f);
       a.ficha = _mejorFicha(a.ficha, f);       // manda la ficha con más datos cargados
     }
+    a.kPago = _clavePagoDe(a);
     var huella = h.fecha+'|'+(h.hora||'');     // la misma clase no se cuenta dos veces
     if(a.vistas[huella]) return;
     a.vistas[huella] = true;
@@ -1353,7 +1392,7 @@ function cobroDe(a, mesesSel){
     var quedaAlgo=false;
     Object.keys(mm.dias).forEach(function(f){
       var n = mm.dias[f]||0;
-      if(estaPagado(a.k, f)){ diasPagos++; clasesPagas += n; return; }
+      if(pagoDeAlumno(a, f)){ diasPagos++; clasesPagas += n; return; }
       quedaAlgo = true;
       clases        += n;
       indivQuedan   += ((mm.planIndivDia && mm.planIndivDia[f]) || 0);
@@ -1368,7 +1407,7 @@ function cobroDe(a, mesesSel){
   mesesSel.forEach(function(m){
     var mm=a.meses[m]; if(!mm || !mm.planClases) return;
     Object.keys(mm.dias).forEach(function(f){
-      if(!estaPagado(a.k, f)) planClases += (mm.dias[f]||0);
+      if(!pagoDeAlumno(a, f)) planClases += (mm.dias[f]||0);
     });
   });
   /* Las clases que salen de la PLANILLA ya vienen con el precio real que
@@ -1722,7 +1761,7 @@ function estadoPagoMes(a, m){
   if(!mm) return { todo:false, algo:false, pagas:0, quedan:0 };
   var pagas=0, quedan=0;
   Object.keys(mm.dias).forEach(function(f){
-    if(estaPagado(a.k, f)) pagas += (mm.dias[f]||0); else quedan += (mm.dias[f]||0);
+    if(pagoDeAlumno(a, f)) pagas += (mm.dias[f]||0); else quedan += (mm.dias[f]||0);
   });
   return { todo: pagas>0 && quedan===0, algo: pagas>0 && quedan>0, pagas:pagas, quedan:quedan };
 }
@@ -1732,7 +1771,7 @@ function mesPagado(a, m){
   if(!mm) return false;
   var ds = Object.keys(mm.dias);
   if(!ds.length) return false;
-  for(var i=0;i<ds.length;i++){ if(!estaPagado(a.k, ds[i])) return false; }
+  for(var i=0;i<ds.length;i++){ if(!pagoDeAlumno(a, ds[i])) return false; }
   return true;
 }
 function mesesPagados(a, sel){
@@ -1974,6 +2013,7 @@ function planSumar(mapa, meses){
       if(a.fichas.indexOf(ficha)<0) a.fichas.push(ficha);
       a.ficha = _mejorFicha(a.ficha, ficha);
     }
+    a.kPago = _clavePagoDe(a);
     meses[mm] = true;
     if(!a.meses[mm]) a.meses[mm] = { clases:0, dias:{} };
     a.meses[mm].clases++;
@@ -2438,7 +2478,7 @@ function pintarFicha(){
       (mm.clases===1?' clase':' clases')+(mPago?' · pagado':'')+'</div>';
     cuerpo+=ds.map(function(f){
       var n=+f.slice(8,10), c=mm.dias[f];
-      var pg=estaPagado(a.k, f);
+      var pg=pagoDeAlumno(a, f);
       /* El punto marca las que fueron INDIVIDUALES. Se ve ANTES de mandar el
          mensaje, que es cuando importa: son las que valen distinto. */
       var ind=(mm.planIndivDia && mm.planIndivDia[f]) || 0;
@@ -2465,7 +2505,7 @@ function pintarFicha(){
   var yaPagas = 0;
   sel.forEach(function(m){
     var mm=a.meses[m]; if(!mm) return;
-    Object.keys(mm.dias).forEach(function(f){ if(estaPagado(a.k,f)) yaPagas += (mm.dias[f]||0); });
+    Object.keys(mm.dias).forEach(function(f){ if(pagoDeAlumno(a,f)) yaPagas += (mm.dias[f]||0); });
   });
   h+='<div class="rotulo'+(todoPago?' pagado':'')+'"><b>'+gs(clases)+(clases===1?' clase':' clases')+'</b> en <b>'+
      gs(dias)+(dias===1?' día':' días')+'</b>'+
@@ -2603,7 +2643,7 @@ function pintarFicha(){
      escribir: el que entra a mirar no puede cambiar la cobranza sin querer. */
   if(puedeEditar){
     $('ficha').querySelectorAll('[data-pago]').forEach(function(el){
-      el.onclick=function(){ togglePago(a.k, el.dataset.pago); };
+      el.onclick=function(){ togglePago(a.kPago || a.k, el.dataset.pago); };
     });
   } else {
     $('ficha').querySelectorAll('[data-pago]').forEach(function(el){
@@ -2667,7 +2707,7 @@ function textoMensaje(a, sel, c){
   function diasDe(m){
     var mm=a.meses[m]; if(!mm) return [];
     return Object.keys(mm.dias).sort().filter(function(f){
-      return !estaPagado(a.k, f);
+      return !pagoDeAlumno(a, f);
     }).map(function(f){
       var d=+f.slice(8,10), n=mm.dias[f];
       return n>1 ? d+' ('+n+' clases)' : ''+d;
@@ -3312,7 +3352,7 @@ function calcularCobrado(){
       var abono = a.ficha && a.ficha.precio > TOPE_ABONO;
       var est = estadoPagoMes(a, m);
       Object.keys(mm.dias).forEach(function(f){
-        if(!estaPagado(a.k, f)) return;
+        if(!pagoDeAlumno(a, f)) return;
         var n = mm.dias[f] || 0;
         var plata = plataDeUnDia(a, m, f);
         if(!plata && !(a.ficha && a.ficha.beca)) sinPrecio.clases += n;
