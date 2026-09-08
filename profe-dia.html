@@ -1338,6 +1338,24 @@ document.getElementById('acGuardar').onclick=()=>{
     toast('🚫 '+profe+' ya tiene '+TOPE_POR_HORA+' alumnos a las '+(HORAS[horaIdx]||'')+'. La cancha está llena.');
     return;
   }
+  /* Y EN UN HORARIO BLOQUEADO NO ENTRA NADIE. El calendario publica en _dispo que
+     horas tiene libre cada profe en cada sede, pero el acople nunca lo miraba: el
+     selector ofrecia las 16 horas fijas y se validaba solo la capacidad. Por eso un
+     profe podia agendar en una hora con candado, el calendario lo rechazaba, y la
+     reserva quedaba dando vueltas mostrando un alumno que la grilla no tenia
+     (caso Maria Ines Torres, miercoles 15:00 Lomas RS, 8/9/2026).
+     Si todavia no llego la disponibilidad del dia (sede sin datos) no se frena
+     nada: vale mas dejar agendar que trabar la cancha por una demora de red. */
+  const _dpSede = cacheDispo[sk];
+  if(_dpSede){
+    const _disp = _dpSede[profe] || [];
+    if(!_disp.includes(horaIdx)){
+      const _libres = _disp.map(i=>HORAS[i]).filter(Boolean).join(', ');
+      toast('🚫 '+profe+' no atiende a las '+(HORAS[horaIdx]||'')+' en '+(SEDE_NOM[sk]||sk)+'.'+
+            (_libres ? ' Sus horas libres: '+_libres : ' No tiene horas libres ahí.'));
+      return;
+    }
+  }
   /* La sede queda como default para el proximo acople. Antes esto lo fijaba una
      pantalla de arranque que en la practica no se mostraba nunca. */
   if(sk){ miSede=sk; try{ localStorage.setItem('profe_sede',sk); }catch(e){} }

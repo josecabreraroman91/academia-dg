@@ -2167,7 +2167,19 @@ function aplicarReservas(){
     const lkDestino = p[0]+'|'+p[1]+'|'+p[2]+'|'+p[3];
     if(B.libres && B.libres[lkDestino]){
       fallaron.push(r.alumno+' — '+lugarTxt(r.k)+' está bloqueada: el profe no está disponible a esa hora');
-      try{ logOp('reserva_a_horario_bloqueado', r.alumno+' — '+lugarTxt(r.k)); }catch(e){}
+      /* SE MARCA UNA SOLA VEZ. Antes esto se reintentaba cada 2 segundos y cada
+         reintento dejaba un renglon en el log: 12 renglones en 5 minutos por UNA
+         reserva (caso Maria Ines Torres, 8/9/2026). Y peor: mientras la reserva
+         seguia "pendiente", publicarFecha respetaba su acople en la tablet, asi
+         que el profe veia un alumno que en el calendario no estaba.
+         Ahora queda marcada como bloqueada: sigue pendiente (para que se aplique
+         sola si alguien desbloquea el horario) y sigue a la vista en "Cambios de
+         profes", pero ya no ensucia el log ni sostiene el acople fantasma. */
+      if(!r.bloqueada){
+        try{ logOp('reserva_a_horario_bloqueado', r.alumno+' — '+lugarTxt(r.k)); }catch(e){}
+        try{ if(_fbdb) _fbdb.ref('reservas_v1/'+_resvSem+'/'+r.k)
+               .update({ bloqueada:true, bloqueadaTs:Date.now() }); }catch(e){}
+      }
       return;
     }
 
@@ -3279,7 +3291,11 @@ function publicarFecha(offset, silencioso){
          Asi la tablet y el calendario muestran siempre lo mismo. */
       const _enGrilla = new Set(Object.keys(porSede[sk]).map(k2=>normName((porSede[sk][k2]||{}).nombre||'')));
       let _pend2=[]; try{ _pend2=resvPendientes(); }catch(e){}
-      const _conReserva = new Set(_pend2.filter(r=>!r.fecha || r.fecha===fecha)
+      /* Una reserva BLOQUEADA no cuenta como "recien agregada": nunca se va a
+         aplicar sola, asi que su acople no se respeta y se limpia como cualquier
+         otro. Sin esto el alumno se quedaba pegado en la tablet para siempre. */
+      const _conReserva = new Set(_pend2.filter(r=>!r.bloqueada)
+                                        .filter(r=>!r.fecha || r.fecha===fecha)
                                         .map(r=>normName(r.alumno||'')));
       Object.keys(prev).forEach(k=>{
         const rec = prev[k];
