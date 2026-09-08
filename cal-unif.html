@@ -1461,10 +1461,13 @@ function enMadre(){ return state.mode==='madre'; }
    Devuelve qué hizo, para poder contarlo en los avisos. */
 function marcarParaMirar(al){
   if(!al || !al.nombre) return null;
-  if(al.confirmado){                      // ya confirmó: el verde manda
+  if(al.confirmado){                      // ya confirmó: el verde manda y NO se le agrega nada
+    /* Regla de José (07/09/2026, segunda vuelta): el que confirmó queda VERDE y no se
+       mueve más, sin importar la conversación. El violeta quedó reservado SOLO para las
+       cancelaciones. Antes acá se le ponía lila a cualquier confirmado que escribiera
+       algo, y la grilla se llenaba de violeta por preguntas sueltas. */
     if(al.revisar) delete al.revisar;     // si venía celeste de antes, se corrige
-    if(al.atencion) return 'ya';
-    al.atencion = true; return 'lila';
+    return 'ya';
   }
   if(al.revisar) return 'ya';
   al.revisar = true; return 'celeste';
@@ -1803,19 +1806,17 @@ function autoAplicarLibreta(){
       }
 
       if(a.tipo === 'cancela'){
-        delete hit.B.alumnos[hit.k];
-        hechos.push('❌ '+a.alumno+' canceló — '+lugarTxt(hit.k)+' (queda libre)');
-        anotarOpAgente('sacar', a.alumno, lugarTxt(hit.k)+' · canceló por WhatsApp, queda libre');
+        /* LA CANCELACION NO BORRA: SE PINTA DE VIOLETA (José, 07/09/2026).
+           Antes acá se hacía `delete hit.B.alumnos[hit.k]` y el alumno desaparecía de la
+           grilla solo, por un mensaje que nadie había leído. Ahora la clase se queda y se
+           marca en violeta para que una persona la mire y decida. El violeta es
+           exactamente para esto: es la única marca que lo usa. */
+        al.atencion = true;
+        if(al.revisar) delete al.revisar;   // el violeta manda sobre el celeste
+        hechos.push('🟣 '+a.alumno+' canceló — '+lugarTxt(hit.k)+' (marcado para revisar, NO se sacó)');
+        anotarOpAgente('atencion', a.alumno, lugarTxt(hit.k)+' · canceló por WhatsApp, quedó en violeta para revisar');
         marcarAnotacion(id, { estado:'aplicado' });
-        try{ logOp('agente_cancela', a.alumno+' — '+lugarTxt(hit.k)); }catch(e){}
-        /* Y en la copia del día: AUSENTE, nunca borrado. Solo si el registro ya
-           existe, para no crear uno a medias. */
-        if(a.diaKey && a.fecha && a.sede){
-          const ref = _fbdb.ref('dia/'+a.fecha+'/'+a.sede+'/'+a.diaKey);
-          ref.once('value').then(s=>{
-            if(s.exists()) return ref.update({ asis:'ausente' });
-          }).catch(e=>console.warn('no pude marcar ausente en el día:', e.message));
-        }
+        try{ logOp('agente_cancela', a.alumno+' — '+lugarTxt(hit.k)+' — violeta, no se sacó'); }catch(e){}
         return;
       }
     });
@@ -3101,12 +3102,14 @@ function iniciarCalendarioCompartido(){
     /* Vigilancia por persona: si llegó de un dispositivo con la versión vieja (sin
        r.watch) se siembra desde las marcas al.revisar para no perder ninguna; después
        al.revisar se re-deriva de la vigilancia para que todo quede consistente. */
-    try{ if(!r.watch) sembrarWatchDesdeAlumnos(); sincronizarRevisarConWatch(); }catch(e){ console.warn('watch:', e.message); }
-    /* El verde tambien se repone. Sin esto, la foto remota que acaba de reemplazar
-       state.semana se lleva puesta cualquier confirmacion que todavia no estuviera
-       en la nube, y como la anotacion del agente ya quedo en 'aplicado', nadie la
-       vuelve a poner nunca. Ver sincronizarConfirmadosConRegistro(). */
+    /* EL VERDE PRIMERO. Sin esto, la foto remota que acaba de reemplazar state.semana
+       se lleva puesta cualquier confirmacion que todavia no estuviera en la nube, y como
+       la anotacion del agente ya quedo en 'aplicado', nadie la vuelve a poner nunca.
+       Y va ANTES de la vigilancia a proposito: si corriera despues, la celda entraria
+       al sincronizado sin el verde puesto, se pintaria de celeste, y despues el verde
+       se le sumaria encima -> quedaba VERDE + CELESTE a la vez (bug del 07/09). */
     try{ if(!r.confirmados) sembrarConfirmadosDesdeAlumnos(); sincronizarConfirmadosConRegistro(); }catch(e){ console.warn('confirmados:', e.message); }
+    try{ if(!r.watch) sembrarWatchDesdeAlumnos(); sincronizarRevisarConWatch(); }catch(e){ console.warn('watch:', e.message); }
     guardarRevisar();
     try{ localStorage.setItem('cal_dg_unif', JSON.stringify(state)); }catch(e){}
     _aplicandoRemoto = false; _calListo = true;
