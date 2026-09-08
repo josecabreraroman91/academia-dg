@@ -1519,6 +1519,12 @@ function sincronizarConfirmadosConRegistro(){
     const al=B.alumnos[k];
     if(!al || !al.nombre || normName(al.nombre)!==nom){ delete R[c]; return; }
     if(!al.confirmado){ al.confirmado=true; n++; }
+    /* Y se le RESUELVE el celeste. Sin esta linea, una celda que venia de la nube
+       marcada como revisar quedaba con el verde encima y el celeste debajo — y si
+       ademas tenia lila, con los tres estados a la vez. Regla de Jose: una clase
+       confirmada no queda celeste. Es el mismo criterio que ya aplica
+       marcarParaMirar() cuando la celda esta confirmada. */
+    if(al.revisar) delete al.revisar;
   });
   return n;
 }
