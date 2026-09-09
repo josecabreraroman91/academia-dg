@@ -1493,18 +1493,51 @@ function sincronizarRevisarConWatch(){
    Medido en produccion el 07/09/2026: 211 'agente_confirma' de solo 49 alumnos,
    el mismo verde puesto hasta 8 veces en 8 segundos.
    Ahora cada confirmacion deja un registro por celda que viaja entero a la nube
-   y se vuelve a aplicar despues de cada foto. Desconfirmar a mano lo borra, asi
-   que el check apagado sigue mandando. */
+   y se vuelve a aplicar despues de cada foto. */
+/* EL APAGADO TAMBIEN SE GUARDA (José, 09/09/2026).
+
+   Antes, desconfirmar a mano BORRABA la entrada del registro. No alcanzaba: las
+   confirmaciones se UNEN entre aparatos (`Object.assign({}, nube, local)`), así que
+   una llave borrada acá volvía desde cualquier aparato que todavía la tuviera, y el
+   verde se reponía solo. Reproducido el 09/09 en el banco con dos calendarios
+   abiertos: se apaga el verde en uno, el otro lo repone y lo publica, y vuelve.
+   Es el mismo problema que ya habíamos tenido con los pagos: borrar la llave no
+   alcanza cuando dos lados fusionan por unión — hay que guardar el apagado.
+
+   Ahora cada entrada lleva si está encendida y CUÁNDO se tocó, y al fusionar gana
+   la más nueva. Un apagado hecho a las 18:05 le gana a un encendido de las 18:00,
+   venga del aparato que venga.
+
+   Formato: {v:true|false, ts:<ms>}. Las entradas viejas son un número o un texto
+   suelto (el ts de cuando se confirmó): se leen como ENCENDIDAS, así nada se pierde
+   al pasar de versión. */
 function _kConf(k, nombre){ const n=normName(nombre||''); return n ? (k+'~'+n) : null; }
+function _confOn(v){ return (v && typeof v==='object') ? !!v.v : (v !== undefined && v !== null); }
+function _confTs(v){
+  if(v && typeof v==='object') return Number(v.ts) || 0;
+  const n = Number(v); if(!isNaN(n) && n > 0) return n;
+  const d = Date.parse(v); return isNaN(d) ? 0 : d;
+}
+/* Fusion de dos registros: para cada celda gana la marca mas nueva. */
+function _fusionarConfirmados(nube, local){
+  const out = Object.assign({}, nube || {});
+  Object.keys(local || {}).forEach(c=>{
+    if(!(c in out) || _confTs(local[c]) >= _confTs(out[c])) out[c] = local[c];
+  });
+  return out;
+}
 function recordarConfirmado(k, al){
   if(!k || !al || !al.nombre) return;
   if(state.mode !== 'semana') return;          // la MADRE no lleva confirmaciones
   if(!state.confirmados) state.confirmados={};
-  const c=_kConf(k, al.nombre); if(c) state.confirmados[c]=_ahora();
+  const c=_kConf(k, al.nombre); if(c) state.confirmados[c]={ v:true, ts:_ahora() };
 }
 function olvidarConfirmado(k, al){
-  if(!k || !al || !al.nombre || !state.confirmados) return;
-  const c=_kConf(k, al.nombre); if(c) delete state.confirmados[c];
+  if(!k || !al || !al.nombre) return;
+  if(!state.confirmados) state.confirmados={};
+  /* NO se borra: se guarda el apagado con su hora, para que le gane al encendido
+     viejo que puedan tener los demas aparatos. */
+  const c=_kConf(k, al.nombre); if(c) state.confirmados[c]={ v:false, ts:_ahora() };
 }
 /* Repone el verde donde el registro dice que hubo confirmacion. Solo la semana
    editable, y solo si el alumno de esa celda sigue siendo el mismo: si lo movieron
@@ -1518,6 +1551,10 @@ function sincronizarConfirmadosConRegistro(){
     const k=c.slice(0,i), nom=c.slice(i+1);
     const al=B.alumnos[k];
     if(!al || !al.nombre || normName(al.nombre)!==nom){ delete R[c]; return; }
+    /* APAGADO: la marca dice que alguien saco el verde a mano. Si la celda viene
+       de la nube todavia en verde (porque otro aparato tenia la marca vieja), se
+       le saca acá. Sin esto el apagado no llegaba nunca a los demas. */
+    if(!_confOn(R[c])){ if(al.confirmado) delete al.confirmado; return; }
     if(!al.confirmado){ al.confirmado=true; n++; }
     /* Y se le RESUELVE el celeste. Sin esta linea, una celda que venia de la nube
        marcada como revisar quedaba con el verde encima y el celeste debajo — y si
@@ -1535,7 +1572,7 @@ function sembrarConfirmadosDesdeAlumnos(){
   const B=state.semana; if(!B || !B.alumnos) return;
   Object.keys(B.alumnos).forEach(k=>{
     const al=B.alumnos[k];
-    if(al && al.nombre && al.confirmado){ const c=_kConf(k, al.nombre); if(c && !state.confirmados[c]) state.confirmados[c]=_ahora(); }
+    if(al && al.nombre && al.confirmado){ const c=_kConf(k, al.nombre); if(c && !(c in state.confirmados)) state.confirmados[c]={ v:true, ts:_ahora() }; }
   });
 }
 
@@ -1689,13 +1726,35 @@ function anotarOpProfe(tipo, alumno, detalle, r){
   }catch(e){ console.warn('no pude anotar el cambio del profe:', e.message); }
 }
 
+/* ANOTACIONES QUE NO SE PUEDEN UBICAR: no se reintentan sin parar.
+
+   Una anotación que no encuentra su clase queda 'pendiente' a propósito, para que
+   la mire una persona. El problema es que autoAplicarLibreta corre en CADA foto de
+   la nube, así que las vuelve a intentar todas, siempre, para siempre.
+
+   Muchas vienen SIN FECHA (el agente no la pudo sacar del mensaje). Esas no se van
+   a poder ubicar nunca. Medido el 09/09/2026 con los datos reales en el banco:
+   **879.785 avisos** de "no encontré la clase" en la consola, del tipo
+   "Jose Mongelos (pedido, )" — la fecha vacía. El calendario se arrastra, el log se
+   llena y cada re-pasada vuelve a repintar estados que una persona ya había sacado.
+
+   Acá se anota cuándo falló cada una y no se reintenta antes de LIBRETA_REINTENTO.
+   Es solo memoria de esta pantalla: no se toca ni un dato, y al recargar se prueban
+   todas de nuevo. Si mientras tanto se publica el día que faltaba, entra en el
+   próximo reintento. */
+const LIBRETA_REINTENTO = 5 * 60 * 1000;   // 5 minutos
+var _libretaNoUbicadas = {};               // id de anotación -> cuándo falló
+
 function autoAplicarLibreta(){
   if(!_fbdb || !_calListo || _aplicandoRemoto || _aplicandoLibreta) return;
 
+  const _ahoraLib = Date.now();
   const pend = Object.keys(anotAgente).filter(id=>{
     const a = anotAgente[id];
-    return a && a.estado === 'pendiente' && a.alumno &&
-           (a.tipo==='confirma' || a.tipo==='cancela' || a.tipo==='pedido' || a.tipo==='ausencia');
+    if(!(a && a.estado === 'pendiente' && a.alumno &&
+         (a.tipo==='confirma' || a.tipo==='cancela' || a.tipo==='pedido' || a.tipo==='ausencia'))) return false;
+    const fallo = _libretaNoUbicadas[id];
+    return !fallo || (_ahoraLib - fallo) >= LIBRETA_REINTENTO;
   });
   if(!pend.length) return;
 
@@ -1741,8 +1800,13 @@ function autoAplicarLibreta(){
       const hit = celdaDeAnotacion(a);
       if(!hit){
         /* No coincide: el alumno se movió, o el día no está en la semana cargada.
-           No se aplica NADA y queda pendiente para que lo vea una persona. */
-        console.warn('Libreta: no encontré la clase de '+a.alumno+' ('+a.tipo+', '+(a.fecha||'')+'). Queda pendiente.');
+           No se aplica NADA y queda pendiente para que lo vea una persona.
+           Se anota el fallo para no volver a intentarla en cada foto de la nube
+           (ver LIBRETA_REINTENTO arriba): se reintenta a los 5 minutos. */
+        if(!_libretaNoUbicadas[id]){
+          console.warn('Libreta: no encontré la clase de '+a.alumno+' ('+a.tipo+', '+(a.fecha||'')+'). Queda pendiente.');
+        }
+        _libretaNoUbicadas[id] = Date.now();
         return;
       }
       const al = hit.B.alumnos[hit.k];
@@ -3015,7 +3079,20 @@ function _aplicarTumbas(r){
   LIBROS_SYNC.forEach(L=>{
     const t = (r.borrados && r.borrados[L]) || {};
     if(!state.borrados) state.borrados = {};
-    state.borrados[L] = Object.assign({}, state.borrados[L]||{}, t);
+    /* MANDA LA NUBE, igual que con la vigilancia (watch). Antes acá se hacía una
+       UNIÓN (`Object.assign({}, local, nube)`), o sea que las lápidas solo se
+       sumaban y NUNCA se sacaban. Cuando alguien vuelve a ocupar una celda, el
+       alta levanta la lápida en la nube... pero este navegador se quedaba con la
+       vieja para siempre.
+       Medido el 09/09/2026 en la máquina de José: 781 lápidas locales contra 738
+       en la nube. Las 43 de más caían justo sobre celdas HOY ocupadas (Lechu
+       González, Violeta Ortega, Loredana Molfesi, Emma Damus, Rodrigo Lee...).
+       Basura que ensucia las cuentas de borrados y hace saltar el freno de bajas
+       masivas cuando se borra una sola celda.
+       Las lápidas locales no se pierden por esto: una lápida nace en el diff al
+       publicar (`upd['borrados/...']`) y vuelve por la nube en la misma foto. Acá
+       adentro lo único que se hace a mano es LEVANTARLAS (línea ~1104). */
+    state.borrados[L] = Object.assign({}, t);
     const B = state[L];
     if(!B || !B.alumnos) return;
     Object.keys(t).forEach(k=>{
@@ -3082,13 +3159,15 @@ function iniciarCalendarioCompartido(){
     ['madre','semana','semanaProxima','semanaAnterior'].forEach(k=>{ if(state[k]){ if(!state[k].alumnos) state[k].alumnos={}; if(!state[k].libres) state[k].libres={}; } });
     if(r.lunesActual) state.lunesActual = r.lunesActual;
     if(r.watch) state.watch = r.watch;   // vigilancia por persona: manda la nube (igual que profesores/columnas)
-    /* Las confirmaciones se UNEN, no se reemplazan (mismo criterio que madreSync).
-       Si se reemplazaran, la foto de un dispositivo que todavia no vio la confirmacion
-       la borraria - que es justo el bug que esto viene a arreglar. El costo del union:
-       un verde apagado a mano puede volver una vez si otro aparato todavia lo tenia;
-       se apaga de nuevo y queda. Perder una confirmacion mueve plata; que vuelva un
-       verde de mas, no. */
-    state.confirmados = Object.assign({}, r.confirmados || {}, state.confirmados || {});
+    /* Las confirmaciones NO se reemplazan: se fusionan, y para cada celda GANA LA
+       MARCA MAS NUEVA (ver _fusionarConfirmados). Antes era una union simple donde
+       lo local siempre ganaba; el costo escrito acá era "un verde apagado a mano
+       puede volver UNA vez". En la práctica volvía siempre: la llave borrada acá
+       reaparecía desde cualquier aparato que la tuviera, en cada foto. Con la hora
+       adentro, el apagado de las 18:05 le gana al encendido de las 18:00 y el verde
+       se queda apagado. Y al revés: una confirmación nueva le gana a un apagado
+       viejo, así que no se pierde ninguna. */
+    state.confirmados = _fusionarConfirmados(r.confirmados, state.confirmados);
     if(!state.watch || typeof state.watch!=='object') state.watch = {};
     try{ escucharReservasProfes(); }catch(e){}
     try{ escucharAsistenciaHoy(); }catch(e){}
