@@ -731,22 +731,157 @@ function alPuente(clave, datos){
   }, datos)).catch(e=>console.warn('puente:', e.message));
 }
 
+/* ============================================================
+   LA TABLET MIRA EL CALENDARIO EN VIVO
+
+   Antes leia SOLO la copia que el calendario publica en dia/<fecha>. Esa copia
+   se refresca unicamente desde el navegador de quien hace el cambio: si el
+   cambio venia de otra pantalla, del agente, o de alguien que cerro la pestaña
+   antes de que corriera el temporizador, la tablet mostraba una cosa y el
+   calendario otra. Pasó el 8/9/2026 con Coral Warkentin (la tablet la tenia
+   15:00 con VA cuando el calendario la tenia 16:00 con TE) y con Maria Ines
+   Torres (aparecia en Lomas RS y en el calendario estaba en Elite ChG).
+
+   Ahora la tablet ESCUCHA calendario_v2 y arma el dia ella misma, con la misma
+   logica y las mismas claves que armarDiaDe() del calendario — por eso fbKey se
+   copia identico: si las claves no coinciden, la asistencia que marca el profe
+   cae en un registro que el calendario no lee.
+
+   De la copia publicada se sigue tomando SOLO lo que vive unicamente ahi:
+     · la asistencia (asis / arAsis), que la escribe el profe desde acá;
+     · los acoples que el profe agrego y el calendario todavia no aplico.
+
+   Si el calendario todavia no llego (arranque, o permiso denegado), se usa la
+   copia publicada tal cual, como siempre. Nunca se queda en blanco.
+   ============================================================ */
+const DIAS_SEM_T = ['LUNES','MARTES','MIERCOLES','JUEVES','VIERNES','SABADO'];
+const SLOTS_T = 4;
+let calSemana=null, calProxima=null, calSedes=null, calLunes='';
+let _diaPublicado={};          // dia/<fecha> tal cual llega
+let _calRefT=null, _calHandlerT=null;
+
+/* MISMA clave que fbKey() del calendario. No tocar sin tocar la otra. */
+function _fbKeyT(hi,d,si,nombre){
+  const n=String(nombre).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+          .replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'');
+  return hi+'_'+d+'_'+si+'_'+n;
+}
+function _diaDeFechaT(f){
+  const d=new Date(f+'T00:00:00'); const wd=d.getDay();
+  return (wd>=1&&wd<=6)?DIAS_SEM_T[wd-1]:null;
+}
+/* Que libro corresponde a esa fecha: la semana en curso o la proxima. */
+function _libroDeFechaT(f){
+  if(!calLunes) return calSemana;
+  try{
+    const dias=Math.round((new Date(f+'T00:00:00')-new Date(calLunes+'T00:00:00'))/86400000);
+    if(dias>=7) return calProxima||calSemana;
+  }catch(e){}
+  return calSemana;
+}
+/* Arma dia + columnas + disponibilidad, igual que armarDiaDe / armarColsDe /
+   armarDispoDe del calendario. */
+function _armarDesdeCalendarioT(f){
+  const dia=_diaDeFechaT(f); if(!dia || !calSedes) return null;
+  const sedesDia=calSedes[dia]; if(!sedesDia || !sedesDia.length) return null;
+  const B=_libroDeFechaT(f)||{}; const AL=B.alumnos||{}; const LIB=B.libres||{};
+  const porSede={}, cols={}, dispo={};
+  sedesDia.forEach(s=>{
+    const recs={}, porProfe={}, dp={};
+    (s.profes||[]).forEach((d,pi)=>{
+      if(!d||d==='—') return;
+      (porProfe[d]=porProfe[d]||[]).push(pi);
+      const horas=[];
+      for(let hi=0;hi<HORAS.length;hi++){
+        if(LIB[dia+'|'+s.key+'|'+pi+'|'+hi]) continue;   // bloqueado: ni alumnos ni disponibilidad
+        horas.push(hi);
+        for(let si=0;si<SLOTS_T;si++){
+          const al=AL[dia+'|'+s.key+'|'+pi+'|'+hi+'|'+si];
+          if(al && al.nombre){
+            const r={ nombre:al.nombre, horaIdx:hi, profe:d, pi:pi, mod:al.mod||'', confirmado:!!al.confirmado };
+            if(al.lista && al.lista.length) r.lista=al.lista.slice();
+            if(al.dur) r.dur=al.dur;
+            recs[_fbKeyT(hi,d,si,al.nombre)]=r;
+          }
+        }
+      }
+      if(horas.length) dp[d]=horas;   // igual que armarDispoDe: si hay dos columnas, manda la ultima
+    });
+    Object.keys(porProfe).forEach(d=>{ cols[s.key+'|'+d]=porProfe[d].join(','); });
+    porSede[s.key]=recs; dispo[s.key]=dp;
+  });
+  return { porSede, cols, dispo, dia };
+}
+/* Junta las dos fuentes y pinta. */
+function _fusionarT(){
+  const arm=_armarDesdeCalendarioT(fecha);
+  if(!arm){
+    /* Sin calendario: la copia publicada, como toda la vida. */
+    cacheDispo=_diaPublicado._dispo||{};
+    cacheCols=_diaPublicado._cols||{};
+    cacheMeta=_diaPublicado._meta||{};
+    cacheDia={};
+    Object.keys(_diaPublicado).forEach(sk=>{
+      if(sk==='_dispo'||sk==='_cols'||sk==='_meta') return;
+      const recs=_diaPublicado[sk]||{};
+      Object.keys(recs).forEach(id=>{ const r=recs[id]; if(!r||typeof r!=='object') return; cacheDia[sk+SEP+id]={...r,_sede:sk,_id:id}; });
+    });
+    render(); return;
+  }
+  const nuevo={};
+  Object.keys(arm.porSede).forEach(sk=>{
+    const pubSede=_diaPublicado[sk]||{};
+    Object.keys(arm.porSede[sk]).forEach(id=>{
+      const rec=arm.porSede[sk][id], pub=pubSede[id]||{};
+      const r={...rec, _sede:sk, _id:id};
+      if(pub.asis!==undefined)   r.asis=pub.asis;      // la asistencia es de la tablet
+      if(pub.arAsis!==undefined) r.arAsis=pub.arAsis;
+      if(pub.borrado)            r.borrado=pub.borrado;
+      nuevo[sk+SEP+id]=r;
+    });
+  });
+  /* Los acoples que el calendario todavia no aplico siguen viniendo de la copia:
+     son alumnos que el profe agrego recien y que la grilla todavia no tiene. */
+  Object.keys(_diaPublicado).forEach(sk=>{
+    if(sk==='_dispo'||sk==='_cols'||sk==='_meta') return;
+    const recs=_diaPublicado[sk]||{};
+    Object.keys(recs).forEach(id=>{
+      const r=recs[id];
+      if(!r || typeof r!=='object' || !r.nombre) return;
+      if(nuevo[sk+SEP+id]) return;
+      if(r.acople) nuevo[sk+SEP+id]={...r,_sede:sk,_id:id};
+    });
+  });
+  cacheDia=nuevo; cacheDispo=arm.dispo; cacheCols=arm.cols;
+  cacheMeta={ dia:arm.dia, lunes:calLunes||((_diaPublicado._meta||{}).lunes||'') };
+  render();
+}
+/* El calendario se escucha UNA sola vez, no por dia. */
+function _escucharCalendarioT(){
+  if(_calRefT) return;
+  _calRefT=db.ref('calendario_v2');
+  _calHandlerT=(snap)=>{
+    const r=snap.val()||{};
+    calSemana  = r.semana || null;
+    calProxima = r.semanaProxima || null;
+    calSedes   = r.sedesPorDia || null;
+    calLunes   = r.lunesActual || '';
+    try{ _fusionarT(); }catch(e){ console.warn('fusionar:', e.message); }
+  };
+  _calRefT.on('value', _calHandlerT, err=>{
+    /* Sin permiso para leer el calendario: se sigue con la copia publicada. */
+    console.warn('calendario en vivo no disponible:', err.message);
+  });
+}
+
 function escucharDia(){
   if(_diaRef && _diaHandler){ _diaRef.off('value',_diaHandler); }
   cacheDia={}; cacheDispo={}; render();            // limpiar mientras carga el nuevo día
+  _escucharCalendarioT();
   _diaRef=db.ref('dia/'+fecha);
   _diaHandler=(snap)=>{
-    const all=snap.val()||{};
-    cacheDispo=all._dispo||{};
-    cacheCols=all._cols||{};      // sede -> {diminutivo: nro de columna}
-    cacheMeta=all._meta||{};      // {dia:'MARTES', lunes:'2026-08-24'}
-    cacheDia={};
-    Object.keys(all).forEach(sk=>{
-      if(sk==='_dispo'||sk==='_cols'||sk==='_meta') return;
-      const recs=all[sk]||{};
-      Object.keys(recs).forEach(id=>{ const r=recs[id]; if(!r||typeof r!=='object') return; cacheDia[sk+SEP+id]={...r,_sede:sk,_id:id}; });
-    });
-    render();
+    _diaPublicado=snap.val()||{};
+    try{ _fusionarT(); }catch(e){ console.warn('fusionar:', e.message); }
   };
   _diaRef.on('value',_diaHandler);
 }
