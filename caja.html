@@ -103,7 +103,19 @@
   .th.nomh{justify-content:flex-start;padding-left:16px}
   .td.nomc{padding-left:16px;font-size:14.5px;font-weight:500;position:sticky;left:0;
     background:var(--tarjeta);z-index:1;gap:7px;flex-wrap:wrap}
-  .td.mesc{justify-content:center;padding:6px 8px}
+  .td.mesc{justify-content:center;padding:6px 8px;flex-direction:column;gap:3px}
+  /* ===== LA MARCA DE RECLAMADO (José, 10/09/2026) =====
+     Una barrita ARRIBA del cuadrado del mes. Se toca y queda reclamado ese mes y
+     todos los anteriores. Va aparte del cuadrado a propósito: ese ya tiene su
+     propio clic (marcar el cobro), y encimarle otro los pisaría — el mismo lío que
+     hubo con el ✕ de sacar días, que marcaba el día como pagado de paso.
+     Naranja, para no confundirla con el verde de "pagado". */
+  .recl{width:100%;height:5px;border:0;border-radius:20px;padding:0;cursor:pointer;
+    background:#e8eef1;transition:background .12s}
+  .recl:hover{background:#cfd9de}
+  .recl.si{background:var(--naranja,#E07A2F)}
+  .recl.si:hover{background:#b85f1c}
+  .recl.no-toca{cursor:default;opacity:.45}
   .tgrid>.fin{border-bottom:0}
   .cnt{min-width:46px;padding:7px 9px;border-radius:9px;border:1px solid transparent;
     background:var(--teal-claro);color:var(--teal-osc);font-family:inherit;font-size:15px;
@@ -1576,6 +1588,31 @@ function datosLlegaron(){
    menos posible (mes pagado con fechas sin pagar).
    ============================================================ */
 var PAGOS = {};          // { alumnoK: { 'YYYY-MM-DD': {v,ts,por} } }
+
+/* ============================================================
+   HASTA QUÉ MES SE LE RECLAMÓ A CADA ALUMNO (José, 10/09/2026)
+
+   El problema: Caja arma el mensaje de cobro y abre WhatsApp, pero no anotaba
+   NADA. Al volver a cobrar no había forma de saber a quién ya se le había
+   reclamado ni de qué meses, y se repetía el reclamo del mismo mes.
+
+   Se guarda UNA marca por alumno: hasta qué mes se le reclamó. Tocar la barrita
+   de agosto quiere decir "a este ya le reclamé agosto y todo lo de antes".
+   Vive en Firebase (`reclamos_v1/<clave>`), así que la ve todo el mundo al
+   instante, igual que las marcas de pago.
+
+   Forma: { hasta:'YYYY-MM', ts:<ms>, por:'correo' }
+   ============================================================ */
+var RECLAMOS = {};       // { alumnoK: {hasta,ts,por} }
+var _reclamoEnVuelo = {};
+
+function reclamoDe(k){ return RECLAMOS[clavePago(k)] || null; }
+/* Un mes está reclamado si es ese o cualquiera anterior al tope guardado.
+   Los meses son 'YYYY-MM', así que comparar como texto alcanza y sobra. */
+function mesReclamado(k, m){
+  var r = reclamoDe(k);
+  return !!(r && r.hasta && String(m) <= String(r.hasta));
+}
 var _pagoEnVuelo = {};   // para no repintar en gris dos veces la misma celda
 
 /* La clave del alumno tal cual va en Firebase. Firebase NO admite . $ # [ ] /
@@ -1775,6 +1812,37 @@ function diaBonito(f){
 
 function clavePago(k){
   return String(k==null?'':k).replace(/[.$#\[\]\/]/g, '_');
+}
+
+/* Toca la barrita: si ese mes ya estaba reclamado, el tope BAJA al mes anterior
+   (y si no hay anterior, la marca se borra). Si no lo estaba, el tope sube a ese
+   mes. Así un solo clic deja al día todo el historial hacia atrás, y otro clic
+   lo deshace sin tener que ir mes por mes. */
+function toggleReclamo(k, m){
+  if(!puedeEditar) return;
+  var kf = clavePago(k);
+  if(_reclamoEnVuelo[kf]) return;
+  var antes = RECLAMOS[kf] || null;
+  var nuevo;
+  if(mesReclamado(k, m)){
+    var previos = MESES_HAY.filter(function(x){ return String(x) < String(m); }).sort();
+    var anterior = previos.length ? previos[previos.length-1] : null;
+    nuevo = anterior ? { hasta:anterior, ts:Date.now(), por:miCorreo } : null;
+  } else {
+    nuevo = { hasta:m, ts:Date.now(), por:miCorreo };
+  }
+  _reclamoEnVuelo[kf] = true;
+  if(nuevo) RECLAMOS[kf] = nuevo; else delete RECLAMOS[kf];
+  try{ pintar(); }catch(e){}
+  firebase.database().ref('reclamos_v1/'+kf).set(nuevo)
+    .then(function(){ delete _reclamoEnVuelo[kf]; })
+    .catch(function(e){
+      delete _reclamoEnVuelo[kf];
+      if(antes) RECLAMOS[kf] = antes; else delete RECLAMOS[kf];
+      try{ pintar(); }catch(e2){}
+      alert('No pude guardar la marca de reclamado.\n\n'+e.message+
+            '\n\nSi dice "permission denied", falta publicar la regla de reclamos_v1.');
+    });
 }
 
 function estaPagado(k, fecha){
@@ -2208,6 +2276,13 @@ function escucharTodo(){
     if(ov && ov.classList.contains('show')) pintarFicha();
   }, function(e){ console.warn('pagos_v1:', e.message); });
 
+  /* Hasta qué mes se le reclamó a cada alumno. Igual que las marcas de pago:
+     llega solo, manda Firebase y no se fusiona nada a mano. */
+  db.ref('reclamos_v1').on('value', function(s){
+    RECLAMOS = s.val() || {};
+    try{ pintar(); }catch(e){}
+  }, function(e){ console.warn('reclamos_v1:', e.message); });
+
   /* Los días agregados o sacados a mano, igual que las marcas de pago: llegan
      solos y no se fusiona nada. */
   escucharAjustes();
@@ -2395,6 +2470,17 @@ function pantallaCobros(){
       var mm=a.meses[m];
       html+='<div class="td mesc'+fin+'">';
       var est = mm ? estadoPagoMes(a, m) : null;
+      /* La barrita de reclamado va ARRIBA del cuadrado y con su propio clic. */
+      if(mm){
+        var rec = mesReclamado(a.k, m);
+        var r = reclamoDe(a.k);
+        var cuando = (rec && r && r.ts) ? new Date(r.ts).toLocaleDateString('es-PY') : '';
+        html += '<button class="recl'+(rec?' si':'')+(puedeEditar?'':' no-toca')+'"'+
+                ' data-reck="'+esc(a.k)+'" data-recm="'+m+'" title="'+
+                (rec ? 'Ya se le reclamó hasta '+esc(mesNombre(r.hasta))+
+                       (cuando?' · marcado el '+cuando:'')+' — tocá para sacar la marca'
+                     : 'Marcar que ya se le reclamó hasta '+esc(mesNombre(m)))+'"></button>';
+      }
       html+= mm
         ? '<button class="cnt'+(est.todo?' pago':(est.algo?' medio':''))+'"'+
           ' data-k="'+esc(a.k)+'" data-m="'+m+'" title="'+
@@ -2411,6 +2497,15 @@ function pantallaCobros(){
   $('pantalla').innerHTML=html;
   engancharBuscador();
   engancharFiltros();
+  /* La barrita de reclamado: su clic NO abre la ficha ni marca cobros.
+     stopPropagation por las dudas, aunque sea un botón aparte. */
+  document.querySelectorAll('button.recl').forEach(function(b){
+    b.onclick=function(ev){
+      ev.stopPropagation();
+      if(!puedeEditar) return;
+      toggleReclamo(b.dataset.reck, b.dataset.recm);
+    };
+  });
   document.querySelectorAll('button.cnt').forEach(function(b){
     b.onclick=function(){ abrirFicha(b.dataset.k, b.dataset.m); };
   });
