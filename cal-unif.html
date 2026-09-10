@@ -2960,6 +2960,34 @@ function _diffCalendario(base, ahora){
    ============================================================ */
 const BAJAS_QUE_ASUSTAN = 5;      // de acá para arriba, se pregunta
 
+/* QUIÉNES se van a borrar, con nombre y lugar (José, 09/09/2026).
+
+   El cartel decía "estás por borrar 12 clases" y el día, nada más. Cuando le
+   apareció borrando UNA sola celda no había forma de saber si esas 12 eran suyas
+   o basura arrastrada, y la única salida era cancelar a ciegas.
+   El nombre sale de la foto de la nube (_baseRemota), que es justo lo que se va a
+   borrar. Si no se puede leer, se muestra la celda pelada: nunca rompe el aviso. */
+function _bajasConNombre(upd, base){
+  const filas = [];
+  Object.keys(upd || {}).forEach(k => {
+    if(k.indexOf('borrados/') !== 0) return;
+    if(upd[k] === null) return;                       // eso es un ALTA (limpia lápida)
+    const partes = String(k).split('/');
+    const libro  = partes[1];
+    const celda  = partes.slice(2).join('/');
+    let nombre = '';
+    try{
+      const al = base && base.libros && base.libros[libro] && base.libros[libro].alumnos
+               ? base.libros[libro].alumnos[celda] : null;
+      if(al && al.nombre) nombre = al.nombre;
+    }catch(e){}
+    const c = String(celda).split('|');
+    const hora = (typeof HORAS!=='undefined' && HORAS[+c[3]]) ? HORAS[+c[3]] : '';
+    const donde = [c[0], hora, (c[1]||'').toUpperCase()].filter(Boolean).join(' ');
+    filas.push({ dia:c[0]||'?', texto: donde + (nombre ? '  ·  ' + nombre : '  ·  (celda vacía)') });
+  });
+  return filas;
+}
 function _bajasPorDia(upd){
   const porDia = {};
   Object.keys(upd || {}).forEach(k => {
@@ -3038,9 +3066,16 @@ function empujarCalendario(){
     if(d.bajas >= BAJAS_QUE_ASUSTAN){
       const porDia = _bajasPorDia(d.upd);
       const NL = String.fromCharCode(10);
-      const detalle = Object.keys(porDia).sort((a,b)=>porDia[b]-porDia[a])
-                        .map(x=>'   ' + x + ': ' + porDia[x]).join(NL);
-      try{ logOp('intento_borrado_masivo', d.bajas+' bajas — '+JSON.stringify(porDia)); }catch(e){}
+      /* Se listan con nombre y lugar, hasta 20; si son más, se resume el resto.
+         Ver _bajasConNombre: sin esto no había forma de saber a quién se borraba. */
+      const conNombre = _bajasConNombre(d.upd, _baseRemota);
+      const TOPE = 20;
+      const detalle = conNombre.length
+        ? conNombre.slice(0, TOPE).map(f=>'   · ' + f.texto).join(NL)
+            + (conNombre.length > TOPE ? NL + '   … y ' + (conNombre.length - TOPE) + ' más' : '')
+        : Object.keys(porDia).sort((a,b)=>porDia[b]-porDia[a])
+            .map(x=>'   ' + x + ': ' + porDia[x]).join(NL);
+      try{ logOp('intento_borrado_masivo', d.bajas+' bajas — '+conNombre.slice(0,TOPE).map(f=>f.texto).join(' / ')); }catch(e){}
       const aviso = '⚠️ ATENCIÓN ⚠️' + NL + NL
                   + 'Estás por BORRAR ' + d.bajas + ' clases de una sola vez:' + NL + NL
                   + detalle + NL + NL
