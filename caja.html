@@ -637,6 +637,21 @@ function normHora(h){
   var m=t.match(/^(\d{1,2})\s*[:.]?\s*(\d{2})?$/);
   return m ? ((+m[1])+':'+(m[2]||'00')) : t;
 }
+/* La MISMA hora, escrita igual, venga de donde venga.
+   El historial la guarda en 24 horas ("14:00") y la planilla del sistema viejo
+   en 12 con AM/PM ("2:00 PM"). Sin esto no coinciden NUNCA, y como la clave
+   anti-doble-cobro lleva la hora, cada clase del periodo solapado se sumaria
+   de nuevo. Ojo que hace falta de verdad: hay 1.878 dias-alumno con dos o mas
+   horas el mismo dia, asi que la fecha sola no alcanza para identificarlas. */
+function horaCmp(h){
+  var t = String(h==null?'':h).trim().toUpperCase();
+  var m = t.match(/^(\d{1,2})[:.]?(\d{2})?\s*(AM|PM)?$/);
+  if(!m) return t;
+  var hh = +m[1], mm = m[2] || '00';
+  if(m[3] === 'PM' && hh < 12) hh += 12;
+  if(m[3] === 'AM' && hh === 12) hh = 0;
+  return hh + ':' + mm;
+}
 function mesNombre(m){ var p=m.split('-'); return MESES[(+p[1])-1]+' '+p[0]; }
 function mesCorto(m){ var p=m.split('-'); return MESES_CORTO[(+p[1])-1]+' '+p[0].slice(2); }
 
@@ -1318,7 +1333,7 @@ function _juntarFichasDelNombre(a){
 }
 
 function armarAlumnos(){
-  var mapa={}, meses={};
+  var mapa={}, meses={}, propias={};
   _idxFichasNombre = null;                   // el padron pudo cambiar desde el ultimo armado
   historial.forEach(function(h){
     if(!h.seCobra) return;
@@ -1342,10 +1357,19 @@ function armarAlumnos(){
     a.meses[m].clases++;
     a.meses[m].dias[h.fecha]=(a.meses[m].dias[h.fecha]||0)+1;
     a.total++;
+    /* Se anota que ESTE alumno ya tiene ESTE dia por el historial propio. Se
+       guardan las tres formas de nombrarlo porque la planilla cruza el padron
+       con otro criterio (planCruzar) y puede resolver distinto: si CUALQUIERA
+       coincide, la planilla no lo vuelve a sumar. Ante la duda no se cuenta:
+       dejar de cobrar una clase se arregla a mano, cobrarla dos veces no. */
+    var hcmp = horaCmp(h.hora);
+    propias[k+'|'+h.fecha+'|'+hcmp] = true;
+    propias[normNom(h.alumno)+'|'+h.fecha+'|'+hcmp] = true;
+    propias[('?'+keyAlumno(h.alumno))+'|'+h.fecha+'|'+hcmp] = true;
   });
   /* La planilla del sistema viejo se suma ACA, despues del historial propio:
      asi se rearma sola cada vez que llegan datos nuevos de Firebase. */
-  try{ planSumar(mapa, meses); }catch(e){ console.warn('planilla:', e.message); }
+  try{ planSumar(mapa, meses, propias); }catch(e){ console.warn('planilla:', e.message); }
   /* Y al final los ajustes a mano: van despues de la planilla para poder
      sacar tambien un dia que vino de ahi. */
   try{ aplicarAjustes(mapa, meses); }catch(e){ console.warn('ajustes:', e.message); }
@@ -2089,16 +2113,33 @@ function planLeer(txt){
    la planilla no la toca. El historial es el que manda para los dias que
    cubre; la planilla solo aporta los dias de antes. Sin esto, los dias en que
    los dos se pisan se cobrarian dos veces. */
-function planSumar(mapa, meses){
+function planSumar(mapa, meses, propias){
   if(!PLANILLA || !PLANILLA.clases.length) return;
-  var fechasPropias = {};
-  historial.forEach(function(h){ if(h.fecha) fechasPropias[h.fecha]=true; });
+  propias = propias || {};
 
   var sinCruzar = {};
   PLANILLA.clases.forEach(function(c){
-    if(fechasPropias[c.fecha]) return;              // ese dia ya lo tiene el historial
     var ficha = planCruzar(c.nombre);
     if(!ficha) sinCruzar[c.nombre] = (sinCruzar[c.nombre]||0)+1;
+    /* ANTES SE DESCARTABA POR FECHA SOLA, y eso tiraba clases de verdad: si
+       CUALQUIER alumno tenia ese dia en el historial, NINGUNA clase de la
+       planilla de ese dia entraba — ni la de alguien que el historial no tiene.
+       Medido el 11/09 sobre 16 dias: 142 clases (Gs 9.272.500) que no se
+       cobraban. Caso testigo: Tomas Ruger, jueves 27/08.
+
+       Ahora se descarta por ALUMNO + FECHA + HORA. La hora es obligatoria
+       porque hay 1.878 dias-alumno con dos o tres clases el mismo dia, y sin
+       ella se perderian todas menos la primera.
+
+       Se prueban las tres formas de nombrarlo, porque el historial resuelve la
+       ficha con fichaDe() y la planilla con planCruzar(), que no siempre dan lo
+       mismo. Si CUALQUIERA coincide, no se suma: ante la duda no se cuenta.
+       Dejar de cobrar una clase se arregla a mano; cobrarla dos veces, no. */
+    var hcmp = horaCmp(c.hora);
+    var kk   = ficha ? normNom(ficha.nombre) : ('?'+keyAlumno(c.nombre));
+    if( propias[kk+'|'+c.fecha+'|'+hcmp] ||
+        propias[normNom(c.nombre)+'|'+c.fecha+'|'+hcmp] ||
+        propias[('?'+keyAlumno(c.nombre))+'|'+c.fecha+'|'+hcmp] ) return;
     /* Misma clave que el historial propio: por NOMBRE, no por ID, así las clases
        de la planilla vieja caen en la misma fila que las nuevas aunque el alumno
        tenga dos fichas. Ver "DOS FICHAS, UN SOLO ALUMNO" en armarAlumnos(). */
