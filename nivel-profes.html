@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nivel de alumnos · Academia DG</title>
+<style>
+:root{
+  --azul:#1080A5; --azul-d:#0C6A8A; --lima:#CFDB3B;
+  --bg:#EEF2F4; --panel:#fff; --panel2:#EFF4F6;
+  --txt:#16262E; --muted:#5A6E7A; --line:#DFE8EC;
+  --verde:#2F9E62; --ambar:#D9982B; --rojo:#E0483D;
+  font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt)}
+header{background:var(--azul-d);color:#fff;padding:.7rem 1rem .6rem}
+header h1{margin:0 0 .1rem;font-size:1.05rem}
+header .sub{font-size:.8rem;opacity:.85}
+.barra{position:sticky;top:0;z-index:9;background:var(--panel);border-bottom:1px solid var(--line);padding:.6rem 1rem;display:flex;gap:.6rem;flex-wrap:wrap;align-items:center}
+.barra input,.barra select{font:inherit;padding:.45rem .6rem;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--txt)}
+.barra input{flex:1;min-width:10rem}
+.cuenta{font-size:.85rem;color:var(--muted);margin-left:auto}
+.cuenta b{color:var(--txt)}
+main{padding:.8rem 1rem 4rem;max-width:56rem;margin:0 auto}
+.fila{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:.7rem .8rem;margin:0 0 .6rem}
+.fila.listo{border-color:var(--verde);background:#F4FBF7}
+.nom{font-weight:650;font-size:.98rem;display:flex;align-items:center;gap:.5rem;margin:0 0 .5rem}
+.niveles{display:grid;grid-template-columns:repeat(8,1fr);gap:.35rem}
+.niveles button{font:inherit;font-weight:650;font-size:.9rem;padding:.42rem .2rem;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--txt);cursor:pointer}
+.niveles button:hover{border-color:var(--azul);color:var(--azul-d)}
+.niveles button.sel{background:var(--azul);border-color:var(--azul);color:#fff}
+@media (max-width:560px){ .niveles{grid-template-columns:repeat(4,1fr)} }
+.vacio{text-align:center;color:var(--muted);padding:2rem 1rem}
+.aviso{border-radius:10px;padding:.6rem .8rem;font-size:.85rem;margin:0 0 .8rem;display:none}
+.aviso.mal{background:#FDECEA;border:1px solid var(--rojo);color:#8a2018;display:block}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Nivel de alumnos</h1>
+  <div class="sub">Marcá el nivel que le ves a cada uno. Se guarda solo y lo ven todos.</div>
+</header>
+<div class="barra">
+  <input id="q" placeholder="Buscar alumno…" autocomplete="off">
+  <select id="filtro">
+    <option value="faltan">Los que faltan</option>
+    <option value="todos">Todos</option>
+    <option value="listos">Ya marcados</option>
+  </select>
+  <span class="cuenta"><b id="hechos">0</b> de <b id="total">0</b> marcados</span>
+</div>
+<main>
+  <div class="aviso" id="aviso"></div>
+  <div id="lista"></div>
+  <div class="vacio" id="vacio" style="display:none">No hay alumnos con ese filtro.</div>
+</main>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<script>
+/* SIN LOGIN, igual que clases-por-alumno.html: el nodo 'niveles_profes' esta abierto
+   en las reglas de Firebase, asi el profe entra por el link y marca. Cada alumno es
+   una clave propia ('niveles_profes/<alumno>'), asi dos profes marcando a la vez no
+   se pisan: cada uno escribe su propia clave. */
+var NODO='niveles_profes', DB=null, marcas={};
+var NIVELES=['P','8','8.5','7','7.5','6','6.5','5','5.5','4','4.5','3','3.5','2','2.5','1'];
+var ALUMNOS=[{"id":"abril-chagra","n":"Abril Chagra"},{"id":"addis-acosta","n":"Addis Acosta"},{"id":"adolfo-aguero","n":"Adolfo Aguero"},{"id":"adrian-cuartas","n":"Adrian Cuartas"},{"id":"alberto-masquieira","n":"Alberto Masquieira"},{"id":"alejandro-lin","n":"Alejandro Lin"},{"id":"alexa-noceda","n":"Alexa Noceda"},{"id":"alexander-alcaraz","n":"Alexander Alcaraz"},{"id":"alicia-escobar","n":"Alicia Escobar"},{"id":"alzira-sanabria","n":"Alzira Sanabria"},{"id":"ana-avila","n":"Ana Avila"},{"id":"ana-gonzalez","n":"Ana Gonzalez"},{"id":"ana-paleari","n":"Ana Paleari"},{"id":"andrea-peralta","n":"Andrea Peralta"},{"id":"andres-barrios","n":"Andres Barrios"},{"id":"andres-marti","n":"Andres Marti"},{"id":"antonella-sandoval","n":"Antonella Sandoval"},{"id":"april-molinas","n":"April Molinas"},{"id":"araceli-aranda","n":"Araceli Aranda"},{"id":"araceli-caballero","n":"Araceli Caballero"},{"id":"areia-benitez","n":"Areia Benitez"},{"id":"bastian-santander","n":"Bastian Santander"},{"id":"belen-fuster","n":"Belen Fuster"},{"id":"beltran-rodriguez","n":"Beltran Rodriguez"},{"id":"benjamin-acuna","n":"Benjamín Acuña"},{"id":"benjamin-santander","n":"Benjamin Santander"},{"id":"bianca-boscarino","n":"Bianca Boscarino"},{"id":"bruno-giagni","n":"Bruno Giagni"},{"id":"carlos-duarte-reguera","n":"Carlos Duarte Reguera"},{"id":"carlos-dure","n":"Carlos Dure"},{"id":"carlos-orihuela","n":"Carlos Orihuela"},{"id":"carol-brizuela","n":"Carol Brizuela"},{"id":"ceci-escobar","n":"Ceci Escobar"},{"id":"celeste-portillo","n":"Celeste Portillo"},{"id":"cesare-orihuela","n":"Cesare Orihuela"},{"id":"clari-silveira","n":"Clari Silveira"},{"id":"cristina-ferrario-de-de-gasperi","n":"Cristina Ferrario de De Gasperi"},{"id":"cristina-zacarias","n":"Cristina Zacarias"},{"id":"daniel-schirmacher","n":"Daniel Schirmacher"},{"id":"daniel-valerio","n":"Daniel Valerio"},{"id":"david-stegens","n":"David Stegens"},{"id":"delfina-urdampilleta","n":"Delfina Urdampilleta"},{"id":"denise-achi","n":"Denise Achi"},{"id":"egidio-machado","n":"Egidio Machado"},{"id":"emanuel-rodriguez","n":"Emanuel Rodriguez"},{"id":"emma-damus","n":"Emma Damus"},{"id":"enzo-wasmosy","n":"Enzo Wasmosy"},{"id":"eugenia-celauro","n":"Eugenia Celauro"},{"id":"ezequiel-quiroga","n":"Ezequiel Quiroga"},{"id":"fabiola-echauri","n":"Fabiola Echauri"},{"id":"fabiola-meza","n":"Fabiola Meza"},{"id":"federico-oviedo","n":"Federico Oviedo"},{"id":"geraldine-eissler","n":"Geraldine Eissler"},{"id":"giovanni-bogado","n":"Giovanni Bogado"},{"id":"gloria-silveira","n":"Gloria Silveira"},{"id":"gregory-segatel","n":"Gregory Segatel"},{"id":"hector-vega","n":"Héctor Vega"},{"id":"iris-alicia-genes-apthorpe","n":"Iris Alicia Genes Apthorpe"},{"id":"javiera-henriquez-carrera","n":"Javiera Henriquez Carrera"},{"id":"jazmin-arnold","n":"Jazmin Arnold"},{"id":"jazmin-larreinegabe","n":"Jazmin Larreinegabe"},{"id":"joaquin-costas","n":"Joaquín Costas"},{"id":"jose-alejandro-morao","n":"José Alejandro Morao"},{"id":"jose-franco","n":"Jose Franco"},{"id":"jose-meza","n":"Jose Meza"},{"id":"jose-santos","n":"Jose Santos"},{"id":"karen-morales","n":"Karen Morales"},{"id":"karen-zapata","n":"Karen Zapata"},{"id":"leticia-martinez","n":"Leticia Martinez"},{"id":"lili-fernanez","n":"Lili Fernanez"},{"id":"lis-vera","n":"Lis Vera"},{"id":"liza-mereles","n":"Liza Mereles"},{"id":"lorena-cho","n":"Lorena Cho"},{"id":"lorena-santin","n":"Lorena Santin"},{"id":"lucia-barrios","n":"Lucia Barrios"},{"id":"luciano-grassi","n":"Luciano Grassi"},{"id":"luciano-zampedri","n":"Luciano Zampedri"},{"id":"magali-caballero","n":"Magali Caballero"},{"id":"marcelito-centurion","n":"Marcelito Centurión"},{"id":"marcelo-frutos","n":"Marcelo Frutos"},{"id":"marcos-martinez","n":"Marcos Martinez"},{"id":"maria-ines-torres","n":"Maria Inés Torres"},{"id":"maria-lucy-medina","n":"María Lucy Medina"},{"id":"marian-ruiz","n":"Marian Ruiz"},{"id":"mariela-ramirez","n":"Mariela Ramirez"},{"id":"marilina-raymondy","n":"Marilina Raymondy"},{"id":"marina-baumann","n":"Marina Baumann"},{"id":"marques-koerich","n":"Marques Koerich"},{"id":"matias-rodriguez","n":"Matias Rodriguez"},{"id":"maximo-faccas","n":"Maximo Faccas"},{"id":"melissa-machado","n":"Melissa Machado"},{"id":"melissa-parodi","n":"Melissa Parodi"},{"id":"micaella-garcia","n":"Micaella Garcia"},{"id":"naoki-sosa","n":"Naoki Sosa"},{"id":"natalia-fretes","n":"Natalia Fretes"},{"id":"natalia-schirmacher","n":"Natalia Schirmacher"},{"id":"nicolas-talavera","n":"Nicolas Talavera"},{"id":"nicole-heyn","n":"Nicole Heyn"},{"id":"nicole-massa","n":"Nicole Massa"},{"id":"pablo-orichio","n":"Pablo Orichio"},{"id":"pablo-salinas","n":"Pablo Salinas"},{"id":"paloma-alonso","n":"Paloma Alonso"},{"id":"paloma-colman","n":"Paloma Colman"},{"id":"paloma-sandoval","n":"Paloma Sandoval"},{"id":"raul-doria","n":"Raul Doria"},{"id":"rebeca-mendoza","n":"Rebeca Mendoza"},{"id":"romina-delgado","n":"Romina Delgado"},{"id":"santi-munoz","n":"Santi Muñoz"},{"id":"silvana-avalos","n":"Silvana Avalos"},{"id":"silvana-scavone","n":"Silvana Scavone"},{"id":"silvio-aguilar","n":"Silvio Aguilar"},{"id":"sofia-benza","n":"Sofia Benza"},{"id":"sofia-gonzalez","n":"Sofia Gonzalez"},{"id":"sol-barrientos","n":"Sol Barrientos"},{"id":"susan-paradeda","n":"Susan Paradeda"},{"id":"tamar-schuartzman","n":"Tamar Schuartzman"},{"id":"tania-morel","n":"Tania Morel"},{"id":"tomas-ruger","n":"Tomás Ruger"},{"id":"valerie-barrail","n":"Valerie Barrail"},{"id":"veronica-valdiglesias","n":"Veronica Valdiglesias"},{"id":"violeta-centurion","n":"Violeta Centurion"},{"id":"violeta-del-puerto","n":"Violeta Del Puerto"},{"id":"yanina-bernardis","n":"Yanina Bernardis"}];
+
+try{
+  firebase.initializeApp({
+    apiKey:"AIzaSyCwHaVLIoFrXb2NFl9Od6j8LuLvklxpzRc",
+    authDomain:"academia-dg.firebaseapp.com",
+    databaseURL:"https://academia-dg-default-rtdb.firebaseio.com",
+    projectId:"academia-dg",
+    storageBucket:"academia-dg.firebasestorage.app",
+    messagingSenderId:"623967243039",
+    appId:"1:623967243039:web:e22397b466b63aefdf3e2a"
+  });
+  DB=firebase.database().ref(NODO);
+}catch(e){ DB=null; }
+
+function aviso(t){ var a=document.getElementById('aviso'); if(!t){a.className='aviso';a.textContent='';return;} a.className='aviso mal'; a.textContent=t; }
+
+
+function marcar(id,nivel){
+  if(!DB){ aviso('No hay conexión con la base.'); return; }
+  var actual=marcas[id];
+  /* Tocar el mismo boton saca la marca: sirve cuando alguien se equivoco de fila. */
+  var val=(actual&&actual.nivel===nivel)?null:{nivel:nivel,ts:Date.now()};
+  DB.child(id).set(val).then(function(){ aviso(''); }).catch(function(e){
+    aviso('No se pudo guardar: '+e.message+'. Avisale a José.');
+  });
+}
+
+function pintar(){
+  var q=(document.getElementById('q').value||'').toLowerCase().trim();
+  var filtro=document.getElementById('filtro').value;
+  var visibles=ALUMNOS.filter(function(a){
+    var m=marcas[a.id];
+    if(filtro==='faltan'&&m) return false;
+    if(filtro==='listos'&&!m) return false;
+    if(q&&a.n.toLowerCase().indexOf(q)<0) return false;
+    return true;
+  });
+  document.getElementById('lista').innerHTML=visibles.map(function(a){
+    var m=marcas[a.id];
+    var bots=NIVELES.map(function(nv){
+      return '<button type="button" data-id="'+a.id+'" data-nv="'+nv+'"'+(m&&m.nivel===nv?' class="sel"':'')+'>'+nv+'</button>';
+    }).join('');
+    return '<div class="fila'+(m?' listo':'')+'"><div class="nom">'+a.n+
+      '</div><div class="niveles">'+bots+'</div></div>';
+  }).join('');
+  document.getElementById('vacio').style.display=visibles.length?'none':'block';
+  document.getElementById('hechos').textContent=ALUMNOS.filter(function(a){return marcas[a.id]}).length;
+  document.getElementById('total').textContent=ALUMNOS.length;
+  document.getElementById('lista').querySelectorAll('button').forEach(function(b){
+    b.onclick=function(){ marcar(b.dataset.id,b.dataset.nv); };
+  });
+}
+
+/* Tiempo real: lo que marca uno aparece en la pantalla de los demas al instante. */
+if(DB) DB.on('value', function(s){ marcas=s.val()||{}; pintar(); }, function(e){
+  aviso('La base no deja leer los niveles: '+e.message+'. Falta habilitar el nodo.');
+});
+document.getElementById('q').oninput=pintar;
+document.getElementById('filtro').onchange=pintar;
+pintar();
+</script>
+</body>
+</html>
